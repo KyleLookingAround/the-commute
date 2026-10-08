@@ -94,3 +94,12 @@ test('save: a save from a newer version is refused and a current one passes thro
   const g = { v: SAVE_VERSION, cash: 1 };
   assert.equal(migrate(g), g);
 });
+
+test('sim: passengers who get off are counted at their destination', () => {
+  const sim = new Sim(net());
+  sim.g.cash = 1e6; sim.buyStation(1);
+  sim.advance(3 * 3600);
+  const off = sim.state(0).alighted + sim.state(1).alighted + sim.state(4).alighted;
+  assert.ok(off > 0, 'someone has arrived somewhere');
+  assert.equal(sim.g.st.reduce((a, s) => a + s.alighted, 0) + sim.g.trains.reduce((a, t) => a + t.onboard, 0), sim.g.stats.boarded, 'everyone who boarded has either arrived or is still on a train');
+});

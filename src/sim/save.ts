@@ -3,7 +3,7 @@
 // From the first release on, every version gets a migration step here, and saved fields are never renamed or removed.
 import type { GameState } from './types.ts';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;   // 2: stations count who alighted
 
 /** A save as parsed from JSON: some version's shape, known only once migrated. */
 type RawSave = Record<string, unknown> & { v?: number };

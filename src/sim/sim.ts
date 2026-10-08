@@ -58,7 +58,7 @@ export class Sim {
       owned: network.stations.map((_, i) => i === 0),
       ups: network.stations.map(() => ({})),
       line: { units: 0, cars: 0, timetable: 0 },
-      st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, revenue: 0, lost: 0 })),
+      st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, revenue: 0, lost: 0 })),
       trains: [],
       stats: { boarded: 0, lost: 0 },
     };
@@ -98,7 +98,7 @@ export class Sim {
   }
   callAt(tr: Train, i: number): void {
     const g = this.g, S = this.state(i), ups = this.ups(i);
-    tr.onboard -= tr.load[i] ?? 0; tr.load[i] = 0;
+    const off = tr.load[i] ?? 0; tr.onboard -= off; tr.load[i] = 0; S.alighted += off;
     const q = S.q[tr.dir > 0 ? 0 : 1];
     let room = tr.cars * TUNING.seatsPerCar - tr.onboard;
     const collect = ups.barriers ? 1 : TUNING.collectNoBarriers;

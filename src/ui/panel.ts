@@ -83,7 +83,7 @@ export class UI {
       return;
     }
     panel.innerHTML = `<h2>${s.name} <small>${s.miles} miles · catchment ${s.catchment.toLocaleString('en-GB')}/h at peak</small></h2>
-      <div class="stats"><div><small>Waiting</small><b id="pWait"></b></div><div><small>Boarded</small><b id="pBoard"></b></div><div><small>Revenue</small><b id="pRev"></b></div><div><small>Gave up</small><b id="pLost"></b></div></div>
+      <div class="stats"><div><small>Waiting</small><b id="pWait"></b></div><div><small>Boarded</small><b id="pBoard"></b></div><div><small>Arrived</small><b id="pOff"></b></div><div><small>Revenue</small><b id="pRev"></b></div><div><small>Gave up</small><b id="pLost"></b></div></div>
       <div class="ups" id="ups"></div>`;
     const ups = panel.querySelector('#ups'), bought = this.sim.ups(i);
     for (const u of UPGRADES) {
@@ -99,7 +99,7 @@ export class UI {
     const i = this.selected, g = this.g, S = this.sim.state(i), panel = this.els.panel;
     if (!g.owned[i]) { const b = panel.querySelector<HTMLButtonElement>('#buyStation'); if (b) b.disabled = !this.sim.canBuyStation(i); return; }
     const set = (id: string, v: string) => { const el = panel.querySelector('#' + id); if (el && el.textContent !== v) el.textContent = v; };
-    set('pWait', String(S.waiting)); set('pBoard', S.boarded.toLocaleString('en-GB')); set('pRev', fmt(S.revenue)); set('pLost', S.lost.toLocaleString('en-GB'));
+    set('pWait', String(S.waiting)); set('pBoard', S.boarded.toLocaleString('en-GB')); set('pOff', S.alighted.toLocaleString('en-GB')); set('pRev', fmt(S.revenue)); set('pLost', S.lost.toLocaleString('en-GB'));
     const bought = this.sim.ups(i);
     panel.querySelectorAll<HTMLButtonElement>('[data-up]').forEach(b => { const u = UPGRADES.find(u => u.id === b.dataset['up']); if (u && !bought[u.id]) b.disabled = g.cash < u.price; });
   }

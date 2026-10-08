@@ -40,7 +40,8 @@ export type UpgradeId = 'kiosk' | 'barriers' | 'canopy' | 'lifts' | 'extend' | '
 export type LineUpgradeId = 'units' | 'cars' | 'timetable';
 /** A group of passengers who joined a platform queue together: when (game seconds), where to, how many. */
 export interface Queued { t: number; dest: number; n: number }
-export interface StationState { acc: number; q: [Queued[], Queued[]]; waiting: number; boarded: number; revenue: number; lost: number }
+/** alighted: passengers who got off here, so the view can show them leaving. */
+export interface StationState { acc: number; q: [Queued[], Queued[]]; waiting: number; boarded: number; alighted: number; revenue: number; lost: number }
 export interface Train {
   id: number; dir: 1 | -1; s: number; v: number; state: 'run' | 'dwell'; dwell: number;
   next: number | null; load: number[]; onboard: number; cars: number;

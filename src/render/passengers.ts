@@ -15,14 +15,14 @@ const CAR_LEN = 23, CAR_GAP = 0.6;
 
 type Mode = 'in' | 'wait' | 'board' | 'leave';
 interface Agent { u: number; v: number; tu: number; tv: number; mode: Mode; spot: number; coat: number }
-interface FaceLayer { face: Face; trackV: number; agents: Agent[]; nextSpot: number }
-interface Layer { im: THREE.InstancedMesh; heads: THREE.InstancedMesh; faces: [FaceLayer, FaceLayer]; entrance: { u: number; v: number }; s: number; nextCoat: number }
+/** entrance: where this face's passengers come and go: the stairs of the subway or footbridge, on the platform itself. */
+interface FaceLayer { face: Face; trackV: number; agents: Agent[]; nextSpot: number; entrance: { u: number; v: number } }
+interface Layer { im: THREE.InstancedMesh; heads: THREE.InstancedMesh; faces: [FaceLayer, FaceLayer]; s: number; nextCoat: number; alighted: number }
 
-/** Where this station's passengers come and go: the subway or footbridge if the kit has one, else the platforms' south end. */
-function entranceOf(parts: Part[], faces: { north: Face; south: Face }): { u: number; v: number } {
+/** Where a face's passengers come and go: the subway or footbridge's stairs if the kit has one, else the platform's south end. */
+function entranceOf(parts: Part[], face: Face): { u: number; v: number } {
   const way = parts.find(p => p.type === 'subway' || p.type === 'footbridge');
-  const u = way && 'u' in way ? way.u : Math.min(faces.north.u0, faces.south.u0) - 8;
-  return { u, v: (faces.north.v + faces.south.v) / 2 };
+  return { u: way && 'u' in way ? way.u : face.u0 - 8, v: face.v };
 }
 
 export class PassengerLayer {
@@ -38,9 +38,9 @@ export class PassengerLayer {
       im.count = heads.count = 0; im.castShadow = true; b.group.add(im); b.group.add(heads);
       const f = b.kit.faces;
       return {
-        im, heads, s: stationS[i] ?? 0, nextCoat: i * 7,
-        faces: [{ face: f.north, trackV: trackV.north, agents: [], nextSpot: 0 }, { face: f.south, trackV: trackV.south, agents: [], nextSpot: 0 }],
-        entrance: entranceOf(b.kit.parts, f),
+        im, heads, s: stationS[i] ?? 0, nextCoat: i * 7, alighted: -1,
+        faces: [{ face: f.north, trackV: trackV.north, agents: [], nextSpot: 0, entrance: entranceOf(b.kit.parts, f.north) },
+          { face: f.south, trackV: trackV.south, agents: [], nextSpot: 0, entrance: entranceOf(b.kit.parts, f.south) }],
       };
     });
   }
@@ -62,8 +62,20 @@ export class PassengerLayer {
     this.layers.forEach((L, i) => {
       const S = g.st[i];
       if (!g.owned[i] || !S) { L.im.count = L.heads.count = 0; L.faces.forEach(F => { F.agents.length = 0; }); return; }
-      // a train standing here, and which way it will leave: its face is the one that boards
+      // a train standing here, and which way it will leave: its face is the one that boards, and the one its arrivals step onto
       const standing = g.trains.find(t => t.state === 'dwell' && Math.abs(t.s - L.s) < 3) ?? null;
+      // arrivals: the sim's count of who got off here rose, so that many step out of the doors and walk to the exit
+      // (when a second service exists, a transfer would instead be sent to the other face's spot)
+      if (L.alighted < 0) L.alighted = S.alighted;
+      else if (S.alighted > L.alighted) {
+        const F = L.faces[standing && standing.dir < 0 ? 1 : 0], n = Math.min(S.alighted - L.alighted, 60);
+        for (let j = 0; j < n && F.agents.length < this.max / 2; j++) {
+          const door = standing ? this.nearestDoor(standing, L.s, F.face.u0 + ((j * 37) % (F.face.u1 - F.face.u0))) : (F.face.u0 + F.face.u1) / 2;
+          const edge = F.face.v + Math.sign(F.trackV - F.face.v) * (Math.abs(F.trackV - F.face.v) - 2.6);
+          F.agents.push({ u: door + (j % 3 - 1) * 0.8, v: edge, tu: F.entrance.u, tv: F.entrance.v, mode: 'leave', spot: -1, coat: L.nextCoat++ % this.coats.length });
+        }
+        L.alighted = S.alighted;
+      }
       let k = 0;
       L.faces.forEach((F, fi) => {
         const want = (S.q[fi] ?? []).reduce((a, c) => a + c.n, 0);
@@ -74,14 +86,14 @@ export class PassengerLayer {
         for (let n = present.length; n < want && F.agents.length < this.max / 2; n++) {
           const sp = F.nextSpot++; const [tu, tv] = this.spot(F, sp);
           F.agents.push(fresh ? { u: tu, v: tv, tu, tv, mode: 'wait', spot: sp, coat: L.nextCoat++ % this.coats.length }
-            : { u: L.entrance.u, v: L.entrance.v, tu, tv, mode: 'in', spot: sp, coat: L.nextCoat++ % this.coats.length });
+            : { u: F.entrance.u, v: F.entrance.v, tu, tv, mode: 'in', spot: sp, coat: L.nextCoat++ % this.coats.length });
         }
         // fewer: the longest-waiting board the standing train if it leaves this way, or give up and walk out
         const boards = standing !== null && (standing.dir > 0 ? 0 : 1) === fi;
         for (let n = present.length; n > want; n--) {
           const leaver = present.find(p => p.mode === 'wait') ?? present[present.length - 1]; if (!leaver) break;
           if (boards && standing) { leaver.mode = 'board'; leaver.tu = this.nearestDoor(standing, L.s, leaver.u); leaver.tv = F.face.v + Math.sign(F.trackV - F.face.v) * (Math.abs(F.trackV - F.face.v) - 2.6); }
-          else { leaver.mode = 'leave'; leaver.tu = L.entrance.u; leaver.tv = L.entrance.v; }
+          else { leaver.mode = 'leave'; leaver.tu = F.entrance.u; leaver.tv = F.entrance.v; }
           present.splice(present.indexOf(leaver), 1);
         }
         // walk everyone towards where they're going

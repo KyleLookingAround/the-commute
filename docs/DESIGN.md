@@ -2,7 +2,7 @@
 
 ## The loop
 
-Passengers are the resource. Each owned station generates them from its catchment by the demand curve (`demandCurve` in `src/sim/sim.ts`: morning peak to Manchester, evening peak home, nothing at night). They join a queue on the platform for their direction with a destination chosen among reachable stations (owned ones, plus Stockport and Piccadilly which always exist as destinations). They leave on the next train with room and pay a distance-based fare when they board. A full platform turns new arrivals away; waiting longer than their patience sends them home. Both count as lost.
+Passengers are the resource. Each owned station generates them from its catchment by the demand curve (`demandCurve` in `src/sim/sim.ts`: morning peak to Manchester, evening peak home, nothing at night). They join a queue on the platform for their direction with a destination chosen among reachable stations (owned ones, plus Stockport and Piccadilly which always exist as destinations). They leave on the next train with room and pay a distance-based fare when they board, and are counted off at their destination (`alighted`, shown as Arrived). A full platform turns new arrivals away; waiting longer than their patience sends them home. Both count as lost.
 
 Money buys station upgrades (per station), line upgrades (more units, longer trains, faster timetable) and the next station up the line. Stations must be bought in order.
 
@@ -28,7 +28,7 @@ The stopping service runs end to end on the slow lines, calling at every reachab
 
 ## Save
 
-`localStorage` key `the-commute-save-v1` (`src/app/storage.ts`): the whole sim state, `SAVE_VERSION`, the seed and the random state, plus a timestamp. On load the sim advances by the time away at 1×, capped at 8 game hours (`src/app/clock.ts`). A save that can't be read is kept under a `-broken` key. Versioning: `docs/decisions/ADR-2026-10-08-no-save-compatibility-before-release.md`.
+`localStorage` key `the-commute-save-v1` (`src/app/storage.ts`): the whole sim state, `SAVE_VERSION` (2: stations count who alighted, so the view can show them leaving), the seed and the random state, plus a timestamp. On load the sim advances by the time away at 1×, capped at 8 game hours (`src/app/clock.ts`). A save that can't be read is kept under a `-broken` key. Versioning: `docs/decisions/ADR-2026-10-08-no-save-compatibility-before-release.md`.
 
 ## Randomness
 

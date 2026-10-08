@@ -1,5 +1,8 @@
-// The Commute: station tycoon simulation. Pure TypeScript, tick-based in game seconds, no rendering here, nothing from the DOM.
+// The Commute: station tycoon simulation. Pure TypeScript, tick-based in sim seconds, no rendering here, nothing from the DOM.
 // Trains move along a corridor by distance s (metres, increasing towards Manchester). Stations are at a known s.
+// A sim second is a real second on the page at 1x, so trains, people and dwells move at real speed. The clock and the
+// demand curve run TUNING.dayRate times faster than that: a game day is 24 / dayRate hours of sim time (four real hours),
+// so the peaks and the night still come round while you watch.
 
 import { rand, freshSeed } from './random.ts';
 import { SAVE_VERSION } from './save.ts';
@@ -24,9 +27,10 @@ export const LINE_UPGRADES: LineUpgrade[] = [
 ];
 
 export const TUNING = {
-  fareBase: 1.5, farePerMile: 0.6, fareMult: 2.0,
+  dayRate: 6,                                  // clock hours per sim hour: a game day is four hours of sim time
+  fareBase: 1.5, farePerMile: 0.6, fareMult: 12.0,   // 6x the fare of the old 6x clock: the same money per real minute from a sixth of the trains
   seatsPerCar: 75, accel: 1.0, brake: 1.1, vmax: 33.5, vmaxFast: 40,
-  dwell: 45, turnaround: 300,
+  dwell: 45, turnaround: 120,
   patience: 25 * 60, patienceCanopy: 45 * 60, platformCap: 150, platformCapExtended: 320,
   collectNoBarriers: 0.82, liftsBonus: 1.25, kioskPerPax: 0.35, retailPerPax: 0.8,
 };
@@ -54,7 +58,7 @@ export class Sim {
   }
   static fresh(network: Network, seed: number = freshSeed()): GameState {
     return {
-      v: SAVE_VERSION, seed, rngState: seed >>> 0, t: 6.5 * 3600, day: 1, cash: 3000, earned: 0,
+      v: SAVE_VERSION, seed, rngState: seed >>> 0, t: 6.5 * 3600 / TUNING.dayRate, day: 1, cash: 3000, earned: 0,
       owned: network.stations.map((_, i) => i === 0),
       ups: network.stations.map(() => ({})),
       line: { units: 0, cars: 0, timetable: 0 },
@@ -76,8 +80,9 @@ export class Sim {
   vmax(): number { return this.g.line.timetable ? TUNING.vmaxFast : TUNING.vmax; }
   patience(i: number): number { return this.ups(i).canopy ? TUNING.patienceCanopy : TUNING.patience; }
   capacity(i: number): number { return this.ups(i).extend ? TUNING.platformCapExtended : TUNING.platformCap; }
-  hour(): number { return (this.g.t / 3600) % 24; }
-  clock(): string { const s = Math.floor(this.g.t % 86400); return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}`; }
+  /** The game clock's hour of the day, which runs dayRate times faster than the sim's seconds. */
+  hour(): number { return (this.g.t * TUNING.dayRate / 3600) % 24; }
+  clock(): string { const s = Math.floor((this.g.t * TUNING.dayRate) % 86400); return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}`; }
   isTerminus(i: number): boolean { return i === this.first || i === this.last; }
   reachable(i: number): boolean { return !!this.g.owned[i] || this.isTerminus(i); }
 
@@ -161,7 +166,7 @@ export class Sim {
   // ---- stepping ----
   step(dt: number): void {
     const g = this.g; this.ensureTrains();
-    const d0 = Math.floor(g.t / 86400); g.t += dt; if (Math.floor(g.t / 86400) > d0) g.day++;
+    const dayLen = 86400 / TUNING.dayRate, d0 = Math.floor(g.t / dayLen); g.t += dt; if (Math.floor(g.t / dayLen) > d0) g.day++;
     for (let i = 0; i < this.S.length; i++) { if (!g.owned[i]) continue; this.generate(i, dt); this.expire(i); }
     for (const tr of g.trains) this.stepTrain(tr, dt);
   }

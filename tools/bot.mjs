@@ -1,7 +1,7 @@
 // A sensible player, headless: plays the sim in Node from a seed, buying what a player would, and reports when each
 // milestone lands against tools/baseline.json. The same seed and code always give the same run, so a change is
 // judged on seeds 1-3 before and after (the `balance` playbook).
-//   node tools/bot.mjs [--hours 48] [--seed 1 --seed 2 --seed 3] [--json build/bot.json]
+//   node tools/bot.mjs [--hours 8] [--seed 1 --seed 2 --seed 3] [--json build/bot.json]   (hours are sim hours: a game day is four)
 // Prints per seed: SEED, REACHED {milestone: game hour}, PLAY (a fingerprint of the saved state that affects play);
 // then a table of every seed and their mean against the baseline. Exit code 1 only on an error.
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -22,7 +22,7 @@ const args = process.argv.slice(2);
 const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
 const seeds = args.flatMap((a, i) => a === '--seed' ? [+args[i + 1]] : []);
 if (!seeds.length) seeds.push(1);
-const hours = +opt('--hours', 48), jsonOut = opt('--json', null);
+const hours = +opt('--hours', 8), jsonOut = opt('--json', null);
 
 /** The sensible player's policy, in priority order: a second unit first, then the next station, then barriers, then cheap wins. */
 function act(sim) {

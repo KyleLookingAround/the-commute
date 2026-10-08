@@ -66,7 +66,7 @@ Every change goes round the same loop, and each round leaves something that make
 - `npm run build` refuses to run on a broken rule (`tools/rules.mjs`), naming the file and line, or on a type error (`tsc`, strict with `noUncheckedIndexedAccess` and `verbatimModuleSyntax` in `tsconfig.json`), then builds the site into `dist/` with Vite. `src/` and `test/` are TypeScript; `tools/` stays plain Node and loads the sim through `tsx`.
 - `npm run check` (after `npm install`; web sessions do it at start-up) runs the rules, the sim tests (`test/`, `node:test` through `tsx`, no browser), the build (which type-checks), then the browser check groups; `node tools/check.mjs <group>` runs one. Each group is a file in `tools/checks/` whose opening comment says what it covers. Every page is seeded through `window.__seed`, so a failure repeats. When you change a rule on purpose, update its check in the same PR; add a check when you add a rule.
 - `npm run dev` for a live page while working. For anything players can see, look at it: `npm run shots` after a build writes phone, landscape, tablet and desktop screenshots to `build/shots/`.
-- `npm run bot -- --hours 48 --seed 1 --seed 2 --seed 3` for pacing or economy changes (the `balance` playbook). A change meant to leave the game as it is must leave `PLAY` identical on seeds 1–3 against a build of `main`.
+- `npm run bot -- --hours 8 --seed 1 --seed 2 --seed 3` for pacing or economy changes (the `balance` playbook). A change meant to leave the game as it is must leave `PLAY` identical on seeds 1–3 against a build of `main`.
 
 ## Rules every change keeps
 
@@ -76,7 +76,7 @@ Every change goes round the same loop, and each round leaves something that make
 - Anything that can change the game draws from `rand(g)` (`src/sim/random.ts`), never `Math.random()` (the `rules` check rejects it on a line that doesn't end with `// cosmetic`). The same seed gives the same game (`test/`).
 - Saved state is versioned JSON (`SAVE_VERSION` in `src/sim/save.ts`). Until the first release it carries no compatibility promise: change its shape freely and raise the version. From the first release on, never rename or remove a saved field, and add a migration step per version (`docs/decisions/ADR-2026-10-08-no-save-compatibility-before-release.md`). Saves stay on the device.
 - Every colour and size lives in `src/ui/styles/tokens.css`; the renderer reads the `--map-*` colours through `src/render/palette.ts`. Nothing drawn changes the game.
-- Time: 1 real second is 6 game seconds at 1× (`src/app/clock.ts`); tuning numbers live in `TUNING` in `src/sim/sim.ts`.
+- Time: 1 real second is 1 sim second at 1× (`src/app/clock.ts`), so trains and people move at real speed; the game's clock and demand curve run 6× faster than that (`TUNING.dayRate`), so a game day is four real hours. Tuning numbers live in `TUNING` in `src/sim/sim.ts`.
 - Keep it playable on a phone: instancing for anything repeated, no per-frame allocations in the loop, UI numbers refreshed on a timer, not every frame.
 - Real place names, real layouts where known, and a `note` in the kit when something is from memory rather than survey.
 

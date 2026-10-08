@@ -12,7 +12,7 @@ npm run dev        # http://localhost:5173
 npm test           # simulation tests (node:test through tsx, no browser)
 npm run types      # the type check on its own (the build runs it too)
 npm run check      # rules, tests, build, then the browser checks (Playwright)
-npm run bot -- --hours 48 --seed 1 --seed 2 --seed 3   # the sensible player, against tools/baseline.json
+npm run bot -- --hours 8 --seed 1 --seed 2 --seed 3   # the sensible player, against tools/baseline.json
 npm run shots      # screenshots at phone, landscape, tablet and desktop (after a build)
 ```
 

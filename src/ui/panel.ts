@@ -14,7 +14,7 @@ const BLURB: Record<string, string | undefined> = {
 
 /** The page's elements the UI writes to, by id. */
 export interface Els {
-  cash: HTMLElement; clock: HTMLElement; sp1: HTMLButtonElement; sp3: HTMLButtonElement; vLine: HTMLButtonElement;
+  cash: HTMLElement; clock: HTMLElement; sp1: HTMLButtonElement; sp3: HTMLButtonElement; sp10: HTMLButtonElement; vLine: HTMLButtonElement;
   toast: HTMLElement; strip: HTMLElement; panel: HTMLElement; linePanel: HTMLElement; reset: HTMLButtonElement;
   hour: HTMLInputElement; hourLbl: HTMLElement; hourLive: HTMLButtonElement;
 }
@@ -33,7 +33,7 @@ export class UI {
   toastTimer: ReturnType<typeof setTimeout> | undefined;
   constructor(sim: Sim, els: Els, on: Handlers) {
     this.sim = sim; this.els = els; this.on = on; this.selected = 0; this.toastTimer = undefined;
-    els.sp1.addEventListener('click', () => on.speed(1)); els.sp3.addEventListener('click', () => on.speed(3));
+    els.sp1.addEventListener('click', () => on.speed(1)); els.sp3.addEventListener('click', () => on.speed(3)); els.sp10.addEventListener('click', () => on.speed(10));
     els.vLine.addEventListener('click', () => on.viewLine());
     els.hour.addEventListener('input', () => on.lockHour(+els.hour.value));
     els.hourLive.addEventListener('click', () => on.lockHour(null));
@@ -52,7 +52,7 @@ export class UI {
     if (this.els.hourLbl.textContent !== txt) this.els.hourLbl.textContent = txt;
     this.els.hourLive.hidden = !locked;
   }
-  setSpeed(s: number): void { this.els.sp1.setAttribute('aria-pressed', String(s === 1)); this.els.sp3.setAttribute('aria-pressed', String(s === 3)); }
+  setSpeed(s: number): void { this.els.sp1.setAttribute('aria-pressed', String(s === 1)); this.els.sp3.setAttribute('aria-pressed', String(s === 3)); this.els.sp10.setAttribute('aria-pressed', String(s === 10)); }
   select(i: number): void { this.selected = i; this.buildStrip(); this.buildPanel(); this.on.focusStation(i); }
 
   buildAll(): void { this.buildStrip(); this.buildPanel(); this.buildLinePanel(); }

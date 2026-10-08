@@ -32,7 +32,7 @@ Work through these steps in order. Small fixes (a label, a nit, an obvious bug) 
 - New saved state: its field with a default in `Sim.fresh`. Until the first release, reshape freely and raise `SAVE_VERSION` (`docs/decisions/ADR-2026-10-08-no-save-compatibility-before-release.md`).
 - Every colour and size is a token in `src/ui/styles/tokens.css`; the renderer reads `--map-*` through `src/render/palette.ts`.
 - `npm run dev` for a live page; `npm test` to run the sim's tests as you go.
-- **Probe before you write.** For an economy change, run the bot (`npm run bot -- --hours 48 --seed 1 --seed 2 --seed 3`) before writing the tests: it sets the numbers from what the sim does.
+- **Probe before you write.** For an economy change, run the bot (`npm run bot -- --hours 8 --seed 1 --seed 2 --seed 3`) before writing the tests: it sets the numbers from what the sim does.
 
 ## 4. Prove it
 

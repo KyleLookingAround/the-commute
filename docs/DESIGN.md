@@ -8,13 +8,14 @@ Money buys station upgrades (per station), line upgrades (more units, longer tra
 
 ## Numbers that matter (`TUNING` in `src/sim/sim.ts`)
 
-- Fare: `(1.5 + 0.6 × miles) × fareMult`. `fareMult` is the single knob for overall pacing.
+- Time: a sim second is a real second at 1×, so motion is real speed; the clock and demand curve run `dayRate` (6) times faster, so a game day is four real hours of sim time. Everything per sim second (speeds, dwells, patience, platform caps) is in real seconds; everything per clock hour (demand) comes round six times as often.
+- Fare: `(1.5 + 0.6 × miles) × fareMult`. `fareMult` (12) is the single knob for overall pacing; it is six times what it was when the clock ran at 6×, so a sixth of the trains earn the same money a real minute.
 - Seats: 75 per car, 2 cars to start.
-- Speeds are real (33.5 m/s = 75 mph) on a true-scale line. Stockport to Piccadilly takes about ten game minutes plus stops.
+- Speeds are real (33.5 m/s = 75 mph) on a true-scale line. Stockport to Piccadilly takes about ten real minutes plus stops; dwell 45 s, turnaround at the termini 120 s.
 - Patience 25 min, 45 with a canopy. Platform cap 150, 320 extended.
 - 82% of fares collected without barriers.
 
-The bot (`tools/bot.mjs`) measures pacing on seeds 1–3 against `tools/baseline.json`; the `balance` playbook has the table. Current pacing at 1×: Heaton Chapel affordable in roughly 15–20 real minutes with no purchases, faster with an extra unit first. Piccadilly is a couple of hours. `test/sim.test.ts` pins the Heaton Chapel pacing so tuning changes are deliberate.
+The bot (`tools/bot.mjs`) measures pacing on seeds 1–3 against `tools/baseline.json`; the `balance` playbook has the table. Current pacing at 1×: an extra unit in about 10 real minutes, Heaton Chapel in about 25 (the bot's run; a player buying nothing first takes longer), Levenshulme at two hours, Ardwick at five; Piccadilly needs a long session or 10×. Peaks lose fewer passengers than they did with the 6× clock, because a peak now lasts a sixth of the sim seconds while patience and platform caps are in sim seconds; the owner tunes that when the pacing is settled. `test/sim.test.ts` pins the Heaton Chapel pacing so tuning changes are deliberate.
 
 ## Station kits
 

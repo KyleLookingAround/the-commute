@@ -82,7 +82,7 @@ function labels(): void {
 
 // ---- ui ----
 const els: Els = {
-  cash: el('cash'), clock: el('clock'), sp1: el('sp1'), sp3: el('sp3'), vLine: el('vLine'),
+  cash: el('cash'), clock: el('clock'), sp1: el('sp1'), sp3: el('sp3'), sp10: el('sp10'), vLine: el('vLine'),
   toast: el('toast'), strip: el('strip'), panel: el('panel'), linePanel: el('linePanel'), reset: el('reset'),
   hour: el('hour'), hourLbl: el('hourLbl'), hourLive: el('hourLive'),
 };

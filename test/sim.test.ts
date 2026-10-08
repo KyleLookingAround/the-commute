@@ -63,8 +63,8 @@ test('sim: stations must be bought in order and cost what they say', () => {
 
 test('sim: one unit cannot cope with Stockport at peak, so passengers are lost', () => {
   const sim = new Sim(net());
-  sim.advance(4 * 3600);     // 06:30 to 10:30, through the morning peak
-  assert.ok(sim.g.stats.lost > 200, `expected lost passengers under pressure, got ${sim.g.stats.lost}`);
+  sim.advance(4 * 3600 / 6);     // 06:30 to 10:30 on the clock, through the morning peak
+  assert.ok(sim.g.stats.lost > 50, `expected lost passengers under pressure, got ${sim.g.stats.lost}`);
 });
 
 test('sim: line upgrades add units and lengthen trains', () => {
@@ -76,11 +76,11 @@ test('sim: line upgrades add units and lengthen trains', () => {
   assert.equal(sim.g.trains[0]!.cars, 4);
 });
 
-test('pacing: Heaton Chapel is affordable within about 20 real minutes at 6x game time', () => {
+test('pacing: Heaton Chapel is affordable within about an hour of real time at 1x', () => {
   const sim = new Sim(net());
   let minutes: number | null = null;
-  for (let m = 1; m <= 60; m++) { sim.advance(60 * 6); if (sim.g.cash >= 9000) { minutes = m; break; } }
-  assert.ok(minutes !== null && minutes <= 35, `took ${minutes} real minutes`);
+  for (let m = 1; m <= 120; m++) { sim.advance(60); if (sim.g.cash >= 9000) { minutes = m; break; } }
+  assert.ok(minutes !== null && minutes <= 75, `took ${minutes} real minutes`);
 });
 
 test('sim: the same seed gives the same game, and a different seed a different one', () => {

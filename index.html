@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Commute</title>
+<meta name="description" content="Station tycoon on a 3D map of the Stockport to Manchester line.">
+<meta name="theme-color" content="#0c1020">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@500;700;800&family=Overpass+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>The <span>Commute</span></h1>
+    <div class="ticker">
+      <div class="tk cash" id="cash">£3,000</div>
+      <div class="tk" id="clock">Day 1 · 06:30</div>
+      <div class="tk"><button id="sp1" aria-pressed="true">1×</button><button id="sp3" aria-pressed="false">3×</button></div>
+    </div>
+  </header>
+
+  <div class="stage">
+    <canvas id="gl" aria-label="3D view of the line from Stockport to Manchester Piccadilly. Drag to orbit, pinch or scroll to zoom."></canvas>
+    <div class="lbls" id="lbls"></div>
+    <div class="views"><button id="vLine">Whole line</button></div>
+    <div class="toast" id="toast" hidden></div>
+  </div>
+
+  <div class="strip" id="strip"></div>
+  <div class="panel" id="panel"></div>
+  <div class="panel" id="linePanel"></div>
+
+  <div class="foot">
+    <p>Passengers arrive by the real demand curve, wait on your platforms and pay a fare when they board. Full platforms and long waits lose them. Buy the next station up the line to lift the fog and start selling tickets there. Progress saves on this device and catches up while you're away.</p>
+    <button id="reset">Start over</button>
+  </div>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

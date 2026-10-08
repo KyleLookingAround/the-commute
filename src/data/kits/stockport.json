@@ -1,0 +1,31 @@
+{
+  "id": "stockport",
+  "note": "Two island platforms (1/2 and 3/4), main building on the Edgeley side (west, negative v), new ticket hall at the north end, east entrance, footbridge, No.1 and No.2 signal boxes. From memory; refine from survey/OSM.",
+  "platformLength": 240,
+  "faces": { "north": { "v": -9.5, "u0": -110, "u1": 115 }, "south": { "v": 15.5, "u0": -110, "u1": 115 } },
+  "parts": [
+    { "type": "platform", "u0": -125, "u1": 120, "v0": -11, "v1": -1 },
+    { "type": "platform", "u0": -125, "u1": 120, "v0": 7, "v1": 17 },
+    { "type": "platform", "u0": 120, "u1": 170, "v0": -11, "v1": -1, "upgrade": "extend" },
+    { "type": "platform", "u0": 120, "u1": 170, "v0": 7, "v1": 17, "upgrade": "extend" },
+    { "type": "canopy", "u0": -120, "u1": 115, "v0": -11, "v1": -1, "upgrade": "canopy" },
+    { "type": "canopy", "u0": -120, "u1": 115, "v0": 7, "v1": 17, "upgrade": "canopy" },
+    { "type": "lamps", "u0": -110, "u1": 115, "v": -6, "every": 30 },
+    { "type": "lamps", "u0": -110, "u1": 115, "v": 12, "every": 30 },
+    { "type": "box", "u0": -60, "u1": 60, "v0": -60, "v1": -22, "y0": 0, "y1": 11, "mat": "brick" },
+    { "type": "box", "u0": -61, "u1": 61, "v0": -61, "v1": -21, "y0": 11, "y1": 12.2, "mat": "roof" },
+    { "type": "windows", "u0": -50, "u1": 50, "v": -21.9, "ys": [3, 7.5], "every": 10 },
+    { "type": "box", "u0": 70, "u1": 126, "v0": -40, "v1": -22, "y0": 0, "y1": 8, "mat": "glass" },
+    { "type": "box", "u0": 69, "u1": 127, "v0": -41, "v1": -21, "y0": 8, "y1": 8.6, "mat": "roof" },
+    { "type": "box", "u0": -40, "u1": 20, "v0": 24, "v1": 40, "y0": 0, "y1": 7, "mat": "brick" },
+    { "type": "box", "u0": -41, "u1": 21, "v0": 23, "v1": 41, "y0": 7, "y1": 7.8, "mat": "roof" },
+    { "type": "windows", "u0": -35, "u1": 15, "v": 23.9, "ys": [3.5], "every": 10 },
+    { "type": "footbridge", "u": -2, "v0": -30, "v1": 36, "towers": [-6, 12] },
+    { "type": "lifts", "u": -2, "towers": [-6, 12], "upgrade": "lifts" },
+    { "type": "retail", "u": 30, "v": -17, "upgrade": "retail", "label": "Greggs" },
+    { "type": "retail", "u": -30, "v": 1, "upgrade": "kiosk", "label": "Kiosk", "small": true },
+    { "type": "barriers", "u0": -20, "u1": 20, "v": -22.5, "upgrade": "barriers" },
+    { "type": "signalbox", "u": 175, "v": 34, "name": "Stockport No.2" },
+    { "type": "signalbox", "u": -230, "v": -30, "name": "Stockport No.1" }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "name": "Stockport to Manchester Piccadilly",
+  "origin": { "lat": 53.4057, "lon": -2.1627 },
+  "note": "Waypoints are approximate, entered by hand. Replace with tools/osm-to-network.mjs output from an OSM export of the corridor.",
+  "corridors": [
+    {
+      "id": "main",
+      "name": "Stockport to Piccadilly (via Heaton Chapel)",
+      "waypoints": [
+        [53.3960, -2.1560],
+        [53.4000, -2.1590],
+        [53.4057, -2.1627],
+        [53.4110, -2.1690],
+        [53.4180, -2.1750],
+        [53.4262, -2.1805],
+        [53.4350, -2.1870],
+        [53.4442, -2.1945],
+        [53.4540, -2.2020],
+        [53.4640, -2.2095],
+        [53.4715, -2.2143],
+        [53.4750, -2.2230],
+        [53.4773, -2.2309],
+        [53.4790, -2.2340]
+      ]
+    }
+  ],
+  "tracks": [
+    { "id": "down-slow", "corridor": "main", "offset": -13, "use": "stopping services towards Manchester" },
+    { "id": "down-fast", "corridor": "main", "offset": 1, "use": "expresses towards Manchester" },
+    { "id": "up-fast", "corridor": "main", "offset": 5, "use": "expresses towards Stockport and London" },
+    { "id": "up-slow", "corridor": "main", "offset": 19, "use": "stopping services towards Stockport" }
+  ],
+  "stations": [
+    { "id": "stockport", "name": "Stockport", "corridor": "main", "lat": 53.4057, "lon": -2.1627, "miles": 0, "catchment": 900, "price": 0, "kit": "stockport", "retail": "Greggs" },
+    { "id": "heaton-chapel", "name": "Heaton Chapel", "corridor": "main", "lat": 53.4262, "lon": -2.1805, "miles": 1.75, "catchment": 260, "price": 9000, "kit": "heaton-chapel", "retail": "Coffee cart" },
+    { "id": "levenshulme", "name": "Levenshulme", "corridor": "main", "lat": 53.4442, "lon": -2.1945, "miles": 3, "catchment": 320, "price": 30000, "kit": "levenshulme", "retail": "Bakery" },
+    { "id": "ardwick", "name": "Ardwick", "corridor": "main", "lat": 53.4715, "lon": -2.2143, "miles": 5, "catchment": 12, "price": 45000, "kit": "ardwick", "retail": "Vending machine" },
+    { "id": "piccadilly", "name": "Manchester Piccadilly", "corridor": "main", "lat": 53.4773, "lon": -2.2309, "miles": 6, "catchment": 2200, "price": 150000, "kit": "piccadilly", "retail": "Food hall" }
+  ],
+  "landmarks": [
+    { "id": "viaduct", "name": "Stockport Viaduct", "corridor": "main", "from": { "lat": 53.4085, "lon": -2.1655 }, "to": { "lat": 53.4130, "lon": -2.1705 }, "kind": "viaduct", "arches": 27, "height": 34 },
+    { "id": "mersey", "name": "River Mersey", "corridor": "main", "at": { "lat": 53.4105, "lon": -2.1680 }, "kind": "river" },
+    { "id": "m60", "name": "M60", "corridor": "main", "at": { "lat": 53.4118, "lon": -2.1692 }, "kind": "motorway" },
+    { "id": "pyramid", "name": "Stockport Pyramid", "lat": 53.4140, "lon": -2.1760, "kind": "building", "todo": "hand-modelled landmark, phase 2" }
+  ],
+  "services": [
+    { "id": "stopper", "name": "Northern stopping service", "operator": "northern", "tracks": { "north": "down-slow", "south": "up-slow" }, "calls": "all", "cars": 2 },
+    { "id": "avanti", "name": "Avanti West Coast", "operator": "avanti", "tracks": { "north": "down-fast", "south": "up-fast" }, "calls": ["stockport", "piccadilly"], "cars": 9, "scenery": true }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "ardwick",
+  "note": "Two bare platforms, a staircase down to the road, and the depot sheds alongside. From memory.",
+  "platformLength": 120,
+  "faces": { "north": { "v": -17, "u0": -55, "u1": 55 }, "south": { "v": 23, "u0": -55, "u1": 55 } },
+  "parts": [
+    { "type": "platform", "u0": -60, "u1": 60, "v0": -23.5, "v1": -15.5, "mat": "concrete" },
+    { "type": "platform", "u0": -60, "u1": 60, "v0": 21.5, "v1": 29.5, "mat": "concrete" },
+    { "type": "platform", "u0": 60, "u1": 110, "v0": -23.5, "v1": -15.5, "upgrade": "extend", "mat": "concrete" },
+    { "type": "platform", "u0": 60, "u1": 110, "v0": 21.5, "v1": 29.5, "upgrade": "extend", "mat": "concrete" },
+    { "type": "box", "u0": -44, "u1": -36, "v0": -28, "v1": -24, "y0": 0, "y1": 6, "mat": "steel" },
+    { "type": "box", "u0": -44, "u1": -36, "v0": 30, "v1": 34, "y0": 0, "y1": 6, "mat": "steel" },
+    { "type": "canopy", "u0": -40, "u1": 40, "v0": -23.5, "v1": -15.5, "upgrade": "canopy" },
+    { "type": "canopy", "u0": -40, "u1": 40, "v0": 21.5, "v1": 29.5, "upgrade": "canopy" },
+    { "type": "lamps", "u0": -45, "u1": 50, "v": -19.5, "every": 30 }, { "type": "lamps", "u0": -45, "u1": 50, "v": 25.5, "every": 30 },
+    { "type": "box", "u0": -115, "u1": -45, "v0": 60, "v1": 90, "y0": 0, "y1": 12, "mat": "steel" },
+    { "type": "box", "u0": -35, "u1": 35, "v0": 60, "v1": 90, "y0": 0, "y1": 12, "mat": "steel" },
+    { "type": "box", "u0": 45, "u1": 115, "v0": 60, "v1": 90, "y0": 0, "y1": 12, "mat": "steel" },
+    { "type": "box", "u0": -116, "u1": 116, "v0": 59, "v1": 91, "y0": 12, "y1": 12.6, "mat": "roof" },
+    { "type": "footbridge", "u": -40, "v0": -26, "v1": 32, "towers": [-19.5, 25.5], "upgrade": "lifts" },
+    { "type": "lifts", "u": -40, "towers": [-19.5, 25.5], "upgrade": "lifts" },
+    { "type": "retail", "u": 10, "v": -26, "upgrade": "retail", "label": "Vending machine", "small": true },
+    { "type": "retail", "u": 20, "v": 32, "upgrade": "kiosk", "label": "Kiosk", "small": true }
+  ]
+}

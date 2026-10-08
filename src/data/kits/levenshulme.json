@@ -1,0 +1,25 @@
+{
+  "id": "levenshulme",
+  "note": "On an embankment over the A6, platforms on the outer lines, ticket office at street level. From memory.",
+  "platformLength": 180,
+  "faces": { "north": { "v": -17, "u0": -85, "u1": 85 }, "south": { "v": 23, "u0": -85, "u1": 85 } },
+  "parts": [
+    { "type": "box", "u0": -130, "u1": 130, "v0": -27, "v1": 33, "y0": -9, "y1": 0, "mat": "brickDark" },
+    { "type": "platform", "u0": -90, "u1": 90, "v0": -24.5, "v1": -15.5 },
+    { "type": "platform", "u0": -90, "u1": 90, "v0": 21.5, "v1": 30.5 },
+    { "type": "platform", "u0": 90, "u1": 130, "v0": -24.5, "v1": -15.5, "upgrade": "extend" },
+    { "type": "platform", "u0": 90, "u1": 130, "v0": 21.5, "v1": 30.5, "upgrade": "extend" },
+    { "type": "shelter", "u": -15, "v": -20 }, { "type": "shelter", "u": 10, "v": 26 },
+    { "type": "canopy", "u0": -60, "u1": 60, "v0": -24.5, "v1": -15.5, "upgrade": "canopy" },
+    { "type": "canopy", "u0": -60, "u1": 60, "v0": 21.5, "v1": 30.5, "upgrade": "canopy" },
+    { "type": "lamps", "u0": -75, "u1": 80, "v": -20, "every": 30 }, { "type": "lamps", "u0": -75, "u1": 80, "v": 26, "every": 30 },
+    { "type": "box", "u0": -6, "u1": 6, "v0": -39, "v1": -25, "y0": -9, "y1": -3, "mat": "brick" },
+    { "type": "box", "u0": -7, "u1": 7, "v0": -40, "v1": -24, "y0": -3, "y1": -2.6, "mat": "roof" },
+    { "type": "box", "u0": -3, "u1": 3, "v0": -25, "v1": -19, "y0": -9, "y1": 1, "mat": "concrete" },
+    { "type": "footbridge", "u": 40, "v0": -26, "v1": 32, "towers": [-20, 26] },
+    { "type": "lifts", "u": 40, "towers": [-20, 26], "upgrade": "lifts" },
+    { "type": "retail", "u": -40, "v": -27, "upgrade": "retail", "label": "Bakery", "small": true },
+    { "type": "retail", "u": 60, "v": 33, "upgrade": "kiosk", "label": "Kiosk", "small": true },
+    { "type": "barriers", "u0": -5, "u1": 5, "v": -24.5, "upgrade": "barriers", "y": -8 }
+  ]
+}

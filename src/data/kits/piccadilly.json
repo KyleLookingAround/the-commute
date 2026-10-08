@@ -1,0 +1,27 @@
+{
+  "id": "piccadilly",
+  "note": "Train shed over the terminating platforms, through platforms 13/14 on the east, concourse at the north end. Rough massing; the real shed and the Gateway deserve a proper model.",
+  "platformLength": 300,
+  "faces": { "north": { "v": -17.5, "u0": -120, "u1": 100 }, "south": { "v": 15.5, "u0": -120, "u1": 100 } },
+  "parts": [
+    { "type": "shed", "u0": -150, "u1": 120, "v": -50, "radius": 30 },
+    { "type": "shed", "u0": -150, "u1": 120, "v": -2, "radius": 30 },
+    { "type": "box", "u0": -150, "u1": 120, "v0": -81, "v1": -79, "y0": 0, "y1": 18, "mat": "brick" },
+    { "type": "box", "u0": -150, "u1": 120, "v0": -27, "v1": -25, "y0": 0, "y1": 18, "mat": "brick" },
+    { "type": "box", "u0": -150, "u1": 120, "v0": 27, "v1": 29, "y0": 0, "y1": 18, "mat": "brick" },
+    { "type": "platform", "u0": -120, "u1": 100, "v0": -74, "v1": -66 }, { "type": "box", "u0": -124, "u1": -122, "v0": -63, "v1": -61, "y0": 0, "y1": 1.3, "mat": "steel" },
+    { "type": "platform", "u0": -120, "u1": 100, "v0": -58, "v1": -50 }, { "type": "box", "u0": -124, "u1": -122, "v0": -47, "v1": -45, "y0": 0, "y1": 1.3, "mat": "steel" },
+    { "type": "platform", "u0": -120, "u1": 100, "v0": -42, "v1": -34 }, { "type": "box", "u0": -124, "u1": -122, "v0": -31, "v1": -29, "y0": 0, "y1": 1.3, "mat": "steel" },
+    { "type": "platform", "u0": -120, "u1": 100, "v0": -26, "v1": -18 },
+    { "type": "platform", "u0": -120, "u1": 100, "v0": 7, "v1": 17 },
+    { "type": "canopy", "u0": -110, "u1": 90, "v0": 7, "v1": 17, "upgrade": "canopy" },
+    { "type": "lamps", "u0": -110, "u1": 90, "v": -22, "every": 30 }, { "type": "lamps", "u0": -110, "u1": 90, "v": 12, "every": 30 },
+    { "type": "box", "u0": 120, "u1": 160, "v0": -80, "v1": 10, "y0": 0, "y1": 14, "mat": "glass" },
+    { "type": "box", "u0": 119, "u1": 161, "v0": -81, "v1": 11, "y0": 14, "y1": 15, "mat": "roof" },
+    { "type": "footbridge", "u": 60, "v0": -26, "v1": 20, "towers": [-22, 12] },
+    { "type": "lifts", "u": 60, "towers": [-22, 12], "upgrade": "lifts" },
+    { "type": "retail", "u": 130, "v": -40, "upgrade": "retail", "label": "Food hall" },
+    { "type": "retail", "u": 0, "v": -22, "upgrade": "kiosk", "label": "Kiosk", "small": true },
+    { "type": "barriers", "u0": 100, "u1": 118, "v": -30, "upgrade": "barriers" }
+  ]
+}

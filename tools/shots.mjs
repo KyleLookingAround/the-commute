@@ -13,9 +13,11 @@ mkdirSync(out, { recursive: true });
 const hours = process.argv.slice(2).map(Number).filter(n => !Number.isNaN(n));
 if (!hours.length) hours.push(8, 13, 18.5, 23);
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
-const server = createServer((req, res) => { try { let p = join(dist, normalize(decodeURIComponent(req.url.split('?')[0])).replace(/^\/+/, '') || 'index.html'); if (!existsSync(p) || !statSync(p).isFile()) { res.writeHead(404); res.end(); return; } res.writeHead(200, { 'content-type': TYPES[extname(p)] || 'application/octet-stream' }); res.end(readFileSync(p)); } catch (e) { res.writeHead(404); res.end(); } });
+// dist/ is served under the base path it was built for (/ locally, /the-commute/ in CI), as tools/check.mjs does
+const base = (readFileSync(join(dist, 'index.html'), 'utf8').match(/src="(\/[^"]*?\/)assets\//) || [, '/'])[1];
+const server = createServer((req, res) => { try { const path = decodeURIComponent(req.url.split('?')[0]); if (!path.startsWith(base)) { res.writeHead(404); res.end(); return; } let p = join(dist, normalize(path.slice(base.length).replace(/^\/+/, '') || 'index.html')); if (!existsSync(p) || !statSync(p).isFile()) { res.writeHead(404); res.end(); return; } res.writeHead(200, { 'content-type': TYPES[extname(p)] || 'application/octet-stream' }); res.end(readFileSync(p)); } catch (e) { res.writeHead(404); res.end(); } });
 await new Promise(r => server.listen(0, '127.0.0.1', r));
-const url = `http://127.0.0.1:${server.address().port}/`;
+const url = `http://127.0.0.1:${server.address().port}${base}`;
 const exe = process.env.CHROMIUM_PATH;
 const browser = await chromium.launch({ ...(exe ? { executablePath: exe } : {}), args: ['--use-gl=swiftshader', '--ignore-gpu-blocklist'] });
 const SIZES = [['phone', 390, 844, true], ['phone-landscape', 844, 390, true], ['tablet', 768, 1024, true], ['desktop', 1440, 900, false]];

@@ -50,7 +50,7 @@ const partBuilders: Builders = {
     box(gp, L - 4, 0.5, 0.5, MAT.steel, cu, 7.3, cv);
   },
   lamps(gp, p) {
-    for (let u = p.u0; u <= p.u1; u += p.every || 30) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.7, 8, 8), MAT.glow); l.position.set(u, 6.2, p.v); gp.add(l); const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 6, 6), MAT.steel); pole.position.set(u, 3, p.v); gp.add(pole); }
+    for (let u = p.u0; u <= p.u1; u += p.every || 30) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 8), MAT.glow); l.position.set(u, 5.4, p.v); gp.add(l); const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 5.2, 6), MAT.steel); pole.position.set(u, 2.6, p.v); gp.add(pole); }
   },
   box(gp, p) { boxUV(gp, p, matFor(p.mat, MAT.concrete)); },
   windows(gp, p) {

@@ -56,7 +56,9 @@ const built = buildStations(scene, net, kits);
 // everything on the ground so far throws and takes shadows; the sky, added after, does neither
 scene.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = true; o.receiveShadow = true; } });
 const trains = new TrainLayer(scene, net, networkDef.services ?? []);
-const pax = new PassengerLayer(built);
+const stopper = (networkDef.services ?? []).find(s => s.id === 'stopper');
+const trackV = { north: stopper ? net.track(stopper.tracks.north).offset : -13, south: stopper ? net.track(stopper.tracks.south).offset : 19 };
+const pax = new PassengerLayer(built, net.stations.map(s => s.s), trackV);
 const rig = new OrbitRig(camera, canvas, scene);
 const sky = new Sky(scene, sun, lineMiddle());
 
@@ -116,7 +118,7 @@ function frame(now: number): void {
   resize(); rig.update(dt);
   const light = lighting(lockHour ?? sim.hour(), rig.o);
   sky.update(light.horizon, light.daylight, camera, dt);
-  syncStations(built, sim.g); trains.sync(sim.g, dtGame); pax.sync(sim.g); labels();
+  syncStations(built, sim.g); trains.sync(sim.g, dtGame); pax.sync(sim.g, dtGame); labels();
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
   renderer.render(scene, camera);

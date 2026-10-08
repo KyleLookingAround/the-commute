@@ -31,7 +31,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund   # switch to npm ci once package-lock.json is committed (START-HERE.md)
+          cache: npm
+      - run: npm ci --no-audit --no-fund
       - id: pw-version
         if: matrix.browser
         run: echo "version=$(node -p "require('./package.json').devDependencies.playwright")" >> "$GITHUB_OUTPUT"

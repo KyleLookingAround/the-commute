@@ -42,7 +42,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund   # switch to npm ci once package-lock.json is committed (START-HERE.md)
+          cache: npm
+      - run: npm ci --no-audit --no-fund
       - run: node tools/rules.mjs && node --test test/*.test.mjs && node tools/build.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -68,7 +69,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund   # switch to npm ci once package-lock.json is committed (START-HERE.md)
+          cache: npm
+      - run: npm ci --no-audit --no-fund
       - id: pw-version
         run: echo "version=$(node -p "require('./package.json').devDependencies.playwright")" >> "$GITHUB_OUTPUT"
       - id: pw-cache

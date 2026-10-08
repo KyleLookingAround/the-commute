@@ -77,3 +77,16 @@ test('pacing: Heaton Chapel is affordable within about 20 real minutes at 6x gam
   for (let m = 1; m <= 60; m++) { sim.advance(60 * 6); if (sim.g.cash >= 9000) { minutes = m; break; } }
   assert.ok(minutes !== null && minutes <= 35, `took ${minutes} real minutes`);
 });
+
+test('sim: the same seed gives the same game, and a different seed a different one', () => {
+  const run = seed => { const n = net(); const sim = new Sim(n, Sim.fresh(n, seed)); sim.advance(6 * 3600); return `${sim.g.cash.toFixed(2)}|${sim.g.stats.boarded}|${sim.g.stats.lost}|${sim.g.rngState}`; };
+  assert.equal(run(7), run(7));
+  assert.notEqual(run(7), run(8));
+});
+
+test('save: a save from a newer version is refused and a current one passes through', async () => {
+  const { migrate, SAVE_VERSION, SaveError } = await import('../src/sim/save.js');
+  assert.throws(() => migrate({ v: SAVE_VERSION + 1 }), SaveError);
+  const g = { v: SAVE_VERSION, cash: 1 };
+  assert.equal(migrate(g), g);
+});

@@ -1,5 +1,8 @@
-// The Commute: station tycoon simulation. Pure JS, tick-based in game seconds, no rendering here.
+// The Commute: station tycoon simulation. Pure JS, tick-based in game seconds, no rendering here, nothing from the DOM.
 // Trains move along a corridor by distance s (metres, increasing towards Manchester). Stations are at a known s.
+
+import { rand, freshSeed } from './random.js';
+import { SAVE_VERSION } from './save.js';
 
 export const UPGRADES = [
   { id: 'kiosk', name: 'Kiosk', price: 1500, desc: '+£0.35 per boarding passenger' },
@@ -39,9 +42,9 @@ export class Sim {
     this.g = state || Sim.fresh(network);
     this.first = 0; this.last = this.S.length - 1;
   }
-  static fresh(network) {
+  static fresh(network, seed = freshSeed()) {
     return {
-      v: 1, t: 6.5 * 3600, day: 1, cash: 3000, earned: 0,
+      v: SAVE_VERSION, seed, rngState: seed >>> 0, t: 6.5 * 3600, day: 1, cash: 3000, earned: 0,
       owned: network.stations.map((_, i) => i === 0),
       ups: network.stations.map(() => ({})),
       line: { units: 0, cars: 0, timetable: 0 },
@@ -137,7 +140,7 @@ export class Sim {
     const g = this.g, S = g.st[i], p = this.patience(i);
     for (const q of S.q) while (q.length && g.t - q[0].t > p) { const c = q.shift(); S.waiting -= c.n; S.lost += c.n; g.stats.lost += c.n; }
   }
-  rand() { return Math.random(); }
+  rand() { return rand(this.g); }
 
   // ---- stepping ----
   step(dt) {

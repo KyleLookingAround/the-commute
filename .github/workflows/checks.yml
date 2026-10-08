@@ -1,0 +1,65 @@
+name: Checks
+
+# Runs npm run check (the rules, the sim tests, the build, then the browser groups) on each PR that isn't a draft, and on
+# demand. `check` below is the one required status. Marking a draft ready runs it too, so a draft is never merged on an
+# older result. One job for now: the groups take under two minutes. Split them across a matrix when they don't.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parts:
+    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: rules tests and bot, groups: rules bot, browser: false}
+          - {name: layout, groups: layout, browser: true}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund   # switch to npm ci once package-lock.json is committed (START-HERE.md)
+      - id: pw-version
+        if: matrix.browser
+        run: echo "version=$(node -p "require('./package.json').devDependencies.playwright")" >> "$GITHUB_OUTPUT"
+      - id: pw-cache
+        if: matrix.browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
+      - run: npx playwright install --with-deps chromium
+        if: matrix.browser && steps.pw-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 5
+      - run: npx playwright install-deps chromium
+        if: matrix.browser && steps.pw-cache.outputs.cache-hit == 'true'
+        timeout-minutes: 5
+      - name: ${{ matrix.name }}
+        run: node tools/rules.mjs && node --test test/*.test.mjs && node tools/build.mjs && node tools/check.mjs ${{ matrix.groups }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: check-${{ matrix.name }}
+          path: build/check
+          if-no-files-found: ignore
+
+  # the one required status: fails if any part failed or was cancelled
+  check:
+    if: always() && (github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft)
+    needs: parts
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.parts.result }}" = "success"

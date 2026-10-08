@@ -1,3 +1,4 @@
+// Wires it together: the sim, the scene, the UI, saving and the frame loop. The only file that knows about all of them.
 import * as THREE from 'three';
 import networkDef from './data/network.json';
 import kitStockport from './data/kits/stockport.json';
@@ -14,17 +15,17 @@ import { TrainLayer } from './render/trains.js';
 import { PassengerLayer } from './render/passengers.js';
 import { OrbitRig } from './render/camera.js';
 import { UI, fmt } from './ui/panel.js';
-import * as store from './save.js';
-
-const GAME_PER_REAL = 6;          // 1 real second = 6 game seconds at 1x
-const MAX_AWAY = 8 * 3600;        // catch up at most 8 game hours when you come back
+import * as store from './app/storage.js';
+import { GAME_PER_REAL, awaySeconds } from './app/clock.js';
 
 const kits = { stockport: kitStockport, 'heaton-chapel': kitHeaton, levenshulme: kitLevenshulme, ardwick: kitArdwick, piccadilly: kitPiccadilly };
 const net = fromGeo(networkDef);
 
 // ---- state ----
 const saved = store.load();
-let sim = new Sim(net, saved && saved.g);
+// a page opened by a check sets window.__seed so a new game repeats; players get a fresh seed
+const seed = typeof window.__seed === 'number' ? window.__seed : undefined;
+let sim = new Sim(net, saved ? saved.g : Sim.fresh(net, seed));
 let speed = 1;
 
 // ---- scene ----
@@ -60,17 +61,18 @@ const ui = new UI(sim, els, {
   viewLine: lineView,
   focusStation: i => { const [x, z] = stationXZ(i); rig.focus(x, z, i === 4 ? 360 : 230); },
   changed: () => persist(),
-  reset: () => { store.wipe(); sim = new Sim(net); ui.sim = sim; ui.selected = 0; ui.buildAll(); const [x, z] = stationXZ(0); rig.focus(x, z); },
+  reset: () => { store.wipe(); sim = new Sim(net, Sim.fresh(net, seed)); ui.sim = sim; ui.selected = 0; ui.buildAll(); const [x, z] = stationXZ(0); rig.focus(x, z); },
 });
 function persist() { store.save({ g: sim.g, selected: ui.selected }); }
 
 // ---- welcome back ----
 if (saved && saved.at) {
-  const away = Math.min(MAX_AWAY, Math.max(0, (Date.now() - saved.at) / 1000) * GAME_PER_REAL);
-  if (away > 120) { const c0 = sim.g.cash, b0 = sim.g.stats.boarded; sim.advance(away); ui.toast(`While you were away: ${fmt(sim.g.cash - c0)} from ${(sim.g.stats.boarded - b0).toLocaleString('en-GB')} passengers`); }
+  const away = awaySeconds(saved.at);
+  if (away) { const c0 = sim.g.cash, b0 = sim.g.stats.boarded; sim.advance(away); ui.toast(`While you were away: ${fmt(sim.g.cash - c0)} from ${(sim.g.stats.boarded - b0).toLocaleString('en-GB')} passengers`); }
   if (saved.selected) ui.selected = saved.selected;
 }
 ui.setSpeed(1); ui.buildAll();
+document.documentElement.dataset.sim = 'ready';   // the checks wait for this
 { const [x, z] = stationXZ(ui.selected); Object.assign(rig.o, { tx: x, ty: 2, tz: z, r: 230, th: 0.7, ph: 1.0 }); }
 
 // ---- loop ----

@@ -1,6 +1,6 @@
 // Ground, towns, roads, permanent way and landmarks, all laid out along the network's corridors.
 import * as THREE from 'three';
-import { MAT, box } from './scene.js';
+import { MAT, PAL, box } from './scene.js';
 import { projectLatLon } from '../sim/network.js';
 
 const seed = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
@@ -34,13 +34,13 @@ export function buildWorld(scene, net, def) {
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i) + cx, z = p.getZ(i) + cz; p.setX(i, x); p.setZ(i, z);
       const s = c.nearest(x, z), y = groundY(x, z); p.setY(i, y);
-      let k = [0.2, 0.28, 0.18];
+      let k = PAL.grass;
       const a = c.at(s), d = Math.hypot(x - a.x, z - a.z);
-      if (d < 46) k = [0.3, 0.29, 0.27];
-      if (s > c.length - 2200) k = [0.24, 0.24, 0.27];
-      if (river !== null && Math.abs(s - river) < 14) k = [0.1, 0.2, 0.33];
-      if (m60 !== null && Math.abs(s - m60) < 18) k = [0.22, 0.23, 0.26];
-      col.set(k, i * 3);
+      if (d < 46) k = PAL.yard;
+      if (s > c.length - 2200) k = PAL.city;
+      if (river !== null && Math.abs(s - river) < 14) k = PAL.river;
+      if (m60 !== null && Math.abs(s - m60) < 18) k = PAL.motorway;
+      col[i * 3] = k.r; col[i * 3 + 1] = k.g; col[i * 3 + 2] = k.b;
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.computeVertexNormals();
     scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })));
@@ -80,7 +80,7 @@ export function buildWorld(scene, net, def) {
 
   // ---- houses: terraces through the suburbs, towers at the city end ----
   (function towns() {
-    const inst = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial({ color: 0x5a4642 }), 5000);
+    const inst = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial({ color: PAL.house }), 5000);
     const col = new THREE.Color(); let n = 0;
     const stationS = net.stations.map(s => s.s);
     for (let k = 0; k < 14000 && n < 5000; k++) {
@@ -94,7 +94,7 @@ export function buildWorld(scene, net, def) {
       const w = terrace ? 12 + seed(k, 6) * 26 : 8 + seed(k, 6) * 10, d = 9 + seed(k, 7) * 6, h = city ? 14 + seed(k, 8) * 60 : 6 + seed(k, 8) * 5;
       const p = c.at(s, off); e.set(0, yawFor(p) + (seed(k, 11) - 0.5) * 0.3, 0); q.setFromEuler(e);
       v3.set(p.x, h / 2 + groundY(p.x, p.z), p.z); sc.set(w, h, d); m4.compose(v3, q, sc); inst.setMatrixAt(n, m4);
-      col.setHSL(0.04 + seed(k, 9) * 0.06, city ? 0.08 : 0.3, city ? 0.35 + seed(k, 10) * 0.2 : 0.24 + seed(k, 10) * 0.12); inst.setColorAt(n, col);
+      col.setHSL(0.04 + seed(k, 9) * 0.06, city ? PAL['tower-sat'] : PAL['house-sat'], city ? 0.35 + seed(k, 10) * 0.2 : 0.24 + seed(k, 10) * 0.12); inst.setColorAt(n, col);
       n++;
     }
     inst.count = n; scene.add(inst);

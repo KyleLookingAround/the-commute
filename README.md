@@ -9,26 +9,32 @@ Built with Vite and Three.js. The simulation is plain JavaScript with no renderi
 ```
 npm install
 npm run dev        # http://localhost:5173
-npm test           # simulation tests (node:test, no extra deps)
-npm run build      # static site in dist/
+npm test           # simulation tests (node:test, no browser)
+npm run check      # rules, tests, build, then the browser checks (Playwright)
+npm run bot -- --hours 48 --seed 1 --seed 2 --seed 3   # the sensible player, against tools/baseline.json
+npm run shots      # screenshots at phone, landscape, tablet and desktop (after a build)
 ```
 
-Pushing to `main` builds and deploys to GitHub Pages (`.github/workflows/deploy.yml`). Turn on Pages in the repo settings with "GitHub Actions" as the source the first time.
+Play it at https://kylelookingaround.github.io/the-commute/. Pushing to `main` checks `main` and deploys to GitHub Pages (`.github/workflows/deploy.yml`). How changes are made is in `CLAUDE.md` (the project notes) and the playbooks under `.claude/skills/`; why the repo is shaped this way is in `docs/decisions/`.
 
 ## Layout
 
 ```
 src/
-  sim/network.js      corridors, tracks, stations: lat/lon in, metres along a corridor out
-  sim/sim.js          passengers, trains, money, upgrades. Game seconds in, state out
-  data/network.json   the line: corridor waypoints, tracks, stations, landmarks, services
-  data/kits/*.json    one station each: platforms, buildings, and parts gated behind upgrades
-  render/             scene, world (ground, towns, track, viaduct, pyramid), stations, trains, passengers, camera
-  ui/panel.js         station strip, panels, ticker
-  main.js             wires it together, saves to localStorage, catches up time away
-tools/osm-to-network.mjs   turn an OSM export into corridor waypoints
-test/                 sim and network tests
-docs/                 DESIGN.md (economy and kit format), ROADMAP.md (where this is going)
+  sim/                the simulation, pure: network, economy and trains, seeded random, versioned saves
+  data/               the line (network.json) and one kit per station, plain JSON
+  app/                the clock (real time to game time, catching up) and storage (the only localStorage)
+  render/             the Three.js view: scene, palette from the tokens, world, stations from kits, trains, passengers, camera
+  ui/                 the panels (panel.js) and the styles (tokens.css, page.css)
+  main.js             wires it together
+tools/
+  rules.mjs           the source rules the build enforces; build.mjs runs them then Vite
+  check.mjs           the browser check runner; checks/ holds one group per file
+  bot.mjs             the sensible player; baseline.json its ranges
+  shots.mjs           screenshots for a human to look at
+  osm-to-network.mjs  turn an OSM export into corridor waypoints
+test/                 sim and network tests (node:test)
+docs/                 DESIGN.md, ROADMAP.md, decisions/, specs/, briefs/, lessons/, ux/, UX-REVIEW.md
 ```
 
 ## Where the geography comes from

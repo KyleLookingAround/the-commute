@@ -1,0 +1,20 @@
+#!/bin/sh
+# Keeps commit messages free of tool attribution.
+# Removes Co-authored-by / session / "generated with" lines that name Claude or Anthropic,
+# then refuses the commit if the message still mentions either.
+# Enabled per clone with: git config core.hooksPath .githooks
+# The same patterns, for a PR's title and description: .github/workflows/description.yml
+msg="$1"
+tmp="$msg.clean"
+grep -viE '^[[:space:]]*(co-authored-by:.*(claude|anthropic)|claude-session:|.*generated (with|by) .*claude|.*claude\.(ai|com)/)' "$msg" > "$tmp" || true
+# drop trailing blank lines left behind
+awk 'NF{last=NR} {line[NR]=$0} END{for(i=1;i<=last;i++)print line[i]}' "$tmp" > "$msg"
+rm -f "$tmp"
+if grep -v '^#' "$msg" | grep -qiE 'claude|anthropic'; then
+  echo "commit-msg: this message mentions Claude or Anthropic. Reword it without that." >&2
+  exit 1
+fi
+if ! grep -v '^#' "$msg" | grep -q '[^[:space:]]'; then
+  echo "commit-msg: empty message after removing attribution lines." >&2
+  exit 1
+fi

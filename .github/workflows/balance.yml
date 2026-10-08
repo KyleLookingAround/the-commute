@@ -1,0 +1,24 @@
+name: Balance
+
+# Runs the bot on seeds 1-3 when a PR opens or leaves draft, or when the `balance` label is added, and puts its table in
+# the run's summary. It fails only on an error; a measure off the baseline is for the PR to explain (the `balance` playbook).
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  bot:
+    if: github.event.action != 'labeled' || github.event.label.name == 'balance'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tools/bot.mjs --hours 48 --seed 1 --seed 2 --seed 3 | tee build-bot.md
+      - run: |
+          { echo '## Bot, seeds 1–3, 48 game hours'; echo; sed -n '/^| Milestone/,$p' build-bot.md; } >> "$GITHUB_STEP_SUMMARY"

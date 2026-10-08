@@ -12,6 +12,7 @@ Where this is going, in the order it makes sense to build it. Each step should l
 - **Stations closer to reality.** Use the OSM export (platform polygons, building footprints, footbridge/subway ways) plus photos to rebuild each kit. Stockport first: the subway under the platforms with stairs up to each island, the Edgeley-side building and entrance, the canopy style, the No.1 and No.2 boxes in the right places. Add a `subway` kit part type.
 
 ## 1. Repo and real geography (done)
+- The runbook from the owner's other games: playbooks, source rules, a seeded sim and a bot, versioned saves, checks and workflows, decision records (`docs/decisions/ADR-2026-10-08-runbook-from-overgrow.md`). TypeScript strict is the first Claude Code task (`START-HERE.md`).
 - Vite + Three.js, sim as a tested module, GitHub Pages deploy.
 - Track network as corridors + offset tracks + stations at a distance along a corridor, from lat/lon. Branches later become more corridors joined at junctions.
 - `tools/osm-to-network.mjs` to get the real corridor shape from an OSM export.

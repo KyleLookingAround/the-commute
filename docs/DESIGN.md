@@ -14,7 +14,7 @@ Money buys station upgrades (per station), line upgrades (more units, longer tra
 - Patience 25 min, 45 with a canopy. Platform cap 150, 320 extended.
 - 82% of fares collected without barriers.
 
-Current pacing at 1x: Heaton Chapel affordable in roughly 15–20 real minutes with no purchases, faster with an extra unit first. Piccadilly is a couple of hours. `test/sim.test.mjs` pins the Heaton Chapel pacing so tuning changes are deliberate.
+The bot (`tools/bot.mjs`) measures pacing on seeds 1–3 against `tools/baseline.json`; the `balance` playbook has the table. Current pacing at 1×: Heaton Chapel affordable in roughly 15–20 real minutes with no purchases, faster with an extra unit first. Piccadilly is a couple of hours. `test/sim.test.mjs` pins the Heaton Chapel pacing so tuning changes are deliberate.
 
 ## Station kits
 
@@ -28,4 +28,8 @@ The stopping service runs end to end on the slow lines, calling at every reachab
 
 ## Save
 
-`localStorage` key `the-commute-v1`: the whole sim state plus a timestamp. On load the sim advances by the time away at 1x, capped at 8 game hours.
+`localStorage` key `the-commute-save-v1` (`src/app/storage.js`): the whole sim state, `SAVE_VERSION`, the seed and the random state, plus a timestamp. On load the sim advances by the time away at 1×, capped at 8 game hours (`src/app/clock.js`). A save that can't be read is kept under a `-broken` key. Versioning: `docs/decisions/ADR-2026-10-08-no-save-compatibility-before-release.md`.
+
+## Randomness
+
+`src/sim/random.js`: a mulberry32 whose state is saved, so the same seed and the same purchases give the same game. The bot and the checks rely on it; `tools/rules.mjs` keeps `Math.random()` out of the sim.

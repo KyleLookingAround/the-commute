@@ -6,15 +6,23 @@
   "description": "Station tycoon on a 3D map of the Stockport to Manchester line",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node tools/build.mjs",
     "preview": "vite preview",
     "test": "node --test test/*.test.mjs",
+    "rules": "node tools/rules.mjs",
+    "check": "node tools/rules.mjs && node --test test/*.test.mjs && node tools/build.mjs && node tools/check.mjs",
+    "bot": "node tools/bot.mjs",
+    "shots": "node tools/shots.mjs",
     "data": "node tools/osm-to-network.mjs"
   },
   "dependencies": {
     "three": "^0.169.0"
   },
   "devDependencies": {
+    "playwright": "1.56.1",
     "vite": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

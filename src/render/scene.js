@@ -1,16 +1,20 @@
+// The renderer, scene, camera, lights and materials, and the lighting that follows the game clock.
 import * as THREE from 'three';
 
-export const SKY = { night: new THREE.Color(0x0a0f24), dawn: new THREE.Color(0x5a3f5e), day: new THREE.Color(0x8fb4d8), dusk: new THREE.Color(0xd08a5a) };
+import { readPalette } from './palette.js';
+
+export const PAL = readPalette();
+export const SKY = { night: PAL['sky-night'], dawn: PAL['sky-dawn'], day: PAL['sky-day'], dusk: PAL['sky-dusk'] };
 
 const lam = (c, o = {}) => new THREE.MeshLambertMaterial({ color: c, ...o });
 export const MAT = {
-  brick: lam(0x6b3f33), brickDark: lam(0x4e2e26), concrete: lam(0x8d8a80), platform: lam(0x9a968a), tactile: lam(0xd9c36a),
-  ballast: lam(0x2d2a2a), rail: lam(0xb9bcc4), canopy: lam(0x3b4660, { transparent: true, opacity: 0.86 }), steel: lam(0x5d6572),
-  glass: lam(0x9fc0d6, { transparent: true, opacity: 0.75, emissive: 0x27405a }), roof: lam(0x2f2a2e), timber: lam(0xcfc3a8),
-  road: lam(0x3a3d44), shed: lam(0x7f8a99, { transparent: true, opacity: 0.55, side: THREE.DoubleSide }),
-  glow: new THREE.MeshBasicMaterial({ color: 0xfff1c9 }), warm: new THREE.MeshBasicMaterial({ color: 0xffd88a }),
-  locked: lam(0x3a4158, { transparent: true, opacity: 0.55 }), pax: lam(0xf2b63a, { emissive: 0x6a4a10 }),
-  pyramid: lam(0x2f6fb0, { transparent: true, opacity: 0.8, emissive: 0x0d2a4a }), river: lam(0x1d3a5e, { emissive: 0x0b1a2e }),
+  brick: lam(PAL.brick), brickDark: lam(PAL['brick-dark']), concrete: lam(PAL.concrete), platform: lam(PAL.platform), tactile: lam(PAL.tactile),
+  ballast: lam(PAL.ballast), rail: lam(PAL.rail), canopy: lam(PAL.canopy, { transparent: true, opacity: 0.86 }), steel: lam(PAL.steel),
+  glass: lam(PAL.glass, { transparent: true, opacity: 0.75, emissive: PAL['glass-glow'] }), roof: lam(PAL.roof), timber: lam(PAL.timber),
+  road: lam(PAL.road), shed: lam(PAL.shed, { transparent: true, opacity: 0.55, side: THREE.DoubleSide }),
+  glow: new THREE.MeshBasicMaterial({ color: PAL.lamp }), warm: new THREE.MeshBasicMaterial({ color: PAL.warm }),
+  locked: lam(PAL.locked, { transparent: true, opacity: 0.55 }), pax: lam(PAL.pax, { emissive: PAL['pax-glow'] }),
+  pyramid: lam(PAL.pyramid, { transparent: true, opacity: 0.8, emissive: PAL['pyramid-glow'] }), river: lam(PAL.river, { emissive: 0x0b1a2e }),
 };
 
 export function createScene(canvas) {

@@ -1,35 +1,106 @@
-name: Deploy to GitHub Pages
+name: Publish to GitHub Pages
 
+# Runs the same checks a PR does on main itself before anything deploys (two PRs green on their own heads can still
+# combine into a broken game), opens or updates a "main is red" issue if they fail, then builds and deploys.
 on:
   push:
     branches: [main]
+    # only what goes into the page: a docs-only merge publishes nothing new
+    paths:
+      - 'src/**'
+      - 'index.html'
+      - 'vite.config.js'
+      - 'tools/build.mjs'
+      - 'tools/rules.mjs'
+      - 'tools/check.mjs'
+      - 'tools/checks/**'
+      - 'tools/bot.mjs'
+      - 'tools/baseline.json'
+      - 'test/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
   pages: write
   id-token: write
+  issues: write
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - run: npm install
-      - run: npm test
-      - run: npm run build
+          node-version: 22
+      - run: npm install --no-audit --no-fund   # switch to npm ci once package-lock.json is committed (START-HERE.md)
+      - id: pw-version
+        run: echo "version=$(node -p "require('./package.json').devDependencies.playwright")" >> "$GITHUB_OUTPUT"
+      - id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
+      - run: npx playwright install --with-deps chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 5
+      - run: npx playwright install-deps chromium
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        timeout-minutes: 5
+      - name: Check main
+        run: |
+          mkdir -p build
+          set -o pipefail
+          (node tools/rules.mjs && node --test test/*.test.mjs && node tools/build.mjs && node tools/check.mjs) 2>&1 | tee build/check.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: check-main
+          path: build/check
+          if-no-files-found: ignore
+      - name: Open or update the "main is red" issue
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const {owner, repo} = context.repo;
+            const marker = '<!-- main-is-red -->';
+            const run = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const sha = context.sha;
+            const commitUrl = `${context.serverUrl}/${owner}/${repo}/commit/${sha}`;
+            const commitMsg = (context.payload.head_commit && context.payload.head_commit.message || '').split('\n')[0];
+            const log = fs.existsSync('build/check.log') ? fs.readFileSync('build/check.log', 'utf8').split('\n') : [];
+            const fails = log.filter(l => /^\s*(FAIL|not ok|build:)/.test(l)).map(l => l.trim());
+            const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
+            const issues = await github.paginate(github.rest.issues.listForRepo, {owner, repo, state: 'open', labels: 'bug', per_page: 100});
+            const existing = issues.find(i => i.body && i.body.includes(marker));
+            const body = [marker, '### main is red', '',
+              ...fails.slice(0, 10).map(l => '- ' + l.replace(/^FAIL\s+/, '')),
+              ...(fails.length > 10 ? [`- and ${fails.length - 10} more`] : []),
+              '', `Broken by [${sha.slice(0, 7)}](${commitUrl})${commitMsg ? ': ' + commitMsg : ''}`,
+              '', `Checked ${now} UTC · [run](${run})`].join('\n');
+            if (existing) {
+              await github.rest.issues.update({owner, repo, issue_number: existing.number, body});
+              await github.rest.issues.createComment({owner, repo, issue_number: existing.number, body: `Still red as of ${now} UTC · [run](${run})`});
+            } else {
+              await github.rest.issues.create({owner, repo, title: 'main is red', body, labels: ['bug']});
+            }
+      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+
   deploy:
-    needs: build
+    needs: check
     runs-on: ubuntu-latest
     environment:
       name: github-pages

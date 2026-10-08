@@ -1,13 +1,6 @@
-/* Layout: ticker bar, 3D stage with projected station labels, a scrollable strip of station cards, then the selected station's panel.
-   One committed look: Network Rail dark navy with departure-board amber. */
-:root{
-  --bg:#0c1020; --panel:#151b32; --panel-hi:#1f2748; --line:#2b3459;
-  --fg:#f0ebdd; --muted:#9aa2bf; --accent:#f2b63a; --accent-ink:#1b1403;
-  --ok:#6fe3a5; --danger:#ff6a57; --lock:#6b7391;
-  --display:"Overpass", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono:"Overpass Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  color-scheme:dark;
-}
+/* The page: the ticker, the 3D stage with its labels, the station strip and the panels. Every colour and size comes
+   from tokens.css. */
+@import "./tokens.css";
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--fg);font-family:var(--display);font-size:14px;-webkit-user-select:none;user-select:none;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}

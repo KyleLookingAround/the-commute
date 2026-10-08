@@ -1,0 +1,31 @@
+/* Design tokens: every colour, size and font the page and the map use, in one place. The panels read these through
+   var(); the renderer reads the --map-* colours at start through src/render/palette.js, so a change here changes the 3D
+   scene too, and the colour work (docs/ROADMAP.md) happens in this file first. One committed look: Network Rail dark
+   navy with departure-board amber; the map's own palette is a bright model railway in daylight. */
+:root{
+  color-scheme:dark;
+  /* colour roles */
+  --bg:#0c1020; --surface:#151b32; --surface-2:#1f2748; --line:#2b3459; --line-strong:#4a5580;
+  --ink:#f0ebdd; --soft:#9aa2bf; --accent:#f2b63a; --accent-ink:#1b1403; --accent-soft:#5a4a1f;
+  --ok:#6fe3a5; --danger:#ff6a57; --lock:#6b7391; --focus:#7fd8ff;
+  /* older names, kept as aliases */
+  --panel:var(--surface); --panel-hi:var(--surface-2); --fg:var(--ink); --muted:var(--soft);
+  /* type */
+  --display:"Overpass", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"Overpass Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --text-xs:10px; --text-sm:12px; --text:14px; --text-lg:17px; --text-xl:24px;
+  /* spacing, 4 px steps; radii; motion */
+  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:24px; --s-6:32px;
+  --r-sm:6px; --r:10px; --r-pill:999px;
+  --motion:160ms;
+  --touch:44px;
+  /* the map's colours, read by the renderer */
+  --map-sky-night:#0a0f24; --map-sky-dawn:#5a3f5e; --map-sky-day:#8fb4d8; --map-sky-dusk:#d08a5a;
+  --map-grass:#2f4a2c; --map-yard:#4d4a45; --map-city:#3d3d45; --map-river:#1a3354; --map-motorway:#383b42;
+  --map-brick:#6b3f33; --map-brick-dark:#4e2e26; --map-concrete:#8d8a80; --map-platform:#9a968a; --map-tactile:#d9c36a;
+  --map-ballast:#2d2a2a; --map-rail:#b9bcc4; --map-canopy:#3b4660; --map-steel:#5d6572; --map-glass:#9fc0d6; --map-glass-glow:#27405a;
+  --map-roof:#2f2a2e; --map-timber:#cfc3a8; --map-road:#3a3d44; --map-shed:#7f8a99; --map-lamp:#fff1c9; --map-warm:#ffd88a;
+  --map-locked:#3a4158; --map-pax:#f2b63a; --map-pax-glow:#6a4a10; --map-pyramid:#2f6fb0; --map-pyramid-glow:#0d2a4a;
+  --map-house:#5a4642; --map-house-sat:0.3; --map-tower-sat:0.08;
+}
+@media (prefers-reduced-motion: reduce){ :root{ --motion:0ms } }

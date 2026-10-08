@@ -1,0 +1,27 @@
+name: Bug
+description: Something that's broken or looks wrong
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen
+      description: The steps, and roughly which stations you owned and the game clock.
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      multiple: true
+      options: [Phone (portrait), Phone (landscape), Tablet, Desktop or laptop]
+  - type: textarea
+    id: save
+    attributes:
+      label: Save or screenshot
+      description: A save code, once the game has one, helps reproduce it exactly. Screenshots help with layout problems.

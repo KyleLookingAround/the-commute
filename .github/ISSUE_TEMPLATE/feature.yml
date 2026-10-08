@@ -1,0 +1,27 @@
+name: Feature
+description: Something new for players, or a change to how something works
+labels: [enhancement]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: What the player gets
+      description: The player's goal or problem, in a sentence or two.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      description: What it touches.
+      options: [A station, The line and its trains, The map and scenery, Passenger mode, The economy, The page and panels, Not sure]
+  - type: textarea
+    id: shows
+    attributes:
+      label: What it looks like
+      description: What changes on the map (not text events), on phones and large screens.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: When it should unlock, what it should cost, ideas you've ruled out.

@@ -1,0 +1,21 @@
+name: Balance
+description: Pacing or economy feels wrong
+labels: [balance]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What feels wrong
+      description: Too fast, too slow, a wall, something that never pays back.
+    validations:
+      required: true
+  - type: textarea
+    id: when
+    attributes:
+      label: Where in the game
+      description: Which stations you owned, the game day and clock, roughly how long you'd played.
+  - type: textarea
+    id: target
+    attributes:
+      label: What it should be
+      description: If you have a number in mind ("Heaton Chapel in about ten minutes").

@@ -44,6 +44,8 @@ const saved = store.load();
 const seed = typeof window.__seed === 'number' ? window.__seed : undefined;
 let sim = new Sim(net, saved ? saved.g : Sim.fresh(net, seed));
 let speed = 1;
+// the hour the light is locked to for a look around, or null to follow the game's clock; a screenshot can preset it
+let lockHour: number | null = window.__lockHour ?? null;
 
 // ---- scene ----
 function el<T extends HTMLElement>(id: string): T { const e = document.getElementById(id); if (!e) throw new Error(`index.html has no #${id}`); return e as T; }
@@ -67,8 +69,10 @@ function labels(): void {
   built.forEach((b, i) => {
     const d = lbls[i]; if (!d) return;
     b.label.getWorldPosition(v3); v3.project(camera);
-    if (v3.z > 1 || Math.abs(v3.x) > 1.1 || Math.abs(v3.y) > 1.1) { d.style.display = 'none'; return; }
-    d.style.display = ''; d.style.left = ((v3.x + 1) / 2 * w) + 'px'; d.style.top = ((1 - v3.y) / 2 * h) + 'px';
+    const top = (1 - v3.y) / 2 * h;
+    // off screen, or in the top band where the stage's own controls sit
+    if (v3.z > 1 || Math.abs(v3.x) > 1.1 || Math.abs(v3.y) > 1.1 || top < 64) { d.style.display = 'none'; return; }
+    d.style.display = ''; d.style.left = ((v3.x + 1) / 2 * w) + 'px'; d.style.top = top + 'px';
     const s = b.station, owned = !!sim.g.owned[i], txt = owned ? s.name : `${s.name} · <b>${fmt(s.price)}</b>`;
     if (d.innerHTML !== txt) d.innerHTML = txt; d.classList.toggle('lock', !owned);
   });
@@ -78,6 +82,7 @@ function labels(): void {
 const els: Els = {
   cash: el('cash'), clock: el('clock'), sp1: el('sp1'), sp3: el('sp3'), vLine: el('vLine'),
   toast: el('toast'), strip: el('strip'), panel: el('panel'), linePanel: el('linePanel'), reset: el('reset'),
+  hour: el('hour'), hourLbl: el('hourLbl'), hourLive: el('hourLive'),
 };
 function stationXZ(i: number): [number, number] { const st = net.stations[i]; if (!st) throw new Error(`no station ${i}`); const f = net.stationFrame(st.id); return [f.x, f.z]; }
 function lineMiddle(): { x: number; z: number } { const a = stationXZ(0), b = stationXZ(net.stations.length - 1); return { x: (a[0] + b[0]) / 2, z: (a[1] + b[1]) / 2 }; }
@@ -87,6 +92,7 @@ const ui = new UI(sim, els, {
   viewLine: lineView,
   focusStation: i => { const [x, z] = stationXZ(i); rig.focus(x, z, i === 4 ? 360 : 230); },
   changed: () => persist(),
+  lockHour: h => { lockHour = h; ui.setLight(lockHour ?? sim.hour(), lockHour !== null); },
   reset: () => { store.wipe(); sim = new Sim(net, Sim.fresh(net, seed)); ui.sim = sim; ui.selected = 0; ui.buildAll(); const [x, z] = stationXZ(0); rig.focus(x, z); },
 });
 function persist(): void { store.save({ g: sim.g, selected: ui.selected }); }
@@ -97,7 +103,7 @@ if (saved && saved.at) {
   if (away) { const c0 = sim.g.cash, b0 = sim.g.stats.boarded; sim.advance(away); ui.toast(`While you were away: ${fmt(sim.g.cash - c0)} from ${(sim.g.stats.boarded - b0).toLocaleString('en-GB')} passengers`); }
   if (saved.selected) ui.selected = saved.selected;
 }
-ui.setSpeed(1); ui.buildAll();
+ui.setSpeed(1); ui.buildAll(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null);
 document.documentElement.dataset['sim'] = 'ready';   // the checks wait for this
 { const [x, z] = stationXZ(ui.selected); Object.assign(rig.o, { tx: x, ty: 2, tz: z, r: 230, th: 0.7, ph: 1.2 }, window.__orbit ?? {}); }
 
@@ -108,10 +114,10 @@ function frame(now: number): void {
   const dtGame = dt * GAME_PER_REAL * speed;
   sim.advance(dtGame);
   resize(); rig.update(dt);
-  const light = lighting(window.__lockHour ?? sim.hour(), rig.o);   // a screenshot can lock the light to an hour
+  const light = lighting(lockHour ?? sim.hour(), rig.o);
   sky.update(light.horizon, light.daylight, camera, dt);
   syncStations(built, sim.g); trains.sync(sim.g, dtGame); pax.sync(sim.g); labels();
-  uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); }
+  uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
   renderer.render(scene, camera);
   requestAnimationFrame(frame);

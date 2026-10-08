@@ -4,11 +4,11 @@ Where this is going, in the order it makes sense to build it. Each step should l
 
 ## Next up (from the first look at the live site)
 
-- **Time-of-day control.** A settings panel with a slider to lock the time of day for looking around, and a button to let the clock run again. The sim keeps its own clock; the slider only affects lighting. (`window.__lockHour` already locks the light for screenshots; the control is the player's way to set it.)
 - **Weather, later.** Rain, overcast, fog, with gameplay effects (rain hurts patience without a canopy).
 - **Stations closer to reality.** Use the OSM export (platform polygons, building footprints, footbridge/subway ways) plus photos to rebuild each kit. Stockport first: the subway under the platforms with stairs up to each island, the Edgeley-side building and entrance, the canopy style, the No.1 and No.2 boxes in the right places. Add a `subway` kit part type.
 
 ## 1. Repo and real geography (done)
+- The time-of-day control: a slider on the stage locks the light to an hour for a look around and a Live button lets it follow the clock again; the sim's clock never changes (the `daylight` check proves it). Screenshots preset it through `window.__lockHour`.
 - A day that shows: the sun rises in the east, crosses the south and sets in the west, orange at the ends and white overhead; one shadow map follows the camera at station zoom (under 900 m out); lamps, windows and lit signs are glassy by day and come on at dusk; stars after dark.
 - A sky (`src/render/sky.ts`): a dome with a zenith-to-horizon gradient that follows the clock, a sun disc where the sun light is, soft clouds drifting over the line, and a far ground plane so the land meets the horizon. The stock views look a little lower now so some sky is always in frame; a screenshot can start the camera anywhere through `window.__orbit`.
 - Colour: the `--map-*` tokens brightened to a model railway in daylight (greener grass, warmer brick, pale platforms, readable rails) and the sun and sky lights raised to physical units, white overhead and orange near the horizon.

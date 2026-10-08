@@ -16,10 +16,13 @@ const BLURB: Record<string, string | undefined> = {
 export interface Els {
   cash: HTMLElement; clock: HTMLElement; sp1: HTMLButtonElement; sp3: HTMLButtonElement; vLine: HTMLButtonElement;
   toast: HTMLElement; strip: HTMLElement; panel: HTMLElement; linePanel: HTMLElement; reset: HTMLButtonElement;
+  hour: HTMLInputElement; hourLbl: HTMLElement; hourLive: HTMLButtonElement;
 }
 /** What the page does when the player acts: the UI never touches the sim's surroundings itself. */
 export interface Handlers {
   speed: (s: number) => void; viewLine: () => void; focusStation: (i: number) => void; changed: () => void; reset: () => void;
+  /** Lock the light to an hour of the day, or null to follow the clock again. The sim's clock never changes. */
+  lockHour: (hour: number | null) => void;
 }
 
 export class UI {
@@ -32,6 +35,8 @@ export class UI {
     this.sim = sim; this.els = els; this.on = on; this.selected = 0; this.toastTimer = undefined;
     els.sp1.addEventListener('click', () => on.speed(1)); els.sp3.addEventListener('click', () => on.speed(3));
     els.vLine.addEventListener('click', () => on.viewLine());
+    els.hour.addEventListener('input', () => on.lockHour(+els.hour.value));
+    els.hourLive.addEventListener('click', () => on.lockHour(null));
     els.reset.addEventListener('click', () => {
       const b = els.reset;
       if (b.dataset['arm']) { delete b.dataset['arm']; b.textContent = 'Start over'; on.reset(); }
@@ -40,6 +45,13 @@ export class UI {
   }
   get g(): GameState { return this.sim.g; }
   toast(msg: string): void { const t = this.els.toast; t.textContent = msg; t.hidden = false; clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => { t.hidden = true; }, 4000); }
+  /** Show the light's hour: the slider tracks the clock unless it's locked, and the release button shows while it is. */
+  setLight(hour: number, locked: boolean): void {
+    const h = ((hour % 24) + 24) % 24, txt = `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')}`;
+    if (!locked) { const v = (Math.round(h * 4) / 4).toString(); if (this.els.hour.value !== v) this.els.hour.value = v; }
+    if (this.els.hourLbl.textContent !== txt) this.els.hourLbl.textContent = txt;
+    this.els.hourLive.hidden = !locked;
+  }
   setSpeed(s: number): void { this.els.sp1.setAttribute('aria-pressed', String(s === 1)); this.els.sp3.setAttribute('aria-pressed', String(s === 3)); }
   select(i: number): void { this.selected = i; this.buildStrip(); this.buildPanel(); this.on.focusStation(i); }
 

@@ -3,14 +3,14 @@
 import * as THREE from 'three';
 
 const FALLBACK = {
-  'sky-night': '#0a0f24', 'sky-dawn': '#5a3f5e', 'sky-day': '#8fb4d8', 'sky-dusk': '#d08a5a',
-  grass: '#2f4a2c', yard: '#4d4a45', city: '#3d3d45', river: '#1a3354', motorway: '#383b42',
-  brick: '#6b3f33', 'brick-dark': '#4e2e26', concrete: '#8d8a80', platform: '#9a968a', tactile: '#d9c36a',
-  ballast: '#2d2a2a', rail: '#b9bcc4', canopy: '#3b4660', steel: '#5d6572', glass: '#9fc0d6', 'glass-glow': '#27405a',
-  roof: '#2f2a2e', timber: '#cfc3a8', road: '#3a3d44', shed: '#7f8a99', lamp: '#fff1c9', warm: '#ffd88a',
-  locked: '#3a4158', pax: '#f2b63a', 'pax-glow': '#6a4a10', pyramid: '#2f6fb0', 'pyramid-glow': '#0d2a4a', house: '#5a4642',
+  'sky-night': '#0a0f24', 'sky-dawn': '#7a5a78', 'sky-day': '#9ccbee', 'sky-dusk': '#e09a62',
+  grass: '#5a9a44', yard: '#8a8276', city: '#7d7a80', river: '#3a6fa8', motorway: '#6b6e75',
+  brick: '#a85a3e', 'brick-dark': '#7a4030', concrete: '#c2bdb0', platform: '#d2cdbe', tactile: '#e8cf5c',
+  ballast: '#7a7068', rail: '#e4e7ec', canopy: '#4f6a8c', steel: '#8a94a3', glass: '#b8dcef', 'glass-glow': '#27405a',
+  roof: '#4a4046', timber: '#e3d6b6', road: '#6c7078', shed: '#a6b2c2', lamp: '#fff1c9', warm: '#ffd88a',
+  locked: '#6e7894', pax: '#f2b63a', 'pax-glow': '#6a4a10', pyramid: '#3f8fd8', 'pyramid-glow': '#0d2a4a', house: '#8a5f50',
 };
-const NUMBERS = { 'house-sat': 0.3, 'tower-sat': 0.08 };
+const NUMBERS = { 'house-sat': 0.45, 'tower-sat': 0.15, 'house-light': 0.42, 'tower-light': 0.5 };
 
 export type ColourName = keyof typeof FALLBACK;
 export type NumberName = keyof typeof NUMBERS;

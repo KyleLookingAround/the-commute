@@ -100,7 +100,7 @@ function frame(now: number): void {
   const dt = Math.min(0.1, (now - prev) / 1000); prev = now;
   const dtGame = dt * GAME_PER_REAL * speed;
   sim.advance(dtGame);
-  resize(); rig.update(dt); lighting(sim.hour());
+  resize(); rig.update(dt); lighting(window.__lockHour ?? sim.hour());   // a screenshot can lock the light to an hour
   syncStations(built, sim.g); trains.sync(sim.g, dtGame); pax.sync(sim.g); labels();
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }

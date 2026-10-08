@@ -1,5 +1,5 @@
 /* Design tokens: every colour, size and font the page and the map use, in one place. The panels read these through
-   var(); the renderer reads the --map-* colours at start through src/render/palette.js, so a change here changes the 3D
+   var(); the renderer reads the --map-* colours at start through src/render/palette.ts, so a change here changes the 3D
    scene too, and the colour work (docs/ROADMAP.md) happens in this file first. One committed look: Network Rail dark
    navy with departure-board amber; the map's own palette is a bright model railway in daylight. */
 :root{

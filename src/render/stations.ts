@@ -23,7 +23,11 @@ export type Part =
   | (Gated & { type: 'retail'; u: number; v: number; small?: boolean; y?: number; label?: string })
   | (Gated & Span & { type: 'barriers'; v: number; y?: number })
   | (Gated & { type: 'signalbox'; u: number; v: number })
-  | (Gated & Span & { type: 'shed'; v: number; radius: number });
+  | (Gated & Span & { type: 'shed'; v: number; radius: number })
+  /** A building from its real outline: (u, v) corners in order, extruded from y0 to y1. */
+  | (Gated & { type: 'footprint'; outline: [number, number][]; y0: number; y1: number; mat?: string })
+  /** A passage under the line at u: a stair head on each platform it serves (their v extents), with a lit doorway. */
+  | (Gated & { type: 'subway'; u: number; platforms: [number, number][] });
 export type PartType = Part['type'];
 /** Where each direction's queue stands: a line at v from u0 to u1. */
 export interface Face { v: number; u0: number; u1: number }
@@ -74,6 +78,20 @@ const partBuilders: Builders = {
     const L = p.u1 - p.u0;
     const r = new THREE.Mesh(new THREE.CylinderGeometry(p.radius, p.radius, L, 24, 1, true, 0, Math.PI), MAT.shed);
     r.rotation.z = Math.PI / 2; r.position.set((p.u0 + p.u1) / 2, 6, p.v); gp.add(r);
+  },
+  footprint(gp, p) {
+    // the shape is drawn in (u, -v) and extruded along +z; turning it face up puts the extrusion on y and -v back on +z
+    const shape = new THREE.Shape(p.outline.map(([u, v]) => new THREE.Vector2(u, -v)));
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: p.y1 - p.y0, bevelEnabled: false });
+    geo.rotateX(-Math.PI / 2); geo.translate(0, p.y0, 0);
+    const m = new THREE.Mesh(geo, matFor(p.mat, MAT.brick)); gp.add(m);
+  },
+  subway(gp, p) {
+    for (const [v0, v1] of p.platforms) {
+      const cv = (v0 + v1) / 2, w = Math.min(3.2, v1 - v0 - 1);
+      box(gp, 7, 2.6, w, MAT.brick, p.u, 2.3, cv); box(gp, 7.6, 0.3, w + 0.6, MAT.roof, p.u, 3.75, cv);
+      box(gp, 0.1, 1.9, 1.6, MAT.glow, p.u + 3.55, 2, cv);
+    }
   },
 };
 // the builders are keyed by the part's type, so the one looked up always takes the part; the cast says so once

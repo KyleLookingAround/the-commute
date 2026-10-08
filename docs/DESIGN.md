@@ -18,9 +18,9 @@ The bot (`tools/bot.mjs`) measures pacing on seeds 1–3 against `tools/baseline
 
 ## Station kits
 
-A kit is JSON with `faces` (where each direction's queue stands) and `parts`. Part types in `src/render/stations.ts`: `platform`, `canopy`, `lamps`, `box`, `windows`, `shelter`, `footbridge`, `lifts`, `retail`, `barriers`, `signalbox`, `shed`. Any part may carry `upgrade: "<id>"` and then only shows once bought. Add a new part type by adding its shape to the `Part` union and a builder to `partBuilders`, both in that file. The saved game's shape is `GameState` in `src/sim/types.ts`.
+A kit is JSON with `faces` (where each direction's queue stands) and `parts`. Part types in `src/render/stations.ts`: `platform`, `canopy`, `lamps`, `box`, `windows`, `shelter`, `footbridge`, `lifts`, `retail`, `barriers`, `signalbox`, `shed`, `footprint` (a building from its real outline) and `subway` (a passage under the line with a stair head on each platform). Any part may carry `upgrade: "<id>"` and then only shows once bought. Add a new part type by adding its shape to the `Part` union and a builder to `partBuilders`, both in that file. The saved game's shape is `GameState` in `src/sim/types.ts`.
 
-Frame: `u` along the corridor towards Manchester, `v` across it, `y` up. Stockport's main building is at negative `v`. Tracks sit at `v` = -13 (down slow), 1 (down fast), 5 (up fast), 19 (up slow); stopping services use the two slow lines, so side platforms go outside them and islands go between a slow line and the fast lines.
+Frame: `u` along the corridor towards Manchester, `v` across it (positive `v` is east at Stockport: the main building, Grand Central and Stockport Exchange), `y` up. Platform lengths, buildings, footbridges and subways come from an OpenStreetMap export: `tools/osm-to-kit.mjs` drafts a kit's parts from one, and each kit's `note` says what it took and what was fitted to the drawn tracks. Tracks sit at `v` = -13 (down slow), 1 (down fast), 5 (up fast), 19 (up slow); stopping services use the two slow lines, so side platforms go outside them and islands go between a slow line and the fast lines.
 
 ## Trains
 

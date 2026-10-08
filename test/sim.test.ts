@@ -17,8 +17,9 @@ test('network: stations sit on the corridor in order, roughly the real distances
   for (let i = 1; i < s.length; i++) assert.ok(s[i]! > s[i - 1]!, 'stations increase along the corridor');
   const total = s[s.length - 1]! - s[0]!;
   assert.ok(total > 8500 && total < 11000, `Stockport to Piccadilly should be about 9.5 km, got ${total.toFixed(0)}`);
+  // the origin is the station node from the map, which sits a few metres off the track the corridor follows
   const p = n.corridor('main').at(n.station('stockport').s);
-  assert.ok(Math.abs(p.x) < 1 && Math.abs(p.z) < 1, 'origin is Stockport');
+  assert.ok(Math.hypot(p.x, p.z) < 40, `origin is Stockport: the corridor passes ${Math.hypot(p.x, p.z).toFixed(1)} m from it`);
 });
 
 test('network: track offsets are perpendicular to the corridor', () => {

@@ -105,7 +105,7 @@ if (saved && saved.at) {
 }
 ui.setSpeed(1); ui.buildAll(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null);
 document.documentElement.dataset['sim'] = 'ready';   // the checks wait for this
-{ const [x, z] = stationXZ(ui.selected); Object.assign(rig.o, { tx: x, ty: 2, tz: z, r: 230, th: 0.7, ph: 1.2 }, window.__orbit ?? {}); }
+{ const [x, z] = stationXZ(ui.selected); Object.assign(rig.o, { tx: x, ty: 2, tz: z, r: 230, th: 5.5, ph: 1.2 }, window.__orbit ?? {}); }
 
 // ---- loop ----
 let prev = performance.now(), uiAcc = 0, saveAcc = 0;

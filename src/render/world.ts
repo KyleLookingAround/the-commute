@@ -46,7 +46,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       let k = PAL.grass;
       const a = c.at(s), d = Math.hypot(x - a.x, z - a.z);
       if (d < 46) k = PAL.yard;
-      if (s > c.length - 2200) k = PAL.city;
+      if (s > c.length - 1600) k = PAL.city;
       if (river !== null && Math.abs(s - river) < 14) k = PAL.river;
       if (m60 !== null && Math.abs(s - m60) < 18) k = PAL.motorway;
       col[i * 3] = k.r; col[i * 3 + 1] = k.g; col[i * 3 + 2] = k.b;
@@ -96,7 +96,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     for (let k = 0; k < 14000 && n < 5000; k++) {
       const s = seed(k, 1) * c.length, side = seed(k, 2) < 0.5 ? -1 : 1, off = side * (60 + seed(k, 3) * 600);
       if (valley && s > valley.s0 - 40 && s < valley.s1 + 40 && Math.abs(off) < 700) continue;
-      const city = s > c.length - 2200;
+      const city = s > c.length - 1600;
       const nearStation = Math.min(...stationS.map(x => Math.abs(x - s)));
       const dens = city ? 0.95 : 0.3 + 0.45 * Math.exp(-Math.pow((s - c.length * 0.55) / 2500, 2)) + (nearStation < 400 ? 0.25 : 0);
       if (seed(k, 4) > dens) continue;

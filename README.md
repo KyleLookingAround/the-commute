@@ -33,11 +33,11 @@ tools/
   check.mjs           the browser check runner; checks/ holds one group per file
   bot.mjs             the sensible player; baseline.json its ranges
   shots.mjs           screenshots for a human to look at
-  osm-to-network.mjs  turn an OSM export into corridor waypoints
+  osm-to-network.mjs  turn an OSM export into corridor waypoints; osm-to-kit.mjs drafts a station kit from one
 test/                 sim and network tests (node:test)
 docs/                 DESIGN.md, ROADMAP.md, decisions/, specs/, briefs/, lessons/, ux/, UX-REVIEW.md
 ```
 
 ## Where the geography comes from
 
-`network.json` currently has hand-entered waypoints. Export the corridor from OpenStreetMap (query in `tools/osm-to-network.mjs`) and paste the generated waypoints in to get the real curves. Station kits are hand-authored in a local frame (u along the line, v across it), so they survive the corridor changing underneath them.
+`network.json` holds the real corridor: `tools/osm-to-network.mjs` turns an OpenStreetMap export (the Overpass query is in the file; the raw export lives in the git-ignored `data/raw/`) into waypoints along the line from Davenport to Piccadilly, and `tools/osm-to-kit.mjs` drafts a station's platforms, buildings, footbridges and subways from the same kind of export, in the kit's local frame (u along the line, v across it). The kits are tidied by hand from those drafts; each kit's `note` says what came from the map.

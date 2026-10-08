@@ -5,6 +5,8 @@ description: Drive a The Commute pull request to green and merged - reading CI f
 
 # Getting a PR to green
 
+> **Prototype phase** (the project notes, "Phase: prototype"): push straight to `main`; the spec, brief, PR and look back here are optional until the first release. Keep the rules the build enforces, the owner's preferences and the tests.
+
 ## Checks workflow (`checks.yml`)
 
 - It runs the rules, the sim tests, the build and the browser groups on every PR that isn't a draft, and on demand; a newer push cancels the older run. Screenshots from the `layout` group are in the `check-layout` artifact, failing or not: look at them.

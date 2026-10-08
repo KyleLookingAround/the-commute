@@ -5,6 +5,8 @@ description: Cut a The Commute release - claim the version, write What's new and
 
 # Release
 
+**The first release ends the prototype phase.** In its PR: remove "Phase: prototype" from the project notes, make the Publish workflow check before it deploys (swap the job order in `.github/workflows/deploy.yml`; the comment marks it), and ask the owner to add the ruleset from `START-HERE.md`. From then on everything ships as a PR.
+
 `main` publishes to GitHub Pages on every merge that can change the page, so a release is about the record: what changed for players, and saves that keep old versions tested. The first release sets up what later ones use: `docs/HISTORY.md` (a table, newest version on top), a What's new list the page shows, `tools/saves/` and a `migrate` check group. Write those into this playbook as you add them.
 
 Before the first release, an audit session comes first. It fixes nothing: it plays a new game for its first real hour at 1× and 3× on phone and desktop, hunts bugs, runs the bot against the baselines, and sweeps polish at the six sizes. It writes ranked rows (where, what's wrong, the fix in a sentence, size, files, how to prove it), grouped into batches that share no file, marking the rows that need the owner. Fix sessions then run one batch each.

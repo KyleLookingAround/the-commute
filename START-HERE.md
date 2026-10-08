@@ -4,7 +4,7 @@ Setup the owner does once; everything else sessions do themselves (`CLAUDE.md`).
 
 1. **Pages.** Settings → Pages → Source: GitHub Actions. Done on 8 October 2026.
 2. **Lockfile.** On a machine with npm: `npm install`, commit `package-lock.json`, then change `npm install` back to `npm ci` in `.github/workflows/checks.yml` and `deploy.yml` (the comment marks the lines) and `cache: npm` back onto the setup-node steps.
-3. **Ruleset.** Settings → Rules → Rulesets → New branch ruleset for `main`: require a pull request before merging, require status checks to pass with `check` and `Description check` required, block force pushes. Then Settings → General → "Allow auto-merge" on and "Allow squash merging" the only merge method. Until this is done, sessions merge by hand once checks are green.
+3. **Ruleset (at the first release, not before).** Settings → Rules → Rulesets → New branch ruleset for `main`: require a pull request before merging, require status checks to pass with `check` and `Description check` required, block force pushes. Then Settings → General → "Allow auto-merge" on and "Allow squash merging" the only merge method. During the prototype phase sessions push straight to `main`.
 4. **Labels.** `needs-owner`, `balance`, `bug`, `enhancement` (the templates use them).
 5. **Hooks on your own clone.** `git config core.hooksPath .githooks` (the session-start hook does it for web sessions).
 

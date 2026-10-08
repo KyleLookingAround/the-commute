@@ -5,6 +5,8 @@ description: Build a feature or change for The Commute from issue to merged PR -
 
 # Building a change
 
+> **Prototype phase** (the project notes, "Phase: prototype"): push straight to `main`; the spec, brief, PR and look back here are optional until the first release. Keep the rules the build enforces, the owner's preferences and the tests.
+
 Work through these steps in order. Small fixes (a label, a nit, an obvious bug) can skip the spec; anything a player would notice as new gets one.
 
 ## 1. Start from an issue and a brief

@@ -39,6 +39,10 @@ What was cut, and what brings it back:
 | A worker for the sim | The sim taking more than a few ms a frame on a phone |
 | OKF frontmatter on docs | The docs growing past what a reader can hold; Final Call's `tools/okf.mjs` is the pattern |
 
+## Amendment, the same day
+
+The owner wants fast changes and is happy for things to break until a version worth sharing exists. So the loop above is staged: a **prototype phase** (push to `main`, deploy first and check after, no spec or PR required, the enforced rules and tests kept) until the first release, then the full loop. Recorded in the project notes under "Phase: prototype" and in the `release` playbook, which flips it.
+
 ## Consequences
 
 - Sessions follow the playbooks; the owner adds the ruleset and auto-merge (`START-HERE.md`).

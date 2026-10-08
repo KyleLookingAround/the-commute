@@ -1,7 +1,8 @@
 name: Publish to GitHub Pages
 
-# Runs the same checks a PR does on main itself before anything deploys (two PRs green on their own heads can still
-# combine into a broken game), opens or updates a "main is red" issue if they fail, then builds and deploys.
+# Prototype phase: builds and deploys at once, then runs the checks and opens or updates a "main is red" issue if they
+# fail, without holding the deploy. At the first release (the `release` playbook) make `build` need `check` instead, so
+# main is checked before anything deploys.
 on:
   push:
     branches: [main]
@@ -33,6 +34,32 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund   # switch to npm ci once package-lock.json is committed (START-HERE.md)
+      - run: node tools/rules.mjs && node --test test/*.test.mjs && node tools/build.mjs
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  # the browser checks, after the deploy; at the first release make `build` need this job
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -94,17 +121,3 @@ jobs:
             } else {
               await github.rest.issues.create({owner, repo, title: 'main is red', body, labels: ['bug']});
             }
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy:
-    needs: check
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4

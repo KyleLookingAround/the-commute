@@ -18,6 +18,19 @@ These notes are the short core every session needs. The details live with their 
 
 Keep them true: a PR that changes how something works updates its topic's file in the same PR.
 
+## Phase: prototype (now)
+
+Until the owner calls the first shareable release, speed wins and things may break:
+
+- **Push straight to `main`.** No PR, spec, brief or look back needed. One commit per change, plain message, no attribution lines (the rule below still holds).
+- **`main` deploys first and checks after.** The Publish workflow builds and deploys at once, then runs the checks and opens a "main is red" issue if they fail. Fix it in the next push; don't stop.
+- **Before a push:** `npm run rules` and `npm test` (seconds). Run `npm run check` when you've touched the page and have the time; look at `npm run shots` when you've touched the look.
+- **Reshape anything.** Saved state, kits, the network, the economy: change them freely, raise `SAVE_VERSION` when the save's shape changes, and tell the bot's baselines when pacing moves on purpose.
+- **Still keep:** the four layers and the seeded sim (the build refuses otherwise), every bought thing visible on the map, the owner's preferences, UK English, tokens for colours. These are cheap and save rework.
+- **Record a decision** in `docs/decisions/` only when it would surprise someone later; a line in `docs/ROADMAP.md` is enough for the rest.
+
+The full loop below (issue, spec, PR, required `check`, look back) switches on at the first release: the `release` playbook says how. The playbooks already describe it, so nothing changes shape then, only what's required.
+
 ## Commits, PRs and attribution (always)
 
 - Every commit is authored KyleLookingAround <KyleMck10@hotmail.com>. The session-start hook sets this for the repo; if `git config user.email` says otherwise, set it before committing.
@@ -28,14 +41,14 @@ Keep them true: a PR that changes how something works updates its topic's file i
 - Write messages as a short imperative subject in plain words ("Add lifts to the Heaton Chapel footbridge"). Add a body when the reason isn't obvious.
 - Never commit `dist/`, `build/` or `node_modules/`; they're git-ignored.
 
-## Publishing
+## Publishing (from the first release)
 
 1. Nothing reaches `main` directly: everything ships as a PR, merged with Squash and merge. Once the owner adds a ruleset that requires the `check` status and turns on "Allow auto-merge" (`START-HERE.md`), sessions use auto-merge (the `steward` playbook); until then the session merges by hand once Checks and the Description check are green.
 2. Push a branch and open a PR with a plain title and description. The Checks workflow runs on PRs that aren't drafts; a newer push cancels the older run. Run `npm run check` locally first rather than using CI to find failures.
 3. Write the look back into the PR before it merges. Don't merge a PR that needs the owner's judgement: a balance change beyond the baselines' tolerance, or a spec question the brief doesn't settle.
 4. Once merged, confirm the "Publish to GitHub Pages" run finished; it checks `main` first and skips merges that only change docs. The site is at `https://kylelookingaround.github.io/the-commute/`.
 
-## How we work
+## How we work (from the first release)
 
 Every change goes round the same loop, and each round leaves something that makes the next one safer: a check, a test, a note.
 

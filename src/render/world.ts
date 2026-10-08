@@ -29,6 +29,9 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   };
   const along = (l: LandmarkDef | undefined): number | null => l && l.at ? c.nearest(...xz(def, l.at)) : null;
 
+  // ---- the far ground: one flat field out to the horizon, so the detailed terrain never shows an edge ----
+  { const far = new THREE.Mesh(new THREE.PlaneGeometry(60000, 60000), new THREE.MeshLambertMaterial({ color: PAL.grass })); far.rotation.x = -Math.PI / 2; far.position.y = -0.6; scene.add(far); }
+
   // ---- terrain: a plane over the corridor's bounding box ----
   (function terrain() {
     const pts = c.pts; let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;

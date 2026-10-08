@@ -16,6 +16,7 @@ import type { Kit } from './render/stations.ts';
 import { TrainLayer } from './render/trains.ts';
 import { PassengerLayer } from './render/passengers.ts';
 import { OrbitRig } from './render/camera.ts';
+import { Sky } from './render/sky.ts';
 import { UI, fmt } from './ui/panel.ts';
 import type { Els } from './ui/panel.ts';
 import * as store from './app/storage.ts';
@@ -25,8 +26,10 @@ declare global {
   interface Window {
     /** Set by a check or a screenshot before the page loads, so a new game repeats. */
     __seed?: number;
-    /** Set by tools/shots.mjs: the hour to lock the lighting to, once the time-of-day control exists. */
+    /** Set by tools/shots.mjs: the hour to lock the lighting to. */
     __lockHour?: number;
+    /** Set by a screenshot before the page loads: where the camera starts (any of tx, ty, tz, r, th, ph). */
+    __orbit?: Partial<import('./render/camera.ts').Orbit>;
   }
 }
 
@@ -45,12 +48,13 @@ let speed = 1;
 // ---- scene ----
 function el<T extends HTMLElement>(id: string): T { const e = document.getElementById(id); if (!e) throw new Error(`index.html has no #${id}`); return e as T; }
 const canvas = el<HTMLCanvasElement>('gl');
-const { renderer, scene, camera, lighting, resize } = createScene(canvas);
+const { renderer, scene, camera, sun, lighting, resize } = createScene(canvas);
 buildWorld(scene, net, networkDef);
 const built = buildStations(scene, net, kits);
 const trains = new TrainLayer(scene, net, networkDef.services ?? []);
 const pax = new PassengerLayer(built);
 const rig = new OrbitRig(camera, canvas, scene);
+const sky = new Sky(scene, sun, lineMiddle());
 
 // ---- labels ----
 const lblBox = el('lbls');
@@ -74,7 +78,8 @@ const els: Els = {
   toast: el('toast'), strip: el('strip'), panel: el('panel'), linePanel: el('linePanel'), reset: el('reset'),
 };
 function stationXZ(i: number): [number, number] { const st = net.stations[i]; if (!st) throw new Error(`no station ${i}`); const f = net.stationFrame(st.id); return [f.x, f.z]; }
-function lineView(): void { const a = stationXZ(0), b = stationXZ(net.stations.length - 1); rig.focus((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, 8500, 0.9, 0.7); }
+function lineMiddle(): { x: number; z: number } { const a = stationXZ(0), b = stationXZ(net.stations.length - 1); return { x: (a[0] + b[0]) / 2, z: (a[1] + b[1]) / 2 }; }
+function lineView(): void { const m = lineMiddle(); rig.focus(m.x, m.z, 8500, 0.9, 1.05); }
 const ui = new UI(sim, els, {
   speed: s => { speed = s; ui.setSpeed(s); },
   viewLine: lineView,
@@ -92,7 +97,7 @@ if (saved && saved.at) {
 }
 ui.setSpeed(1); ui.buildAll();
 document.documentElement.dataset['sim'] = 'ready';   // the checks wait for this
-{ const [x, z] = stationXZ(ui.selected); Object.assign(rig.o, { tx: x, ty: 2, tz: z, r: 230, th: 0.7, ph: 1.0 }); }
+{ const [x, z] = stationXZ(ui.selected); Object.assign(rig.o, { tx: x, ty: 2, tz: z, r: 230, th: 0.7, ph: 1.2 }, window.__orbit ?? {}); }
 
 // ---- loop ----
 let prev = performance.now(), uiAcc = 0, saveAcc = 0;
@@ -100,7 +105,9 @@ function frame(now: number): void {
   const dt = Math.min(0.1, (now - prev) / 1000); prev = now;
   const dtGame = dt * GAME_PER_REAL * speed;
   sim.advance(dtGame);
-  resize(); rig.update(dt); lighting(window.__lockHour ?? sim.hour());   // a screenshot can lock the light to an hour
+  resize(); rig.update(dt);
+  const light = lighting(window.__lockHour ?? sim.hour());   // a screenshot can lock the light to an hour
+  sky.update(light.horizon, light.daylight, camera, dt);
   syncStations(built, sim.g); trains.sync(sim.g, dtGame); pax.sync(sim.g); labels();
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }

@@ -22,9 +22,11 @@ export function matFor(name: string | undefined, fallback: THREE.Material): THRE
   return (name && (MAT as Record<string, THREE.Material | undefined>)[name]) || fallback;
 }
 
+/** What the clock did to the light this frame: the horizon colour and how much daylight there is (0 night, 1 noon). */
+export interface Light { horizon: THREE.Color; daylight: number }
 export interface SceneParts {
-  renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera;
-  lighting: (hour: number) => void; resize: () => void;
+  renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; sun: THREE.DirectionalLight;
+  lighting: (hour: number) => Light; resize: () => void;
 }
 
 export function createScene(canvas: HTMLCanvasElement): SceneParts {
@@ -39,8 +41,8 @@ export function createScene(canvas: HTMLCanvasElement): SceneParts {
   const sun = new THREE.DirectionalLight(0xffc48a, 0.6); sun.position.set(-300, 200, 200); scene.add(sun);
   const SUN_LOW = new THREE.Color(0xffb070), SUN_HIGH = new THREE.Color(0xfff6e6);
 
-  const tmp = new THREE.Color(), tmpWhite = new THREE.Color(0xffffff);
-  function lighting(hour: number): void {
+  const tmp = new THREE.Color(), tmpWhite = new THREE.Color(0xffffff), light: Light = { horizon: tmp, daylight: 0 };
+  function lighting(hour: number): Light {
     const mix = (a: THREE.Color, b: THREE.Color, t: number) => tmp.copy(a).lerp(b, Math.max(0, Math.min(1, t)));
     let c: THREE.Color;
     if (hour < 5) c = mix(SKY.night, SKY.night, 0); else if (hour < 7.5) c = mix(SKY.night, SKY.dawn, (hour - 5) / 2.5); else if (hour < 10) c = mix(SKY.dawn, SKY.day, (hour - 7.5) / 2.5);
@@ -51,13 +53,14 @@ export function createScene(canvas: HTMLCanvasElement): SceneParts {
     sun.color.copy(SUN_LOW).lerp(SUN_HIGH, Math.min(1, el * 1.5));   // orange near the horizon, white overhead
     sun.position.set(-300 + 600 * ((hour - 6) / 12), 60 + 260 * el, 200);
     hemi.color.copy(c).lerp(tmpWhite, 0.3);
+    light.daylight = el; return light;
   }
 
   function resize(): void {
     const w = canvas.clientWidth, h = canvas.clientHeight, pr = renderer.getPixelRatio();
     if (canvas.width !== Math.floor(w * pr) || canvas.height !== Math.floor(h * pr)) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
   }
-  return { renderer, scene, camera, lighting, resize };
+  return { renderer, scene, camera, sun, lighting, resize };
 }
 
 /** Extents in a local (u, y, v) frame: u -> x, v -> z. */

@@ -12,7 +12,7 @@ export class OrbitRig {
   tween: { from: Orbit; to: Orbit; t: number } | null;
   constructor(camera: THREE.PerspectiveCamera, canvas: HTMLCanvasElement, scene: THREE.Scene) {
     this.camera = camera; this.scene = scene;
-    this.o = { tx: 0, ty: 2, tz: 0, r: 230, th: 0.7, ph: 1.0 };
+    this.o = { tx: 0, ty: 2, tz: 0, r: 230, th: 0.7, ph: 1.2 };
     this.tween = null;
     const ptrs = new Map<number, { x: number; y: number }>(); let lastPinch = 0;
     canvas.addEventListener('pointerdown', e => { canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); this.tween = null; });
@@ -26,7 +26,7 @@ export class OrbitRig {
     canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
     canvas.addEventListener('wheel', e => { e.preventDefault(); this.o.r *= Math.exp(e.deltaY * 0.0012); this.tween = null; }, { passive: false });
   }
-  focus(x: number, z: number, r = 230, th = 0.7, ph = 1.0): void { this.tween = { from: { ...this.o }, to: { tx: x, ty: 2, tz: z, r, th, ph }, t: 0 }; }
+  focus(x: number, z: number, r = 230, th = 0.7, ph = 1.2): void { this.tween = { from: { ...this.o }, to: { tx: x, ty: 2, tz: z, r, th, ph }, t: 0 }; }
   update(dt: number): void {
     const o = this.o;
     if (this.tween) { const tw = this.tween; tw.t = Math.min(1, tw.t + dt * 1.4); const e = tw.t * tw.t * (3 - 2 * tw.t); for (const k of ORBIT_KEYS) o[k] = tw.from[k] + (tw.to[k] - tw.from[k]) * e; if (tw.t >= 1) this.tween = null; }

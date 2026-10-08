@@ -4,6 +4,7 @@ import * as THREE from 'three';
 
 const FALLBACK = {
   'sky-night': '#0a0f24', 'sky-dawn': '#7a5a78', 'sky-day': '#9ccbee', 'sky-dusk': '#e09a62',
+  'zenith-night': '#04071a', 'zenith-day': '#3d84d6', sun: '#fff3c4', cloud: '#ffffff',
   grass: '#5a9a44', yard: '#8a8276', city: '#7d7a80', river: '#3a6fa8', motorway: '#6b6e75',
   brick: '#a85a3e', 'brick-dark': '#7a4030', concrete: '#c2bdb0', platform: '#d2cdbe', tactile: '#e8cf5c',
   ballast: '#7a7068', rail: '#e4e7ec', canopy: '#4f6a8c', steel: '#8a94a3', glass: '#b8dcef', 'glass-glow': '#27405a',

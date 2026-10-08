@@ -2,7 +2,16 @@
 
 Where this is going, in the order it makes sense to build it. Each step should leave the game playable.
 
-## 1. Repo and real geography (this commit)
+## Next up (from the first look at the live site)
+
+- **Colour.** The palette is muddy: greener grass, warmer brick, lighter concrete, brighter platform surfaces, readable track. Boost saturation and ambient light in daytime so it reads as a model railway, not a security camera.
+- **A sky.** Sky dome with a day/night gradient, a sun disc, soft clouds; the ground should meet a horizon rather than fog.
+- **Day cycle that shows.** Sun angle and colour over the game day, shadows (one directional shadow map at station zoom), lamps that come on at dusk and windows that light up.
+- **Time-of-day control.** A settings panel with a slider to lock the time of day for looking around, and a button to let the clock run again. The sim keeps its own clock; the slider only affects lighting.
+- **Weather, later.** Rain, overcast, fog, with gameplay effects (rain hurts patience without a canopy).
+- **Stations closer to reality.** Use the OSM export (platform polygons, building footprints, footbridge/subway ways) plus photos to rebuild each kit. Stockport first: the subway under the platforms with stairs up to each island, the Edgeley-side building and entrance, the canopy style, the No.1 and No.2 boxes in the right places. Add a `subway` kit part type.
+
+## 1. Repo and real geography (done)
 - Vite + Three.js, sim as a tested module, GitHub Pages deploy.
 - Track network as corridors + offset tracks + stations at a distance along a corridor, from lat/lon. Branches later become more corridors joined at junctions.
 - `tools/osm-to-network.mjs` to get the real corridor shape from an OSM export.

@@ -1,6 +1,6 @@
 # The Commute
 
-Station tycoon on one 3D map of the line from Stockport to Manchester Piccadilly: run Stockport, earn the fares, buy the next station up the line, and watch every purchase appear on the map. It's a static site: JavaScript built by Vite, a Three.js scene of the real line with stations built from data kits, HTML panels, and a pure simulation that runs the same in a test, in the bot and on the page. GitHub Actions publishes `dist/` to GitHub Pages on every push to `main` that can change it.
+Station tycoon on one 3D map of the line from Stockport to Manchester Piccadilly: run Stockport, earn the fares, buy the next station up the line, and watch every purchase appear on the map. It's a static site: TypeScript built by Vite, a Three.js scene of the real line with stations built from data kits, HTML panels, and a pure simulation that runs the same in a test, in the bot and on the page. GitHub Actions publishes `dist/` to GitHub Pages on every push to `main` that can change it.
 
 These notes are the short core every session needs. The details live with their topic:
 
@@ -63,8 +63,8 @@ Every change goes round the same loop, and each round leaves something that make
 
 ## Build and test
 
-- `npm run build` refuses to run on a broken rule (`tools/rules.mjs`), naming the file and line, then builds the site into `dist/` with Vite.
-- `npm run check` (after `npm install`; web sessions do it at start-up) runs the rules, the sim tests (`test/`, `node:test`, no browser), the build, then the browser check groups; `node tools/check.mjs <group>` runs one. Each group is a file in `tools/checks/` whose opening comment says what it covers. Every page is seeded through `window.__seed`, so a failure repeats. When you change a rule on purpose, update its check in the same PR; add a check when you add a rule.
+- `npm run build` refuses to run on a broken rule (`tools/rules.mjs`), naming the file and line, or on a type error (`tsc`, strict with `noUncheckedIndexedAccess` and `verbatimModuleSyntax` in `tsconfig.json`), then builds the site into `dist/` with Vite. `src/` and `test/` are TypeScript; `tools/` stays plain Node and loads the sim through `tsx`.
+- `npm run check` (after `npm install`; web sessions do it at start-up) runs the rules, the sim tests (`test/`, `node:test` through `tsx`, no browser), the build (which type-checks), then the browser check groups; `node tools/check.mjs <group>` runs one. Each group is a file in `tools/checks/` whose opening comment says what it covers. Every page is seeded through `window.__seed`, so a failure repeats. When you change a rule on purpose, update its check in the same PR; add a check when you add a rule.
 - `npm run dev` for a live page while working. For anything players can see, look at it: `npm run shots` after a build writes phone, landscape, tablet and desktop screenshots to `build/shots/`.
 - `npm run bot -- --hours 48 --seed 1 --seed 2 --seed 3` for pacing or economy changes (the `balance` playbook). A change meant to leave the game as it is must leave `PLAY` identical on seeds 1–3 against a build of `main`.
 
@@ -73,10 +73,10 @@ Every change goes round the same loop, and each round leaves something that make
 - **Four layers** (`docs/decisions/ADR-2026-10-08-layers-and-seeded-sim.md`): `src/sim/` (the simulation, pure), `src/data/` (the line and the kits, plain JSON), `src/app/` (the clock and storage) and the view (`src/render/` for Three.js, `src/ui/` for the panels). The sim and its data import nothing from the view or the app and never name the DOM; the `rules` check enforces it.
 - **The line is data, stations are kits** (`docs/decisions/ADR-2026-10-08-network-and-kits.md`): corridors in real coordinates, stations at a distance along them, kits in a local frame (`u` along the line towards Manchester, `v` across it, `y` up; tracks at `v` = -13, 1, 5, 19). A kit part with an `upgrade` field appears when it's bought. Prefer a new part type over a station in code.
 - **Everything bought shows on the map.** An upgrade with no visible part isn't finished.
-- Anything that can change the game draws from `rand(g)` (`src/sim/random.js`), never `Math.random()` (the `rules` check rejects it on a line that doesn't end with `// cosmetic`). The same seed gives the same game (`test/`).
-- Saved state is versioned JSON (`SAVE_VERSION` in `src/sim/save.js`). Until the first release it carries no compatibility promise: change its shape freely and raise the version. From the first release on, never rename or remove a saved field, and add a migration step per version (`docs/decisions/ADR-2026-10-08-no-save-compatibility-before-release.md`). Saves stay on the device.
-- Every colour and size lives in `src/ui/styles/tokens.css`; the renderer reads the `--map-*` colours through `src/render/palette.js`. Nothing drawn changes the game.
-- Time: 1 real second is 6 game seconds at 1× (`src/app/clock.js`); tuning numbers live in `TUNING` in `src/sim/sim.js`.
+- Anything that can change the game draws from `rand(g)` (`src/sim/random.ts`), never `Math.random()` (the `rules` check rejects it on a line that doesn't end with `// cosmetic`). The same seed gives the same game (`test/`).
+- Saved state is versioned JSON (`SAVE_VERSION` in `src/sim/save.ts`). Until the first release it carries no compatibility promise: change its shape freely and raise the version. From the first release on, never rename or remove a saved field, and add a migration step per version (`docs/decisions/ADR-2026-10-08-no-save-compatibility-before-release.md`). Saves stay on the device.
+- Every colour and size lives in `src/ui/styles/tokens.css`; the renderer reads the `--map-*` colours through `src/render/palette.ts`. Nothing drawn changes the game.
+- Time: 1 real second is 6 game seconds at 1× (`src/app/clock.ts`); tuning numbers live in `TUNING` in `src/sim/sim.ts`.
 - Keep it playable on a phone: instancing for anything repeated, no per-frame allocations in the loop, UI numbers refreshed on a timer, not every frame.
 - Real place names, real layouts where known, and a `note` in the kit when something is from memory rather than survey.
 

@@ -1,20 +1,25 @@
 // Waiting passengers as instanced figures on each station's queue faces, in the station's local frame.
 import * as THREE from 'three';
-import { MAT } from './scene.js';
+import { MAT } from './scene.ts';
+import type { BuiltStation, Face } from './stations.ts';
+import type { GameState } from '../sim/types.ts';
 
 const geo = new THREE.CylinderGeometry(0.3, 0.3, 1.7, 6); geo.translate(0, 0.85, 0);
 const m4 = new THREE.Matrix4();
 
 export class PassengerLayer {
-  constructor(builtStations, max = 320) {
+  max: number;
+  layers: { im: THREE.InstancedMesh; faces: { north: Face; south: Face } }[];
+  constructor(builtStations: BuiltStation[], max = 320) {
     this.max = max;
     this.layers = builtStations.map(b => { const im = new THREE.InstancedMesh(geo, MAT.pax, max); im.count = 0; b.group.add(im); return { im, faces: b.kit.faces }; });
   }
-  sync(g) {
+  sync(g: GameState): void {
     this.layers.forEach((L, i) => {
-      if (!g.owned[i]) { L.im.count = 0; return; }
-      const S = g.st[i]; let k = 0;
-      const put = (face, count) => {
+      const S = g.st[i];
+      if (!g.owned[i] || !S) { L.im.count = 0; return; }
+      let k = 0;
+      const put = (face: Face, count: number) => {
         const len = face.u1 - face.u0;
         for (let j = 0; j < count && k < this.max; j++, k++) {
           const row = Math.floor(j / 2), c = j % 2;

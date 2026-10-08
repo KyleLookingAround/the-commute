@@ -11,10 +11,10 @@ export default async function ({ ok, root }) {
   const fx = 'src/sim/__fixture__';
   mkdirSync(join(root, fx), { recursive: true });
   try {
-    writeFileSync(join(root, fx, 'a.js'), '// a fixture\nconst x = Math.random();\n');
-    writeFileSync(join(root, fx, 'b.js'), "// a fixture\nimport * as THREE from 'three';\nconst y = localStorage;\n");
-    writeFileSync(join(root, fx, 'c.js'), 'const z = 1;\n');
-    const files = [fx + '/a.js', fx + '/b.js', fx + '/c.js'];
+    writeFileSync(join(root, fx, 'a.ts'), '// a fixture\nconst x = Math.random();\n');
+    writeFileSync(join(root, fx, 'b.ts'), "// a fixture\nimport * as THREE from 'three';\nconst y = localStorage;\n");
+    writeFileSync(join(root, fx, 'c.ts'), 'const z = 1;\n');
+    const files = [fx + '/a.ts', fx + '/b.ts', fx + '/c.ts'];
     ok('rules: catches Math.random() in the sim', randomSlips(files).length === 1);
     ok('rules: catches an import of three and a DOM name in the sim', layerSlips(files).length === 2, JSON.stringify(layerSlips(files)));
     ok('rules: catches a file with no opening comment', headerSlips(files).length === 1);

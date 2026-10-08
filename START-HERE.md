@@ -10,10 +10,6 @@ Setup the owner does once; everything else sessions do themselves (`CLAUDE.md`).
 
 ## First prompts
 
-The first session in Claude Code, with a compiler to hand:
+The TypeScript conversion the runbook record named as the first task is done (8 October 2026): `src/` and `test/` are strict TypeScript, the build type-checks, and the tools load the sim through `tsx`.
 
-```
-Read CLAUDE.md, then docs/decisions/ADR-2026-10-08-runbook-from-overgrow.md. The TypeScript trigger in that record has fired: convert src/ to TypeScript strict (noUncheckedIndexedAccess, verbatimModuleSyntax) with Vite, keeping node:test for the sim by running the tests through tsx or by keeping the sim's test entry as .mjs importing the built sim. Keep tools/rules.mjs working on .ts files. Run npm run check and npm run shots before opening the PR. Follow the feature playbook.
-```
-
-Then the roadmap's "Next up" items, one brief each (`docs/briefs/TEMPLATE.md`), starting with colour, sky and the time-of-day control.
+Next: the roadmap's "Next up" items, one brief each (`docs/briefs/TEMPLATE.md`), starting with colour, sky and the time-of-day control.

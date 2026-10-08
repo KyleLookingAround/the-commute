@@ -12,10 +12,15 @@ const FALLBACK = {
 };
 const NUMBERS = { 'house-sat': 0.3, 'tower-sat': 0.08 };
 
+export type ColourName = keyof typeof FALLBACK;
+export type NumberName = keyof typeof NUMBERS;
+export type Palette = Record<ColourName, THREE.Color> & Record<NumberName, number>;
+
 /** { name: THREE.Color } for every --map-* colour, plus the numeric tokens. */
-export function readPalette(el = typeof document !== 'undefined' ? document.documentElement : null) {
-  const cs = el ? getComputedStyle(el) : null, out = {};
-  for (const [k, fb] of Object.entries(FALLBACK)) { const v = cs ? cs.getPropertyValue('--map-' + k).trim() : ''; out[k] = new THREE.Color(v || fb); }
-  for (const [k, fb] of Object.entries(NUMBERS)) { const v = cs ? parseFloat(cs.getPropertyValue('--map-' + k)) : NaN; out[k] = Number.isFinite(v) ? v : fb; }
-  return out;
+export function readPalette(el: Element | null = typeof document !== 'undefined' ? document.documentElement : null): Palette {
+  const cs = el ? getComputedStyle(el) : null;
+  const colours = {} as Record<ColourName, THREE.Color>, numbers = {} as Record<NumberName, number>;
+  for (const k of Object.keys(FALLBACK) as ColourName[]) { const v = cs ? cs.getPropertyValue('--map-' + k).trim() : ''; colours[k] = new THREE.Color(v || FALLBACK[k]); }
+  for (const k of Object.keys(NUMBERS) as NumberName[]) { const v = cs ? parseFloat(cs.getPropertyValue('--map-' + k)) : NaN; numbers[k] = Number.isFinite(v) ? v : NUMBERS[k]; }
+  return { ...colours, ...numbers };
 }

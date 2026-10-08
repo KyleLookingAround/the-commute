@@ -26,11 +26,11 @@ Work through these steps in order. Small fixes (a label, a nit, an obvious bug) 
 ## 3. Build
 
 - Four layers (`docs/decisions/ADR-2026-10-08-layers-and-seeded-sim.md`): the sim in `src/sim/`, data in `src/data/`, the clock and storage in `src/app/`, the view in `src/render/` and `src/ui/`. The sim never imports `three` or names the DOM; `npm run rules` says when it does.
-- Every file opens with a `//` line saying what's in it.
-- Stations are kits: add a part type to `src/render/stations.js` and parts to the station's JSON, never a station in code. A new part the player buys carries `upgrade`.
-- Randomness that can change the game draws from `rand(g)` in `src/sim/random.js`. `Math.random()` only on cosmetic lines ending `// cosmetic`.
+- Every file opens with a `//` line saying what's in it. `src/` and `test/` are strict TypeScript: the build runs `tsc`, so a type error refuses the build like a broken rule. The sim's shapes (the saved game, the line's definition) live in `src/sim/types.ts`.
+- Stations are kits: add a part type to `src/render/stations.ts` and parts to the station's JSON, never a station in code. A new part the player buys carries `upgrade`.
+- Randomness that can change the game draws from `rand(g)` in `src/sim/random.ts`. `Math.random()` only on cosmetic lines ending `// cosmetic`.
 - New saved state: its field with a default in `Sim.fresh`. Until the first release, reshape freely and raise `SAVE_VERSION` (`docs/decisions/ADR-2026-10-08-no-save-compatibility-before-release.md`).
-- Every colour and size is a token in `src/ui/styles/tokens.css`; the renderer reads `--map-*` through `src/render/palette.js`.
+- Every colour and size is a token in `src/ui/styles/tokens.css`; the renderer reads `--map-*` through `src/render/palette.ts`.
 - `npm run dev` for a live page; `npm test` to run the sim's tests as you go.
 - **Probe before you write.** For an economy change, run the bot (`npm run bot -- --hours 48 --seed 1 --seed 2 --seed 3`) before writing the tests: it sets the numbers from what the sim does.
 

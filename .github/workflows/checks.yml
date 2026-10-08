@@ -49,7 +49,7 @@ jobs:
         if: matrix.browser && steps.pw-cache.outputs.cache-hit == 'true'
         timeout-minutes: 5
       - name: ${{ matrix.name }}
-        run: node tools/rules.mjs && node --test test/*.test.mjs && node tools/build.mjs && node tools/check.mjs ${{ matrix.groups }}
+        run: node tools/rules.mjs && npm test && node tools/build.mjs && node tools/check.mjs ${{ matrix.groups }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

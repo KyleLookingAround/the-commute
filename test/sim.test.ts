@@ -1,19 +1,23 @@
+// The sim's tests: the network's geometry, the demand curve, boarding and money, termini, buying in order, pacing, the
+// seed, and saves. node:test, no browser; run with npm test.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { fromGeo } from '../src/sim/network.js';
-import { Sim, demandCurve } from '../src/sim/sim.js';
+import { fromGeo } from '../src/sim/network.ts';
+import { Sim, demandCurve } from '../src/sim/sim.ts';
+import { migrate, SAVE_VERSION, SaveError } from '../src/sim/save.ts';
+import type { NetworkGeoDef } from '../src/sim/types.ts';
 
-const def = JSON.parse(readFileSync(new URL('../src/data/network.json', import.meta.url), 'utf8'));
+const def = JSON.parse(readFileSync(new URL('../src/data/network.json', import.meta.url), 'utf8')) as NetworkGeoDef;
 const net = () => fromGeo(def);
 
 test('network: stations sit on the corridor in order, roughly the real distances apart', () => {
   const n = net();
   const s = n.stations.map(x => x.s);
-  for (let i = 1; i < s.length; i++) assert.ok(s[i] > s[i - 1], 'stations increase along the corridor');
-  const total = s[s.length - 1] - s[0];
+  for (let i = 1; i < s.length; i++) assert.ok(s[i]! > s[i - 1]!, 'stations increase along the corridor');
+  const total = s[s.length - 1]! - s[0]!;
   assert.ok(total > 8500 && total < 11000, `Stockport to Piccadilly should be about 9.5 km, got ${total.toFixed(0)}`);
-  const p = n.corridor('main').at(n.byId['stockport'].s);
+  const p = n.corridor('main').at(n.station('stockport').s);
   assert.ok(Math.abs(p.x) < 1 && Math.abs(p.z) < 1, 'origin is Stockport');
 });
 
@@ -34,17 +38,17 @@ test('sim: the first train boards at Stockport and earns money within the first 
   const sim = new Sim(net());
   sim.advance(3600);
   assert.ok(sim.g.cash > 3000, 'cash should rise');
-  assert.ok(sim.g.st[0].boarded > 0, 'passengers boarded at Stockport');
-  assert.equal(sim.g.st[1].waiting, 0, 'locked stations generate nobody');
+  assert.ok(sim.state(0).boarded > 0, 'passengers boarded at Stockport');
+  assert.equal(sim.state(1).waiting, 0, 'locked stations generate nobody');
 });
 
 test('sim: trains reverse at termini and board the departure direction', () => {
   const sim = new Sim(net());
-  const seenDirs = new Set();
-  for (let k = 0; k < 600; k++) { sim.advance(10); seenDirs.add(sim.g.trains[0].dir); }
+  const seenDirs = new Set<number>();
+  for (let k = 0; k < 600; k++) { sim.advance(10); seenDirs.add(sim.g.trains[0]!.dir); }
   assert.deepEqual([...seenDirs].sort(), [-1, 1]);
-  const tr = sim.g.trains[0];
-  assert.ok(tr.s >= sim.S[0].s - 1 && tr.s <= sim.S[4].s + 1, 'train stays on the line');
+  const tr = sim.g.trains[0]!;
+  assert.ok(tr.s >= sim.station(0).s - 1 && tr.s <= sim.station(4).s + 1, 'train stays on the line');
 });
 
 test('sim: stations must be bought in order and cost what they say', () => {
@@ -68,24 +72,23 @@ test('sim: line upgrades add units and lengthen trains', () => {
   assert.equal(sim.buyLine('units'), true); sim.step(1);
   assert.equal(sim.g.trains.length, 2);
   assert.equal(sim.buyLine('cars'), true); sim.step(1);
-  assert.equal(sim.g.trains[0].cars, 4);
+  assert.equal(sim.g.trains[0]!.cars, 4);
 });
 
 test('pacing: Heaton Chapel is affordable within about 20 real minutes at 6x game time', () => {
   const sim = new Sim(net());
-  let minutes = null;
+  let minutes: number | null = null;
   for (let m = 1; m <= 60; m++) { sim.advance(60 * 6); if (sim.g.cash >= 9000) { minutes = m; break; } }
   assert.ok(minutes !== null && minutes <= 35, `took ${minutes} real minutes`);
 });
 
 test('sim: the same seed gives the same game, and a different seed a different one', () => {
-  const run = seed => { const n = net(); const sim = new Sim(n, Sim.fresh(n, seed)); sim.advance(6 * 3600); return `${sim.g.cash.toFixed(2)}|${sim.g.stats.boarded}|${sim.g.stats.lost}|${sim.g.rngState}`; };
+  const run = (seed: number) => { const n = net(); const sim = new Sim(n, Sim.fresh(n, seed)); sim.advance(6 * 3600); return `${sim.g.cash.toFixed(2)}|${sim.g.stats.boarded}|${sim.g.stats.lost}|${sim.g.rngState}`; };
   assert.equal(run(7), run(7));
   assert.notEqual(run(7), run(8));
 });
 
-test('save: a save from a newer version is refused and a current one passes through', async () => {
-  const { migrate, SAVE_VERSION, SaveError } = await import('../src/sim/save.js');
+test('save: a save from a newer version is refused and a current one passes through', () => {
   assert.throws(() => migrate({ v: SAVE_VERSION + 1 }), SaveError);
   const g = { v: SAVE_VERSION, cash: 1 };
   assert.equal(migrate(g), g);

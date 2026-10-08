@@ -10,7 +10,8 @@ on:
     paths:
       - 'src/**'
       - 'index.html'
-      - 'vite.config.js'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
       - 'tools/build.mjs'
       - 'tools/rules.mjs'
       - 'tools/check.mjs'
@@ -44,7 +45,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: node tools/rules.mjs && node --test test/*.test.mjs && node tools/build.mjs
+      - run: node tools/rules.mjs && npm test && node tools/build.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -88,7 +89,7 @@ jobs:
         run: |
           mkdir -p build
           set -o pipefail
-          (node tools/rules.mjs && node --test test/*.test.mjs && node tools/build.mjs && node tools/check.mjs) 2>&1 | tee build/check.log
+          (node tools/rules.mjs && npm test && node tools/build.mjs && node tools/check.mjs) 2>&1 | tee build/check.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -7,8 +7,12 @@
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fromGeo } from '../src/sim/network.js';
-import { Sim, UPGRADES, LINE_UPGRADES } from '../src/sim/sim.js';
+import { register } from 'tsx/esm/api';
+
+// the sim is TypeScript; tsx loads it as Node can't, registered here so `node tools/bot.mjs` needs no flag
+register();
+const { fromGeo } = await import('../src/sim/network.ts');
+const { Sim } = await import('../src/sim/sim.ts');
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'));

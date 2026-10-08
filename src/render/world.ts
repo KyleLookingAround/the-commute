@@ -1,27 +1,33 @@
 // Ground, towns, roads, permanent way and landmarks, all laid out along the network's corridors.
 import * as THREE from 'three';
-import { MAT, PAL, box } from './scene.js';
-import { projectLatLon } from '../sim/network.js';
+import { MAT, PAL, box } from './scene.ts';
+import { projectLatLon } from '../sim/network.ts';
+import type { Network } from '../sim/network.ts';
+import type { LandmarkDef, LatLon, NetworkGeoDef } from '../sim/types.ts';
 
-const seed = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+const seed = (a: number, b: number) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
 
 // Rotation about Y that maps local +x to the corridor direction (dx, dz) and local +z to the offset normal.
-export const yawFor = p => Math.atan2(-p.dz, p.dx);
+export const yawFor = (p: { dx: number; dz: number }): number => Math.atan2(-p.dz, p.dx);
 
-export function buildWorld(scene, net, def) {
+export interface World { groundY: (x: number, z: number) => number; yawFor: typeof yawFor }
+
+export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef): World {
   const c = net.corridor('main');
-  const landmarks = Object.fromEntries((def.landmarks || []).map(l => [l.id, l]));
+  const landmarks: Record<string, LandmarkDef | undefined> = Object.fromEntries((def.landmarks || []).map(l => [l.id, l]));
   // Valley for the viaduct: a dip in the ground between the landmark's from/to, centred on the corridor
-  const via = landmarks.viaduct;
-  const vFrom = via ? c.nearest(...xz(def, via.from)) : null, vTo = via ? c.nearest(...xz(def, via.to)) : null;
-  const valley = via ? { s0: Math.min(vFrom, vTo) - 20, s1: Math.max(vFrom, vTo) + 60, depth: via.height } : null;
+  const via = landmarks['viaduct'];
+  const viaduct = via && via.from && via.to && via.height !== undefined && via.arches !== undefined
+    ? { from: c.nearest(...xz(def, via.from)), to: c.nearest(...xz(def, via.to)), height: via.height, arches: via.arches } : null;
+  const valley = viaduct ? { s0: Math.min(viaduct.from, viaduct.to) - 20, s1: Math.max(viaduct.from, viaduct.to) + 60, depth: viaduct.height } : null;
 
-  const groundY = (x, z) => {
+  const groundY = (x: number, z: number): number => {
     if (!valley) return 0;
     const s = c.nearest(x, z); if (s < valley.s0 || s > valley.s1) return 0;
     const u = (s - valley.s0) / (valley.s1 - valley.s0);
     return -valley.depth * Math.pow(Math.max(0, Math.sin(Math.PI * u)), 0.9);
   };
+  const along = (l: LandmarkDef | undefined): number | null => l && l.at ? c.nearest(...xz(def, l.at)) : null;
 
   // ---- terrain: a plane over the corridor's bounding box ----
   (function terrain() {
@@ -29,8 +35,8 @@ export function buildWorld(scene, net, def) {
     for (const p of pts) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
     const pad = 1500, W = maxX - minX + 2 * pad, H = maxZ - minZ + 2 * pad, cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
     const g = new THREE.PlaneGeometry(W, H, Math.round(W / 60), Math.round(H / 60)); g.rotateX(-Math.PI / 2);
-    const p = g.attributes.position, col = new Float32Array(p.count * 3);
-    const river = landmarks.mersey ? c.nearest(...xz(def, landmarks.mersey.at)) : null, m60 = landmarks.m60 ? c.nearest(...xz(def, landmarks.m60.at)) : null;
+    const p = g.getAttribute('position'), col = new Float32Array(p.count * 3);
+    const river = along(landmarks['mersey']), m60 = along(landmarks['m60']);
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i) + cx, z = p.getZ(i) + cz; p.setX(i, x); p.setZ(i, z);
       const s = c.nearest(x, z), y = groundY(x, z); p.setY(i, y);
@@ -47,10 +53,11 @@ export function buildWorld(scene, net, def) {
   })();
 
   // ---- ribbons along the corridor: roads, ballast, rails ----
-  const segs = []; for (let i = 0; i < c.pts.length - 1; i++) { const a = c.pts[i], b = c.pts[i + 1]; segs.push({ s0: c.cum[i], s1: c.cum[i + 1], len: c.cum[i + 1] - c.cum[i] }); }
+  const segs: { s0: number; s1: number; len: number }[] = [];
+  for (let i = 0; i < c.pts.length - 1; i++) { const s0 = c.cum[i]!, s1 = c.cum[i + 1]!; segs.push({ s0, s1, len: s1 - s0 }); }
   const unit = new THREE.BoxGeometry(1, 1, 1);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v3 = new THREE.Vector3(), sc = new THREE.Vector3();
-  function ribbon(offset, width, height, y, mat, every = 1) {
+  function ribbon(offset: number, width: number, height: number, y: number, mat: THREE.Material): THREE.InstancedMesh {
     const inst = new THREE.InstancedMesh(unit, mat, segs.length);
     segs.forEach((sg, i) => {
       const mid = c.at((sg.s0 + sg.s1) / 2, offset);
@@ -66,14 +73,14 @@ export function buildWorld(scene, net, def) {
   (function ohle() {
     const n = Math.floor(c.length / 55) * 2;
     const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.2, 0.25, 7.5, 6), MAT.steel, n), arms = new THREE.InstancedMesh(new THREE.BoxGeometry(14, 0.3, 0.3), MAT.steel, n);
-    let k = 0; const wire = [];
+    let k = 0; const wire: number[] = [];
     for (let s = 30; s < c.length && k < n; s += 55) for (const off of [-19, 25]) {
       const p = c.at(s, off); e.set(0, yawFor(p), 0); q.setFromEuler(e); sc.set(1, 1, 1);
       v3.set(p.x, 3.75, p.z); m4.compose(v3, q, sc); poles.setMatrixAt(k, m4);
       const pa = c.at(s, off + (off < 0 ? 7 : -7)); v3.set(pa.x, 6.8, pa.z); m4.compose(v3, q, sc); arms.setMatrixAt(k, m4); k++;
     }
     poles.count = arms.count = k; scene.add(poles); scene.add(arms);
-    for (const t of net.tracks) for (let i = 0; i < c.pts.length - 1; i++) { const a = c.at(c.cum[i], t.offset), b = c.at(c.cum[i + 1], t.offset); wire.push(a.x, 5.4, a.z, b.x, 5.4, b.z); }
+    for (const t of net.tracks) for (let i = 0; i < c.pts.length - 1; i++) { const a = c.at(c.cum[i]!, t.offset), b = c.at(c.cum[i + 1]!, t.offset); wire.push(a.x, 5.4, a.z, b.x, 5.4, b.z); }
     const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(wire), 3));
     scene.add(new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x8c93a3 })));
   })();
@@ -101,12 +108,12 @@ export function buildWorld(scene, net, def) {
   })();
 
   // ---- the viaduct ----
-  if (via && valley) {
-    const s0 = Math.min(vFrom, vTo), len = Math.abs(vTo - vFrom), n = via.arches, span = len / n, top = -0.4, base = -(via.height + 8);
+  if (viaduct && valley) {
+    const s0 = Math.min(viaduct.from, viaduct.to), len = Math.abs(viaduct.to - viaduct.from), n = viaduct.arches, span = len / n, top = -0.4, base = -(viaduct.height + 8);
     const shape = new THREE.Shape();
     shape.moveTo(0, base); shape.lineTo(len, base); shape.lineTo(len, top); shape.lineTo(0, top); shape.closePath();
     for (let i = 0; i < n; i++) {
-      const cx = span * (i + 0.5), r = span * 0.4, spring = -(via.height - 10);
+      const cx = span * (i + 0.5), r = span * 0.4, spring = -(viaduct.height - 10);
       const h = new THREE.Path(); h.moveTo(cx - r, base); h.lineTo(cx - r, spring); h.absarc(cx, spring, r, Math.PI, 0, true); h.lineTo(cx + r, base); h.closePath();
       shape.holes.push(h);
     }
@@ -116,12 +123,14 @@ export function buildWorld(scene, net, def) {
     box(gp, len, 1.2, 48, MAT.brickDark, 0, -0.6, 2.5);
     for (const off of [-22.5, 27.5]) box(gp, len, 1.6, 0.8, MAT.brickDark, 0, 0.4, off);
     // M60 lane lights in the valley
-    if (landmarks.m60) { const sm = c.nearest(...xz(def, landmarks.m60.at)); for (let off = -680; off < 700; off += 70) { const p = c.at(sm, off); box(scene, 0.6, 0.3, 14, MAT.warm, p.x, groundY(p.x, p.z) + 0.6, p.z).rotation.y = yawFor(p); } }
+    const sm = along(landmarks['m60']);
+    if (sm !== null) { for (let off = -680; off < 700; off += 70) { const p = c.at(sm, off); box(scene, 0.6, 0.3, 14, MAT.warm, p.x, groundY(p.x, p.z) + 0.6, p.z).rotation.y = yawFor(p); } }
   }
 
   // ---- the Pyramid: a glass pyramid by the M60, placeholder until it gets a proper model ----
-  if (landmarks.pyramid) {
-    const p = projectLatLon(landmarks.pyramid.lat, landmarks.pyramid.lon, def.origin);
+  const pyramid = landmarks['pyramid'];
+  if (pyramid && pyramid.lat !== undefined && pyramid.lon !== undefined) {
+    const p = projectLatLon(pyramid.lat, pyramid.lon, def.origin);
     const y0 = groundY(p.x, p.z);
     const pyr = new THREE.Mesh(new THREE.ConeGeometry(34, 36, 4), MAT.pyramid); pyr.position.set(p.x, y0 + 18, p.z); pyr.rotation.y = Math.PI / 4; scene.add(pyr);
     box(scene, 60, 2, 60, MAT.concrete, p.x, y0 + 1, p.z);
@@ -130,4 +139,4 @@ export function buildWorld(scene, net, def) {
   return { groundY, yawFor };
 }
 
-function xz(def, ll) { const p = projectLatLon(ll.lat, ll.lon, def.origin); return [p.x, p.z]; }
+function xz(def: NetworkGeoDef, ll: LatLon): [number, number] { const p = projectLatLon(ll.lat, ll.lon, def.origin); return [p.x, p.z]; }

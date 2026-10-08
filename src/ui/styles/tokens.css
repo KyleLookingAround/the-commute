@@ -21,7 +21,7 @@
   --touch:44px;
   /* the map's colours, read by the renderer */
   --map-sky-night:#0a0f24; --map-sky-dawn:#7a5a78; --map-sky-day:#9ccbee; --map-sky-dusk:#e09a62;
-  --map-zenith-night:#04071a; --map-zenith-day:#3d84d6; --map-sun:#fff3c4; --map-cloud:#ffffff;
+  --map-zenith-night:#04071a; --map-zenith-day:#3d84d6; --map-sun:#fff3c4; --map-cloud:#ffffff; --map-star:#dfe6ff; --map-lamp-off:#b8c6d6;
   --map-grass:#5a9a44; --map-yard:#8a8276; --map-city:#7d7a80; --map-river:#3a6fa8; --map-motorway:#6b6e75;
   --map-brick:#a85a3e; --map-brick-dark:#7a4030; --map-concrete:#c2bdb0; --map-platform:#d2cdbe; --map-tactile:#e8cf5c;
   --map-ballast:#7a7068; --map-rail:#e4e7ec; --map-canopy:#4f6a8c; --map-steel:#8a94a3; --map-glass:#b8dcef; --map-glass-glow:#27405a;

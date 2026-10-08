@@ -28,6 +28,8 @@ export class Sky {
   sunDisc: THREE.Mesh;
   clouds: THREE.InstancedMesh;
   cloudMat: THREE.MeshBasicMaterial;
+  stars: THREE.Points;
+  starMat: THREE.PointsMaterial;
   private zenith: THREE.Color; private horizon: THREE.Color;
   private uniforms: { zenith: { value: THREE.Color }; horizon: { value: THREE.Color } };
   private tmp = new THREE.Vector3();
@@ -47,6 +49,12 @@ export class Sky {
     });
     this.dome = new THREE.Mesh(new THREE.SphereGeometry(DOME_RADIUS, 32, 16), domeMat);
     this.dome.renderOrder = -2; this.dome.frustumCulled = false; scene.add(this.dome);
+    // stars: points on the upper half of the dome, faded in after dark
+    const pts: number[] = [];
+    for (let i = 0; i < 700; i++) { const u = seed(i, 7) * Math.PI * 2, v = 0.08 + seed(i, 8) * 0.9, r = DOME_RADIUS * 0.97; pts.push(Math.cos(u) * Math.sqrt(1 - v * v) * r, v * r, Math.sin(u) * Math.sqrt(1 - v * v) * r); }
+    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    this.starMat = new THREE.PointsMaterial({ color: PAL.star, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false, fog: false });
+    this.stars = new THREE.Points(sg, this.starMat); this.stars.renderOrder = -1; this.stars.frustumCulled = false; this.dome.add(this.stars);
     // the sun: a disc that sits on the dome in the sun light's direction
     this.sunDisc = new THREE.Mesh(new THREE.CircleGeometry(90, 32), new THREE.MeshBasicMaterial({ color: PAL.sun, fog: false, depthWrite: false }));
     this.sunDisc.renderOrder = -1; this.sunDisc.frustumCulled = false; scene.add(this.sunDisc);
@@ -84,7 +92,8 @@ export class Sky {
     this.tmp.copy(this.sun.position).normalize();
     this.sunDisc.position.copy(camera.position).addScaledVector(this.tmp, DOME_RADIUS * 0.98);
     this.sunDisc.lookAt(camera.position);
-    this.sunDisc.visible = this.tmp.y > -0.05;
+    this.sunDisc.visible = daylight > 0.01;    // the light keeps a little height after dark for the lamps' sake; the disc doesn't
+    this.starMat.opacity = Math.max(0, 1 - daylight * 6);
     // clouds: white by day, nearly the night sky's colour after dark (the lerp is in linear light, so a little goes far);
     // drifting east a few metres a second, in world space, so they stay put when the camera pans
     this.cloudMat.color.copy(PAL['zenith-night']).lerp(PAL.cloud, 0.03 + 0.97 * daylight);

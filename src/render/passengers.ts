@@ -12,7 +12,7 @@ export class PassengerLayer {
   layers: { im: THREE.InstancedMesh; faces: { north: Face; south: Face } }[];
   constructor(builtStations: BuiltStation[], max = 320) {
     this.max = max;
-    this.layers = builtStations.map(b => { const im = new THREE.InstancedMesh(geo, MAT.pax, max); im.count = 0; b.group.add(im); return { im, faces: b.kit.faces }; });
+    this.layers = builtStations.map(b => { const im = new THREE.InstancedMesh(geo, MAT.pax, max); im.count = 0; im.castShadow = true; b.group.add(im); return { im, faces: b.kit.faces }; });
   }
   sync(g: GameState): void {
     this.layers.forEach((L, i) => {

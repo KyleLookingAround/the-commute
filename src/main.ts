@@ -51,6 +51,8 @@ const canvas = el<HTMLCanvasElement>('gl');
 const { renderer, scene, camera, sun, lighting, resize } = createScene(canvas);
 buildWorld(scene, net, networkDef);
 const built = buildStations(scene, net, kits);
+// everything on the ground so far throws and takes shadows; the sky, added after, does neither
+scene.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = true; o.receiveShadow = true; } });
 const trains = new TrainLayer(scene, net, networkDef.services ?? []);
 const pax = new PassengerLayer(built);
 const rig = new OrbitRig(camera, canvas, scene);
@@ -106,7 +108,7 @@ function frame(now: number): void {
   const dtGame = dt * GAME_PER_REAL * speed;
   sim.advance(dtGame);
   resize(); rig.update(dt);
-  const light = lighting(window.__lockHour ?? sim.hour());   // a screenshot can lock the light to an hour
+  const light = lighting(window.__lockHour ?? sim.hour(), rig.o);   // a screenshot can lock the light to an hour
   sky.update(light.horizon, light.daylight, camera, dt);
   syncStations(built, sim.g); trains.sync(sim.g, dtGame); pax.sync(sim.g); labels();
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); }

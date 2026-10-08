@@ -50,7 +50,7 @@ export class TrainLayer {
     const stopper = services.find(s => s.id === 'stopper'); if (!stopper) throw new Error('network.json names no "stopper" service');
     this.stopper = stopper;
     // scenery expresses on the fast lines
-    this.express = services.filter(s => s.scenery).map(s => { const m = new THREE.Mesh(unitGeometry(s.cars, liveryFor(s.operator)), this.mat); scene.add(m); return { svc: s, mesh: m, t: 0, dir: 1 }; });
+    this.express = services.filter(s => s.scenery).map(s => { const m = new THREE.Mesh(unitGeometry(s.cars, liveryFor(s.operator)), this.mat); m.castShadow = true; scene.add(m); return { svc: s, mesh: m, t: 0, dir: 1 }; });
     this.tmp = newFrame();
   }
   place(mesh: THREE.Mesh, trackId: string, s: number): void {
@@ -58,7 +58,7 @@ export class TrainLayer {
     mesh.position.set(p.x, 0, p.z); mesh.rotation.y = yawFor(p);
   }
   sync(g: GameState, dtGame: number): void {
-    while (this.meshes.length < g.trains.length) { const m = new THREE.Mesh(unitGeometry(2, NORTHERN), this.mat); m.userData['cars'] = 2; this.scene.add(m); this.meshes.push(m); }
+    while (this.meshes.length < g.trains.length) { const m = new THREE.Mesh(unitGeometry(2, NORTHERN), this.mat); m.userData['cars'] = 2; m.castShadow = true; this.scene.add(m); this.meshes.push(m); }
     g.trains.forEach((tr, i) => {
       const m = this.meshes[i]; if (!m) return;
       if (m.userData['cars'] !== tr.cars) { m.geometry.dispose(); m.geometry = unitGeometry(tr.cars, NORTHERN); m.userData['cars'] = tr.cars; }

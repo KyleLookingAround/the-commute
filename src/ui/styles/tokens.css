@@ -26,7 +26,7 @@
   --map-brick:#a85a3e; --map-brick-dark:#7a4030; --map-concrete:#c2bdb0; --map-platform:#d2cdbe; --map-tactile:#e8cf5c;
   --map-ballast:#7a7068; --map-rail:#e4e7ec; --map-canopy:#4f6a8c; --map-steel:#8a94a3; --map-glass:#b8dcef; --map-glass-glow:#27405a;
   --map-roof:#4a4046; --map-timber:#e3d6b6; --map-road:#6c7078; --map-shed:#a6b2c2; --map-lamp:#fff1c9; --map-warm:#ffd88a;
-  --map-locked:#6e7894; --map-pax:#f2b63a; --map-pax-glow:#6a4a10; --map-pyramid:#3f8fd8; --map-pyramid-glow:#0d2a4a;
+  --map-locked:#6e7894; --map-pax:#f2b63a; --map-pax-glow:#6a4a10; --map-pax-head:#f3d9b8; --map-column:#9c2b2b; --map-pyramid:#3f8fd8; --map-pyramid-glow:#0d2a4a;
   --map-house:#8a5f50; --map-house-sat:0.45; --map-tower-sat:0.15; --map-house-light:0.42; --map-tower-light:0.5;
 }
 @media (prefers-reduced-motion: reduce){ :root{ --motion:0ms } }

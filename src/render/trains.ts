@@ -1,4 +1,5 @@
-// Train units as vertex-coloured box geometry, positioned on their track by distance along the corridor.
+// Train units as vertex-coloured box geometry, positioned on their track by distance along the corridor. The cars are
+// real length but about 1.6 times real height and width, model-railway style, so a train reads from the stock zoom.
 import * as THREE from 'three';
 import { yawFor } from './world.ts';
 import { newFrame } from '../sim/network.ts';
@@ -17,7 +18,9 @@ export const liveryFor = (operator: string): Livery => LIVERIES[operator] ?? NOR
 
 export function unitGeometry(cars: number, liv: Livery, carLen = 23): THREE.BufferGeometry {
   const P: number[] = [], N: number[] = [], C: number[] = [];
-  const addBox = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, col: RGB) => {
+  const S = 1.6;   // the cross-section scale
+  const addBox = (x0: number, x1: number, y0r: number, y1r: number, z0r: number, z1r: number, col: RGB) => {
+    const y0 = y0r * S, y1 = y1r * S, z0 = z0r * S, z1 = z1r * S;
     const f: [RGB, RGB, RGB, RGB, RGB][] = [[[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1]], [[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [0, 0, -1]], [[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], [0, 1, 0]], [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [0, -1, 0]], [[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [1, 0, 0]], [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [-1, 0, 0]]];
     for (const [a, b, c, d, n] of f) for (const v of [a, b, c, a, c, d]) { P.push(...v); N.push(...n); C.push(...col); }
   };

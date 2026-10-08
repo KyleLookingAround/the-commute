@@ -42,13 +42,15 @@ const partBuilders: Builders = {
     boxUV(gp, { u0: p.u0, u1: p.u1, v0: p.v1 - 1.1, v1: p.v1 - 0.5, y0: 1, y1: 1.05 }, MAT.tactile);
   },
   canopy(gp, p) {
+    // after Stockport's platform 4: slim columns along the platform's edges, a wide roof with a valance, a ridge above
     const w = p.v1 - p.v0, cv = (p.v0 + p.v1) / 2, L = p.u1 - p.u0, cu = (p.u0 + p.u1) / 2;
-    for (let u = p.u0 + 8; u < p.u1 - 4; u += 12) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 4.6, 8), MAT.steel); c.position.set(u, 3.3, cv); gp.add(c); }
-    for (const s of [-1, 1]) { const r = box(gp, L - 6, 0.25, w / 2 + 1.4, MAT.canopy, cu, 6.1, cv + s * (w / 4 + 0.2)); r.rotation.x = s * 0.3; }
-    box(gp, L - 6, 0.6, 0.4, MAT.steel, cu, 6.9, cv);
+    for (let u = p.u0 + 6; u < p.u1 - 3; u += 10) for (const s of [-1, 1]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 5.2, 8), MAT.column); c.position.set(u, 3.6, cv + s * (w / 2 - 1.3)); gp.add(c); }
+    for (const s of [-1, 1]) { const r = box(gp, L - 4, 0.3, w / 2 + 1.6, MAT.canopy, cu, 6.5, cv + s * (w / 4 + 0.3)); r.rotation.x = s * 0.22; }
+    for (const s of [-1, 1]) box(gp, L - 4, 0.9, 0.15, MAT.timber, cu, 5.9, cv + s * (w / 2 + 1.5));
+    box(gp, L - 4, 0.5, 0.5, MAT.steel, cu, 7.3, cv);
   },
   lamps(gp, p) {
-    for (let u = p.u0; u <= p.u1; u += p.every || 30) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 8), MAT.glow); l.position.set(u, 4.6, p.v); gp.add(l); const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 4.4, 5), MAT.steel); pole.position.set(u, 2.9, p.v); gp.add(pole); }
+    for (let u = p.u0; u <= p.u1; u += p.every || 30) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.7, 8, 8), MAT.glow); l.position.set(u, 6.2, p.v); gp.add(l); const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 6, 6), MAT.steel); pole.position.set(u, 3, p.v); gp.add(pole); }
   },
   box(gp, p) { boxUV(gp, p, matFor(p.mat, MAT.concrete)); },
   windows(gp, p) {

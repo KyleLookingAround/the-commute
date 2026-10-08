@@ -1,6 +1,6 @@
 {
   "id": "levenshulme",
-  "note": "From an OpenStreetMap export (tools/osm-to-kit.mjs, 8 October 2026): the platform lengths, the subway at the south end with steps up to each platform, and the station building at the south end on the west side (moved out from between the drawn tracks, where the export puts it, to beside the platform). Side platforms sit outside the drawn slow lines. Positive v is east.",
+  "note": "From an OpenStreetMap export (tools/osm-to-kit.mjs, 8 October 2026): the platform lengths, the subway at the south end with steps up to each platform, and the station building at the south end on the west side (moved out from between the drawn tracks, where the export puts it, to beside the platform). Side platforms sit outside the drawn slow lines. Positive v is east. Photos: the line is on an embankment over the A6 with brick parapets along both platforms, a long flat-roofed brick building and a curved blue glazed shelter at platform level, and the ticket office at street level under the bridge with steps up.",
   "platformLength": 150,
   "faces": { "north": { "v": -17, "u0": -70, "u1": 65 }, "south": { "v": 23, "u0": -70, "u1": 70 } },
   "parts": [
@@ -8,7 +8,8 @@
     { "type": "platform", "u0": -75, "u1": 75, "v0": 21.5, "v1": 30.5 },
     { "type": "platform", "u0": 68, "u1": 108, "v0": -24.5, "v1": -15.5, "upgrade": "extend" },
     { "type": "platform", "u0": 75, "u1": 115, "v0": 21.5, "v1": 30.5, "upgrade": "extend" },
-    { "type": "shelter", "u": -15, "v": -20 }, { "type": "shelter", "u": 10, "v": 26 },
+    { "type": "shelter", "u": -15, "v": -20 },
+    { "type": "shelter", "u": 10, "v": 26 },
     { "type": "canopy", "u0": -60, "u1": 50, "v0": -24.5, "v1": -15.5, "upgrade": "canopy" },
     { "type": "canopy", "u0": -60, "u1": 55, "v0": 21.5, "v1": 30.5, "upgrade": "canopy" },
     { "type": "lamps", "u0": -70, "u1": 65, "v": -20, "every": 25 },
@@ -19,6 +20,10 @@
     { "type": "windows", "u0": -78, "u1": -63, "v": -26.4, "ys": [3, 7], "every": 5 },
     { "type": "retail", "u": -30, "v": -27, "upgrade": "retail", "label": "Bakery", "small": true },
     { "type": "retail", "u": 30, "v": -27, "upgrade": "kiosk", "label": "Kiosk", "small": true },
-    { "type": "barriers", "u0": -58, "u1": -46, "v": -22.5, "upgrade": "barriers" }
+    { "type": "barriers", "u0": -58, "u1": -46, "v": -22.5, "upgrade": "barriers" },
+    { "type": "box", "u0": -90, "u1": 120, "v0": -27, "v1": -25.5, "y0": 0, "y1": 2.4, "mat": "brick" },
+    { "type": "box", "u0": -90, "u1": 120, "v0": 31.5, "v1": 33, "y0": 0, "y1": 2.4, "mat": "brick" },
+    { "type": "footprint", "outline": [[-40, 30.5], [-6, 30.5], [-6, 36], [-40, 36]], "y0": 1, "y1": 5, "mat": "brick" },
+    { "type": "box", "u0": -41, "u1": -5, "v0": 30, "v1": 36.5, "y0": 5, "y1": 5.6, "mat": "roof" }
   ]
 }

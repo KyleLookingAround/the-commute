@@ -1,6 +1,6 @@
 {
   "id": "piccadilly",
-  "note": "From an OpenStreetMap export (tools/osm-to-kit.mjs, 8 October 2026): the bay platforms 1 to 12 end at the buffer stops around u = 40 and run back 200 to 300 m, with 13 and 14 the through platforms further south; the export's platform areas are whole station areas across the line, so the bays are laid out as six islands either side of the drawn through tracks, the train shed over them and the concourse across the buffer-stop end. Positive v is east (London Road side).",
+  "note": "From an OpenStreetMap export (tools/osm-to-kit.mjs, 8 October 2026): the bay platforms 1 to 12 end at the buffer stops around u = 40 and run back 200 to 300 m, with 13 and 14 the through platforms further south; the export's platform areas are whole station areas across the line, so the bays are laid out as six islands either side of the drawn through tracks, the train shed over them and the concourse across the buffer-stop end. Positive v is east (London Road side). Photos: two great glazed arched train sheds over the bays, and canopies on columns along the platforms that run out beyond them.",
   "platformLength": 240,
   "faces": { "north": { "v": -9.5, "u0": -250, "u1": -50 }, "south": { "v": 15.5, "u0": -250, "u1": -50 } },
   "parts": [
@@ -29,6 +29,9 @@
     { "type": "lifts", "u": -60, "towers": [-6, 12], "upgrade": "lifts" },
     { "type": "barriers", "u0": 44, "u1": 90, "v": 0, "upgrade": "barriers" },
     { "type": "retail", "u": 70, "v": 30, "y": 0, "upgrade": "retail", "label": "Food hall" },
-    { "type": "retail", "u": -120, "v": 12, "upgrade": "kiosk", "label": "Kiosk", "small": true }
+    { "type": "retail", "u": -120, "v": 12, "upgrade": "kiosk", "label": "Kiosk", "small": true },
+    { "type": "canopy", "u0": -300, "u1": -200, "v0": -37, "v1": -29 },
+    { "type": "canopy", "u0": -235, "u1": -200, "v0": -25, "v1": -17 },
+    { "type": "canopy", "u0": -270, "u1": -40, "v0": 7, "v1": 17, "upgrade": "canopy" }
   ]
 }

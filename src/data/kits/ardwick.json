@@ -1,6 +1,6 @@
 {
   "id": "ardwick",
-  "note": "From an OpenStreetMap export (tools/osm-to-kit.mjs, 8 October 2026): the platform length (the export maps one platform area; the second is set to match) and the footbridge with its steps at the north end. Two bare platforms outside the drawn slow lines by the depot. Positive v is east.",
+  "note": "From an OpenStreetMap export (tools/osm-to-kit.mjs, 8 October 2026): the platform length (the export maps one platform area; the second is set to match) and the footbridge with its steps at the north end. Two bare platforms outside the drawn slow lines by the depot. Positive v is east. Photos: a tall rusty lattice footbridge with long open stairs across the whole yard, one blue glazed shelter a platform, a brick staff hut, and the depot's sheds and sidings to the east.",
   "platformLength": 85,
   "faces": { "north": { "v": -17, "u0": -40, "u1": 35 }, "south": { "v": 23, "u0": -40, "u1": 35 } },
   "parts": [
@@ -8,7 +8,8 @@
     { "type": "platform", "u0": -43, "u1": 40, "v0": 21.5, "v1": 30.5 },
     { "type": "platform", "u0": 40, "u1": 80, "v0": -24.5, "v1": -15.5, "upgrade": "extend" },
     { "type": "platform", "u0": 40, "u1": 80, "v0": 21.5, "v1": 30.5, "upgrade": "extend" },
-    { "type": "shelter", "u": 0, "v": -20 }, { "type": "shelter", "u": 0, "v": 26 },
+    { "type": "shelter", "u": 0, "v": -20 },
+    { "type": "shelter", "u": 0, "v": 26 },
     { "type": "canopy", "u0": -35, "u1": 35, "v0": -24.5, "v1": -15.5, "upgrade": "canopy" },
     { "type": "canopy", "u0": -35, "u1": 35, "v0": 21.5, "v1": 30.5, "upgrade": "canopy" },
     { "type": "lamps", "u0": -40, "u1": 35, "v": -20, "every": 25 },
@@ -17,6 +18,10 @@
     { "type": "lifts", "u": 47, "towers": [-20, 26], "upgrade": "lifts" },
     { "type": "retail", "u": 10, "v": -26, "upgrade": "retail", "label": "Vending machine", "small": true },
     { "type": "retail", "u": 20, "v": 32, "upgrade": "kiosk", "label": "Kiosk", "small": true },
-    { "type": "barriers", "u0": 36, "u1": 46, "v": -22.5, "upgrade": "barriers" }
+    { "type": "barriers", "u0": 36, "u1": 46, "v": -22.5, "upgrade": "barriers" },
+    { "type": "footprint", "outline": [[-30, -36], [-18, -36], [-18, -28], [-30, -28]], "y0": 0, "y1": 3.6, "mat": "brick" },
+    { "type": "box", "u0": -60, "u1": 60, "v0": 60, "v1": 100, "y0": 0, "y1": 9, "mat": "steel" },
+    { "type": "box", "u0": -62, "u1": 62, "v0": 58, "v1": 102, "y0": 9, "y1": 10, "mat": "roof" },
+    { "type": "box", "u0": -120, "u1": 120, "v0": 40, "v1": 41, "y0": 0, "y1": 2.2, "mat": "steel" }
   ]
 }

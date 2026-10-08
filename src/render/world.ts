@@ -98,10 +98,13 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       if (valley && s > valley.s0 - 40 && s < valley.s1 + 40 && Math.abs(off) < 700) continue;
       const city = s > c.length - 1600;
       const nearStation = Math.min(...stationS.map(x => Math.abs(x - s)));
+      if (nearStation < 200 && Math.abs(off) < 130) continue;   // the station's own kit fills this
       const dens = city ? 0.95 : 0.3 + 0.45 * Math.exp(-Math.pow((s - c.length * 0.55) / 2500, 2)) + (nearStation < 400 ? 0.25 : 0);
       if (seed(k, 4) > dens) continue;
       const terrace = !city && seed(k, 5) < 0.5;
-      const w = terrace ? 12 + seed(k, 6) * 26 : 8 + seed(k, 6) * 10, d = 9 + seed(k, 7) * 6, h = city ? 14 + seed(k, 8) * 60 : 6 + seed(k, 8) * 5;
+      // the city end is towers, but low-rise around its stations (Ardwick is yards and sheds, not a skyline)
+      const tower = city && nearStation > 600;
+      const w = terrace ? 12 + seed(k, 6) * 26 : 8 + seed(k, 6) * 10, d = 9 + seed(k, 7) * 6, h = tower ? 14 + seed(k, 8) * 60 : 6 + seed(k, 8) * 5;
       const p = c.at(s, off); e.set(0, yawFor(p) + (seed(k, 11) - 0.5) * 0.3, 0); q.setFromEuler(e);
       v3.set(p.x, h / 2 + groundY(p.x, p.z), p.z); sc.set(w, h, d); m4.compose(v3, q, sc); inst.setMatrixAt(n, m4);
       col.setHSL(0.04 + seed(k, 9) * 0.06, city ? PAL['tower-sat'] : PAL['house-sat'], (city ? PAL['tower-light'] : PAL['house-light']) + seed(k, 10) * 0.15); inst.setColorAt(n, col);

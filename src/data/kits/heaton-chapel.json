@@ -1,6 +1,6 @@
 {
   "id": "heaton-chapel",
-  "note": "From an OpenStreetMap export (tools/osm-to-kit.mjs, 8 October 2026): the platform lengths, the Heaton Moor Road bridge over the line at the south end that the entrances hang off, and the Station Store beside it. Side platforms sit outside the drawn slow lines. Positive v is east.",
+  "note": "From an OpenStreetMap export (tools/osm-to-kit.mjs, 8 October 2026): the platform lengths, the Heaton Moor Road bridge over the line at the south end that the entrances hang off, and the Station Store beside it. Side platforms sit outside the drawn slow lines. Positive v is east. Photos: the station sits in a deep brick cutting with retaining walls both sides, a Victorian red-brick two-storey building with arched windows on the Manchester-bound platform by the bridge, and blue glazed shelters.",
   "platformLength": 160,
   "faces": { "north": { "v": -17, "u0": -65, "u1": 85 }, "south": { "v": 23, "u0": -50, "u1": 80 } },
   "parts": [
@@ -8,7 +8,8 @@
     { "type": "platform", "u0": -55, "u1": 86, "v0": 21.5, "v1": 30.5 },
     { "type": "platform", "u0": 92, "u1": 132, "v0": -24.5, "v1": -15.5, "upgrade": "extend" },
     { "type": "platform", "u0": 86, "u1": 126, "v0": 21.5, "v1": 30.5, "upgrade": "extend" },
-    { "type": "shelter", "u": 20, "v": -20 }, { "type": "shelter", "u": -10, "v": 26 },
+    { "type": "shelter", "u": 20, "v": -20 },
+    { "type": "shelter", "u": -10, "v": 26 },
     { "type": "canopy", "u0": -50, "u1": 60, "v0": -24.5, "v1": -15.5, "upgrade": "canopy" },
     { "type": "canopy", "u0": -40, "u1": 60, "v0": 21.5, "v1": 30.5, "upgrade": "canopy" },
     { "type": "lamps", "u0": -65, "u1": 85, "v": -20, "every": 25 },
@@ -23,6 +24,11 @@
     { "type": "footprint", "outline": [[-75, -24.7], [-57.4, -24.7], [-57.4, -19.5], [-75, -19.5]], "y0": 0, "y1": 4.2, "mat": "brick" },
     { "type": "retail", "u": 0, "v": -27, "upgrade": "retail", "label": "Coffee cart", "small": true },
     { "type": "retail", "u": 40, "v": -27, "upgrade": "kiosk", "label": "Kiosk", "small": true },
-    { "type": "barriers", "u0": -66, "u1": -54, "v": -22.5, "upgrade": "barriers" }
+    { "type": "barriers", "u0": -66, "u1": -54, "v": -22.5, "upgrade": "barriers" },
+    { "type": "box", "u0": -120, "u1": 150, "v0": -38, "v1": -36, "y0": 0, "y1": 7, "mat": "brickDark" },
+    { "type": "box", "u0": -120, "u1": 150, "v0": 42, "v1": 44, "y0": 0, "y1": 7, "mat": "brickDark" },
+    { "type": "footprint", "outline": [[-52, 30.5], [-30, 30.5], [-30, 39], [-52, 39]], "y0": 1, "y1": 9, "mat": "brick" },
+    { "type": "box", "u0": -53, "u1": -29, "v0": 29.5, "v1": 40, "y0": 9, "y1": 10.2, "mat": "roof" },
+    { "type": "windows", "u0": -49, "u1": -33, "v": 30.4, "ys": [3, 6.6], "every": 4 }
   ]
 }

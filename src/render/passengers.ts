@@ -17,10 +17,15 @@ const hash = (a: number, b: number) => { const s = Math.sin(a * 12.9898 + b * 78
 const CAR_LEN = 23, CAR_GAP = 0.6;
 
 type Mode = 'in' | 'wait' | 'board' | 'leave';
-interface Agent { u: number; v: number; tu: number; tv: number; mode: Mode; spot: number; coat: number; idle: number }
-/** entrance: where this face's passengers come and go: the stairs of the subway or footbridge, on the platform itself. */
-interface FaceLayer { face: Face; trackV: number; agents: Agent[]; nextSpot: number; entrance: { u: number; v: number } }
-interface Layer { im: THREE.InstancedMesh; heads: THREE.InstancedMesh; faces: [FaceLayer, FaceLayer]; s: number; nextCoat: number; alighted: number }
+/** pace: this figure's walking speed as a share of WALK, so a group strings out as it comes down the stairs. */
+interface Agent { u: number; v: number; tu: number; tv: number; mode: Mode; spot: number; coat: number; idle: number; pace: number }
+/** entrance: where this face's passengers come and go: the stairs of the subway or footbridge, on the platform itself.
+ * due: game seconds until the next group comes in; the sim's count rises a little every step, and letting a figure
+ * in each time made a steady drip, so arrivals are held back and released a few at a time at uneven gaps. */
+interface FaceLayer { face: Face; trackV: number; agents: Agent[]; nextSpot: number; entrance: { u: number; v: number }; due: number }
+/** primed: the station has been synced while owned, so the figures already stand in place; before that (a loaded save,
+ * a station just bought) the first count is placed directly rather than walked in as a stampede. */
+interface Layer { im: THREE.InstancedMesh; heads: THREE.InstancedMesh; faces: [FaceLayer, FaceLayer]; s: number; nextCoat: number; alighted: number; primed: boolean }
 
 /** Where a face's passengers come and go: the subway or footbridge's stairs if the kit has one, else the platform's south end. */
 function entranceOf(parts: Part[], face: Face): { u: number; v: number } {
@@ -41,9 +46,9 @@ export class PassengerLayer {
       im.count = heads.count = 0; im.castShadow = true; b.group.add(im); b.group.add(heads);
       const f = b.kit.faces;
       return {
-        im, heads, s: stationS[i] ?? 0, nextCoat: i * 7, alighted: -1,
-        faces: [{ face: f.north, trackV: trackV.north, agents: [], nextSpot: 0, entrance: entranceOf(b.kit.parts, f.north) },
-          { face: f.south, trackV: trackV.south, agents: [], nextSpot: 0, entrance: entranceOf(b.kit.parts, f.south) }],
+        im, heads, s: stationS[i] ?? 0, nextCoat: i * 7, alighted: -1, primed: false,
+        faces: [{ face: f.north, trackV: trackV.north, agents: [], nextSpot: 0, entrance: entranceOf(b.kit.parts, f.north), due: 0 },
+          { face: f.south, trackV: trackV.south, agents: [], nextSpot: 0, entrance: entranceOf(b.kit.parts, f.south), due: 0 }],
       };
     });
   }
@@ -70,7 +75,7 @@ export class PassengerLayer {
   sync(g: GameState, dt: number): void {
     this.layers.forEach((L, i) => {
       const S = g.st[i];
-      if (!g.owned[i] || !S) { L.im.count = L.heads.count = 0; L.faces.forEach(F => { F.agents.length = 0; }); return; }
+      if (!g.owned[i] || !S) { L.im.count = L.heads.count = 0; L.primed = false; L.alighted = -1; L.faces.forEach(F => { F.agents.length = 0; F.due = 0; }); return; }
       // a train standing here, and which way it will leave: its face is the one that boards, and the one its arrivals step onto
       const standing = g.trains.find(t => t.state === 'dwell' && Math.abs(t.s - L.s) < 3) ?? null;
       // arrivals: the sim's count of who got off here rose, so that many step out of the doors and walk to the exit
@@ -81,7 +86,7 @@ export class PassengerLayer {
         for (let j = 0; j < n && F.agents.length < this.max / 2; j++) {
           const door = standing ? this.nearestDoor(standing, L.s, F.face.u0 + ((j * 37) % (F.face.u1 - F.face.u0))) : (F.face.u0 + F.face.u1) / 2;
           const edge = F.face.v + Math.sign(F.trackV - F.face.v) * (Math.abs(F.trackV - F.face.v) - 2.6);
-          F.agents.push({ u: door + (j % 3 - 1) * 0.8, v: edge, tu: F.entrance.u, tv: F.entrance.v, mode: 'leave', spot: -1, coat: L.nextCoat++ % this.coats.length, idle: 0 });
+          F.agents.push({ u: door + (j % 3 - 1) * 0.8, v: edge, tu: F.entrance.u, tv: F.entrance.v, mode: 'leave', spot: -1, coat: L.nextCoat++ % this.coats.length, idle: 0, pace: 0.85 + hash(j, 8) * 0.3 });
         }
         L.alighted = S.alighted;
       }
@@ -89,13 +94,22 @@ export class PassengerLayer {
       L.faces.forEach((F, fi) => {
         const want = (S.q[fi] ?? []).reduce((a, c) => a + c.n, 0);
         const present = F.agents.filter(a => a.mode === 'in' || a.mode === 'wait');
-        // more waiting than figures: new arrivals walk in from the entrance (or stand ready when the face was empty:
-        // a loaded save or a station just bought shouldn't start with a stampede)
-        const fresh = F.agents.length === 0;
-        for (let n = present.length; n < want && F.agents.length < this.max / 2; n++) {
-          const sp = F.nextSpot++; const [tu, tv] = this.spot(F, sp);
-          F.agents.push(fresh ? { u: tu, v: tv, tu, tv, mode: 'wait', spot: sp, coat: L.nextCoat++ % this.coats.length, idle: 10 + hash(sp, 5) * 30 }
-            : { u: F.entrance.u, v: F.entrance.v, tu, tv, mode: 'in', spot: sp, coat: L.nextCoat++ % this.coats.length, idle: 10 + hash(sp, 5) * 30 });
+        // more waiting than figures: the first count stands ready (a loaded save or a station just bought shouldn't
+        // start with a stampede); after that the shortfall comes in through the entrance a group at a time, when the
+        // face's timer is due. A group is one to four people, more when the figures have fallen well behind, and the
+        // gap to the next is three to twenty seconds, shorter while there's a backlog, so the count still catches up.
+        const short = Math.min(want - present.length, this.max / 2 - F.agents.length), into = Math.sign(F.face.v - F.trackV) || 1;
+        F.due -= dt;
+        if (short > 0 && (!L.primed || F.due <= 0)) {
+          const sp0 = F.nextSpot, group = L.primed ? Math.min(short, 1 + Math.floor(hash(sp0, 6) * 4) + Math.floor(short / 8)) : short;
+          for (let j = 0; j < group; j++) {
+            const sp = F.nextSpot++; const [tu, tv] = this.spot(F, sp), coat = L.nextCoat++ % this.coats.length, idle = 10 + hash(sp, 5) * 30, pace = 0.85 + hash(sp, 8) * 0.3;
+            F.agents.push(L.primed
+              // the group starts strung out behind the stairs' foot, so they come down one after another
+              ? { u: F.entrance.u + (j - group / 2) * 0.9, v: F.entrance.v + into * hash(sp, 9) * 1.2, tu, tv, mode: 'in', spot: sp, coat, idle, pace }
+              : { u: tu, v: tv, tu, tv, mode: 'wait', spot: sp, coat, idle, pace });
+          }
+          F.due = (3 + hash(sp0, 7) * 17) * (short > 20 ? 0.3 : 1);
         }
         // fewer: the longest-waiting board the standing train if it leaves this way, or give up and walk out
         const boards = standing !== null && (standing.dir > 0 ? 0 : 1) === fi;
@@ -110,7 +124,7 @@ export class PassengerLayer {
           const a = F.agents[j]!;
           // a waiting figure shuffles a couple of metres every so often, staying on the platform
           if (a.mode === 'wait') { a.idle -= dt; if (a.idle <= 0) { a.idle = 15 + hash(a.spot, a.idle + 7) * 40; const [su, sv] = this.spot(F, a.spot); a.tu = su + (hash(a.spot, a.idle) - 0.5) * 4; a.tv = sv + (hash(a.spot, a.idle + 1) - 0.5) * 1.5; } }
-          const du = a.tu - a.u, dv = a.tv - a.v, d = Math.hypot(du, dv), step = (a.mode === 'wait' ? AMBLE : WALK) * dt;
+          const du = a.tu - a.u, dv = a.tv - a.v, d = Math.hypot(du, dv), step = (a.mode === 'wait' ? AMBLE : WALK * a.pace) * dt;
           if (d <= step) { a.u = a.tu; a.v = a.tv; if (a.mode === 'in') a.mode = 'wait'; else if (a.mode !== 'wait') { F.agents.splice(j, 1); continue; } }
           else { a.u += du / d * step; a.v += dv / d * step; }
           if (k < this.max) {
@@ -119,6 +133,7 @@ export class PassengerLayer {
           }
         }
       });
+      L.primed = true;
       L.im.count = L.heads.count = k; L.im.instanceMatrix.needsUpdate = true; L.heads.instanceMatrix.needsUpdate = true;
       if (L.im.instanceColor) L.im.instanceColor.needsUpdate = true;
     });

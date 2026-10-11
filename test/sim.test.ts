@@ -11,12 +11,15 @@ import type { NetworkGeoDef } from '../src/sim/types.ts';
 const def = JSON.parse(readFileSync(new URL('../src/data/network.json', import.meta.url), 'utf8')) as NetworkGeoDef;
 const net = () => fromGeo(def);
 
-test('network: stations sit on the corridor in order, roughly the real distances apart', () => {
+test("network: each service's stations sit on the corridor in order, roughly the real distances apart", () => {
   const n = net();
-  const s = n.stations.map(x => x.s);
-  for (let i = 1; i < s.length; i++) assert.ok(s[i]! > s[i - 1]!, 'stations increase along the corridor');
-  const total = s[s.length - 1]! - s[0]!;
+  for (const v of n.services()) {
+    const s = v.route.map(i => n.stations[i]!.s);
+    for (let i = 1; i < s.length; i++) assert.ok(s[i]! > s[i - 1]!, `${v.def.id}: stations increase along the corridor`);
+  }
+  const total = n.station('piccadilly').s - n.station('stockport').s, branch = n.station('stockport').s - n.station('hazel-grove').s;
   assert.ok(total > 8500 && total < 11000, `Stockport to Piccadilly should be about 9.5 km, got ${total.toFixed(0)}`);
+  assert.ok(branch > 4000 && branch < 5000, `Hazel Grove to Stockport should be about 4.5 km, got ${branch.toFixed(0)}`);
   // the origin is the station node from the map, which sits a few metres off the track the corridor follows
   const p = n.corridor('main').at(n.station('stockport').s);
   assert.ok(Math.hypot(p.x, p.z) < 40, `origin is Stockport: the corridor passes ${Math.hypot(p.x, p.z).toFixed(1)} m from it`);
@@ -34,13 +37,13 @@ interface KitFaces { faces: Record<'north' | 'south', { v: number }>; parts: { t
 const kit = (id: string) => JSON.parse(readFileSync(new URL(`../src/data/kits/${id}.json`, import.meta.url), 'utf8')) as KitFaces;
 const stopper = def.services?.find(s => s.id === 'stopper');
 
-test('tracks: the stopper stands just clear of the platform its passengers wait on, at every station', () => {
+test('tracks: trains stand just clear of the platform their passengers wait on, at every station, each way', () => {
   const n = net();
-  if (!stopper) throw new Error('no stopper');
   for (const st of n.stations) {
     const k = kit(st.kit);
     for (const dir of ['north', 'south'] as const) {
-      const tv = n.offsetAt(stopper.tracks[dir], st.s), fv = k.faces[dir].v, side = Math.sign(fv - tv);
+      const svc = n.boardingService(st.id, dir); if (!svc) throw new Error(`${st.id}: no service boards ${dir}`);
+      const tv = n.offsetAt(svc.tracks[dir], st.s), fv = k.faces[dir].v, side = Math.sign(fv - tv);
       // the platform the face stands on: the one whose edge nearest the track is between the track and the face
       const edges = k.parts.filter(p => p.type === 'platform' && p.v0 !== undefined && p.v1 !== undefined && !('upgrade' in p))
         .map(p => side > 0 ? p.v0! : p.v1!).filter(e => (e - tv) * side > 0 && (fv - e) * side >= 0);
@@ -52,18 +55,21 @@ test('tracks: the stopper stands just clear of the platform its passengers wait 
   }
 });
 
-test('tracks: a train turning round at either end stays on the track it came in on', () => {
+test('tracks: a main-line train turning round at either end stays on the track it came in on', () => {
   const n = net();
   if (!stopper) throw new Error('no stopper');
-  for (const st of [n.stations[0]!, n.stations[n.stations.length - 1]!])
+  for (const st of [n.station('stockport'), n.station('piccadilly')])
     assert.equal(n.offsetAt(stopper.tracks.north, st.s), n.offsetAt(stopper.tracks.south, st.s), `${st.id}: both directions in one platform`);
 });
 
-test('tracks: on the open line and through the stations the four tracks keep clear of each other', () => {
-  const n = net(), ids = n.tracks.map(t => t.id);
-  const between = n.stations.slice(1).map((st, i) => (st.s + n.stations[i]!.s) / 2);
-  for (const s of [...n.stations.slice(1, -1).map(st => st.s), ...between]) {
-    const o = ids.map(id => n.offsetAt(id, s)).sort((a, b) => a - b);
+test('tracks: on the open line and through the stations the tracks there keep clear of each other', () => {
+  const n = net(), byS = [...n.stations].sort((a, b) => a.s - b.s), stockport = n.station('stockport').s;
+  const between = byS.slice(1).map((st, i) => (st.s + byS[i]!.s) / 2);
+  // not Stockport itself, where the Hazel Grove line crosses the main lines into platform 1
+  // nor Piccadilly, where pairs of tracks run into one platform each
+  const throat = n.station('piccadilly').at - 400;
+  for (const s of [...byS.map(st => st.s), ...between].filter(s => Math.abs(s - stockport) > 1200 && s < throat)) {
+    const o = n.tracks.filter(t => { const [e0, e1] = n.extent(t.id); return s >= e0 && s <= e1; }).map(t => n.offsetAt(t.id, s)).sort((a, b) => a - b);
     for (let i = 1; i < o.length; i++) assert.ok(o[i]! - o[i - 1]! >= 4.2, `at ${s.toFixed(0)} m two tracks are ${(o[i]! - o[i - 1]!).toFixed(2)} m apart`);
   }
 });
@@ -129,6 +135,38 @@ test('sim: a train boards through its stop, a door at a time, and a longer train
   const two = boardAt(2), four = boardAt(4);
   assert.ok(two >= 120 && two <= 130, `a 2-car unit boards about 126 in a 45 s stop, got ${two}`);
   assert.equal(four, 200, 'four cars have the doors and the room for everyone');
+});
+
+test('branch: buying Davenport after Piccadilly opens the Hazel Grove line, and each station after extends it', () => {
+  const sim = new Sim(net()), n = sim.net, hg = sim.svc('hazel-grove');
+  sim.g.cash = 1e7;
+  const dav = n.station('davenport').index, wood = n.station('woodsmoor').index;
+  assert.equal(sim.canBuyStation(dav), false, 'not before Piccadilly');
+  for (let i = 1; i < dav; i++) assert.ok(sim.buyStation(i));
+  assert.equal(sim.unitsFor(hg), 0, 'no branch trains yet');
+  assert.ok(sim.buyStation(dav)); sim.step(1);
+  assert.deepEqual(sim.span(hg).map(i => n.stations[i]!.id), ['davenport', 'stockport']);
+  assert.equal(sim.g.trains.filter(t => t.svc === 'hazel-grove').length, 1, 'one unit on the branch');
+  assert.ok(sim.buyStation(wood));
+  assert.deepEqual(sim.span(hg).map(i => n.stations[i]!.id), ['woodsmoor', 'davenport', 'stockport']);
+  sim.advance(1200);
+  const tr = sim.g.trains.find(t => t.svc === 'hazel-grove')!;
+  assert.ok(tr.s >= n.station('woodsmoor').s - 1 && tr.s <= n.station('stockport').s + 1, 'the branch train stays on its run');
+});
+
+test('branch: passengers change at Stockport, pay once, and arrive', () => {
+  const sim = new Sim(net(), Sim.fresh(net(), 5)), n = sim.net;
+  sim.g.cash = 1e8;
+  for (let i = 1; i < n.stations.length; i++) assert.ok(sim.buyStation(i));
+  sim.advance(2 * 3600);
+  const st = n.station('stockport').index, dav = n.station('davenport').index, hc = n.station('heaton-chapel').index;
+  assert.ok(sim.state(st).changed > 0, 'people changed trains at Stockport');
+  assert.equal(sim.state(hc).changed, 0, 'nobody changes where one train serves both ways');
+  assert.ok(sim.state(dav).alighted > 0, 'people reached the branch');
+  // every journey is either over, on a train, waiting to change, or given up (some of those changing)
+  const paidWaiting = sim.g.st.reduce((a, S) => a + S.q.flat().filter(c => c.paid).reduce((b, c) => b + c.n, 0), 0);
+  const done = sim.g.st.reduce((a, S) => a + S.alighted, 0) + sim.g.trains.reduce((a, t) => a + t.onboard, 0) + paidWaiting;
+  assert.ok(done <= sim.g.stats.boarded && sim.g.stats.boarded <= done + sim.g.stats.lost, `journeys ${sim.g.stats.boarded}, accounted ${done} + lost ${sim.g.stats.lost}`);
 });
 
 test('sim: line upgrades add units and lengthen trains', () => {

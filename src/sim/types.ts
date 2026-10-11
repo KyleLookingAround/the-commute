@@ -8,13 +8,18 @@ export type XZ = [number, number];
 // ---- the line as data (src/data/network.json) ----
 export interface CorridorGeoDef { id: string; name?: string; waypoints: [number, number][]; subdivisions?: number }
 export interface CorridorDef { id: string; name?: string; points: XZ[] }
-/** offset: where the track runs across its corridor on the open line, in metres (positive is right of travel along +s). */
-export interface TrackDef { id: string; corridor: string; offset: number; use?: string }
+/** A point on the line given by a station: u metres along from the station's own point. */
+export interface StationPoint { station: string; u: number }
+/** offset: where the track runs across its corridor on the open line, in metres (positive is right of travel along +s).
+ * start, end: where the track begins and ends, if not at the corridor's ends. */
+export interface TrackDef { id: string; corridor: string; offset: number; use?: string; start?: StationPoint; end?: StationPoint }
 /** Where the tracks run somewhere other than their open-line offsets: around a station (u0 to u1 in the station's frame)
  * or along a stretch of corridor (s0 to s1). Tracks ease between layouts over the network's `ease` metres. */
 export interface LayoutDef {
   note?: string; corridor?: string; station?: string; u0?: number; u1?: number; s0?: number; s1?: number;
-  offsets: Record<string, number>;
+  offsets: { [track: string]: number | undefined };
+  /** How far the tracks ease into and out of this layout, if not the network's `ease`. */
+  ease?: number;
 }
 export interface StationGeoDef {
   id: string; name: string; corridor: string; lat: number; lon: number;
@@ -22,9 +27,12 @@ export interface StationGeoDef {
   /** Where trains stop, in metres along the line from the station's own point (its kit's origin); 0 if not given. */
   stop?: number;
 }
+/** route: the stations a service calls at, in order along the corridor (south to north). home: a service with one
+ * runs from there only as far along its route as stations are owned, and not at all until one is; without one it runs
+ * the whole route, its ends always served. Scenery services carry nobody. */
 export interface ServiceDef {
   id: string; name: string; operator: string; tracks: { north: string; south: string };
-  calls: string | string[]; cars: number; scenery?: boolean;
+  calls: string | string[]; cars: number; scenery?: boolean; route?: string[]; home?: string;
 }
 export interface LandmarkDef {
   id: string; name: string; kind: string; corridor?: string;
@@ -49,14 +57,17 @@ export interface Frame { x: number; z: number; heading: number; dx: number; dz: 
 // ---- the saved game ----
 export type UpgradeId = 'kiosk' | 'barriers' | 'canopy' | 'lifts' | 'extend' | 'retail';
 export type LineUpgradeId = 'units' | 'cars' | 'timetable';
-/** A group of passengers who joined a platform queue together: when (game seconds), where to, how many. */
-export interface Queued { t: number; dest: number; n: number }
-/** alighted: passengers who got off here, so the view can show them leaving. */
-export interface StationState { acc: number; q: [Queued[], Queued[]]; waiting: number; boarded: number; alighted: number; revenue: number; lost: number }
-/** calling: the station a dwelling train is boarding at; boardAcc: boarding it has room for this stop and hasn't
- * used yet, in passengers (its doors take a share of a passenger each second). */
+/** A group of passengers who joined a platform queue together: when (game seconds), where to, how many, and whether
+ * they've paid (they're changing trains, so their fare was taken where they first got on). */
+export interface Queued { t: number; dest: number; n: number; paid?: boolean }
+/** alighted: passengers who got off here at the end of their journey, so the view can show them leaving; changed:
+ * passengers who got off here to catch another train. */
+export interface StationState { acc: number; q: [Queued[], Queued[]]; waiting: number; boarded: number; alighted: number; changed: number; revenue: number; lost: number }
+/** svc: the service it runs; calling: the station a dwelling train is boarding at; boardAcc: boarding it has room for
+ * this stop and hasn't used yet, in passengers (its doors take a share of a passenger each second). load: how many
+ * on board are going to each station, including those who'll change at the end of this train's run. */
 export interface Train {
-  id: number; dir: 1 | -1; s: number; v: number; state: 'run' | 'dwell'; dwell: number;
+  id: number; svc: string; dir: 1 | -1; s: number; v: number; state: 'run' | 'dwell'; dwell: number;
   next: number | null; load: number[]; onboard: number; cars: number; calling: number | null; boardAcc: number;
 }
 export interface GameState {

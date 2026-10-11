@@ -75,14 +75,16 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   const STEP = 20, nStep = Math.ceil(c.length / STEP);
   const pa = newFrame(), pb = newFrame();
   function trackRibbon(trackId: string, lateral: number, width: number, height: number, y: number, mat: THREE.Material): void {
-    const inst = new THREE.InstancedMesh(unit, mat, nStep);
-    for (let i = 0; i < nStep; i++) {
-      const s0 = i * STEP, s1 = Math.min(c.length, s0 + STEP);
+    // only where the track is: the main lines begin south of Stockport, the Hazel Grove line ends in its platform 1
+    const [e0, e1] = net.extent(trackId), i0 = Math.floor(e0 / STEP), i1 = Math.ceil(e1 / STEP);
+    const inst = new THREE.InstancedMesh(unit, mat, Math.max(1, i1 - i0)); inst.count = 0;
+    for (let i = i0; i < i1; i++) {
+      const s0 = Math.max(e0, i * STEP), s1 = Math.min(e1, (i + 1) * STEP); if (s1 <= s0) continue;
       net.trackAt(trackId, s0, pa); net.trackAt(trackId, s1, pb);
       const ax = pa.x + pa.nx * lateral, az = pa.z + pa.nz * lateral, bx = pb.x + pb.nx * lateral, bz = pb.z + pb.nz * lateral;
       const len = Math.hypot(bx - ax, bz - az) || 0.01;
       e.set(0, Math.atan2(-(bz - az), bx - ax), 0); q.setFromEuler(e); v3.set((ax + bx) / 2, y, (az + bz) / 2); sc.set(len + 0.3, height, width);
-      m4.compose(v3, q, sc); inst.setMatrixAt(i, m4);
+      m4.compose(v3, q, sc); inst.setMatrixAt(inst.count++, m4);
     }
     scene.add(inst);
   }
@@ -95,7 +97,9 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.2, 0.25, 7.5, 6), MAT.steel, n), arms = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 0.3, 6), MAT.steel, n);
     let k = 0; const wire: number[] = [];
     for (let s = 30; s < c.length && k < n; s += 55) {
-      let lo = Infinity, hi = -Infinity; for (const t of net.tracks) { const o = net.offsetAt(t.id, s); lo = Math.min(lo, o); hi = Math.max(hi, o); }
+      let lo = Infinity, hi = -Infinity;
+      for (const t of net.tracks) { const [e0, e1] = net.extent(t.id); if (s < e0 || s > e1) continue; const o = net.offsetAt(t.id, s); lo = Math.min(lo, o); hi = Math.max(hi, o); }
+      if (lo > hi) continue;
       for (const [off, inward] of [[lo - 3.2, 1], [hi + 3.2, -1]] as const) {
         const p = c.at(s, off); e.set(0, yawFor(p), 0); q.setFromEuler(e); sc.set(1, 1, 1);
         v3.set(p.x, 3.75, p.z); m4.compose(v3, q, sc); poles.setMatrixAt(k, m4);
@@ -103,7 +107,10 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       }
     }
     poles.count = arms.count = k; scene.add(poles); scene.add(arms);
-    for (const t of net.tracks) for (let i = 0; i < nStep; i++) { net.trackAt(t.id, i * STEP, pa); net.trackAt(t.id, Math.min(c.length, (i + 1) * STEP), pb); wire.push(pa.x, 5.4, pa.z, pb.x, 5.4, pb.z); }
+    for (const t of net.tracks) {
+      const [e0, e1] = net.extent(t.id);
+      for (let s = e0; s < e1; s += STEP) { net.trackAt(t.id, s, pa); net.trackAt(t.id, Math.min(e1, s + STEP), pb); wire.push(pa.x, 5.4, pa.z, pb.x, 5.4, pb.z); }
+    }
     const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(wire), 3));
     scene.add(new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x8c93a3 })));
   })();

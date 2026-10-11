@@ -1,6 +1,6 @@
 # The Commute
 
-Station tycoon on a 3D map of the line from Stockport to Manchester Piccadilly. Run Stockport, earn the fares, buy the next station up the line. Everything is one map: locked stations sit in the fog with a price over them until you can afford them.
+Station tycoon on a 3D map of the line from Stockport to Manchester Piccadilly. Run Stockport, earn the fares, buy the next station up the line, then down the branch to Hazel Grove. Everything is one map: locked stations sit in the fog with a price over them until you can afford them.
 
 Built with Vite, Three.js and TypeScript (strict, `tsconfig.json`). The simulation has no rendering in it, so it runs in Node for tests and catch-up (through `tsx`), and the 3D scene is only a view of it.
 

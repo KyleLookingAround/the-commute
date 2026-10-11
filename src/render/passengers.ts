@@ -80,18 +80,25 @@ export class PassengerLayer {
       const S = g.st[i];
       if (!g.owned[i] || !S) { L.im.count = L.heads.count = 0; L.primed = false; L.alighted = -1; L.faces.forEach(F => { F.agents.length = 0; F.due = 0; }); return; }
       // a train standing here, and which way it will leave: its face is the one that boards, and the one its arrivals step onto
-      const standing = g.trains.find(t => t.state === 'dwell' && Math.abs(t.s - L.s) < 3) ?? null;
-      // arrivals: the sim's count of who got off here rose, so that many step out of the doors and walk to the exit
-      // (when a second service exists, a transfer would instead be sent to the other face's spot)
-      if (L.alighted < 0) L.alighted = S.alighted;
-      else if (S.alighted > L.alighted) {
-        const F = L.faces[standing && standing.dir < 0 ? 1 : 0], n = Math.min(S.alighted - L.alighted, 60);
+      // (two can stand at once where two services turn round, Stockport's platforms 4 and 1); the one that came in last
+      // is the one whose passengers are getting off now
+      let standing: Train | null = null, standingAt: [Train | null, Train | null] = [null, null];
+      for (const t of g.trains) if (t.state === 'dwell' && Math.abs(t.s - L.s) < 3) {
+        standingAt[t.dir > 0 ? 0 : 1] = t; if (!standing || t.dwell > standing.dwell) standing = t;
+      }
+      // arrivals: the sim's count of who got off here rose, so that many step out of the doors and walk to the way out;
+      // those changing trains walk out the same way and come back in on the other platform, through its own stairs,
+      // when that platform's figures catch up with its count
+      const off = S.alighted + S.changed;
+      if (L.alighted < 0) L.alighted = off;
+      else if (off > L.alighted) {
+        const F = L.faces[standing && standing.dir < 0 ? 1 : 0], n = Math.min(off - L.alighted, 60);
         for (let j = 0; j < n && F.agents.length < this.max / 2; j++) {
           const door = standing ? this.nearestDoor(standing, L.at, F.face.u0 + ((j * 37) % (F.face.u1 - F.face.u0))) : (F.face.u0 + F.face.u1) / 2;
           const edge = F.face.v + Math.sign(F.trackV - F.face.v) * (Math.abs(F.trackV - F.face.v) - 2.6);
           F.agents.push({ u: door + (j % 3 - 1) * 0.8, v: edge, tu: F.entrance.u, tv: F.entrance.v, mode: 'leave', spot: -1, coat: L.nextCoat++ % this.coats.length, idle: 0, pace: 0.85 + hash(j, 8) * 0.3 });
         }
-        L.alighted = S.alighted;
+        L.alighted = off;
       }
       let k = 0;
       L.faces.forEach((F, fi) => {
@@ -115,10 +122,10 @@ export class PassengerLayer {
           F.due = (3 + hash(sp0, 7) * 17) * (short > 20 ? 0.3 : 1);
         }
         // fewer: the longest-waiting board the standing train if it leaves this way, or give up and walk out
-        const boards = standing !== null && (standing.dir > 0 ? 0 : 1) === fi;
+        const boarding = standingAt[fi as 0 | 1], boards = boarding !== null;
         for (let n = present.length; n > want; n--) {
           const leaver = present.find(p => p.mode === 'wait') ?? present[present.length - 1]; if (!leaver) break;
-          if (boards && standing) { leaver.mode = 'board'; leaver.tu = this.nearestDoor(standing, L.at, leaver.u); leaver.tv = F.face.v + Math.sign(F.trackV - F.face.v) * (Math.abs(F.trackV - F.face.v) - 2.6); }
+          if (boards && boarding) { leaver.mode = 'board'; leaver.tu = this.nearestDoor(boarding, L.at, leaver.u); leaver.tv = F.face.v + Math.sign(F.trackV - F.face.v) * (Math.abs(F.trackV - F.face.v) - 2.6); }
           else { leaver.mode = 'leave'; leaver.tu = F.entrance.u; leaver.tv = F.entrance.v; }
           present.splice(present.indexOf(leaver), 1);
         }

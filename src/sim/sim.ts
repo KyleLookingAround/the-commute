@@ -45,17 +45,25 @@ export function demandCurve(h: number): number {
   return v;
 }
 
+/** A passenger service as the sim runs it: its route as station indices south to north, and its home if it only runs
+ * as far as stations are owned from there. The first service is the main line, whose units the line upgrades buy. */
+interface Svc { id: string; route: number[]; home: number | null }
+
 export class Sim {
   net: Network;
   S: Station[];
   g: GameState;
-  first: number;
-  last: number;
+  svcs: Svc[];
+  /** Stations always served whether owned or not: the ends of the services that run their whole route (Stockport and
+   * Piccadilly), so there's somewhere to go from the start. */
+  fixedEnds: Set<number>;
   constructor(network: Network, state?: GameState) {
     this.net = network;
     this.S = network.stations;              // [{ id, name, s, miles, catchment, price, retail, index }]
     this.g = state || Sim.fresh(network);
-    this.first = 0; this.last = this.S.length - 1;
+    this.svcs = network.services().map(s => ({ id: s.def.id, route: s.route, home: s.home }));
+    if (!this.svcs.length) throw new Error('network.json names no passenger service');
+    this.fixedEnds = new Set(this.svcs.filter(v => v.home === null).flatMap(v => [v.route[0]!, v.route[v.route.length - 1]!]));
   }
   static fresh(network: Network, seed: number = freshSeed()): GameState {
     return {
@@ -63,7 +71,7 @@ export class Sim {
       owned: network.stations.map((_, i) => i === 0),
       ups: network.stations.map(() => ({})),
       line: { units: 0, cars: 0, timetable: 0 },
-      st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, revenue: 0, lost: 0 })),
+      st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0 })),
       trains: [],
       stats: { boarded: 0, lost: 0 },
     };
@@ -76,6 +84,7 @@ export class Sim {
 
   // ---- derived ----
   fare(a: number, b: number): number { return (TUNING.fareBase + TUNING.farePerMile * Math.abs(this.station(a).miles - this.station(b).miles)) * TUNING.fareMult; }
+  /** Units on the main line. */
   unitsInService(): number { return 1 + this.g.line.units; }
   carsPerUnit(): number { return 2 + 2 * this.g.line.cars; }
   vmax(): number { return this.g.line.timetable ? TUNING.vmaxFast : TUNING.vmax; }
@@ -84,28 +93,61 @@ export class Sim {
   /** The game clock's hour of the day, which runs dayRate times faster than the sim's seconds. */
   hour(): number { return (this.g.t * TUNING.dayRate / 3600) % 24; }
   clock(): string { const s = Math.floor((this.g.t * TUNING.dayRate) % 86400); return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}`; }
-  isTerminus(i: number): boolean { return i === this.first || i === this.last; }
-  reachable(i: number): boolean { return !!this.g.owned[i] || this.isTerminus(i); }
+  /** A station passengers can travel to: one that's owned, or one always served. */
+  reachable(i: number): boolean { return !!this.g.owned[i] || this.fixedEnds.has(i); }
+  /** Which way station j lies from station i: 0 towards Manchester (further along the corridor), 1 away. */
+  dirIdx(i: number, j: number): 0 | 1 { return this.station(j).s > this.station(i).s ? 0 : 1; }
+
+  // ---- services ----
+  svc(id: string): Svc { const v = this.svcs.find(v => v.id === id); if (!v) throw new Error(`no service "${id}"`); return v; }
+  /** The stations a service runs between now, in route order: its whole route, or from its home as far each way as
+   * stations are owned (none until one beyond home is). */
+  span(v: Svc): number[] {
+    if (v.home === null) return v.route;
+    const g = this.g, k = v.route.indexOf(v.home); let lo = k, hi = k;
+    while (lo > 0 && g.owned[v.route[lo - 1]!]) lo--;
+    while (hi < v.route.length - 1 && g.owned[v.route[hi + 1]!]) hi++;
+    return lo === hi ? [] : v.route.slice(lo, hi + 1);
+  }
+  /** Units a service runs: the main line's are bought with the line upgrades; a branch runs one once it's open. */
+  unitsFor(v: Svc): number { return this.span(v).length < 2 ? 0 : v === this.svcs[0] ? this.unitsInService() : 1; }
+  /** Whether a station is the end of a train's run, where it turns round. */
+  isEnd(tr: Train, i: number): boolean { const sp = this.span(this.svc(tr.svc)); return i === sp[0] || i === sp[sp.length - 1]; }
 
   // ---- trains ----
   ensureTrains(): void {
-    const g = this.g, n = this.unitsInService(), s0 = this.station(this.first).s, s1 = this.station(this.last).s;
-    while (g.trains.length < n) {
-      const k = g.trains.length;
-      g.trains.push({ id: k, dir: k % 2 === 0 ? 1 : -1, s: s0 + (s1 - s0) * ((k + 0.5) / n), v: 0, state: 'run', dwell: 0, next: null, load: this.S.map(() => 0), onboard: 0, cars: this.carsPerUnit(), calling: null, boardAcc: 0 });
+    const g = this.g;
+    for (const v of this.svcs) {
+      const n = this.unitsFor(v), sp = this.span(v); if (!n) continue;
+      const s0 = this.station(sp[0]!).s, s1 = this.station(sp[sp.length - 1]!).s;
+      for (let k = g.trains.filter(t => t.svc === v.id).length; k < n; k++) {
+        // the main line's units spread along it, alternate ways; a branch's unit starts at its home, heading out
+        const out = v.home !== null && v.route.indexOf(v.home) > 0 ? -1 : 1;
+        const [s, dir] = v.home === null ? [s0 + (s1 - s0) * ((k + 0.5) / n), (k % 2 === 0 ? 1 : -1) as 1 | -1] : [this.station(v.home).s, out as 1 | -1];
+        g.trains.push({ id: g.trains.length, svc: v.id, dir, s, v: 0, state: 'run', dwell: 0, next: null, load: this.S.map(() => 0), onboard: 0, cars: this.carsPerUnit(), calling: null, boardAcc: 0 });
+      }
     }
     for (const tr of g.trains) tr.cars = this.carsPerUnit();
   }
   nextStop(tr: Train): number {
-    // next reachable station in the direction of travel (dir +1 = towards Manchester, increasing s)
-    if (tr.dir > 0) { for (let i = 0; i < this.S.length; i++) if (this.station(i).s > tr.s + 1 && this.reachable(i)) return i; return this.last; }
-    for (let i = this.S.length - 1; i >= 0; i--) if (this.station(i).s < tr.s - 1 && this.reachable(i)) return i;
-    return this.first;
+    // the next station the train calls at in its direction (dir +1 = towards Manchester, increasing s): one on its
+    // service's run that's owned, or the end of the run
+    const sp = this.span(this.svc(tr.svc)), first = sp[0]!, last = sp[sp.length - 1]!;
+    const calls = (i: number) => i === first || i === last || !!this.g.owned[i];
+    if (tr.dir > 0) { for (const i of sp) if (this.station(i).s > tr.s + 1 && calls(i)) return i; return last; }
+    for (let k = sp.length - 1; k >= 0; k--) { const i = sp[k]!; if (this.station(i).s < tr.s - 1 && calls(i)) return i; }
+    return first;
   }
-  /** A train arrives: whoever's for here gets off, and boarding opens for the stop. */
+  /** A train arrives: whoever's for here gets off, and boarding opens for the stop. At the end of its run everyone
+   * still aboard gets off to change, and waits on the platform for the train that goes their way, fare paid. */
   callAt(tr: Train, i: number): void {
-    const S = this.state(i);
+    const g = this.g, S = this.state(i);
     const off = tr.load[i] ?? 0; tr.onboard -= off; tr.load[i] = 0; S.alighted += off;
+    if (this.isEnd(tr, i)) tr.load.forEach((n, j) => {
+      if (n <= 0) return;
+      tr.load[j] = 0; tr.onboard -= n; S.changed += n; S.waiting += n;
+      S.q[this.dirIdx(i, j)].push({ t: g.t, dest: j, n, paid: true });
+    });
     tr.calling = i; tr.boardAcc = 0;
   }
   /** Board a dwelling train for dt seconds: its doors take boardPerDoor passengers a second each, from the front of the
@@ -122,8 +164,9 @@ export class Sim {
     while ((c = q[0]) && room > 0) {
       const n = Math.min(c.n, room);
       c.n -= n; room -= n; tr.boardAcc -= n; S.waiting -= n; tr.onboard += n; tr.load[c.dest] = (tr.load[c.dest] ?? 0) + n;
-      if (g.owned[i]) { const rev = n * (this.fare(i, c.dest) * collect + retail); g.cash += rev; g.earned += rev; S.revenue += rev; }
-      S.boarded += n; g.stats.boarded += n;
+      // the fare is taken where a journey starts; someone changing trains only buys a coffee
+      if (g.owned[i]) { const rev = n * ((c.paid ? 0 : this.fare(i, c.dest) * collect) + retail); g.cash += rev; g.earned += rev; S.revenue += rev; }
+      if (!c.paid) { S.boarded += n; g.stats.boarded += n; }
       if (c.n <= 0) q.shift();
     }
     // a door with nobody at it doesn't save up for later
@@ -132,7 +175,7 @@ export class Sim {
   stepTrain(tr: Train, dt: number): void {
     if (tr.state === 'dwell') { this.board(tr, dt); tr.dwell -= dt; if (tr.dwell <= 0) { tr.state = 'run'; tr.next = null; tr.calling = null; } return; }
     if (tr.next === null) tr.next = this.nextStop(tr);
-    const target = this.station(tr.next).s, rem = Math.abs(target - tr.s), last = this.isTerminus(tr.next);
+    const target = this.station(tr.next).s, rem = Math.abs(target - tr.s), last = this.isEnd(tr, tr.next);
     tr.v = Math.min(this.vmax(), tr.v + TUNING.accel * dt);
     tr.v = Math.max(0.5, Math.min(tr.v, Math.sqrt(2 * TUNING.brake * Math.max(rem, 0))));
     const step = tr.v * dt;
@@ -151,9 +194,22 @@ export class Sim {
     S.acc += rate * dt;
     const n = Math.floor(S.acc); if (n <= 0) return;
     S.acc -= n;
-    const toMcr = i === this.last ? 0 : i === this.first ? 1 : (h < 12 ? 0.8 : 0.35);
+    const toMcr = this.northShare(i, h);
     const nN = Math.round(n * toMcr), nS = n - nN;
     this.enqueue(i, 0, nN); this.enqueue(i, 1, nS);
+  }
+  /** The share of a station's new passengers heading towards Manchester at hour h: all of them where there's nowhere
+   * else to go, none where there's nowhere further; most in the morning and fewer in the evening where one train serves
+   * both ways; and where different services go each way (Stockport, once the branch is open), by how many people live
+   * each way too, so a short branch doesn't take half of Stockport. */
+  northShare(i: number, h: number): number {
+    const north: number[] = [], south: number[] = [];
+    for (let j = 0; j < this.S.length; j++) if (j !== i && this.reachable(j)) (this.dirIdx(i, j) === 0 ? north : south).push(j);
+    if (!south.length) return 1; if (!north.length) return 0;
+    const base = h < 12 ? 0.8 : 0.35, st = this.station(i).id;
+    if (this.net.boardingService(st, 'north') === this.net.boardingService(st, 'south')) return base;
+    const cat = (js: number[]) => js.reduce((a, j) => a + this.station(j).catchment, 0), wN = base * cat(north), wS = (1 - base) * cat(south);
+    return wN / (wN + wS);
   }
   enqueue(i: number, dirIdx: 0 | 1, count: number): void {
     if (count <= 0) return;
@@ -162,7 +218,7 @@ export class Sim {
     S.lost += count - take; g.stats.lost += count - take;
     if (take <= 0) return;
     const cands: number[] = [];
-    for (let j = 0; j < this.S.length; j++) { if (j === i) continue; const north = j > i; if ((dirIdx === 0 ? north : !north) && this.reachable(j)) cands.push(j); }
+    for (let j = 0; j < this.S.length; j++) if (j !== i && this.dirIdx(i, j) === dirIdx && this.reachable(j)) cands.push(j);
     if (!cands.length) return;
     const w = cands.map(j => this.station(j).catchment + 50), tot = w.reduce((a, b) => a + b, 0);
     let r = this.rand() * tot, dest = cands[0]!;

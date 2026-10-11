@@ -3,7 +3,7 @@
 // world positions. A track's offset changes along the line: each track has an open-line offset, and the layout list
 // moves it around a station (Stockport's tracks spread round two wide islands) or along a stretch, easing in and out.
 // Branching lines later become extra corridors joined at junctions.
-import type { CorridorDef, Frame, LatLon, NetworkDef, NetworkGeoDef, Station, TrackDef, XZ } from './types.ts';
+import type { CorridorDef, Frame, LatLon, NetworkDef, NetworkGeoDef, ServiceDef, Station, StationPoint, TrackDef, XZ } from './types.ts';
 
 export const NORTH = -1; // trains heading north (towards Manchester) move towards lower z, so "north" is -1 along z,
                          // but along a corridor we measure s increasing in the direction the corridor is drawn (south to north).
@@ -96,30 +96,50 @@ export class Network {
   track(id: string): TrackDef { const t = this.tracks.find(t => t.id === id); if (!t) throw new Error(`no track "${id}"`); return t; }
   station(id: string): Station { const s = this.byId[id]; if (!s) throw new Error(`no station "${id}"`); return s; }
 
-  /** The stretches of a track's corridor the layout list moves it in, in order: [s0, s1, offset]. */
-  private spans(t: TrackDef): [number, number, number][] {
-    const out: [number, number, number][] = [];
+  /** A station point's distance along its corridor. */
+  pointS(p: StationPoint): number { return this.station(p.station).at + p.u; }
+  /** Where a track begins and ends along its corridor. */
+  extent(trackId: string): [number, number] {
+    const t = this.track(trackId);
+    return [t.start ? this.pointS(t.start) : 0, t.end ? this.pointS(t.end) : this.corridor(t.corridor).length];
+  }
+  /** The stretches of a track's corridor the layout list moves it in, in order: [s0, s1, offset, ease]. */
+  private spans(t: TrackDef): [number, number, number, number][] {
+    const out: [number, number, number, number][] = [], E = this.def.ease ?? EASE;
     for (const L of this.def.layout ?? []) {
       const v = L.offsets[t.id]; if (v === undefined) continue;
       if (L.station) {
         const st = this.station(L.station); if (st.corridor !== t.corridor) continue;
-        out.push([st.at + (L.u0 ?? 0), st.at + (L.u1 ?? 0), v]);
-      } else if ((L.corridor ?? t.corridor) === t.corridor && L.s0 !== undefined && L.s1 !== undefined) out.push([L.s0, L.s1, v]);
+        out.push([st.at + (L.u0 ?? 0), st.at + (L.u1 ?? 0), v, L.ease ?? E]);
+      } else if ((L.corridor ?? t.corridor) === t.corridor && L.s0 !== undefined && L.s1 !== undefined) out.push([L.s0, L.s1, v, L.ease ?? E]);
     }
     return out.sort((a, b) => a[0] - b[0]);
   }
   /** The keys a track eases between: it holds each span's offset, and between spans returns to its open-line offset
    * when they're far enough apart, or eases straight from one to the next when they're close. */
   private profile(t: TrackDef): Key[] {
-    const E = this.def.ease ?? EASE, keys: Key[] = [];
-    for (const [s0, s1, v] of this.spans(t)) {
+    const keys: Key[] = []; let prevEase = 0;
+    for (const [s0, s1, v, E] of this.spans(t)) {
       const prev = keys[keys.length - 1];
       if (!prev) keys.push({ s: s0 - E, v: t.offset });
-      else if (s0 - prev.s > 2 * E) keys.push({ s: prev.s + E, v: t.offset }, { s: s0 - E, v: t.offset });
-      keys.push({ s: s0, v }, { s: s1, v });
+      else if (s0 - prev.s > prevEase + E) keys.push({ s: prev.s + prevEase, v: t.offset }, { s: s0 - E, v: t.offset });
+      keys.push({ s: s0, v }, { s: s1, v }); prevEase = E;
     }
-    const last = keys[keys.length - 1]; if (last) keys.push({ s: last.s + E, v: t.offset });
+    const last = keys[keys.length - 1]; if (last) keys.push({ s: last.s + prevEase, v: t.offset });
     return keys;
+  }
+  /** The passenger services (not scenery) with their routes as station indices, south to north. */
+  services(): { def: ServiceDef; route: number[]; home: number | null }[] {
+    return (this.def.services ?? []).filter(s => !s.scenery && s.route).map(def => ({
+      def, route: (def.route ?? []).map(id => this.station(id).index), home: def.home ? this.station(def.home).index : null,
+    }));
+  }
+  /** The service that takes passengers from a station in a direction: the one whose route goes on that way from it.
+   * At the end of every route (Piccadilly northbound), the one that calls there. */
+  boardingService(stationId: string, dir: 'north' | 'south'): ServiceDef | null {
+    const i = this.station(stationId).index, all = this.services();
+    const goes = all.find(s => { const k = s.route.indexOf(i); return k >= 0 && (dir === 'north' ? k < s.route.length - 1 : k > 0); });
+    return (goes ?? all.find(s => s.route.includes(i)))?.def ?? null;
   }
   /** Where a track runs across its corridor at s. */
   offsetAt(trackId: string, s: number): number {

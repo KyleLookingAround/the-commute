@@ -1,8 +1,11 @@
-// Train units as vertex-coloured box geometry, positioned on their track by distance along the corridor. The cars are
-// real length but about 1.6 times real height and width, model-railway style, so a train reads from the stock zoom.
+// Train units as vertex-coloured box geometry, positioned on their service's track by distance along the corridor. The
+// cars are real length but 1.3 times real height and width, model-railway style, so a train reads from the stock zoom.
+// A train coming in to the end of its run crosses over to the track it will leave on as it runs in, so it stands at the
+// platform its passengers board from and never jumps across when it turns round.
 import * as THREE from 'three';
 import { yawFor } from './world.ts';
 import { newFrame } from '../sim/network.ts';
+import type { Train } from '../sim/types.ts';
 import type { Network } from '../sim/network.ts';
 import type { Frame, GameState, ServiceDef } from '../sim/types.ts';
 
@@ -37,41 +40,58 @@ export function unitGeometry(cars: number, liv: Livery, carLen = 23): THREE.Buff
   geo.translate(-x / 2, 0, 0); return geo;
 }
 
-interface Express { svc: ServiceDef; mesh: THREE.Mesh; t: number; dir: 1 | -1 }
+interface Express { svc: ServiceDef; mesh: THREE.Mesh; t: number; dir: 1 | -1; s0: number }
+/** How far a train coming in to the end of its run has left to go, or null when it isn't. */
+export type EndAhead = (tr: Train) => number | null;
+const CROSS = 150;   // metres over which a train crosses to its departure track running in to the end of its run
+const smooth = (t: number) => t * t * (3 - 2 * t);
 
 export class TrainLayer {
   scene: THREE.Scene;
   net: Network;
   mat: THREE.MeshLambertMaterial;
   meshes: THREE.Mesh[];
-  stopper: ServiceDef;
+  services: Record<string, ServiceDef>;
   express: Express[];
   tmp: Frame;
+  tmp2: Frame;
   constructor(scene: THREE.Scene, net: Network, services: ServiceDef[]) {
     this.scene = scene; this.net = net; this.mat = new THREE.MeshLambertMaterial({ vertexColors: true });
     this.meshes = [];
-    const stopper = services.find(s => s.id === 'stopper'); if (!stopper) throw new Error('network.json names no "stopper" service');
-    this.stopper = stopper;
-    // scenery expresses on the fast lines
-    this.express = services.filter(s => s.scenery).map(s => { const m = new THREE.Mesh(unitGeometry(s.cars, liveryFor(s.operator)), this.mat); m.castShadow = true; scene.add(m); return { svc: s, mesh: m, t: 0, dir: 1 }; });
-    this.tmp = newFrame();
+    this.services = Object.fromEntries(services.map(s => [s.id, s]));
+    // scenery expresses on the fast lines, from where those lines begin
+    this.express = services.filter(s => s.scenery).map(s => {
+      const m = new THREE.Mesh(unitGeometry(s.cars, liveryFor(s.operator)), this.mat); m.castShadow = true; scene.add(m);
+      return { svc: s, mesh: m, t: 0, dir: 1, s0: Math.max(net.extent(s.tracks.north)[0], net.extent(s.tracks.south)[0]) };
+    });
+    this.tmp = newFrame(); this.tmp2 = newFrame();
   }
   place(mesh: THREE.Mesh, trackId: string, s: number): void {
     const p = this.net.trackAt(trackId, s, this.tmp);
     mesh.position.set(p.x, 0, p.z); mesh.rotation.y = yawFor(p);
   }
-  sync(g: GameState, dtGame: number): void {
+  /** Place a train part way across from one track to another: at s, a share t of the way, heading along the blend. */
+  placeAcross(mesh: THREE.Mesh, from: string, to: string, s: number, t: number, dir: number): void {
+    const c = this.net.corridor(this.net.track(from).corridor);
+    const off = (x: number) => { const k = smooth(Math.max(0, Math.min(1, t + (x - s) * dir / CROSS))); return this.net.offsetAt(from, x) * (1 - k) + this.net.offsetAt(to, x) * k; };
+    const a = c.at(s, off(s), this.tmp), b = c.at(s + 2, off(s + 2), this.tmp2);
+    mesh.position.set(a.x, 0, a.z); mesh.rotation.y = Math.atan2(-(b.z - a.z), b.x - a.x);
+  }
+  sync(g: GameState, dtGame: number, endAhead: EndAhead): void {
     while (this.meshes.length < g.trains.length) { const m = new THREE.Mesh(unitGeometry(2, NORTHERN), this.mat); m.userData['cars'] = 2; m.castShadow = true; this.scene.add(m); this.meshes.push(m); }
     g.trains.forEach((tr, i) => {
-      const m = this.meshes[i]; if (!m) return;
-      if (m.userData['cars'] !== tr.cars) { m.geometry.dispose(); m.geometry = unitGeometry(tr.cars, NORTHERN); m.userData['cars'] = tr.cars; }
-      this.place(m, tr.dir > 0 ? this.stopper.tracks.north : this.stopper.tracks.south, tr.s);
+      const m = this.meshes[i], svc = this.services[tr.svc]; if (!m || !svc) return;
+      if (m.userData['cars'] !== tr.cars) { m.geometry.dispose(); m.geometry = unitGeometry(tr.cars, liveryFor(svc.operator)); m.userData['cars'] = tr.cars; }
+      const on = tr.dir > 0 ? svc.tracks.north : svc.tracks.south, leaving = tr.dir > 0 ? svc.tracks.south : svc.tracks.north;
+      const rem = endAhead(tr);
+      if (rem !== null && rem < CROSS && on !== leaving) this.placeAcross(m, on, leaving, tr.s, 1 - rem / CROSS, tr.dir);
+      else this.place(m, on, tr.s);
     });
     const L = this.net.corridor('main').length;
     for (const ex of this.express) {
-      ex.t += dtGame; const period = 900, run = (ex.t % period) * 45;
+      ex.t += dtGame; const period = 900, run = (ex.t % period) * 45, len = L - ex.s0;
       if (Math.floor(ex.t / period) % 2 === 0) ex.dir = 1; else ex.dir = -1;
-      if (run < L) this.place(ex.mesh, ex.dir > 0 ? ex.svc.tracks.north : ex.svc.tracks.south, ex.dir > 0 ? run : L - run); else ex.mesh.position.y = -500;
+      if (run < len) this.place(ex.mesh, ex.dir > 0 ? ex.svc.tracks.north : ex.svc.tracks.south, ex.dir > 0 ? ex.s0 + run : L - run); else ex.mesh.position.y = -500;
     }
   }
 }

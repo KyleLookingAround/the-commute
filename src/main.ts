@@ -6,6 +6,9 @@ import kitHeaton from './data/kits/heaton-chapel.json';
 import kitLevenshulme from './data/kits/levenshulme.json';
 import kitArdwick from './data/kits/ardwick.json';
 import kitPiccadilly from './data/kits/piccadilly.json';
+import kitDavenport from './data/kits/davenport.json';
+import kitWoodsmoor from './data/kits/woodsmoor.json';
+import kitHazelGrove from './data/kits/hazel-grove.json';
 import { fromGeo } from './sim/network.ts';
 import { Sim } from './sim/sim.ts';
 import type { NetworkGeoDef } from './sim/types.ts';
@@ -36,7 +39,10 @@ declare global {
 // the JSON is the data layer's; it's typed here, where it's read, so the data stays plain. Only the waypoints need a
 // word: JSON can't say an array is a pair; everything else is checked against the type as it is
 const networkDef: NetworkGeoDef = { ...networkJson, corridors: networkJson.corridors.map(c => ({ ...c, waypoints: c.waypoints as [number, number][] })) };
-const kits: Record<string, Kit> = { stockport: kitStockport as Kit, 'heaton-chapel': kitHeaton as Kit, levenshulme: kitLevenshulme as Kit, ardwick: kitArdwick as Kit, piccadilly: kitPiccadilly as Kit };
+const kits: Record<string, Kit> = {
+  stockport: kitStockport as Kit, 'heaton-chapel': kitHeaton as Kit, levenshulme: kitLevenshulme as Kit, ardwick: kitArdwick as Kit, piccadilly: kitPiccadilly as Kit,
+  davenport: kitDavenport as Kit, woodsmoor: kitWoodsmoor as Kit, 'hazel-grove': kitHazelGrove as Kit,
+};
 const net = fromGeo(networkDef);
 
 // ---- state ----
@@ -57,9 +63,10 @@ const built = buildStations(scene, net, kits);
 // everything on the ground so far throws and takes shadows; the sky, added after, does neither
 scene.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = true; o.receiveShadow = true; } });
 const trains = new TrainLayer(scene, net, networkDef.services ?? []);
-const stopper = (networkDef.services ?? []).find(s => s.id === 'stopper');
-// where the stopper's tracks run across each station, so its passengers stand back from the right edge
-const trackV = net.stations.map(st => ({ north: stopper ? net.offsetAt(stopper.tracks.north, st.s) : 0, south: stopper ? net.offsetAt(stopper.tracks.south, st.s) : 0 }));
+// where the track runs beside each platform face, from the service that boards there that way (at Stockport the main
+// line northbound, the Hazel Grove line southbound), so passengers stand back from the right edge
+const faceTrack = (st: (typeof net.stations)[number], dir: 'north' | 'south') => { const svc = net.boardingService(st.id, dir); return svc ? net.offsetAt(svc.tracks[dir], st.s) : 0; };
+const trackV = net.stations.map(st => ({ north: faceTrack(st, 'north'), south: faceTrack(st, 'south') }));
 const pax = new PassengerLayer(built, net.stations, trackV);
 const rig = new OrbitRig(camera, canvas, scene);
 const sky = new Sky(scene, sun, lineMiddle());
@@ -89,12 +96,16 @@ const els: Els = {
   hour: el('hour'), hourLbl: el('hourLbl'), hourLive: el('hourLive'),
 };
 function stationXZ(i: number): [number, number] { const st = net.stations[i]; if (!st) throw new Error(`no station ${i}`); const f = net.stationFrame(st.id); return [f.x, f.z]; }
-function lineMiddle(): { x: number; z: number } { const a = stationXZ(0), b = stationXZ(net.stations.length - 1); return { x: (a[0] + b[0]) / 2, z: (a[1] + b[1]) / 2 }; }
-function lineView(): void { const m = lineMiddle(); rig.focus(m.x, m.z, 8500, 0.9, 1.05); }
+/** Halfway between the stations at the two ends of the line (by distance along it, not by the order they're bought). */
+function lineMiddle(): { x: number; z: number } {
+  const byS = [...net.stations].sort((p, q) => p.s - q.s), a = stationXZ(byS[0]!.index), b = stationXZ(byS[byS.length - 1]!.index);
+  return { x: (a[0] + b[0]) / 2, z: (a[1] + b[1]) / 2 };
+}
+function lineView(): void { const m = lineMiddle(); rig.focus(m.x, m.z, 10500, 0.9, 1.05); }
 const ui = new UI(sim, els, {
   speed: s => { speed = s; ui.setSpeed(s); },
   viewLine: lineView,
-  focusStation: i => { const [x, z] = stationXZ(i); rig.focus(x, z, i === 4 ? 360 : 230); },
+  focusStation: i => { const [x, z] = stationXZ(i); rig.focus(x, z, net.stations[i]?.id === 'piccadilly' ? 360 : 230); },
   changed: () => persist(),
   lockHour: h => { lockHour = h; ui.setLight(lockHour ?? sim.hour(), lockHour !== null); },
   reset: () => { store.wipe(); sim = new Sim(net, Sim.fresh(net, seed)); ui.sim = sim; ui.selected = 0; ui.buildAll(); const [x, z] = stationXZ(0); rig.focus(x, z); },
@@ -111,6 +122,10 @@ ui.setSpeed(1); ui.buildAll(); ui.setLight(lockHour ?? sim.hour(), lockHour !== 
 document.documentElement.dataset['sim'] = 'ready';   // the checks wait for this
 { const [x, z] = stationXZ(ui.selected); Object.assign(rig.o, { tx: x, ty: 2, tz: z, r: 230, th: 5.5, ph: 1.2 }, window.__orbit ?? {}); }
 
+// how far a train running in to the end of its run has to go, so the view can cross it over to its departure platform
+const endAhead = (tr: (typeof sim.g.trains)[number]): number | null =>
+  tr.state === 'run' && tr.next !== null && sim.isEnd(tr, tr.next) ? Math.abs(sim.station(tr.next).s - tr.s) : null;
+
 // ---- loop ----
 let prev = performance.now(), uiAcc = 0, saveAcc = 0;
 function frame(now: number): void {
@@ -120,7 +135,7 @@ function frame(now: number): void {
   resize(); rig.update(dt);
   const light = lighting(lockHour ?? sim.hour(), rig.o);
   sky.update(light.horizon, light.daylight, camera, dt);
-  syncStations(built, sim.g); trains.sync(sim.g, dtGame); pax.sync(sim.g, dtGame); labels();
+  syncStations(built, sim.g); trains.sync(sim.g, dtGame, endAhead); pax.sync(sim.g, dtGame); labels();
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
   renderer.render(scene, camera);

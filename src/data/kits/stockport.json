@@ -1,8 +1,8 @@
 {
   "id": "stockport",
-  "note": "From the OpenStreetMap export (tools/osm-to-kit.mjs and the corridor's tracks, 8 October 2026), 1.25 times real across the line like the tracks: island 3/4 between platform 4 (the stopper, turning round) and platform 3, with bay 3a cut into its north end; island 1/2 beyond the fast lines; platform 1's line and the platform 0 bay outside it; the carriage sidings and the Edgeley lines to the west; No.1 signal box on the end of island 3/4 and No.2 between the lines at the north end. Positive v is east (Station Road, Grand Central). The island buildings are set back from platform 4's edge to leave room to wait, from memory. Photos: platform 4's long canopy on slim red columns, the glass entrance with a curved roof on Station Road, a long brick retaining wall along the Station Road approach, and the Network Rail depot south of the station.",
+  "note": "From the OpenStreetMap export (tools/osm-to-kit.mjs and the corridor's tracks, 8 October 2026), 1.25 times real across the line like the tracks: island 3/4 between platform 4 (the stopper to Manchester, turning round) and platform 3, with bay 3a cut into its north end; island 1/2 beyond the fast lines, with platform 1 on its far side where the Hazel Grove line turns round, so passengers changing between the two walk through the subway; the platform 0 bay outside it; the carriage sidings and the Edgeley lines to the west; No.1 signal box on the end of island 3/4 and No.2 between the lines at the north end. Positive v is east (Station Road, Grand Central). The island buildings are set back from platform 4's edge to leave room to wait, from memory. Photos: platform 4's long canopy on slim red columns, the glass entrance with a curved roof on Station Road, a long brick retaining wall along the Station Road approach, and the Network Rail depot south of the station.",
   "platformLength": 290,
-  "faces": { "north": { "v": 3.85, "u0": -150, "u1": 125, "depth": 5 }, "south": { "v": 3.85, "u0": -150, "u1": 125, "depth": 5 } },
+  "faces": { "north": { "v": 3.85, "u0": -150, "u1": 125, "depth": 5 }, "south": { "v": 74.8, "u0": -120, "u1": 130, "depth": 5 } },
   "parts": [
     { "type": "platform", "u0": -156, "u1": 23, "v0": 2.35, "v1": 29.9 },
     { "type": "platform", "u0": 23, "u1": 134, "v0": 2.35, "v1": 15.65 },
@@ -12,7 +12,7 @@
     { "type": "platform", "u0": -206, "u1": -156, "v0": 2.35, "v1": 29.9, "upgrade": "extend" },
     { "type": "platform", "u0": -182, "u1": -132, "v0": 47.7, "v1": 75.8, "upgrade": "extend" },
     { "type": "rails", "points": [[23, 17.75], [150, 17.75], [230, 14], [310, 9.2]], "buffer": true },
-    { "type": "rails", "points": [[-420, 13.8], [-330, 35], [-250, 70], [-200, 77.9], [170, 77.9], [250, 60], [330, 30], [400, 13.8]] },
+    { "type": "rails", "points": [[148, 77.9], [170, 77.9], [250, 60], [330, 30], [400, 13.8]] },
     { "type": "rails", "points": [[-41, 82.1], [170, 82.1], [250, 64], [330, 34], [400, 13.8]], "buffer": true },
     { "type": "rails", "points": [[-420, 0], [-300, -6.1], [250, -6.1], [370, 0]] },
     { "type": "rails", "points": [[-380, -6.1], [-280, -11.1], [200, -11.1], [330, -6.1]] },

@@ -26,6 +26,10 @@ export interface Els {
 /** What the page does when the player acts: the UI never touches the sim's surroundings itself. */
 export interface Handlers {
   speed: (s: number) => void; viewLine: () => void; focusStation: (i: number) => void; changed: () => void; reset: () => void;
+  /** Preview what an upgrade at a station adds on the map (its parts as a ghost, the camera on them), or null to stop. */
+  preview: (i: number, id: string | null) => void;
+  /** An upgrade was just bought: show it rising into place. */
+  built: (i: number, id: string) => void;
   /** Lock the light to an hour of the day, or null to follow the clock again. The sim's clock never changes. */
   lockHour: (hour: number | null) => void;
 }
@@ -35,9 +39,11 @@ export class UI {
   els: Els;
   on: Handlers;
   selected: number;
+  /** The upgrade card chosen at the selected station, previewed on the map, or null. */
+  picked: string | null;
   toastTimer: ReturnType<typeof setTimeout> | undefined;
   constructor(sim: Sim, els: Els, on: Handlers) {
-    this.sim = sim; this.els = els; this.on = on; this.selected = 0; this.toastTimer = undefined;
+    this.sim = sim; this.els = els; this.on = on; this.selected = 0; this.picked = null; this.toastTimer = undefined;
     els.sp1.addEventListener('click', () => on.speed(1)); els.sp3.addEventListener('click', () => on.speed(3)); els.sp10.addEventListener('click', () => on.speed(10));
     els.vLine.addEventListener('click', () => on.viewLine());
     els.hour.addEventListener('input', () => on.lockHour(+els.hour.value));
@@ -58,7 +64,7 @@ export class UI {
     this.els.hourLive.hidden = !locked;
   }
   setSpeed(s: number): void { this.els.sp1.setAttribute('aria-pressed', String(s === 1)); this.els.sp3.setAttribute('aria-pressed', String(s === 3)); this.els.sp10.setAttribute('aria-pressed', String(s === 10)); }
-  select(i: number): void { this.selected = i; this.buildStrip(); this.buildPanel(); this.on.focusStation(i); }
+  select(i: number): void { this.pick(null); this.selected = i; this.buildStrip(); this.buildPanel(); this.on.focusStation(i); }
 
   buildAll(): void { this.buildStrip(); this.buildPanel(); this.buildLinePanel(); }
   buildStrip(): void {
@@ -91,24 +97,54 @@ export class UI {
     panel.innerHTML = `<h2>${s.name} <small>${milesFrom(s.miles)} · catchment ${s.catchment.toLocaleString('en-GB')}/h at peak</small></h2>
       <div class="stats"><div><small>Waiting</small><b id="pWait"></b></div><div><small>Boarded</small><b id="pBoard"></b></div><div><small>Arrived</small><b id="pOff"></b></div><div><small>Revenue</small><b id="pRev"></b></div><div><small>Gave up</small><b id="pLost"></b></div><div><small>Changed</small><b id="pChg"></b></div></div>
       <div class="ups" id="ups"></div>`;
-    // what's built and what can be built next; the rest stays hidden until it's reachable
-    const ups = panel.querySelector('#ups'), bought = this.sim.ups(i), sim = this.sim;
+    // what can be built next, a card each, and what's built, in one line; the rest stays hidden until it's reachable
+    const ups = panel.querySelector('#ups'), bought = this.sim.ups(i), sim = this.sim, done: string[] = [];
     for (const u of sim.visibleUpgrades(i)) {
-      const done = !!bought[u.id], name = sim.upgradeName(i, u), price = sim.upgradePrice(i, u), opens = done ? [] : sim.opens(i, u.id);
-      const d = document.createElement('div'); d.className = 'up' + (done ? ' done' : '');
-      d.innerHTML = `<div class="t"><b>${name}</b><span>${sim.upgradeDesc(i, u)}</span>${opens.length ? `<span class="opens">Opens: ${opens.join(', ')}</span>` : ''}</div><button ${done || !sim.canBuyUpgrade(i, u.id) ? 'disabled' : ''} data-up="${u.id}">${done ? 'Built' : fmt(price)}</button>`;
-      if (!done) d.querySelector('button')?.addEventListener('click', () => { if (sim.buyUpgrade(i, u.id)) { this.toast(`${name} built at ${s.name}`); this.buildPanel(); this.buildLinePanel(); this.on.changed(); } });
+      const name = sim.upgradeName(i, u);
+      if (bought[u.id]) { done.push(name); continue; }
+      const price = sim.upgradePrice(i, u), opens = sim.opens(i, u.id);
+      const d = document.createElement('article'); d.className = 'ucard' + (u.stage ? ' grow' : ''); d.dataset['card'] = u.id;
+      // the tags row is where a badge goes (a stage now; a manager's pick later)
+      d.innerHTML = `<button class="pick" aria-pressed="false" data-pick="${u.id}">
+          <span class="head"><b>${name}</b><span class="price">${fmt(price)}</span></span>
+          ${u.stage ? '<span class="tags"><span class="tag">Next stage</span></span>' : ''}
+          <span class="adds">${sim.upgradeDesc(i, u)}</span>
+          ${opens.length ? `<span class="opens"><span>Then</span> ${opens.map(o => `<i>${o}</i>`).join('')}</span>` : ''}
+        </button>
+        <div class="act"><span class="togo" data-togo="${u.id}"><meter min="0" max="${price}" value="0"></meter><span></span></span><button class="buyup" data-up="${u.id}">Buy</button></div>`;
+      d.querySelector('.pick')?.addEventListener('click', () => this.pick(this.picked === u.id ? null : u.id));
+      d.querySelector('.buyup')?.addEventListener('click', () => {
+        if (!sim.buyUpgrade(i, u.id)) return;
+        this.picked = null; this.toast(`${name} built at ${s.name}`); this.buildPanel(); this.buildLinePanel(); this.on.built(i, u.id); this.on.changed();
+      });
       ups?.appendChild(d);
     }
+    if (!ups?.children.length) ups?.insertAdjacentHTML('beforeend', '<p class="hint">Nothing more to build here yet.</p>');
+    else ups.insertAdjacentHTML('afterbegin', '<p class="hint">Tap a card to see it on the map.</p>');
+    if (done.length) panel.insertAdjacentHTML('beforeend', `<p class="built"><span>Built</span> ${done.map(n => `<i>${n}</i>`).join('')}</p>`);
+    this.markPicked();
     this.updatePanel();
   }
+  /** Choose an upgrade card (or none): the map previews it. */
+  pick(id: string | null): void {
+    if (this.picked === id) return;
+    this.picked = id; this.markPicked(); this.on.preview(this.selected, id);
+  }
+  markPicked(): void { this.els.panel.querySelectorAll<HTMLElement>('[data-pick]').forEach(b => { const on = b.dataset['pick'] === this.picked; b.setAttribute('aria-pressed', String(on)); b.parentElement?.classList.toggle('sel', on); }); }
   updatePanel(): void {
     const i = this.selected, g = this.g, S = this.sim.state(i), panel = this.els.panel;
     if (!g.owned[i]) { const b = panel.querySelector<HTMLButtonElement>('#buyStation'); if (b) b.disabled = !this.sim.canBuyStation(i); return; }
     const set = (id: string, v: string) => { const el = panel.querySelector('#' + id); if (el && el.textContent !== v) el.textContent = v; };
     set('pWait', String(S.waiting)); set('pBoard', S.boarded.toLocaleString('en-GB')); set('pOff', S.alighted.toLocaleString('en-GB')); set('pRev', fmt(S.revenue)); set('pLost', S.lost.toLocaleString('en-GB')); set('pChg', S.changed.toLocaleString('en-GB'));
-    const bought = this.sim.ups(i);
-    panel.querySelectorAll<HTMLButtonElement>('[data-up]').forEach(b => { const u = UPGRADES.find(u => u.id === b.dataset['up']); if (u && !bought[u.id]) b.disabled = !this.sim.canBuyUpgrade(i, u.id); });
+    // each card's Buy shows once the money is there; until then, how far there is to go
+    panel.querySelectorAll<HTMLElement>('[data-card]').forEach(card => {
+      const u = UPGRADES.find(u => u.id === card.dataset['card']); if (!u) return;
+      const price = this.sim.upgradePrice(i, u), can = this.sim.canBuyUpgrade(i, u.id), short = price - g.cash;
+      card.classList.toggle('can', can);
+      const m = card.querySelector('meter'), t = card.querySelector('.togo > span'), v = String(Math.max(0, Math.min(price, Math.floor(g.cash))));
+      if (m && m.getAttribute('value') !== v) m.setAttribute('value', v);
+      const txt = short > 0 ? `${fmt(short)} to go` : ''; if (t && t.textContent !== txt) t.textContent = txt;
+    });
   }
   buildLinePanel(): void {
     const g = this.g, lp = this.els.linePanel, sim = this.sim;

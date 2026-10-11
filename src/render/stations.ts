@@ -2,10 +2,11 @@
 // A part with no gate is the halt a station starts as (fogged until it's bought). A part with `upgrade` appears once that
 // upgrade is bought (or all of them, for a list: a canopy over the second platform needs both), and one with `until`
 // goes again when that is bought (the halt's short canopy, replaced by the island's). Scenery (roads, walls, sidings,
-// signal boxes) isn't the player's and always shows, never fogged. So buying things grows the station you can see.
+// signal boxes) isn't the player's and always shows, never fogged. So buying things grows the station you can see:
+// a card chosen in the panel previews its parts as a ghost, and buying it makes them rise into place.
 // The kit format (what src/data/kits/*.json holds) is typed here too, next to the builders that read it.
 import * as THREE from 'three';
-import { MAT, box, boxUV, matFor } from './scene.ts';
+import { MAT, PAL, box, boxUV, matFor } from './scene.ts';
 import { yawFor } from './world.ts';
 import type { Network } from '../sim/network.ts';
 import type { GameState, Station } from '../sim/types.ts';
@@ -125,13 +126,14 @@ const partBuilders: Builders = {
 // the builders are keyed by the part's type, so the one looked up always takes the part; the cast says so once
 const build = (part: Part, into: THREE.Group) => (partBuilders[part.type] as (gp: THREE.Group, p: Part) => void)(into, part);
 
-/** A group of parts shown together: when all of `needs` are bought and `until` isn't. */
-interface Gate { group: THREE.Group; needs: string[]; until: string | null }
+/** A group of parts shown together: when all of `needs` are bought and `until` isn't. shown: whether it showed last
+ * sync; rise: how far through rising into place it is (1 once it stands); ghost: drawn as a preview of buying it. */
+interface Gate { group: THREE.Group; needs: string[]; until: string | null; shown: boolean; rise: number; ghost: boolean }
 /** A station on the map: its group, the halt (fogged while locked), its scenery, the parts its upgrades reveal, and
- * where the label floats. */
+ * where the label floats. rise: how far the halt is through rising into place once bought. */
 export interface BuiltStation {
   station: Station; kit: Kit; group: THREE.Group; fixed: THREE.Group;
-  gated: Gate[]; label: THREE.Object3D; lockedNow: boolean | null;
+  gated: Gate[]; label: THREE.Object3D; lockedNow: boolean | null; rise: number;
 }
 
 export function buildStations(scene: THREE.Scene, net: Network, kits: Record<string, Kit>): BuiltStation[] {
@@ -147,21 +149,67 @@ export function buildStations(scene: THREE.Scene, net: Network, kits: Record<str
       else if (needs.length || part.until) {
         const key = `${needs.join('+')}|${part.until ?? ''}`;
         let gate = gates.get(key);
-        if (!gate) { gate = { group: new THREE.Group(), needs, until: part.until ?? null }; gate.group.visible = false; gp.add(gate.group); gates.set(key, gate); }
+        if (!gate) { gate = { group: new THREE.Group(), needs, until: part.until ?? null, shown: false, rise: 1, ghost: false }; gate.group.visible = false; gp.add(gate.group); gates.set(key, gate); }
         build(part, gate.group);
       } else build(part, fixed);
     }
     const gated = [...gates.values()];
     const label = new THREE.Object3D(); label.position.set(0, 14, 0); gp.add(label);
-    return { station: st, kit, group: gp, fixed, gated, label, lockedNow: null };
+    return { station: st, kit, group: gp, fixed, gated, label, lockedNow: null, rise: 1 };
   });
 }
 
-// Reflect ownership and upgrades: locked stations go grey and translucent, bought upgrades appear.
-export function syncStations(built: BuiltStation[], g: GameState): void {
+// ---- the preview and the rise ----
+// Choosing an upgrade's card draws the parts it would add as a ghost in the accent amber (the card's colour), pulsing
+// gently; buying it makes them rise into place over RISE_S seconds, as buying a station raises its halt out of the fog.
+// Both are only the view: nothing here reads or changes the game beyond what's bought.
+const GHOST = new THREE.MeshBasicMaterial({ color: PAL.pax, transparent: true, opacity: 0.5, depthWrite: false });
+const RISE_S = 1;
+let riseS = RISE_S;
+/** Players who ask for less motion get the parts in place at once. */
+export function setReducedMotion(reduced: boolean): void { riseS = reduced ? 0 : RISE_S; }
+/** Ease out with a little overshoot, so a part settles into place. */
+const settle = (t: number) => { const c = 1.4, x = t - 1; return 1 + (c + 1) * x * x * x + c * x * x; };
+
+type Ups = Record<string, boolean | undefined>;
+/** The gates buying `id` would show at a station with these upgrades bought. */
+function gatesFor(b: BuiltStation, ups: Ups, id: string): Gate[] {
+  const has = (x: string) => x === id || !!ups[x];
+  return b.gated.filter(gate => gate.needs.includes(id) && gate.needs.every(has) && !(gate.until && has(gate.until)));
+}
+/** Where an upgrade's parts stand in the world (the box round them), or null if it adds none at this station. */
+export function partsBox(b: BuiltStation, ups: Ups, id: string, into: THREE.Box3): THREE.Box3 | null {
+  const gates = gatesFor(b, ups, id); if (!gates.length) return null;
+  into.makeEmpty(); b.group.updateMatrixWorld(true);
+  for (const gate of gates) { const v = gate.group.visible; gate.group.visible = true; into.expandByObject(gate.group); gate.group.visible = v; }
+  return into.isEmpty() ? null : into;
+}
+function ghost(gate: Gate, on: boolean): void {
+  if (gate.ghost === on) return;
+  gate.ghost = on;
+  gate.group.traverse(o => {
+    if (!(o instanceof THREE.Mesh)) return;
+    if (on) { o.userData['own'] = o.material; o.material = GHOST; o.castShadow = false; }
+    else if (o.userData['own']) { o.material = o.userData['own']; o.castShadow = true; }
+  });
+}
+/** Show what buying `id` at a station would add, as a ghost, or clear the preview (null). Returns how many gates show. */
+export function previewUpgrade(built: BuiltStation[], i: number | null, ups: Ups, id: string | null): number {
+  for (const b of built) for (const gate of b.gated) ghost(gate, false);
+  const b = i === null ? undefined : built[i]; if (!b || !id) return 0;
+  const gates = gatesFor(b, ups, id); for (const gate of gates) ghost(gate, true);
+  return gates.length;
+}
+let pulse = 0;
+
+// Reflect ownership and upgrades: locked stations go grey and translucent, bought upgrades rise into place, the
+// preview's ghosts pulse. dt: real seconds since the last frame.
+export function syncStations(built: BuiltStation[], g: GameState, dt: number): void {
+  pulse += dt; GHOST.opacity = 0.4 + 0.2 * Math.sin(pulse * 4);
   built.forEach((b, i) => {
-    const locked = !g.owned[i], ups = g.ups[i] ?? {};
+    const locked = !g.owned[i], ups = (g.ups[i] ?? {}) as Ups, first = b.lockedNow === null;
     if (b.lockedNow !== locked) {
+      if (!first && !locked) b.rise = 0;   // bought: the halt rises out of the fog
       b.lockedNow = locked;
       b.fixed.traverse(o => {
         if (!(o instanceof THREE.Mesh)) return;
@@ -169,7 +217,14 @@ export function syncStations(built: BuiltStation[], g: GameState): void {
         else if (o.userData['mat']) o.material = o.userData['mat'];
       });
     }
-    const has = (id: string) => !!(ups as Record<string, boolean | undefined>)[id];
-    for (const gate of b.gated) gate.group.visible = !locked && gate.needs.every(has) && !(gate.until && has(gate.until));
+    if (b.rise < 1) { b.rise = riseS ? Math.min(1, b.rise + dt / riseS) : 1; b.fixed.scale.y = Math.max(0.01, settle(b.rise)); }
+    const has = (id: string) => !!ups[id];
+    for (const gate of b.gated) {
+      const show = !locked && gate.needs.every(has) && !(gate.until && has(gate.until));
+      if (show && !gate.shown && !first) { gate.rise = 0; ghost(gate, false); }   // just bought: it stops being a ghost and rises
+      gate.shown = show;
+      gate.group.visible = show || gate.ghost;
+      if (gate.rise < 1) { gate.rise = riseS ? Math.min(1, gate.rise + dt / riseS) : 1; gate.group.scale.y = Math.max(0.01, settle(gate.rise)); }
+    }
   });
 }

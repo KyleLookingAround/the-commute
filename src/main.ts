@@ -14,7 +14,7 @@ import { Sim } from './sim/sim.ts';
 import type { NetworkGeoDef } from './sim/types.ts';
 import { createScene } from './render/scene.ts';
 import { buildWorld } from './render/world.ts';
-import { buildStations, syncStations } from './render/stations.ts';
+import { buildStations, syncStations, previewUpgrade, partsBox, setReducedMotion } from './render/stations.ts';
 import type { Kit } from './render/stations.ts';
 import { TrainLayer } from './render/trains.ts';
 import { PassengerLayer } from './render/passengers.ts';
@@ -33,6 +33,8 @@ declare global {
     __lockHour?: number;
     /** Set by a screenshot before the page loads: where the camera starts (any of tx, ty, tz, r, th, ph). */
     __orbit?: Partial<import('./render/camera.ts').Orbit>;
+    /** For the checks: how many groups of parts the preview shows, and how many are still rising into place. */
+    __view?: { preview: number; rising: () => number };
   }
 }
 
@@ -69,6 +71,17 @@ const faceTrack = (st: (typeof net.stations)[number], dir: 'north' | 'south') =>
 const trackV = net.stations.map(st => ({ north: faceTrack(st, 'north'), south: faceTrack(st, 'south') }));
 const pax = new PassengerLayer(built, net.stations, trackV);
 const rig = new OrbitRig(camera, canvas, scene);
+setReducedMotion(matchMedia('(prefers-reduced-motion: reduce)').matches);
+const view = { preview: 0, rising: () => built.reduce((n, b) => n + b.gated.filter(gt => gt.rise < 1).length, 0) };
+window.__view = view;
+const partBox = new THREE.Box3();
+/** Preview an upgrade at a station on the map (or stop), and put the camera on what it adds. */
+function preview(i: number | null, id: string | null): void {
+  const ups = i === null ? {} : sim.ups(i);
+  view.preview = previewUpgrade(built, i, ups, id);
+  const b = i === null ? undefined : built[i], box = b && id ? partsBox(b, ups, id, partBox) : null;
+  if (box) rig.frame(box);
+}
 const sky = new Sky(scene, sun, lineMiddle());
 
 // ---- labels ----
@@ -107,8 +120,10 @@ const ui = new UI(sim, els, {
   viewLine: lineView,
   focusStation: i => { const [x, z] = stationXZ(i); rig.focus(x, z, net.stations[i]?.id === 'piccadilly' ? 360 : 230); },
   changed: () => persist(),
+  preview: (i, id) => preview(i, id),
+  built: (i, id) => { preview(null, null); const b = built[i], box = b ? partsBox(b, sim.ups(i), id, partBox) : null; if (box) rig.frame(box); },
   lockHour: h => { lockHour = h; ui.setLight(lockHour ?? sim.hour(), lockHour !== null); },
-  reset: () => { store.wipe(); sim = new Sim(net, Sim.fresh(net, seed)); ui.sim = sim; ui.selected = 0; ui.buildAll(); const [x, z] = stationXZ(0); rig.focus(x, z); },
+  reset: () => { store.wipe(); sim = new Sim(net, Sim.fresh(net, seed)); preview(null, null); ui.sim = sim; ui.selected = 0; ui.picked = null; ui.buildAll(); const [x, z] = stationXZ(0); rig.focus(x, z); },
 });
 function persist(): void { store.save({ g: sim.g, selected: ui.selected }); }
 
@@ -129,13 +144,14 @@ const endAhead = (tr: (typeof sim.g.trains)[number]): number | null =>
 // ---- loop ----
 let prev = performance.now(), uiAcc = 0, saveAcc = 0;
 function frame(now: number): void {
-  const dt = Math.min(0.1, (now - prev) / 1000); prev = now;
+  const realDt = (now - prev) / 1000, dt = Math.min(0.1, realDt); prev = now;
   const dtGame = dt * GAME_PER_REAL * speed;
   sim.advance(dtGame);
   resize(); rig.update(dt);
   const light = lighting(lockHour ?? sim.hour(), rig.o);
   sky.update(light.horizon, light.daylight, camera, dt);
-  syncStations(built, sim.g); trains.sync(sim.g, dtGame, endAhead); pax.sync(sim.g, dtGame); labels();
+  // the rise takes about a second however slow the frames, so it gets the frame's real time
+  syncStations(built, sim.g, realDt); trains.sync(sim.g, dtGame, endAhead); pax.sync(sim.g, dtGame); labels();
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
   renderer.render(scene, camera);

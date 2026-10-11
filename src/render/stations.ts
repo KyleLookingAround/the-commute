@@ -160,10 +160,10 @@ export function buildStations(scene: THREE.Scene, net: Network, kits: Record<str
 }
 
 // ---- the preview and the rise ----
-// Choosing an upgrade's card draws the parts it would add as a ghost in the accent amber (the card's colour), pulsing
+// Choosing an upgrade's card draws the parts it would add as a ghost in its own blueprint cyan (the chosen card's edge too), pulsing
 // gently; buying it makes them rise into place over RISE_S seconds, as buying a station raises its halt out of the fog.
 // Both are only the view: nothing here reads or changes the game beyond what's bought.
-const GHOST = new THREE.MeshBasicMaterial({ color: PAL.pax, transparent: true, opacity: 0.5, depthWrite: false });
+const GHOST = new THREE.MeshBasicMaterial({ color: PAL.ghost, transparent: true, opacity: 0.5, depthWrite: false, fog: false });
 const RISE_S = 1;
 let riseS = RISE_S;
 /** Players who ask for less motion get the parts in place at once. */

@@ -60,7 +60,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
    meter and how much to go. The tags row takes a badge (a stage now, a manager's pick later). */
 .ups .hint{grid-column:1/-1;margin:0;font-size:var(--text-sm);color:var(--muted)}
 .ucard{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r);background:var(--card);overflow:hidden;transition:border-color var(--motion),box-shadow var(--motion)}
-.ucard.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 18px var(--accent-glow)}
+.ucard.sel{border-color:var(--ghost);box-shadow:0 0 0 1px var(--ghost),0 0 18px var(--ghost-glow)}
 .ucard .pick{display:flex;flex-direction:column;gap:var(--s-1);align-items:stretch;text-align:left;border:0;border-radius:0;background:transparent;padding:var(--s-2) var(--s-3);min-height:var(--touch)}
 .ucard .head{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s-2)}
 .ucard .head b{font-size:var(--text);font-weight:800;line-height:1.2}

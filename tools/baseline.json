@@ -1,15 +1,15 @@
 {
-  "note": "The sensible bot (tools/bot.mjs) on seeds 1-3 for 8 sim hours (two game days: the clock runs six times faster than the sim) from a fresh game. Proposed from the first run on 8 Oct 2026 at 48 game hours and re-proposed on 8 Oct 2026 when sim seconds became real seconds (the clock six times faster than motion): the same money a real minute, but a quicker start and fewer lost, since a peak lasts a sixth of the sim seconds it did while patience and platform caps are in sim seconds; and lost re-proposed on 11 Oct 2026 when trains began boarding through their stop (two doors a car, 0.7 passengers a second each) instead of all at once on arrival: people who reach the platform while a train stands now catch it, so Stockport's queue rarely reaches its cap and lost fell from about 155 to 30 while cash and milestones stayed in range. The owner agrees ranges when the pacing is settled, and decides whether peaks should bite harder. `ok` is inside the range, `near` within 15% of it, `off` beyond.",
+  "note": "The sensible bot (tools/bot.mjs) on seeds 1-3 for 8 sim hours (two game days: the clock runs six times faster than the sim) from a fresh game. Proposed from the first run on 8 Oct 2026 at 48 game hours and re-proposed on 8 Oct 2026 when sim seconds became real seconds (the clock six times faster than motion): the same money a real minute, but a quicker start and fewer lost, since a peak lasts a sixth of the sim seconds it did while patience and platform caps are in sim seconds; and lost re-proposed on 11 Oct 2026 when trains began boarding through their stop (two doors a car, 0.7 passengers a second each) instead of all at once on arrival: people who reach the platform while a train stands now catch it, so Stockport's queue rarely reaches its cap and lost fell from about 155 to 30 while cash and milestones stayed in range. Re-proposed again on 11 Oct 2026 when stations began as halts (the owner's decision): Stockport's subway, platform 3 and booking hall come before the second unit (0.17 to 0.4 h), so Heaton Chapel comes later (0.4 to 0.72 h) and everything after a little later; stages cost money, so less cash at the end; and peaks bite again (lost 30 to 205), as the second unit arrives later and Stockport's subway brings more people in. The owner agrees ranges when the pacing is settled. `ok` is inside the range, `near` within 15% of it, `off` beyond.",
   "hours": 8,
   "ranges": {
-    "unit": [0.1, 0.3],
-    "owns:heaton-chapel": [0.3, 0.6],
-    "owns:levenshulme": [1.6, 2.5],
+    "unit": [0.25, 0.6],
+    "owns:heaton-chapel": [0.5, 1.0],
+    "owns:levenshulme": [1.6, 2.8],
     "owns:ardwick": [4.5, 6.5],
     "owns:piccadilly": [8, 20],
-    "cash at end": [40000, 60000],
-    "boarded": [3500, 4800],
-    "lost": [15, 80],
+    "cash at end": [25000, 50000],
+    "boarded": [3500, 5200],
+    "lost": [100, 320],
     "longest quiet hours": [1.6, 2.7]
   }
 }

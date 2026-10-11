@@ -33,7 +33,9 @@ test('network: track offsets are perpendicular to the corridor', () => {
 });
 
 // the kits are the view's, but where their platforms stand against the network's tracks is a fact about the data
-interface KitFaces { faces: Record<'north' | 'south', { v: number }>; parts: { type: string; v0?: number; v1?: number; u0?: number; u1?: number }[] }
+interface KitFaces { faces: Record<'north' | 'south', { v: number }>; parts: { type: string; v0?: number; v1?: number; u0?: number; u1?: number; upgrade?: string | string[] }[] }
+/** Stockport grown to the stage where trains can run both ways from it and the branch can open. */
+const growStockport = (sim: Sim) => { for (const id of ['crossing', 'platform2', 'building', 'platforms']) assert.ok(sim.buyUpgrade(0, id), `Stockport ${id}`); };
 const kit = (id: string) => JSON.parse(readFileSync(new URL(`../src/data/kits/${id}.json`, import.meta.url), 'utf8')) as KitFaces;
 const stopper = def.services?.find(s => s.id === 'stopper');
 
@@ -45,7 +47,8 @@ test('tracks: trains stand just clear of the platform their passengers wait on, 
       const svc = n.boardingService(st.id, dir); if (!svc) throw new Error(`${st.id}: no service boards ${dir}`);
       const tv = n.offsetAt(svc.tracks[dir], st.s), fv = k.faces[dir].v, side = Math.sign(fv - tv);
       // the platform the face stands on: the one whose edge nearest the track is between the track and the face
-      const edges = k.parts.filter(p => p.type === 'platform' && p.v0 !== undefined && p.v1 !== undefined && !('upgrade' in p))
+      // the platforms a station grows (its halt and later stages), not the extensions beyond their ends
+      const edges = k.parts.filter(p => p.type === 'platform' && p.v0 !== undefined && p.v1 !== undefined && ![p.upgrade ?? []].flat().includes('extend'))
         .map(p => side > 0 ? p.v0! : p.v1!).filter(e => (e - tv) * side > 0 && (fv - e) * side >= 0);
       assert.ok(edges.length, `${st.id} ${dir}: a platform between the track at ${tv.toFixed(2)} and the face at ${fv}`);
       const gap = Math.min(...edges.map(e => Math.abs(e - tv)));
@@ -143,6 +146,9 @@ test('branch: buying Davenport after Piccadilly opens the Hazel Grove line, and 
   const dav = n.station('davenport').index, wood = n.station('woodsmoor').index;
   assert.equal(sim.canBuyStation(dav), false, 'not before Piccadilly');
   for (let i = 1; i < dav; i++) assert.ok(sim.buyStation(i));
+  assert.equal(sim.canBuyStation(dav), false, "not before Stockport's platforms 0, 1 and 2");
+  assert.equal(sim.stationNeeds(dav)?.name, 'Platforms 0, 1 and 2');
+  growStockport(sim);
   assert.equal(sim.unitsFor(hg), 0, 'no branch trains yet');
   assert.ok(sim.buyStation(dav)); sim.step(1);
   assert.deepEqual(sim.span(hg).map(i => n.stations[i]!.id), ['davenport', 'stockport']);
@@ -156,7 +162,7 @@ test('branch: buying Davenport after Piccadilly opens the Hazel Grove line, and 
 
 test('branch: passengers change at Stockport, pay once, and arrive', () => {
   const sim = new Sim(net(), Sim.fresh(net(), 5)), n = sim.net;
-  sim.g.cash = 1e8;
+  sim.g.cash = 1e8; growStockport(sim);
   for (let i = 1; i < n.stations.length; i++) assert.ok(sim.buyStation(i));
   sim.advance(2 * 3600);
   const st = n.station('stockport').index, dav = n.station('davenport').index, hc = n.station('heaton-chapel').index;
@@ -169,9 +175,34 @@ test('branch: passengers change at Stockport, pay once, and arrive', () => {
   assert.ok(done <= sim.g.stats.boarded && sim.g.stats.boarded <= done + sim.g.stats.lost, `journeys ${sim.g.stats.boarded}, accounted ${done} + lost ${sim.g.stats.lost}`);
 });
 
+test('halt: a bought station is one platform one way, until its second platform', () => {
+  const sim = new Sim(net(), Sim.fresh(net(), 3)), hc = sim.net.station('heaton-chapel').index;
+  sim.g.cash = 1e6; assert.ok(sim.buyStation(hc));
+  assert.equal(sim.serves(hc, 0), true, 'towards Manchester'); assert.equal(sim.serves(hc, 1), false, 'not back to Stockport');
+  sim.advance(3600);
+  assert.ok(sim.state(hc).q[0].length > 0 || sim.state(hc).boarded > 0, 'people for Manchester come');
+  assert.equal(sim.state(hc).q[1].length, 0, 'nobody waits for a train that never calls');
+  // the stage before the second platform is needed first, and the second platform is hidden until then
+  assert.equal(sim.canBuyUpgrade(hc, 'platform2'), false);
+  assert.ok(!sim.visibleUpgrades(hc).some(u => u.id === 'platform2'), 'hidden until reachable');
+  assert.deepEqual(sim.opens(hc, 'crossing'), ['Second platform', 'Lifts']);
+  assert.ok(sim.buyUpgrade(hc, 'crossing') && sim.buyUpgrade(hc, 'platform2'));
+  assert.equal(sim.serves(hc, 1), true);
+  sim.advance(1800);
+  assert.ok(sim.state(hc).q[1].length > 0 || sim.state(hc).boarded > 0, 'and now people going back to Stockport too');
+});
+
+test('halt: Piccadilly as a halt is the platform trains leave from, and offers only its own stages', () => {
+  const sim = new Sim(net()), pic = sim.net.station('piccadilly').index;
+  assert.equal(sim.haltDir(pic), 1);
+  assert.deepEqual(sim.visibleUpgrades(pic).filter(u => u.stage).map(u => u.id), ['building']);
+});
+
 test('sim: line upgrades add units and lengthen trains', () => {
   const sim = new Sim(net());
   sim.g.cash = 1e6;
+  assert.equal(sim.buyLine('units'), false, "an extra unit waits for Stockport's platform 3");
+  assert.ok(sim.buyUpgrade(0, 'crossing') && sim.buyUpgrade(0, 'platform2'));
   assert.equal(sim.buyLine('units'), true); sim.step(1);
   assert.equal(sim.g.trains.length, 2);
   assert.equal(sim.buyLine('cars'), true); sim.step(1);

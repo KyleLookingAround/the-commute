@@ -1,5 +1,8 @@
 // Station kits: each station is a Group placed on the corridor, built from data parts in a local (u along, y up, v across) frame.
-// Parts with an "upgrade" field only appear once that upgrade is bought, so buying things changes the station you can see.
+// A part with no gate is the halt a station starts as (fogged until it's bought). A part with `upgrade` appears once that
+// upgrade is bought (or all of them, for a list: a canopy over the second platform needs both), and one with `until`
+// goes again when that is bought (the halt's short canopy, replaced by the island's). Scenery (roads, walls, sidings,
+// signal boxes) isn't the player's and always shows, never fogged. So buying things grows the station you can see.
 // The kit format (what src/data/kits/*.json holds) is typed here too, next to the builders that read it.
 import * as THREE from 'three';
 import { MAT, box, boxUV, matFor } from './scene.ts';
@@ -8,7 +11,7 @@ import type { Network } from '../sim/network.ts';
 import type { GameState, Station } from '../sim/types.ts';
 
 // ---- the kit format ----
-interface Gated { upgrade?: string }
+interface Gated { upgrade?: string | string[]; until?: string; scenery?: boolean }
 interface Span { u0: number; u1: number }
 interface Footprint extends Span { v0: number; v1: number }
 export type Part =
@@ -20,6 +23,8 @@ export type Part =
   /** back: which side the glass back is on, away from the track (+1 is +v, the default). */
   | (Gated & { type: 'shelter'; u: number; v: number; back?: 1 | -1 })
   | (Gated & { type: 'footbridge'; u: number; v0: number; v1: number; towers: number[] })
+  /** A footbridge's stair tower on its own, for a platform built after the bridge. */
+  | (Gated & { type: 'stairs'; u: number; v: number })
   | (Gated & { type: 'lifts'; u: number; towers: number[] })
   | (Gated & { type: 'retail'; u: number; v: number; small?: boolean; y?: number; label?: string })
   | (Gated & Span & { type: 'barriers'; v: number; y?: number })
@@ -74,6 +79,7 @@ const partBuilders: Builders = {
     box(gp, 3.6, 3.2, w, MAT.glass, p.u, 7.9, cv); box(gp, 4.2, 0.5, w + 2, MAT.roof, p.u, 9.7, cv); box(gp, 3.6, 0.5, w + 2, MAT.concrete, p.u, 6.1, cv);
     for (const tv of p.towers) box(gp, 10, 5, 4.5, MAT.concrete, p.u, 3.5, tv);
   },
+  stairs(gp, p) { box(gp, 10, 5, 4.5, MAT.concrete, p.u, 3.5, p.v); },
   lifts(gp, p) { for (const tv of p.towers) { box(gp, 3.2, 9.5, 3.2, MAT.glass, p.u + 7, 4.75, tv); box(gp, 3.6, 0.4, 3.6, MAT.roof, p.u + 7, 9.7, tv); } },
   retail(gp, p) {
     const w = p.small ? 3 : 8, d = p.small ? 2.2 : 5;
@@ -119,10 +125,13 @@ const partBuilders: Builders = {
 // the builders are keyed by the part's type, so the one looked up always takes the part; the cast says so once
 const build = (part: Part, into: THREE.Group) => (partBuilders[part.type] as (gp: THREE.Group, p: Part) => void)(into, part);
 
-/** A station on the map: its group, the parts always there, the parts each upgrade reveals, and where the label floats. */
+/** A group of parts shown together: when all of `needs` are bought and `until` isn't. */
+interface Gate { group: THREE.Group; needs: string[]; until: string | null }
+/** A station on the map: its group, the halt (fogged while locked), its scenery, the parts its upgrades reveal, and
+ * where the label floats. */
 export interface BuiltStation {
   station: Station; kit: Kit; group: THREE.Group; fixed: THREE.Group;
-  gated: Record<string, THREE.Group>; label: THREE.Object3D; lockedNow: boolean | null;
+  gated: Gate[]; label: THREE.Object3D; lockedNow: boolean | null;
 }
 
 export function buildStations(scene: THREE.Scene, net: Network, kits: Record<string, Kit>): BuiltStation[] {
@@ -130,15 +139,19 @@ export function buildStations(scene: THREE.Scene, net: Network, kits: Record<str
     const kit = kits[st.kit]; if (!kit) throw new Error(`no kit "${st.kit}" for ${st.name}`);
     const frame = net.stationFrame(st.id);
     const gp = new THREE.Group(); gp.position.set(frame.x, 0, frame.z); gp.rotation.y = yawFor(frame); scene.add(gp);
-    const fixed = new THREE.Group(), gated: Record<string, THREE.Group> = {}; gp.add(fixed);
+    const fixed = new THREE.Group(), scenery = new THREE.Group(), gates = new Map<string, Gate>(); gp.add(fixed); gp.add(scenery);
     for (const part of kit.parts) {
       if (!(part.type in partBuilders)) { console.warn('unknown part', part.type); continue; }
-      if (part.upgrade) {
-        let grp = gated[part.upgrade];
-        if (!grp) { grp = new THREE.Group(); grp.visible = false; gp.add(grp); gated[part.upgrade] = grp; }
-        build(part, grp);
+      const needs = part.upgrade === undefined ? [] : Array.isArray(part.upgrade) ? part.upgrade : [part.upgrade];
+      if (part.scenery) build(part, scenery);
+      else if (needs.length || part.until) {
+        const key = `${needs.join('+')}|${part.until ?? ''}`;
+        let gate = gates.get(key);
+        if (!gate) { gate = { group: new THREE.Group(), needs, until: part.until ?? null }; gate.group.visible = false; gp.add(gate.group); gates.set(key, gate); }
+        build(part, gate.group);
       } else build(part, fixed);
     }
+    const gated = [...gates.values()];
     const label = new THREE.Object3D(); label.position.set(0, 14, 0); gp.add(label);
     return { station: st, kit, group: gp, fixed, gated, label, lockedNow: null };
   });
@@ -156,6 +169,7 @@ export function syncStations(built: BuiltStation[], g: GameState): void {
         else if (o.userData['mat']) o.material = o.userData['mat'];
       });
     }
-    for (const [id, grp] of Object.entries(b.gated)) grp.visible = !locked && !!(ups as Record<string, boolean | undefined>)[id];
+    const has = (id: string) => !!(ups as Record<string, boolean | undefined>)[id];
+    for (const gate of b.gated) gate.group.visible = !locked && gate.needs.every(has) && !(gate.until && has(gate.until));
   });
 }

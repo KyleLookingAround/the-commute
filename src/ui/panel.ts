@@ -80,22 +80,24 @@ export class UI {
   buildPanel(): void {
     const i = this.selected, s = this.sim.station(i), g = this.g, panel = this.els.panel;
     if (!g.owned[i]) {
-      const blocked = i > 0 && !g.owned[i - 1];
+      const blocked = i > 0 && !g.owned[i - 1], needs = this.sim.stationNeeds(i);
+      const label = blocked ? 'Buy the stations before it first' : needs ? `Needs ${needs.station.name}'s ${needs.name}` : `Buy as a halt · ${fmt(s.price)}`;
       panel.innerHTML = `<h2>${s.name} <small>${milesFrom(s.miles)} from Stockport · locked</small></h2>
         <p class="blurb">${BLURB[s.id] || ''}</p>
-        <button class="buy" id="buyStation" ${this.sim.canBuyStation(i) ? '' : 'disabled'}>${blocked ? 'Buy the stations before it first' : `Buy station · ${fmt(s.price)}`}</button>`;
+        <button class="buy" id="buyStation" ${this.sim.canBuyStation(i) ? '' : 'disabled'}>${label}</button>`;
       panel.querySelector('#buyStation')?.addEventListener('click', () => { if (this.sim.buyStation(i)) { this.toast(`${s.name} is yours. Trains now call here.`); this.buildStrip(); this.buildPanel(); this.buildLinePanel(); this.on.changed(); } });
       return;
     }
     panel.innerHTML = `<h2>${s.name} <small>${milesFrom(s.miles)} · catchment ${s.catchment.toLocaleString('en-GB')}/h at peak</small></h2>
       <div class="stats"><div><small>Waiting</small><b id="pWait"></b></div><div><small>Boarded</small><b id="pBoard"></b></div><div><small>Arrived</small><b id="pOff"></b></div><div><small>Revenue</small><b id="pRev"></b></div><div><small>Gave up</small><b id="pLost"></b></div><div><small>Changed</small><b id="pChg"></b></div></div>
       <div class="ups" id="ups"></div>`;
-    const ups = panel.querySelector('#ups'), bought = this.sim.ups(i);
-    for (const u of UPGRADES) {
-      const done = !!bought[u.id], name = u.name || s.retail;
+    // what's built and what can be built next; the rest stays hidden until it's reachable
+    const ups = panel.querySelector('#ups'), bought = this.sim.ups(i), sim = this.sim;
+    for (const u of sim.visibleUpgrades(i)) {
+      const done = !!bought[u.id], name = sim.upgradeName(i, u), price = sim.upgradePrice(i, u), opens = done ? [] : sim.opens(i, u.id);
       const d = document.createElement('div'); d.className = 'up' + (done ? ' done' : '');
-      d.innerHTML = `<div class="t"><b>${name}</b><span>${u.desc}</span></div><button ${done || g.cash < u.price ? 'disabled' : ''} data-up="${u.id}">${done ? 'Built' : fmt(u.price)}</button>`;
-      if (!done) d.querySelector('button')?.addEventListener('click', () => { if (this.sim.buyUpgrade(i, u.id)) { this.toast(`${name} built at ${s.name}`); this.buildPanel(); this.on.changed(); } });
+      d.innerHTML = `<div class="t"><b>${name}</b><span>${sim.upgradeDesc(i, u)}</span>${opens.length ? `<span class="opens">Opens: ${opens.join(', ')}</span>` : ''}</div><button ${done || !sim.canBuyUpgrade(i, u.id) ? 'disabled' : ''} data-up="${u.id}">${done ? 'Built' : fmt(price)}</button>`;
+      if (!done) d.querySelector('button')?.addEventListener('click', () => { if (sim.buyUpgrade(i, u.id)) { this.toast(`${name} built at ${s.name}`); this.buildPanel(); this.buildLinePanel(); this.on.changed(); } });
       ups?.appendChild(d);
     }
     this.updatePanel();
@@ -106,7 +108,7 @@ export class UI {
     const set = (id: string, v: string) => { const el = panel.querySelector('#' + id); if (el && el.textContent !== v) el.textContent = v; };
     set('pWait', String(S.waiting)); set('pBoard', S.boarded.toLocaleString('en-GB')); set('pOff', S.alighted.toLocaleString('en-GB')); set('pRev', fmt(S.revenue)); set('pLost', S.lost.toLocaleString('en-GB')); set('pChg', S.changed.toLocaleString('en-GB'));
     const bought = this.sim.ups(i);
-    panel.querySelectorAll<HTMLButtonElement>('[data-up]').forEach(b => { const u = UPGRADES.find(u => u.id === b.dataset['up']); if (u && !bought[u.id]) b.disabled = g.cash < u.price; });
+    panel.querySelectorAll<HTMLButtonElement>('[data-up]').forEach(b => { const u = UPGRADES.find(u => u.id === b.dataset['up']); if (u && !bought[u.id]) b.disabled = !this.sim.canBuyUpgrade(i, u.id); });
   }
   buildLinePanel(): void {
     const g = this.g, lp = this.els.linePanel, sim = this.sim;
@@ -114,6 +116,7 @@ export class UI {
     lp.innerHTML = `<h2>The line <small>${sim.unitsInService()} unit${sim.unitsInService() === 1 ? '' : 's'} · ${sim.carsPerUnit()}-car · ${g.line.timetable ? '90' : '75'} mph${branch}</small></h2><div class="ups" id="lups"></div>`;
     const holder = lp.querySelector('#lups');
     for (const u of LINE_UPGRADES) {
+      if (!sim.lineReady(u.id)) continue;   // extra units wait for room to turn at Stockport
       const lvl = g.line[u.id], done = lvl >= u.max, price = done ? 0 : (u.prices[lvl] ?? 0);
       const d = document.createElement('div'); d.className = 'up' + (done ? ' done' : '');
       d.innerHTML = `<div class="t"><b>${u.name} ${u.max > 1 ? `(${lvl}/${u.max})` : ''}</b><span>${u.desc}</span></div><button ${done || g.cash < price ? 'disabled' : ''} data-lu="${u.id}">${done ? 'Done' : fmt(price)}</button>`;

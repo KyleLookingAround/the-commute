@@ -7,18 +7,26 @@
 import { rand, freshSeed } from './random.ts';
 import { SAVE_VERSION } from './save.ts';
 import type { Network } from './network.ts';
-import type { GameState, LineUpgradeId, Station, StationState, Train, UpgradeId } from './types.ts';
+import type { GameState, LineUpgradeId, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
-export interface Upgrade { id: UpgradeId; name: string | null; price: number; desc: string }
+/** A station upgrade. name null: the station names it (its retail, or its stage in `grow`). requires: upgrades at the
+ * same station that must be built first; one the station doesn't offer counts as built. stage: offered only where the
+ * station's `grow` lists it. */
+export interface Upgrade { id: UpgradeId; name: string | null; price: number; desc: string; requires?: UpgradeId[]; stage?: boolean }
 export interface LineUpgrade { id: LineUpgradeId; name: string; prices: number[]; desc: string; max: number }
 
+// in the order a station grows: a bought station is a halt (one platform, one line) and these build it up
 export const UPGRADES: Upgrade[] = [
+  { id: 'crossing', name: null, price: 2000, desc: '+15% catchment: the other side of the line can walk in', stage: true },
+  { id: 'platform2', name: null, price: 3500, desc: 'Trains call both ways, so the crowd going home too', requires: ['crossing'], stage: true },
+  { id: 'building', name: null, price: 3000, desc: '90% of fares collected (82% at a halt)', stage: true },
   { id: 'kiosk', name: 'Kiosk', price: 1500, desc: '+£0.35 per boarding passenger' },
-  { id: 'barriers', name: 'Ticket barriers', price: 4000, desc: 'Collect every fare (82% without)' },
   { id: 'canopy', name: 'Canopy', price: 2500, desc: 'Passengers wait 45 min instead of 25' },
-  { id: 'lifts', name: 'Footbridge lifts', price: 6000, desc: '+25% catchment' },
+  { id: 'barriers', name: 'Ticket barriers', price: 4000, desc: 'Collect every fare', requires: ['building'] },
   { id: 'extend', name: 'Platform extension', price: 5000, desc: 'Platform holds 320 instead of 150' },
-  { id: 'retail', name: null, price: 9000, desc: '+£0.80 per boarding passenger' },
+  { id: 'lifts', name: 'Lifts', price: 6000, desc: '+25% catchment', requires: ['crossing'] },
+  { id: 'retail', name: null, price: 9000, desc: '+£0.80 per boarding passenger', requires: ['building'] },
+  { id: 'platforms', name: null, price: 30000, desc: '+20% catchment', requires: ['platform2', 'building'], stage: true },
 ];
 export const LINE_UPGRADES: LineUpgrade[] = [
   { id: 'units', name: 'Extra unit', prices: [6000, 20000, 50000], desc: 'One more train in service', max: 3 },
@@ -33,7 +41,7 @@ export const TUNING = {
   dwell: 45, turnaround: 120,
   doorsPerCar: 2, boardPerDoor: 0.7,           // passengers a second through each door: a 2-car unit boards about 125 in a 45 s stop
   patience: 25 * 60, patienceCanopy: 45 * 60, platformCap: 150, platformCapExtended: 320,
-  collectNoBarriers: 0.82, liftsBonus: 1.25, kioskPerPax: 0.35, retailPerPax: 0.8,
+  collectNoBarriers: 0.82, collectBooking: 0.9, liftsBonus: 1.25, crossingBonus: 1.15, platformsBonus: 1.2, kioskPerPax: 0.35, retailPerPax: 0.8,
 };
 
 export function demandCurve(h: number): number {
@@ -97,6 +105,36 @@ export class Sim {
   reachable(i: number): boolean { return !!this.g.owned[i] || this.fixedEnds.has(i); }
   /** Which way station j lies from station i: 0 towards Manchester (further along the corridor), 1 away. */
   dirIdx(i: number, j: number): 0 | 1 { return this.station(j).s > this.station(i).s ? 0 : 1; }
+  /** The one way a halt's platform serves: towards Manchester where any train goes on that way, otherwise away. */
+  haltDir(i: number): 0 | 1 { return this.svcs.some(v => { const k = v.route.indexOf(i); return k >= 0 && k < v.route.length - 1; }) ? 0 : 1; }
+  /** Whether trains travelling one way (0 towards Manchester, 1 away) have a platform here: a halt only its one way,
+   * both once it has a second platform. */
+  serves(i: number, d: 0 | 1): boolean { return !!this.ups(i).platform2 || d === this.haltDir(i); }
+  /** Whether a train turns round here, at the end of a run (a terminus, or as far as a branch is owned). */
+  runEnd(i: number): boolean { return this.fixedEnds.has(i) || this.svcs.some(v => { const sp = this.span(v); return sp[0] === i || sp[sp.length - 1] === i; }); }
+  /** Whether a passenger travelling one way can get off here: a platform for that way, or a train turning round. */
+  arrivable(i: number, d: 0 | 1): boolean { return this.reachable(i) && (this.serves(i, d) || this.runEnd(i)); }
+
+  // ---- what a station grows into ----
+  /** Whether a station offers an upgrade: every station the everyday ones, and the stages its `grow` lists. */
+  offered(i: number, u: Upgrade): boolean { return !u.stage || !!this.station(i).grow?.[u.id as StageId]; }
+  upgradeName(i: number, u: Upgrade): string { return (u.stage ? this.station(i).grow?.[u.id as StageId]?.name : null) ?? u.name ?? this.station(i).retail; }
+  upgradeDesc(i: number, u: Upgrade): string { return (u.stage ? this.station(i).grow?.[u.id as StageId]?.desc : null) ?? u.desc; }
+  upgradePrice(i: number, u: Upgrade): number { return (u.stage ? this.station(i).grow?.[u.id as StageId]?.price : null) ?? u.price; }
+  /** Whether what an upgrade needs at its station is built (a need the station doesn't offer counts as built). */
+  ready(i: number, u: Upgrade): boolean {
+    const ups = this.ups(i);
+    return (u.requires ?? []).every(r => { const ru = UPGRADES.find(x => x.id === r); return !ru || !this.offered(i, ru) || !!ups[r]; });
+  }
+  /** The upgrades a player can see at a station: bought or ready to buy. The rest stay hidden until they're reachable. */
+  visibleUpgrades(i: number): Upgrade[] { return UPGRADES.filter(u => this.offered(i, u) && (this.ups(i)[u.id] || this.ready(i, u))); }
+  /** What building an upgrade opens up next: upgrades here that wait on it, the line's extra units, stations elsewhere. */
+  opens(i: number, id: UpgradeId): string[] {
+    const here = UPGRADES.filter(u => u.requires?.includes(id) && this.offered(i, u)).map(u => this.upgradeName(i, u));
+    const units = id === 'platform2' && i === this.svcs[0]!.route[0] ? ['Extra units'] : [];
+    const stations = this.S.filter(s => s.needs?.station === this.station(i).id && s.needs.upgrade === id).map(s => s.name);
+    return [...here, ...units, ...stations];
+  }
 
   // ---- services ----
   svc(id: string): Svc { const v = this.svcs.find(v => v.id === id); if (!v) throw new Error(`no service "${id}"`); return v; }
@@ -133,7 +171,7 @@ export class Sim {
     // the next station the train calls at in its direction (dir +1 = towards Manchester, increasing s): one on its
     // service's run that's owned, or the end of the run
     const sp = this.span(this.svc(tr.svc)), first = sp[0]!, last = sp[sp.length - 1]!;
-    const calls = (i: number) => i === first || i === last || !!this.g.owned[i];
+    const d: 0 | 1 = tr.dir > 0 ? 0 : 1, calls = (i: number) => i === first || i === last || (!!this.g.owned[i] && this.serves(i, d));
     if (tr.dir > 0) { for (const i of sp) if (this.station(i).s > tr.s + 1 && calls(i)) return i; return last; }
     for (let k = sp.length - 1; k >= 0; k--) { const i = sp[k]!; if (this.station(i).s < tr.s - 1 && calls(i)) return i; }
     return first;
@@ -158,7 +196,7 @@ export class Sim {
     const g = this.g, S = this.state(i), ups = this.ups(i), q = S.q[tr.dir > 0 ? 0 : 1], seats = tr.cars * TUNING.seatsPerCar;
     tr.boardAcc += tr.cars * TUNING.doorsPerCar * TUNING.boardPerDoor * dt;
     let room = Math.min(Math.floor(tr.boardAcc), seats - tr.onboard);
-    const collect = ups.barriers ? 1 : TUNING.collectNoBarriers;
+    const collect = ups.barriers ? 1 : ups.building ? TUNING.collectBooking : TUNING.collectNoBarriers;
     const retail = (ups.kiosk ? TUNING.kioskPerPax : 0) + (ups.retail ? TUNING.retailPerPax : 0);
     let c: typeof q[number] | undefined;
     while ((c = q[0]) && room > 0) {
@@ -190,13 +228,15 @@ export class Sim {
   // ---- passengers ----
   generate(i: number, dt: number): void {
     const st = this.station(i), S = this.state(i), h = this.hour();
-    const rate = st.catchment * demandCurve(h) * (this.ups(i).lifts ? TUNING.liftsBonus : 1) / 3600;
+    const ups = this.ups(i), bonus = (ups.crossing ? TUNING.crossingBonus : 1) * (ups.lifts ? TUNING.liftsBonus : 1) * (ups.platforms ? TUNING.platformsBonus : 1);
+    const rate = st.catchment * demandCurve(h) * bonus / 3600;
     S.acc += rate * dt;
     const n = Math.floor(S.acc); if (n <= 0) return;
     S.acc -= n;
     const toMcr = this.northShare(i, h);
+    // a halt only has a platform one way: the share heading the other way doesn't come
     const nN = Math.round(n * toMcr), nS = n - nN;
-    this.enqueue(i, 0, nN); this.enqueue(i, 1, nS);
+    if (this.serves(i, 0)) this.enqueue(i, 0, nN); if (this.serves(i, 1)) this.enqueue(i, 1, nS);
   }
   /** The share of a station's new passengers heading towards Manchester at hour h: all of them where there's nowhere
    * else to go, none where there's nowhere further; most in the morning and fewer in the evening where one train serves
@@ -204,7 +244,7 @@ export class Sim {
    * each way too, so a short branch doesn't take half of Stockport. */
   northShare(i: number, h: number): number {
     const north: number[] = [], south: number[] = [];
-    for (let j = 0; j < this.S.length; j++) if (j !== i && this.reachable(j)) (this.dirIdx(i, j) === 0 ? north : south).push(j);
+    for (let j = 0; j < this.S.length; j++) if (j !== i && this.arrivable(j, this.dirIdx(i, j))) (this.dirIdx(i, j) === 0 ? north : south).push(j);
     if (!south.length) return 1; if (!north.length) return 0;
     const base = h < 12 ? 0.8 : 0.35, st = this.station(i).id;
     if (this.net.boardingService(st, 'north') === this.net.boardingService(st, 'south')) return base;
@@ -218,7 +258,7 @@ export class Sim {
     S.lost += count - take; g.stats.lost += count - take;
     if (take <= 0) return;
     const cands: number[] = [];
-    for (let j = 0; j < this.S.length; j++) if (j !== i && this.dirIdx(i, j) === dirIdx && this.reachable(j)) cands.push(j);
+    for (let j = 0; j < this.S.length; j++) if (j !== i && this.dirIdx(i, j) === dirIdx && this.arrivable(j, dirIdx)) cands.push(j);
     if (!cands.length) return;
     const w = cands.map(j => this.station(j).catchment + 50), tot = w.reduce((a, b) => a + b, 0);
     let r = this.rand() * tot, dest = cands[0]!;
@@ -241,17 +281,30 @@ export class Sim {
   advance(gameSeconds: number, maxStep = 2): void { let left = gameSeconds; while (left > 0) { const d = Math.min(maxStep, left); this.step(d); left -= d; } }
 
   // ---- actions ----
-  canBuyStation(i: number): boolean { const g = this.g, s = this.S[i]; return !!s && !g.owned[i] && g.cash >= s.price && (i === 0 || !!g.owned[i - 1]); }
-  buyStation(i: number): boolean { if (!this.canBuyStation(i)) return false; this.g.cash -= this.station(i).price; this.g.owned[i] = true; return true; }
-  buyUpgrade(i: number, id: string): boolean {
-    const u = UPGRADES.find(u => u.id === id), g = this.g, ups = g.ups[i];
-    if (!u || !ups || !g.owned[i] || ups[u.id] || g.cash < u.price) return false;
-    g.cash -= u.price; ups[u.id] = true; return true;
+  /** What a station waits on elsewhere before it can be bought, if anything not yet built. */
+  stationNeeds(i: number): { station: Station; name: string } | null {
+    const n = this.station(i).needs; if (!n) return null;
+    const st = this.net.station(n.station), u = UPGRADES.find(x => x.id === n.upgrade);
+    return u && !this.ups(st.index)[u.id] ? { station: st, name: this.upgradeName(st.index, u) } : null;
   }
+  canBuyStation(i: number): boolean { const g = this.g, s = this.S[i]; return !!s && !g.owned[i] && g.cash >= s.price && (i === 0 || !!g.owned[i - 1]) && !this.stationNeeds(i); }
+  buyStation(i: number): boolean { if (!this.canBuyStation(i)) return false; this.g.cash -= this.station(i).price; this.g.owned[i] = true; return true; }
+  canBuyUpgrade(i: number, id: string): boolean {
+    const u = UPGRADES.find(u => u.id === id), g = this.g, ups = g.ups[i];
+    return !!u && !!ups && !!g.owned[i] && !ups[u.id] && this.offered(i, u) && this.ready(i, u) && g.cash >= this.upgradePrice(i, u);
+  }
+  buyUpgrade(i: number, id: string): boolean {
+    const u = UPGRADES.find(u => u.id === id), ups = this.g.ups[i];
+    if (!u || !ups || !this.canBuyUpgrade(i, id)) return false;
+    this.g.cash -= this.upgradePrice(i, u); ups[u.id] = true; return true;
+  }
+  /** Whether a line upgrade can be seen yet: extra units need room for a second train to turn at the line's home
+   * terminus (Stockport's platform 3). */
+  lineReady(id: string): boolean { return id !== 'units' || !!this.ups(this.svcs[0]!.route[0]!).platform2; }
   buyLine(id: string): boolean {
     const u = LINE_UPGRADES.find(u => u.id === id), g = this.g; if (!u) return false;
     const lvl = g.line[u.id], price = u.prices[lvl];
-    if (lvl >= u.max || price === undefined || g.cash < price) return false;
+    if (lvl >= u.max || price === undefined || g.cash < price || !this.lineReady(u.id)) return false;
     g.cash -= price; g.line[u.id]++; this.ensureTrains(); return true;
   }
 }

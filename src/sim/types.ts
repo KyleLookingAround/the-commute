@@ -26,6 +26,11 @@ export interface StationGeoDef {
   miles: number; catchment: number; price: number; kit: string; retail: string;
   /** Where trains stop, in metres along the line from the station's own point (its kit's origin); 0 if not given. */
   stop?: number;
+  /** The stages this station grows through after it's a halt, by upgrade: what each is called here, and a description
+   * or price where they differ from the usual. A stage not listed isn't offered here. */
+  grow?: Partial<Record<StageId, { name: string; desc?: string; price?: number }>>;
+  /** Something that must be built elsewhere before this station can be bought. */
+  needs?: { station: string; upgrade: string };
 }
 /** route: the stations a service calls at, in order along the corridor (south to north). home: a service with one
  * runs from there only as far along its route as stations are owned, and not at all until one is; without one it runs
@@ -55,7 +60,10 @@ export interface NetworkDef extends Omit<NetworkGeoDef, 'corridors' | 'stations'
 export interface Frame { x: number; z: number; heading: number; dx: number; dz: number; nx: number; nz: number }
 
 // ---- the saved game ----
-export type UpgradeId = 'kiosk' | 'barriers' | 'canopy' | 'lifts' | 'extend' | 'retail';
+/** The stages a station grows through from a halt: a way across the line, a second platform, a booking office, and at
+ * the big stations the rest of the station. Offered only where the station's `grow` lists them. */
+export type StageId = 'crossing' | 'platform2' | 'building' | 'platforms';
+export type UpgradeId = StageId | 'kiosk' | 'barriers' | 'canopy' | 'lifts' | 'extend' | 'retail';
 export type LineUpgradeId = 'units' | 'cars' | 'timetable';
 /** A group of passengers who joined a platform queue together: when (game seconds), where to, how many, and whether
  * they've paid (they're changing trains, so their fare was taken where they first got on). */

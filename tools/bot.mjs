@@ -24,17 +24,23 @@ const seeds = args.flatMap((a, i) => a === '--seed' ? [+args[i + 1]] : []);
 if (!seeds.length) seeds.push(1);
 const hours = +opt('--hours', 8), jsonOut = opt('--json', null);
 
-/** The sensible player's policy, in priority order: a second unit first, then the next station, then barriers, then cheap wins. */
+/** The sensible player's policy, in priority order: a second unit first (Stockport needs its subway and platform 3 for
+ * it), then the next station (as a halt, building whatever it waits on elsewhere), then each station's way across and
+ * second platform (trains both ways), its booking office and barriers, then cheap wins. */
 function act(sim) {
-  const g = sim.g;
-  if (g.line.units < 1 && sim.buyLine('units')) return 'unit';
-  for (let i = 1; i < sim.S.length; i++) if (!g.owned[i]) { if (sim.buyStation(i)) return 'station:' + sim.S[i].id; break; }
-  for (let i = 0; i < sim.S.length; i++) if (g.owned[i] && !g.ups[i].barriers && sim.buyUpgrade(i, 'barriers')) return 'barriers:' + sim.S[i].id;
-  for (let i = 0; i < sim.S.length; i++) if (g.owned[i] && !g.ups[i].kiosk && sim.buyUpgrade(i, 'kiosk')) return 'kiosk:' + sim.S[i].id;
+  const g = sim.g, home = sim.svcs[0].route[0];
+  const up = (i, id) => g.owned[i] && !g.ups[i][id] && sim.buyUpgrade(i, id) ? `${id}:${sim.S[i].id}` : null;
+  if (g.line.units < 1) { if (sim.buyLine('units')) return 'unit'; const r = up(home, 'crossing') || up(home, 'platform2'); if (r) return r; }
+  for (let i = 1; i < sim.S.length; i++) if (!g.owned[i]) {
+    if (sim.buyStation(i)) return 'station:' + sim.S[i].id;
+    const needs = sim.stationNeeds(i); if (needs) { const r = up(needs.station.index, sim.S[i].needs.upgrade); if (r) return r; }
+    break;
+  }
+  for (const id of ['crossing', 'platform2', 'building', 'barriers', 'kiosk']) for (let i = 0; i < sim.S.length; i++) { const r = up(i, id); if (r) return r; }
   if (g.line.units < 2 && g.cash > 30000 && sim.buyLine('units')) return 'unit';
   if (g.line.cars < 1 && g.cash > 25000 && sim.buyLine('cars')) return 'cars';
-  for (let i = 0; i < sim.S.length; i++) if (g.owned[i] && !g.ups[i].extend && g.st[i].lost > 200 && sim.buyUpgrade(i, 'extend')) return 'extend:' + sim.S[i].id;
-  for (let i = 0; i < sim.S.length; i++) if (g.owned[i] && !g.ups[i].canopy && g.cash > 12000 && sim.buyUpgrade(i, 'canopy')) return 'canopy:' + sim.S[i].id;
+  for (let i = 0; i < sim.S.length; i++) if (g.st[i].lost > 200 && g.ups[i] && !g.ups[i].extend) { const r = up(i, 'extend'); if (r) return r; }
+  if (g.cash > 12000) for (let i = 0; i < sim.S.length; i++) { const r = up(i, 'canopy'); if (r) return r; }
   return null;
 }
 

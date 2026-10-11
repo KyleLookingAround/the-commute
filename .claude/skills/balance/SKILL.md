@@ -42,16 +42,16 @@ Make the change and run the same three seeds into `build/after.log`.
 
 ## Baselines
 
-`tools/baseline.json`, **proposed** from the first run on 8 October 2026 (seeds 1–3 from a fresh game), rescaled to 8 sim hours when sim seconds became real seconds, and its lost range re-proposed on 11 October 2026 when trains began boarding through their stop (its note says why). The owner agrees ranges when the pacing is settled. Hours are sim hours.
+`tools/baseline.json`, **proposed** from the first run on 8 October 2026 (seeds 1–3 from a fresh game), rescaled to 8 sim hours when sim seconds became real seconds, and re-proposed on 11 October 2026 twice: when trains began boarding through their stop, and when stations began as halts (its note says why). The owner agrees ranges when the pacing is settled. Hours are sim hours.
 
-| Milestone or measure | Range | Seeds 1, 2, 3 (11 October 2026) |
+| Milestone or measure | Range | Seeds 1, 2, 3 (11 October 2026, halts) |
 | --- | --- | --- |
-| Second unit | hour 0.1–0.3 | 0.17, 0.17, 0.17 |
-| Heaton Chapel bought | hour 0.3–0.6 | 0.4, 0.4, 0.4 |
-| Levenshulme bought | hour 1.6–2.5 | 2.03, 2.03, 2.03 |
-| Ardwick bought | hour 4.5–6.5 | 4.95, 4.95, 4.95 |
-| Piccadilly bought | hour 8–20 | not in 8 h |
-| Cash at 8 h | £40,000–60,000 | £59,947, £59,279, £60,311 |
-| Boarded | 3,500–4,800 | 4,203, 4,203, 4,203 |
-| Lost | 15–80 | 30, 30, 30 |
-| Longest quiet | 1.6–2.7 h (the night) | 2.4, 2.4, 2.5 |
+| Second unit | hour 0.25–0.6 | 0.4, 0.4, 0.4 |
+| Heaton Chapel bought | hour 0.5–1.0 | 0.72, 0.72, 0.72 |
+| Levenshulme bought | hour 1.6–2.8 | 2.3, 2.32, 2.28 |
+| Ardwick bought | hour 4.5–6.5 | 5.55, 5.55, 5.55 |
+| Piccadilly bought | hour 8–20 | not in 8 h (10.1 on seed 1 over 30 h) |
+| Cash at 8 h | £25,000–50,000 | £36,713, £36,671, £37,406 |
+| Boarded | 3,500–5,200 | 4,529, 4,529, 4,529 |
+| Lost | 100–320 | 205, 205, 205 |
+| Longest quiet | 1.6–2.7 h (the night) | 2.0, 2.0, 2.0 |

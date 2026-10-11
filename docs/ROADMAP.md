@@ -4,10 +4,10 @@ Where this is going, in the order it makes sense to build it. Each step should l
 
 ## Next up (the owner's order, 11 October 2026)
 
-- **Upgrades, better.** A better UI and UX for buying upgrades, and upgrades that visibly change the stations (more than a part appearing), drawing on the owner's other games for how they do it.
+- **Stations that grow, from a halt** (the owner's idea, 11 October 2026). Buying a station gets a halt: one platform on one line, so only trains one way call there (towards Manchester, which suits the morning peak; the evening crowd is the reason to build the second). Upgrades then unlock the rest in the order a real station would get it: a way across the line (footbridge or subway) before the second platform, then trains both ways, lifts, canopies, the booking office, longer platforms; at Stockport and Piccadilly more platforms, which are what let more units and services call. Each step is a stage of the kit, so the station visibly grows instead of a part popping in, and the upgrade panel becomes the station's next step shown as a picture of what it adds and what it opens up after, with what isn't reachable yet hidden (ideas for the UI from the owner's other games). What it needs: upgrades with prerequisites, a station knowing which platforms and directions it has (a halt only takes passengers the way its platform serves), and the opening re-tuned with the bot. To decide: whether Stockport starts as a halt too, so the very first purchase is its second platform; that makes the opening an honest incremental start.
 - **More branches.** The Crewe line via Cheadle Hulme (the fast lines already start where it would join south of Stockport), the Styal line at Slade Lane, the line through Reddish South; through running from Hazel Grove to Manchester as an upgrade; the expresses as real services.
 - **Weather, later.** Rain, overcast, fog, with gameplay effects (rain hurts patience without a canopy).
-- **Stations closer to reality, fourth pass.** Still to do: Ardwick's lattice footbridge as its own part, Piccadilly's platforms 13 and 14 and the Gateway, the bays' real splay, and the photos' own detail (Levenshulme's curved shelter, Heaton Chapel's arches).
+- **Stations closer to reality, fourth pass.** This detail becomes each station's "as it is today" stage. Still to do: Ardwick's lattice footbridge as its own part, Piccadilly's platforms 13 and 14 and the Gateway, the bays' real splay, and the photos' own detail (Levenshulme's curved shelter, Heaton Chapel's arches).
 
 ## 1. Repo and real geography (done)
 - The Hazel Grove branch: the corridor runs on south from Stockport through Davenport and Woodsmoor to Hazel Grove (from the OpenStreetMap export), on two tracks; the three stations come after Piccadilly in the buying order, each with a kit from the export. A second service, the Hazel Grove line, runs from Stockport as far as the branch is owned, turning round in platform 1; passengers between the branch and the main line change at Stockport, walking off one train and through the subway to the other's platform (the panel counts them as Changed). Services are data (`route`, `home`), trains carry their service, and a train running in to the end of its run crosses over to its departure track.
@@ -42,6 +42,19 @@ Where this is going, in the order it makes sense to build it. Each step should l
 - Journeys with a brief ("Levenshulme to Stockport by 08:45 with a suitcase"), scored on time and stress; every tycoon decision felt from the other side.
 - Reports from journeys feed back into the tycoon (spot a problem, get a discount on the fix).
 
-## 5. Trams and the long game
+## 5. Trams
 - Metrolink as a second network sharing the map.
-- Endgame: bring Metrolink to Stockport. Very expensive, takes a very long time.
+- A late goal: bring Metrolink to Stockport. Very expensive, takes a very long time.
+
+## 6. Stations that don't exist yet
+Once a station is complete as it stands today, it keeps growing into versions that have been planned, proposed or are plausible, each still recognisably the real place underneath.
+- Planned or proposed for real: Piccadilly's platforms 15 and 16 (the Castlefield corridor fix) and a high-speed station alongside it, Stockport's new interchange with more through platforms, reopened stations such as Reddish South, longer platforms everywhere for 8-car trains.
+- Plausible: buildings over the tracks, solar canopies and roof gardens, a glass roof over Heaton Chapel's cutting, double-deck platforms, automatic trains every two minutes, the Stockport viaduct floodlit and widened.
+- Trains and the town move on with the stations: newer units, the city end growing taller, more people living along the line.
+
+## 7. The very long game: sci-fi
+Past the plausible the line goes science fiction, still a model railway in daylight rather than anything bleak.
+- Eras change the trains (diesel units, electric units, then maglev on the viaduct, then pods in tubes), the stations (towers, then sky ports) and the sky (airships by day, traffic lanes lit at night).
+- The commute shrinks: Stockport to Piccadilly in minutes, then one; demand and catchments grow with each era.
+- To decide: whether a new era is a fresh start (stations back to halts in the new technology, with a lasting bonus, the classic incremental reset) or carries straight on.
+

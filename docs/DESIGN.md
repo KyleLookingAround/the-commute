@@ -34,6 +34,10 @@ Passenger services are in `services` in `src/data/network.json`, each with a `ro
 
 The branch stations come after Piccadilly in the buying order, so the incremental loop goes on past the city. Expresses are scenery for now (they pass on the fast lines, which begin south of Stockport where the Crewe line would join, and earn nothing); making them real services with their own calling pattern is on the roadmap.
 
+## Pressure on the map
+
+The view shows the sim's pressure instead of text (`src/render/passengers.ts`, `src/render/trains.ts`), all of it cosmetic. When a station's lost count rises, whoever gave up waiting does a little shrug (a hop with the shoulders up) before walking out. People turned away by a full platform show too, a few at a time and never a crowd: they come in at the stairs on the busier side, shrug and go back. A train's windows go from cool glass when it's empty (`--map-win-empty`) to warm (`--map-win-busy`) as it fills. Riders appear in the windows, ten seats to a side per car, and once it's 85% full people stand in the doorways. A gold coin (`--map-coin`) turns over the name of the station earning most: the owned station with the highest takings over roughly the last game hour and a half. It only moves when another station beats it by a tenth, and it doesn't show while only one station is owned.
+
 ## Save
 
 `localStorage` key `the-commute-save-v1` (`src/app/storage.ts`): the whole sim state, `SAVE_VERSION` (2: stations count who alighted, so the view can show them leaving), the seed and the random state, plus a timestamp. On load the sim advances by the time away at 1×, capped at 8 game hours (`src/app/clock.ts`). A save that can't be read is kept under a `-broken` key. Versioning: `docs/decisions/ADR-2026-10-08-no-save-compatibility-before-release.md`.

@@ -33,8 +33,9 @@ declare global {
     __lockHour?: number;
     /** Set by a screenshot before the page loads: where the camera starts (any of tx, ty, tz, r, th, ph). */
     __orbit?: Partial<import('./render/camera.ts').Orbit>;
-    /** For the checks: how many groups of parts the preview shows, and how many are still rising into place. */
-    __view?: { preview: number; rising: () => number };
+    /** For the checks: how many groups of parts the preview shows, how many are still rising into place, and how many
+     * times the camera has framed something (a card's parts, a Built chip's, a train). */
+    __view?: { preview: number; rising: () => number; framed: number };
   }
 }
 
@@ -72,7 +73,7 @@ const trackV = net.stations.map(st => ({ north: faceTrack(st, 'north'), south: f
 const pax = new PassengerLayer(built, net.stations, trackV);
 const rig = new OrbitRig(camera, canvas, scene);
 setReducedMotion(matchMedia('(prefers-reduced-motion: reduce)').matches);
-const view = { preview: 0, rising: () => built.reduce((n, b) => n + b.gated.filter(gt => gt.rise < 1).length, 0) };
+const view = { preview: 0, framed: 0, rising: () => built.reduce((n, b) => n + b.gated.filter(gt => gt.rise < 1).length, 0) };
 window.__view = view;
 const partBox = new THREE.Box3();
 /** Preview an upgrade at a station on the map (or stop), and put the camera on what it adds. */
@@ -80,7 +81,13 @@ function preview(i: number | null, id: string | null): void {
   const ups = i === null ? {} : sim.ups(i);
   view.preview = previewUpgrade(built, i, ups, id);
   const b = i === null ? undefined : built[i], box = b && id ? partsBox(b, ups, id, partBox) : null;
-  if (box) rig.frame(box);
+  if (box) frameBox(box);
+}
+function frameBox(box: THREE.Box3): void { rig.frame(box); view.framed++; }
+/** Put the camera on what an upgrade at a station built, with no ghost. */
+function showBuilt(i: number, id: string): void {
+  preview(null, null);
+  const b = built[i], box = b ? partsBox(b, sim.ups(i), id, partBox) : null; if (box) frameBox(box);
 }
 const sky = new Sky(scene, sun, lineMiddle());
 
@@ -121,7 +128,8 @@ const ui = new UI(sim, els, {
   focusStation: i => { const [x, z] = stationXZ(i); rig.focus(x, z, net.stations[i]?.id === 'piccadilly' ? 360 : 230); },
   changed: () => persist(),
   preview: (i, id) => preview(i, id),
-  built: (i, id) => { preview(null, null); const b = built[i], box = b ? partsBox(b, sim.ups(i), id, partBox) : null; if (box) rig.frame(box); },
+  built: (i, id) => showBuilt(i, id),
+  showBuilt: (i, id) => showBuilt(i, id),
   lockHour: h => { lockHour = h; ui.setLight(lockHour ?? sim.hour(), lockHour !== null); },
   reset: () => { store.wipe(); sim = new Sim(net, Sim.fresh(net, seed)); preview(null, null); ui.sim = sim; ui.selected = 0; ui.picked = null; ui.buildAll(); const [x, z] = stationXZ(0); rig.focus(x, z); },
 });

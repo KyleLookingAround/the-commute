@@ -2,7 +2,8 @@
 // its price; one the money doesn't reach shows how much to go instead of a Buy button; tapping a card marks it and
 // draws its parts on the map as a ghost (window.__view.preview counts them), tapping it again clears the ghost; buying
 // it makes its parts rise into place (window.__view.rising) and settle within about a second, and its name moves to
-// the Built line. One phone page (320 px, touch) and one desktop page.
+// the Built line, where tapping its chip frames what it built (window.__view.framed counts framings) with no ghost.
+// One phone page (320 px, touch) and one desktop page.
 export default async function ({ ok, open }) {
   for (const [w, h, touch] of [[320, 568, true], [1280, 800, false]]) {
     const { ctx, page, errs } = await open({ width: w, height: h }, { touch });
@@ -32,6 +33,11 @@ export default async function ({ ok, open }) {
     const after = await page.evaluate(() => ({ n: window.__view?.rising() ?? -1, built: document.querySelector('.built')?.textContent || '', card: !!document.querySelector('[data-card="crossing"]') }));
     const bad2 = [rising.n < 1 && 'nothing rose', rising.ghost !== 0 && 'the ghost stayed', after.n !== 0 && 'still rising after 2.5 s', !/Subway/.test(after.built) && 'Subway is not on the Built line', after.card && 'the card stayed', errs[0]].filter(Boolean);
     ok(`preview: at ${w}×${h} buying a card makes its parts rise into place within about a second, and it moves to the Built line`, !bad2.length, bad2.join('; '));
+
+    const f0 = await page.evaluate(() => window.__view?.framed ?? 0);
+    const chip = await tap('[data-built="crossing"]'); await page.waitForTimeout(200);
+    const f1 = await page.evaluate(() => ({ n: window.__view?.framed ?? 0, ghost: window.__view?.preview ?? -1 }));
+    ok(`preview: at ${w}×${h} tapping a Built chip frames what it built, with no ghost`, chip && f1.n > f0 && f1.ghost === 0, `chip ${chip}, framed ${f0} → ${f1.n}, ghost ${f1.ghost}`);
     await ctx.close();
   }
 }

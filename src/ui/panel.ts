@@ -30,6 +30,8 @@ export interface Handlers {
   preview: (i: number, id: string | null) => void;
   /** An upgrade was just bought: show it rising into place. */
   built: (i: number, id: string) => void;
+  /** Put the camera on what an upgrade bought at a station built (a Built chip), with no ghost. */
+  showBuilt: (i: number, id: string) => void;
   /** Lock the light to an hour of the day, or null to follow the clock again. The sim's clock never changes. */
   lockHour: (hour: number | null) => void;
 }
@@ -98,10 +100,10 @@ export class UI {
       <div class="stats"><div><small>Waiting</small><b id="pWait"></b></div><div><small>Boarded</small><b id="pBoard"></b></div><div><small>Arrived</small><b id="pOff"></b></div><div><small>Revenue</small><b id="pRev"></b></div><div><small>Gave up</small><b id="pLost"></b></div><div><small>Changed</small><b id="pChg"></b></div></div>
       <div class="ups" id="ups"></div>`;
     // what can be built next, a card each, and what's built, in one line; the rest stays hidden until it's reachable
-    const ups = panel.querySelector('#ups'), bought = this.sim.ups(i), sim = this.sim, done: string[] = [];
+    const ups = panel.querySelector('#ups'), bought = this.sim.ups(i), sim = this.sim, done: [string, string][] = [];
     for (const u of sim.visibleUpgrades(i)) {
       const name = sim.upgradeName(i, u);
-      if (bought[u.id]) { done.push(name); continue; }
+      if (bought[u.id]) { done.push([u.id, name]); continue; }
       const price = sim.upgradePrice(i, u), opens = sim.opens(i, u.id);
       const d = document.createElement('article'); d.className = 'ucard' + (u.stage ? ' grow' : ''); d.dataset['card'] = u.id;
       // the tags row is where a badge goes (a stage now; a manager's pick later)
@@ -121,7 +123,11 @@ export class UI {
     }
     if (!ups?.children.length) ups?.insertAdjacentHTML('beforeend', '<p class="hint">Nothing more to build here yet.</p>');
     else ups.insertAdjacentHTML('afterbegin', '<p class="hint">Tap a card to see it on the map.</p>');
-    if (done.length) panel.insertAdjacentHTML('beforeend', `<p class="built"><span>Built</span> ${done.map(n => `<i>${n}</i>`).join('')}</p>`);
+    // each Built chip puts the camera on what it built
+    if (done.length) {
+      panel.insertAdjacentHTML('beforeend', `<p class="built"><span>Built</span> ${done.map(([id, n]) => `<button class="chip" data-built="${id}">${n}</button>`).join('')}</p>`);
+      panel.querySelectorAll<HTMLElement>('[data-built]').forEach(b => b.addEventListener('click', () => { this.pick(null); this.on.showBuilt(i, b.dataset['built'] ?? ''); }));
+    }
     this.markPicked();
     this.updatePanel();
   }

@@ -53,9 +53,11 @@ export type LineUpgradeId = 'units' | 'cars' | 'timetable';
 export interface Queued { t: number; dest: number; n: number }
 /** alighted: passengers who got off here, so the view can show them leaving. */
 export interface StationState { acc: number; q: [Queued[], Queued[]]; waiting: number; boarded: number; alighted: number; revenue: number; lost: number }
+/** calling: the station a dwelling train is boarding at; boardAcc: boarding it has room for this stop and hasn't
+ * used yet, in passengers (its doors take a share of a passenger each second). */
 export interface Train {
   id: number; dir: 1 | -1; s: number; v: number; state: 'run' | 'dwell'; dwell: number;
-  next: number | null; load: number[]; onboard: number; cars: number;
+  next: number | null; load: number[]; onboard: number; cars: number; calling: number | null; boardAcc: number;
 }
 export interface GameState {
   v: number; seed: number; rngState: number; t: number; day: number; cash: number; earned: number;

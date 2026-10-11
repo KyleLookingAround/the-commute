@@ -31,6 +31,7 @@ export const TUNING = {
   fareBase: 1.5, farePerMile: 0.6, fareMult: 12.0,   // 6x the fare of the old 6x clock: the same money per real minute from a sixth of the trains
   seatsPerCar: 75, accel: 1.0, brake: 1.1, vmax: 33.5, vmaxFast: 40,
   dwell: 45, turnaround: 120,
+  doorsPerCar: 2, boardPerDoor: 0.7,           // passengers a second through each door: a 2-car unit boards about 125 in a 45 s stop
   patience: 25 * 60, patienceCanopy: 45 * 60, platformCap: 150, platformCapExtended: 320,
   collectNoBarriers: 0.82, liftsBonus: 1.25, kioskPerPax: 0.35, retailPerPax: 0.8,
 };
@@ -91,7 +92,7 @@ export class Sim {
     const g = this.g, n = this.unitsInService(), s0 = this.station(this.first).s, s1 = this.station(this.last).s;
     while (g.trains.length < n) {
       const k = g.trains.length;
-      g.trains.push({ id: k, dir: k % 2 === 0 ? 1 : -1, s: s0 + (s1 - s0) * ((k + 0.5) / n), v: 0, state: 'run', dwell: 0, next: null, load: this.S.map(() => 0), onboard: 0, cars: this.carsPerUnit() });
+      g.trains.push({ id: k, dir: k % 2 === 0 ? 1 : -1, s: s0 + (s1 - s0) * ((k + 0.5) / n), v: 0, state: 'run', dwell: 0, next: null, load: this.S.map(() => 0), onboard: 0, cars: this.carsPerUnit(), calling: null, boardAcc: 0 });
     }
     for (const tr of g.trains) tr.cars = this.carsPerUnit();
   }
@@ -101,24 +102,35 @@ export class Sim {
     for (let i = this.S.length - 1; i >= 0; i--) if (this.station(i).s < tr.s - 1 && this.reachable(i)) return i;
     return this.first;
   }
+  /** A train arrives: whoever's for here gets off, and boarding opens for the stop. */
   callAt(tr: Train, i: number): void {
-    const g = this.g, S = this.state(i), ups = this.ups(i);
+    const S = this.state(i);
     const off = tr.load[i] ?? 0; tr.onboard -= off; tr.load[i] = 0; S.alighted += off;
-    const q = S.q[tr.dir > 0 ? 0 : 1];
-    let room = tr.cars * TUNING.seatsPerCar - tr.onboard;
+    tr.calling = i; tr.boardAcc = 0;
+  }
+  /** Board a dwelling train for dt seconds: its doors take boardPerDoor passengers a second each, from the front of the
+   * queue for its direction, until it's full; anyone who reaches the platform while it stands gets on too. A busy stop
+   * leaves people behind for the next train, and more cars mean more doors as well as more room. */
+  board(tr: Train, dt: number): void {
+    const i = tr.calling; if (i === null) return;
+    const g = this.g, S = this.state(i), ups = this.ups(i), q = S.q[tr.dir > 0 ? 0 : 1], seats = tr.cars * TUNING.seatsPerCar;
+    tr.boardAcc += tr.cars * TUNING.doorsPerCar * TUNING.boardPerDoor * dt;
+    let room = Math.min(Math.floor(tr.boardAcc), seats - tr.onboard);
     const collect = ups.barriers ? 1 : TUNING.collectNoBarriers;
     const retail = (ups.kiosk ? TUNING.kioskPerPax : 0) + (ups.retail ? TUNING.retailPerPax : 0);
     let c: typeof q[number] | undefined;
     while ((c = q[0]) && room > 0) {
       const n = Math.min(c.n, room);
-      c.n -= n; room -= n; S.waiting -= n; tr.onboard += n; tr.load[c.dest] = (tr.load[c.dest] ?? 0) + n;
+      c.n -= n; room -= n; tr.boardAcc -= n; S.waiting -= n; tr.onboard += n; tr.load[c.dest] = (tr.load[c.dest] ?? 0) + n;
       if (g.owned[i]) { const rev = n * (this.fare(i, c.dest) * collect + retail); g.cash += rev; g.earned += rev; S.revenue += rev; }
       S.boarded += n; g.stats.boarded += n;
       if (c.n <= 0) q.shift();
     }
+    // a door with nobody at it doesn't save up for later
+    if (!q.length) tr.boardAcc = Math.min(tr.boardAcc, 1);
   }
   stepTrain(tr: Train, dt: number): void {
-    if (tr.state === 'dwell') { tr.dwell -= dt; if (tr.dwell <= 0) { tr.state = 'run'; tr.next = null; } return; }
+    if (tr.state === 'dwell') { this.board(tr, dt); tr.dwell -= dt; if (tr.dwell <= 0) { tr.state = 'run'; tr.next = null; tr.calling = null; } return; }
     if (tr.next === null) tr.next = this.nextStop(tr);
     const target = this.station(tr.next).s, rem = Math.abs(target - tr.s), last = this.isTerminus(tr.next);
     tr.v = Math.min(this.vmax(), tr.v + TUNING.accel * dt);

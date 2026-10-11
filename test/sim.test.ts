@@ -114,6 +114,23 @@ test('sim: one unit cannot cope with Stockport at peak, so passengers are lost',
   assert.ok(sim.g.stats.lost > 50, `expected lost passengers under pressure, got ${sim.g.stats.lost}`);
 });
 
+test('sim: a train boards through its stop, a door at a time, and a longer train boards more', () => {
+  const boardAt = (cars: number) => {
+    const sim = new Sim(net()); sim.g.cash = 1e6; sim.buyStation(1); sim.step(1);
+    const tr = sim.g.trains[0]!, S = sim.state(1);
+    // 200 people for Manchester on Heaton Chapel's platform, and a train calling there northbound
+    S.q[0] = [{ t: sim.g.t, dest: 4, n: 200 }]; S.waiting = 200;
+    Object.assign(tr, { dir: 1, s: sim.station(1).s, cars, onboard: 0, load: tr.load.map(() => 0) });
+    sim.callAt(tr, 1);
+    assert.equal(sim.state(1).boarded, 0, 'nobody is on the moment the doors open');
+    for (let k = 0; k < 45; k++) sim.board(tr, 1);
+    return S.boarded;
+  };
+  const two = boardAt(2), four = boardAt(4);
+  assert.ok(two >= 120 && two <= 130, `a 2-car unit boards about 126 in a 45 s stop, got ${two}`);
+  assert.equal(four, 200, 'four cars have the doors and the room for everyone');
+});
+
 test('sim: line upgrades add units and lengthen trains', () => {
   const sim = new Sim(net());
   sim.g.cash = 1e6;

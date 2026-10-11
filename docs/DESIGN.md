@@ -2,7 +2,7 @@
 
 ## The loop
 
-Passengers are the resource. Each owned station generates them from its catchment by the demand curve (`demandCurve` in `src/sim/sim.ts`: morning peak to Manchester, evening peak home, nothing at night). They join a queue on the platform for their direction with a destination chosen among reachable stations (owned ones, plus Stockport and Piccadilly which always exist as destinations). They leave on the next train with room and pay a distance-based fare when they board, and are counted off at their destination (`alighted`, shown as Arrived). A full platform turns new arrivals away; waiting longer than their patience sends them home. Both count as lost.
+Passengers are the resource. Each owned station generates them from its catchment by the demand curve (`demandCurve` in `src/sim/sim.ts`: morning peak to Manchester, evening peak home, nothing at night). They join a queue on the platform for their direction with a destination chosen among reachable stations (owned ones, plus Stockport and Piccadilly which always exist as destinations). They board the train for their direction while it stands, through its doors at a set rate, and pay a distance-based fare as they get on; whoever the doors can't take in the stop waits for the next, and are counted off at their destination (`alighted`, shown as Arrived). A full platform turns new arrivals away; waiting longer than their patience sends them home. Both count as lost.
 
 Money buys station upgrades (per station), line upgrades (more units, longer trains, faster timetable) and the next station up the line. Stations must be bought in order.
 
@@ -10,7 +10,7 @@ Money buys station upgrades (per station), line upgrades (more units, longer tra
 
 - Time: a sim second is a real second at 1×, so motion is real speed; the clock and demand curve run `dayRate` (6) times faster, so a game day is four real hours of sim time. Everything per sim second (speeds, dwells, patience, platform caps) is in real seconds; everything per clock hour (demand) comes round six times as often.
 - Fare: `(1.5 + 0.6 × miles) × fareMult`. `fareMult` (12) is the single knob for overall pacing; it is six times what it was when the clock ran at 6×, so a sixth of the trains earn the same money a real minute.
-- Seats: 75 per car, 2 cars to start.
+- Seats: 75 per car, 2 cars to start. Boarding: 2 doors a car, 0.7 passengers a second through each, all through the stop, so a 2-car unit takes about 125 in a 45 s stop and longer trains board faster as well as holding more. Passengers get off the moment the train arrives.
 - Speeds are real (33.5 m/s = 75 mph) on a true-scale line. Stockport to Piccadilly takes about ten real minutes plus stops; dwell 45 s, turnaround at the termini 120 s.
 - Patience 25 min, 45 with a canopy. Platform cap 150, 320 extended.
 - 82% of fares collected without barriers.

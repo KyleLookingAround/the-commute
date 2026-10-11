@@ -89,6 +89,18 @@ function showBuilt(i: number, id: string): void {
   preview(null, null);
   const b = built[i], box = b ? partsBox(b, sim.ups(i), id, partBox) : null; if (box) frameBox(box);
 }
+const trainBox = new THREE.Box3();
+/** Show a line upgrade on the map: for units and cars a main-line unit (the newest once one's been bought, otherwise
+ * the one nearest the line's home, where the units turn), for the timetable the whole line. null stops the preview. */
+function showLine(id: string | null, bought = false): void {
+  preview(null, null);
+  if (id === null) return;
+  if (id === 'timetable') { lineView(); view.framed++; return; }
+  const main = sim.svcs[0], home = main ? sim.station(main.route[0]!).s : 0;
+  let k = -1;
+  sim.g.trains.forEach((tr, j) => { if (tr.svc !== main?.id) return; if (k < 0 || (id === 'units' && bought ? j > k : Math.abs(tr.s - home) < Math.abs(sim.g.trains[k]!.s - home))) k = j; });
+  const m = trains.meshes[k]; if (m) frameBox(trainBox.setFromObject(m));
+}
 const sky = new Sky(scene, sun, lineMiddle());
 
 // ---- labels ----
@@ -130,8 +142,10 @@ const ui = new UI(sim, els, {
   preview: (i, id) => preview(i, id),
   built: (i, id) => showBuilt(i, id),
   showBuilt: (i, id) => showBuilt(i, id),
+  // a unit just bought, or longer cars, show on the map at the next frame's sync: frame it after that
+  showLine: (id, bought) => { if (bought) requestAnimationFrame(() => requestAnimationFrame(() => showLine(id, true))); else showLine(id); },
   lockHour: h => { lockHour = h; ui.setLight(lockHour ?? sim.hour(), lockHour !== null); },
-  reset: () => { store.wipe(); sim = new Sim(net, Sim.fresh(net, seed)); preview(null, null); ui.sim = sim; ui.selected = 0; ui.picked = null; ui.buildAll(); const [x, z] = stationXZ(0); rig.focus(x, z); },
+  reset: () => { store.wipe(); sim = new Sim(net, Sim.fresh(net, seed)); preview(null, null); ui.sim = sim; ui.selected = 0; ui.picked = null; ui.linePicked = null; ui.buildAll(); const [x, z] = stationXZ(0); rig.focus(x, z); },
 });
 function persist(): void { store.save({ g: sim.g, selected: ui.selected }); }
 

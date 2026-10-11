@@ -32,6 +32,9 @@ export interface Handlers {
   built: (i: number, id: string) => void;
   /** Put the camera on what an upgrade bought at a station built (a Built chip), with no ghost. */
   showBuilt: (i: number, id: string) => void;
+  /** Show what a line upgrade is about on the map (a unit for units and cars, the whole line for its speed), or null to
+   * stop previewing; bought: it was just bought (or its Built chip tapped), so show the new train once it's out. */
+  showLine: (id: string | null, bought?: boolean) => void;
   /** Lock the light to an hour of the day, or null to follow the clock again. The sim's clock never changes. */
   lockHour: (hour: number | null) => void;
 }
@@ -43,9 +46,11 @@ export class UI {
   selected: number;
   /** The upgrade card chosen at the selected station, previewed on the map, or null. */
   picked: string | null;
+  /** The line upgrade card chosen, shown on the map, or null. */
+  linePicked: string | null;
   toastTimer: ReturnType<typeof setTimeout> | undefined;
   constructor(sim: Sim, els: Els, on: Handlers) {
-    this.sim = sim; this.els = els; this.on = on; this.selected = 0; this.picked = null; this.toastTimer = undefined;
+    this.sim = sim; this.els = els; this.on = on; this.selected = 0; this.picked = null; this.linePicked = null; this.toastTimer = undefined;
     els.sp1.addEventListener('click', () => on.speed(1)); els.sp3.addEventListener('click', () => on.speed(3)); els.sp10.addEventListener('click', () => on.speed(10));
     els.vLine.addEventListener('click', () => on.viewLine());
     els.hour.addEventListener('input', () => on.lockHour(+els.hour.value));
@@ -66,7 +71,7 @@ export class UI {
     this.els.hourLive.hidden = !locked;
   }
   setSpeed(s: number): void { this.els.sp1.setAttribute('aria-pressed', String(s === 1)); this.els.sp3.setAttribute('aria-pressed', String(s === 3)); this.els.sp10.setAttribute('aria-pressed', String(s === 10)); }
-  select(i: number): void { this.pick(null); this.selected = i; this.buildStrip(); this.buildPanel(); this.on.focusStation(i); }
+  select(i: number): void { this.pick(null); this.pickLine(null); this.selected = i; this.buildStrip(); this.buildPanel(); this.on.focusStation(i); }
 
   buildAll(): void { this.buildStrip(); this.buildPanel(); this.buildLinePanel(); }
   buildStrip(): void {
@@ -134,9 +139,17 @@ export class UI {
   /** Choose an upgrade card (or none): the map previews it. */
   pick(id: string | null): void {
     if (this.picked === id) return;
+    if (id !== null && this.linePicked !== null) { this.linePicked = null; this.markLinePicked(); }
     this.picked = id; this.markPicked(); this.on.preview(this.selected, id);
   }
-  markPicked(): void { this.els.panel.querySelectorAll<HTMLElement>('[data-pick]').forEach(b => { const on = b.dataset['pick'] === this.picked; b.setAttribute('aria-pressed', String(on)); b.parentElement?.classList.toggle('sel', on); }); }
+  /** Choose a line upgrade card (or none): the map shows what it's about. */
+  pickLine(id: string | null): void {
+    if (this.linePicked === id) return;
+    if (id !== null) this.pick(null);
+    this.linePicked = id; this.markLinePicked(); this.on.showLine(id);
+  }
+  markPicked(): void { mark(this.els.panel, 'pick', this.picked); }
+  markLinePicked(): void { mark(this.els.linePanel, 'lpick', this.linePicked); }
   updatePanel(): void {
     const i = this.selected, g = this.g, S = this.sim.state(i), panel = this.els.panel;
     if (!g.owned[i]) { const b = panel.querySelector<HTMLButtonElement>('#buyStation'); if (b) b.disabled = !this.sim.canBuyStation(i); return; }
@@ -156,20 +169,46 @@ export class UI {
     const g = this.g, lp = this.els.linePanel, sim = this.sim;
     const branch = sim.svcs.slice(1).filter(v => sim.unitsFor(v) > 0).length ? ' · Hazel Grove line open' : '';
     lp.innerHTML = `<h2>The line <small>${sim.unitsInService()} unit${sim.unitsInService() === 1 ? '' : 's'} · ${sim.carsPerUnit()}-car · ${g.line.timetable ? '90' : '75'} mph${branch}</small></h2><div class="ups" id="lups"></div>`;
-    const holder = lp.querySelector('#lups');
+    // the next step of each line upgrade as a card, like a station's; what's bought on one line under them
+    const holder = lp.querySelector('#lups'), done: [string, string][] = [];
+    const step = (u: (typeof LINE_UPGRADES)[number], lvl: number) => u.max > 1 ? `${u.name} ${lvl + 1} of ${u.max}` : u.name;
     for (const u of LINE_UPGRADES) {
       if (!sim.lineReady(u.id)) continue;   // extra units wait for room to turn at Stockport
-      const lvl = g.line[u.id], done = lvl >= u.max, price = done ? 0 : (u.prices[lvl] ?? 0);
-      const d = document.createElement('div'); d.className = 'up' + (done ? ' done' : '');
-      d.innerHTML = `<div class="t"><b>${u.name} ${u.max > 1 ? `(${lvl}/${u.max})` : ''}</b><span>${u.desc}</span></div><button ${done || g.cash < price ? 'disabled' : ''} data-lu="${u.id}">${done ? 'Done' : fmt(price)}</button>`;
-      if (!done) d.querySelector('button')?.addEventListener('click', () => { if (sim.buyLine(u.id)) { this.toast(`${u.name}: done`); this.buildLinePanel(); this.on.changed(); } });
+      const lvl = g.line[u.id], price = u.prices[lvl];
+      if (lvl) done.push([u.id, u.max > 1 ? `${u.name} ×${lvl}` : u.name]);
+      if (lvl >= u.max || price === undefined) continue;
+      const opens = lvl + 1 < u.max ? [step(u, lvl + 1)] : [];
+      const d = document.createElement('article'); d.className = 'ucard'; d.dataset['lcard'] = u.id;
+      d.innerHTML = `<button class="pick" aria-pressed="false" data-lpick="${u.id}">
+          <span class="head"><b>${step(u, lvl)}</b><span class="price">${fmt(price)}</span></span>
+          <span class="adds">${u.desc}</span>
+          ${opens.length ? `<span class="opens"><span>Then</span> ${opens.map(o => `<i>${o}</i>`).join('')}</span>` : ''}
+        </button>
+        <div class="act"><span class="togo"><meter min="0" max="${price}" value="0"></meter><span></span></span><button class="buyup" data-lup="${u.id}">Buy</button></div>`;
+      d.querySelector('.pick')?.addEventListener('click', () => this.pickLine(this.linePicked === u.id ? null : u.id));
+      d.querySelector('.buyup')?.addEventListener('click', () => {
+        if (!sim.buyLine(u.id)) return;
+        this.linePicked = null; this.toast(`${step(u, lvl)}: done`); this.buildLinePanel(); this.on.showLine(u.id, true); this.on.changed();
+      });
       holder?.appendChild(d);
     }
+    if (holder?.children.length) holder.insertAdjacentHTML('afterbegin', '<p class="hint">Tap a card to see it on the map.</p>');
+    if (done.length) {
+      lp.insertAdjacentHTML('beforeend', `<p class="built"><span>Built</span> ${done.map(([id, n]) => `<button class="chip" data-lbuilt="${id}">${n}</button>`).join('')}</p>`);
+      lp.querySelectorAll<HTMLElement>('[data-lbuilt]').forEach(b => b.addEventListener('click', () => { this.pickLine(null); this.on.showLine(b.dataset['lbuilt'] ?? null, true); }));
+    }
+    this.markLinePicked();
+    this.updateLinePanel();
   }
   updateLinePanel(): void {
-    this.els.linePanel.querySelectorAll<HTMLButtonElement>('[data-lu]').forEach(b => {
-      const u = LINE_UPGRADES.find(u => u.id === b.dataset['lu']); if (!u) return;
-      const lvl = this.g.line[u.id], price = u.prices[lvl]; if (lvl < u.max && price !== undefined) b.disabled = this.g.cash < price;
+    const g = this.g;
+    this.els.linePanel.querySelectorAll<HTMLElement>('[data-lcard]').forEach(card => {
+      const u = LINE_UPGRADES.find(u => u.id === card.dataset['lcard']); if (!u) return;
+      const price = u.prices[g.line[u.id]] ?? 0, short = price - g.cash;
+      card.classList.toggle('can', short <= 0);
+      const m = card.querySelector('meter'), t = card.querySelector('.togo > span'), v = String(Math.max(0, Math.min(price, Math.floor(g.cash))));
+      if (m && m.getAttribute('value') !== v) m.setAttribute('value', v);
+      const txt = short > 0 ? `${fmt(short)} to go` : ''; if (t && t.textContent !== txt) t.textContent = txt;
     });
   }
   tick(): void {
@@ -177,4 +216,8 @@ export class UI {
     const ck = `Day ${g.day} · ${this.sim.clock()}`; if (this.els.clock.textContent !== ck) this.els.clock.textContent = ck;
     this.updateStrip(); this.updatePanel(); this.updateLinePanel();
   }
+}
+/** Mark the chosen card in a panel (by its data-<key> button), or none. */
+function mark(root: HTMLElement, key: string, id: string | null): void {
+  root.querySelectorAll<HTMLElement>(`[data-${key}]`).forEach(b => { const on = b.dataset[key] === id; b.setAttribute('aria-pressed', String(on)); b.parentElement?.classList.toggle('sel', on); });
 }

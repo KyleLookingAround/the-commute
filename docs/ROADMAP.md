@@ -33,7 +33,7 @@ The loop on Hazel Grove to Piccadilly is worth playing for hours before the map 
 - **Managers and recommendations** (an owner preference not built yet). A station manager who buys that station's next step within a budget, a line controller for units and cars, and a highlighted best next buy for players who want a nudge; each can be switched off by players who want control.
 - **Pressure that bites.** Peaks lose fewer since trains board through their stop. Decide what pushes the player at the peaks (crowded platforms and packed trains you can see, people turning back at the entrance) and tune it with the bot.
 - **Impacts on the map, not text.** People turning away from a full platform, a packed train, a new stage rising when bought, a quiet glow on the stations earning most.
-- **Credits.** The network and kits come from OpenStreetMap, so the page credits "© OpenStreetMap contributors" (ODbL), with the other sources listed.
+- **Credits** (done 11 October 2026). The page footer credits "© OpenStreetMap contributors" (ODbL), linked to their copyright page, and the geograph.org.uk photographs the kits were checked against.
 - **The first shareable release.** When the owner calls it: the halt-to-station loop, managers, the upgrades UI, phones checked down to 320 px, What's new, and saves migrated from then on. The full loop (issues, specs, PRs, look backs) switches on (the `release` playbook).
 
 ## 3. The line, alive and complete

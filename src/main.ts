@@ -33,8 +33,9 @@ declare global {
   }
 }
 
-// the JSON is the data layer's; it's typed here, where it's read, so the data stays plain
-const networkDef = networkJson as NetworkGeoDef;
+// the JSON is the data layer's; it's typed here, where it's read, so the data stays plain. Only the waypoints need a
+// word: JSON can't say an array is a pair; everything else is checked against the type as it is
+const networkDef: NetworkGeoDef = { ...networkJson, corridors: networkJson.corridors.map(c => ({ ...c, waypoints: c.waypoints as [number, number][] })) };
 const kits: Record<string, Kit> = { stockport: kitStockport as Kit, 'heaton-chapel': kitHeaton as Kit, levenshulme: kitLevenshulme as Kit, ardwick: kitArdwick as Kit, piccadilly: kitPiccadilly as Kit };
 const net = fromGeo(networkDef);
 
@@ -57,8 +58,9 @@ const built = buildStations(scene, net, kits);
 scene.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = true; o.receiveShadow = true; } });
 const trains = new TrainLayer(scene, net, networkDef.services ?? []);
 const stopper = (networkDef.services ?? []).find(s => s.id === 'stopper');
-const trackV = { north: stopper ? net.track(stopper.tracks.north).offset : -13, south: stopper ? net.track(stopper.tracks.south).offset : 19 };
-const pax = new PassengerLayer(built, net.stations.map(s => s.s), trackV);
+// where the stopper's tracks run across each station, so its passengers stand back from the right edge
+const trackV = net.stations.map(st => ({ north: stopper ? net.offsetAt(stopper.tracks.north, st.s) : 0, south: stopper ? net.offsetAt(stopper.tracks.south, st.s) : 0 }));
+const pax = new PassengerLayer(built, net.stations, trackV);
 const rig = new OrbitRig(camera, canvas, scene);
 const sky = new Sky(scene, sun, lineMiddle());
 

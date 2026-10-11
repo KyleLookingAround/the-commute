@@ -1,7 +1,9 @@
 // Draft a station kit from an OSM export: the platforms, buildings, footbridges, subways and steps near a station,
 // projected into the kit's local frame (u along the line towards Manchester, v across it, y up) from the network in
-// src/data/network.json. Prints parts to paste into src/data/kits/<station>.json and tidy by hand; it never writes a kit.
-//   node tools/osm-to-kit.mjs data/raw/station-1.json stockport [--reach 300]
+// src/data/network.json. Across the line everything is drawn 1.25 times real, like the tracks (docs/DESIGN.md), so v
+// comes out at that scale; --lateral changes it. Prints parts to paste into src/data/kits/<station>.json and tidy by
+// hand (platform edges go 2.1 m from the track they serve, whatever the export says); it never writes a kit.
+//   node tools/osm-to-kit.mjs data/raw/station-1.json stockport [--reach 300] [--lateral 1.25]
 // Platforms (railway=platform areas) become `platform` parts from their extents along and across the line. Buildings
 // become `footprint` parts: their outline in (u, v) and a height from building:levels (3.2 m a storey, 6 m if unknown).
 // Footways on a bridge become `footbridge` parts, footways in a tunnel `subway` parts, both from their span across the line.
@@ -16,15 +18,15 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2), file = args[0], stationId = args[1];
 const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? +args[i + 1] : d; };
 if (!file || !stationId) { console.error('usage: node tools/osm-to-kit.mjs <osm.json> <station id> [--reach 300]'); process.exit(1); }
-const reach = opt('--reach', 300);
+const reach = opt('--reach', 300), lateral = opt('--lateral', 1.25);
 
 const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')));
-const st = net.station(stationId), c = net.corridor(st.corridor), frame = c.at(st.s), origin = net.def.origin;
+const st = net.station(stationId), frame = net.stationFrame(stationId), origin = net.def.origin;
 const kLat = 111320, kLon = 111320 * Math.cos(origin.lat * Math.PI / 180);
-// a lat/lon to the station's (u, v): u along the corridor's direction at the station, v along its normal
+// a lat/lon to the station's (u, v): u along the corridor's direction at the station, v along its normal, scaled
 function uv(lat, lon) {
   const x = (lon - origin.lon) * kLon - frame.x, z = -(lat - origin.lat) * kLat - frame.z;
-  return [x * frame.dx + z * frame.dz, x * frame.nx + z * frame.nz];
+  return [x * frame.dx + z * frame.dz, (x * frame.nx + z * frame.nz) * lateral];
 }
 const osm = JSON.parse(readFileSync(file, 'utf8'));
 const nodes = new Map(); for (const e of osm.elements) if (e.type === 'node') nodes.set(e.id, e);

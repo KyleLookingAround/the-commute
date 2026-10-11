@@ -17,7 +17,8 @@ export type Part =
   | (Gated & Span & { type: 'lamps'; v: number; every?: number })
   | (Gated & Footprint & { type: 'box'; y0: number; y1: number; mat?: string })
   | (Gated & Span & { type: 'windows'; v: number; ys: number[]; every?: number })
-  | (Gated & { type: 'shelter'; u: number; v: number })
+  /** back: which side the glass back is on, away from the track (+1 is +v, the default). */
+  | (Gated & { type: 'shelter'; u: number; v: number; back?: 1 | -1 })
   | (Gated & { type: 'footbridge'; u: number; v0: number; v1: number; towers: number[] })
   | (Gated & { type: 'lifts'; u: number; towers: number[] })
   | (Gated & { type: 'retail'; u: number; v: number; small?: boolean; y?: number; label?: string })
@@ -27,11 +28,17 @@ export type Part =
   /** A building from its real outline: (u, v) corners in order, extruded from y0 to y1. */
   | (Gated & { type: 'footprint'; outline: [number, number][]; y0: number; y1: number; mat?: string })
   /** A passage under the line at u: a stair head on each platform it serves (their v extents), with a lit doorway. */
-  | (Gated & { type: 'subway'; u: number; platforms: [number, number][] });
+  | (Gated & { type: 'subway'; u: number; platforms: [number, number][] })
+  /** A track no service runs on (a siding, a bay, a goods line), ballast and rails through (u, v) points in order;
+   * a buffer stop at the first point when `buffer` is set. */
+  | (Gated & { type: 'rails'; points: [number, number][]; buffer?: boolean });
 export type PartType = Part['type'];
-/** Where each direction's queue stands: a line at v from u0 to u1. */
-export interface Face { v: number; u0: number; u1: number }
-export interface Kit { id: string; note?: string; platformLength?: number; faces: { north: Face; south: Face }; parts: Part[] }
+/** Where each direction's passengers wait: from a line at v (near the platform edge) from u0 to u1, back into the
+ * platform as far as depth (4 m if not given). */
+export interface Face { v: number; u0: number; u1: number; depth?: number }
+/** entrance: where passengers come and go along the platforms, when that isn't a subway's or footbridge's stairs
+ * (a terminus's concourse at the buffer-stop end). */
+export interface Kit { id: string; note?: string; platformLength?: number; entrance?: number; faces: { north: Face; south: Face }; parts: Part[] }
 
 type Builders = { [K in PartType]: (gp: THREE.Group, p: Extract<Part, { type: K }>) => void };
 const partBuilders: Builders = {
@@ -57,8 +64,10 @@ const partBuilders: Builders = {
     for (let u = p.u0; u <= p.u1; u += p.every || 10) for (const y of p.ys) box(gp, 1.6, 2.2, 0.1, MAT.glow, u, y, p.v);
   },
   shelter(gp, p) {
-    box(gp, 10, 0.3, 6, MAT.canopy, p.u, 3.2, p.v); box(gp, 10, 2.4, 0.3, MAT.glass, p.u, 2, p.v + 2.8);
-    for (const du of [-4.5, 4.5]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 2.4, 6), MAT.steel); c.position.set(p.u + du, 2, p.v - 2.6); gp.add(c); }
+    // a glazed bus-stop shelter, 1.25 times real like the platforms it stands on: the glass back at +v
+    const b = p.back ?? 1;
+    box(gp, 8, 0.25, 3.2, MAT.canopy, p.u, 3.5, p.v); box(gp, 8, 2.4, 0.2, MAT.glass, p.u, 2.2, p.v + b * 1.4);
+    for (const du of [-3.8, 3.8]) { box(gp, 0.2, 2.4, 3, MAT.glass, p.u + du, 2.2, p.v); const c = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.4, 6), MAT.steel); c.position.set(p.u + du, 2.2, p.v - b * 1.4); gp.add(c); }
   },
   footbridge(gp, p) {
     const w = p.v1 - p.v0, cv = (p.v0 + p.v1) / 2;
@@ -94,6 +103,17 @@ const partBuilders: Builders = {
       box(gp, 7, 2.6, w, MAT.brick, p.u, 2.3, cv); box(gp, 7.6, 0.3, w + 0.6, MAT.roof, p.u, 3.75, cv);
       box(gp, 0.1, 1.9, 1.6, MAT.glow, p.u + 3.55, 2, cv);
     }
+  },
+  rails(gp, p) {
+    // a straight piece of ballast and two rails between each pair of points, overlapping a little at the joins
+    for (let i = 0; i < p.points.length - 1; i++) {
+      const [u0, v0] = p.points[i]!, [u1, v1] = p.points[i + 1]!, len = Math.hypot(u1 - u0, v1 - v0), yaw = Math.atan2(-(v1 - v0), u1 - u0);
+      const cu = (u0 + u1) / 2, cv = (v0 + v1) / 2, nu = -(v1 - v0) / len, nv = (u1 - u0) / len;
+      box(gp, len + 0.3, 0.5, 3.4, MAT.ballast, cu, -0.24, cv).rotation.y = yaw;
+      for (const d of [-0.72, 0.72]) box(gp, len + 0.3, 0.16, 0.1, MAT.rail, cu + nu * d, 0.09, cv + nv * d).rotation.y = yaw;
+    }
+    const first = p.points[0];
+    if (p.buffer && first) box(gp, 0.8, 1.2, 3, MAT.brickDark, first[0], 0.6, first[1]);
   },
 };
 // the builders are keyed by the part's type, so the one looked up always takes the part; the cast says so once

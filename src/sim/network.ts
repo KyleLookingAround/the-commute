@@ -1,6 +1,8 @@
-// Track network: corridors (centreline polylines in local metres), parallel tracks offset from a corridor,
-// and stations at a distance along a corridor. The sim only ever talks in "distance along a corridor";
-// the renderer asks the network for world positions. Branching lines later become extra corridors joined at junctions.
+// Track network: corridors (centreline polylines in local metres), tracks offset across a corridor, and stations at a
+// distance along a corridor. The sim only ever talks in "distance along a corridor"; the renderer asks the network for
+// world positions. A track's offset changes along the line: each track has an open-line offset, and the layout list
+// moves it around a station (Stockport's tracks spread round two wide islands) or along a stretch, easing in and out.
+// Branching lines later become extra corridors joined at junctions.
 import type { CorridorDef, Frame, LatLon, NetworkDef, NetworkGeoDef, Station, TrackDef, XZ } from './types.ts';
 
 export const NORTH = -1; // trains heading north (towards Manchester) move towards lower z, so "north" is -1 along z,
@@ -64,29 +66,84 @@ export class Corridor {
   }
 }
 
+/** A point on a track's offset profile: from here the track runs at offset v. */
+interface Key { s: number; v: number }
+const smooth = (t: number) => t * t * (3 - 2 * t);
+/** The default distance over which a track eases from one layout to the next. */
+export const EASE = 200;
+
 export class Network {
   def: NetworkDef;
   corridors: Record<string, Corridor>;
   tracks: TrackDef[];
   stations: Station[];
   byId: Record<string, Station>;
+  /** Each track's offset profile along its corridor: keys between which it eases; empty runs at its open-line offset. */
+  private keys: Record<string, Key[]>;
   constructor(def: NetworkDef) {
     this.def = def;
     this.corridors = Object.fromEntries(def.corridors.map(c => [c.id, new Corridor(c)]));
     this.tracks = def.tracks;                // [{ id, corridor, offset }]
     this.stations = def.stations.map((s, i) => {
       const c = this.corridor(s.corridor);
-      const sAlong = s.s !== undefined ? s.s : c.nearest(s.x, s.z);
-      return { ...s, index: i, s: sAlong };
+      const at = s.s !== undefined ? s.s : c.nearest(s.x, s.z);
+      return { ...s, index: i, at, s: at + (s.stop ?? 0) };
     });
     this.byId = Object.fromEntries(this.stations.map(s => [s.id, s]));
+    this.keys = Object.fromEntries(this.tracks.map(t => [t.id, this.profile(t)]));
   }
   corridor(id: string): Corridor { const c = this.corridors[id]; if (!c) throw new Error(`no corridor "${id}"`); return c; }
   track(id: string): TrackDef { const t = this.tracks.find(t => t.id === id); if (!t) throw new Error(`no track "${id}"`); return t; }
   station(id: string): Station { const s = this.byId[id]; if (!s) throw new Error(`no station "${id}"`); return s; }
-  // World position for a point on a track at distance s along its corridor
-  trackAt(trackId: string, s: number, out?: Frame): Frame { const t = this.track(trackId); return this.corridor(t.corridor).at(s, t.offset, out); }
-  stationFrame(stationId: string): Frame { const st = this.station(stationId); return this.corridor(st.corridor).at(st.s, 0); }
+
+  /** The stretches of a track's corridor the layout list moves it in, in order: [s0, s1, offset]. */
+  private spans(t: TrackDef): [number, number, number][] {
+    const out: [number, number, number][] = [];
+    for (const L of this.def.layout ?? []) {
+      const v = L.offsets[t.id]; if (v === undefined) continue;
+      if (L.station) {
+        const st = this.station(L.station); if (st.corridor !== t.corridor) continue;
+        out.push([st.at + (L.u0 ?? 0), st.at + (L.u1 ?? 0), v]);
+      } else if ((L.corridor ?? t.corridor) === t.corridor && L.s0 !== undefined && L.s1 !== undefined) out.push([L.s0, L.s1, v]);
+    }
+    return out.sort((a, b) => a[0] - b[0]);
+  }
+  /** The keys a track eases between: it holds each span's offset, and between spans returns to its open-line offset
+   * when they're far enough apart, or eases straight from one to the next when they're close. */
+  private profile(t: TrackDef): Key[] {
+    const E = this.def.ease ?? EASE, keys: Key[] = [];
+    for (const [s0, s1, v] of this.spans(t)) {
+      const prev = keys[keys.length - 1];
+      if (!prev) keys.push({ s: s0 - E, v: t.offset });
+      else if (s0 - prev.s > 2 * E) keys.push({ s: prev.s + E, v: t.offset }, { s: s0 - E, v: t.offset });
+      keys.push({ s: s0, v }, { s: s1, v });
+    }
+    const last = keys[keys.length - 1]; if (last) keys.push({ s: last.s + E, v: t.offset });
+    return keys;
+  }
+  /** Where a track runs across its corridor at s. */
+  offsetAt(trackId: string, s: number): number {
+    const k = this.keys[trackId]; if (!k) return this.track(trackId).offset;
+    const first = k[0], last = k[k.length - 1];
+    if (!first || !last) return this.track(trackId).offset;
+    if (s <= first.s) return first.v; if (s >= last.s) return last.v;
+    let i = 0; while (i < k.length - 2 && k[i + 1]!.s <= s) i++;
+    const a = k[i]!, b = k[i + 1]!;
+    return b.s > a.s ? a.v + (b.v - a.v) * smooth((s - a.s) / (b.s - a.s)) : b.v;
+  }
+  /** World position and heading for a point on a track at distance s along its corridor: where the track is moving
+   * across the corridor (into a station, or crossing over) the heading turns with it. */
+  trackAt(trackId: string, s: number, out?: Frame): Frame {
+    const t = this.track(trackId), f = this.corridor(t.corridor).at(s, this.offsetAt(trackId, s), out);
+    const k = (this.offsetAt(trackId, s + 2) - this.offsetAt(trackId, s - 2)) / 4;
+    if (k !== 0) {
+      const dx = f.dx + f.nx * k, dz = f.dz + f.nz * k, n = Math.hypot(dx, dz);
+      f.dx = dx / n; f.dz = dz / n; f.nx = -f.dz; f.nz = f.dx; f.heading = Math.atan2(f.dz, f.dx);
+    }
+    return f;
+  }
+  /** The frame a station's kit stands in: its own point on the corridor, u along the line, v across it. */
+  stationFrame(stationId: string): Frame { const st = this.station(stationId); return this.corridor(st.corridor).at(st.at, 0); }
 }
 
 export function smoothPolyline(points: XZ[], subdivisions = 6): XZ[] {

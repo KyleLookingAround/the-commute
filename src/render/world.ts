@@ -1,7 +1,7 @@
 // Ground, towns, roads, permanent way and landmarks, all laid out along the network's corridors.
 import * as THREE from 'three';
 import { MAT, PAL, box } from './scene.ts';
-import { projectLatLon } from '../sim/network.ts';
+import { newFrame, projectLatLon } from '../sim/network.ts';
 import type { Network } from '../sim/network.ts';
 import type { LandmarkDef, LatLon, NetworkGeoDef } from '../sim/types.ts';
 
@@ -30,7 +30,9 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   const along = (l: LandmarkDef | undefined): number | null => l && l.at ? c.nearest(...xz(def, l.at)) : null;
 
   // ---- the far ground: one flat field out to the horizon, so the detailed terrain never shows an edge ----
-  { const far = new THREE.Mesh(new THREE.PlaneGeometry(60000, 60000), new THREE.MeshLambertMaterial({ color: PAL.grass })); far.rotation.x = -Math.PI / 2; far.position.y = -0.6; scene.add(far); }
+  // drawn first (after the sky) and without depth: one quad this big loses depth tests to the terrain above it from some
+  // angles, and then the fields cover the line; it lies under everything, so it never needs to win one
+  { const far = new THREE.Mesh(new THREE.PlaneGeometry(60000, 60000), new THREE.MeshLambertMaterial({ color: PAL.grass, depthWrite: false })); far.rotation.x = -Math.PI / 2; far.position.y = -0.6; far.renderOrder = -1; scene.add(far); }
 
   // ---- terrain: a plane over the corridor's bounding box ----
   (function terrain() {
@@ -45,7 +47,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       const s = c.nearest(x, z), y = groundY(x, z); p.setY(i, y);
       let k = PAL.grass;
       const a = c.at(s), d = Math.hypot(x - a.x, z - a.z);
-      if (d < 46) k = PAL.yard;
+      if (d < 36) k = PAL.yard;
       if (s > c.length - 1600) k = PAL.city;
       if (river !== null && Math.abs(s - river) < 14) k = PAL.river;
       if (m60 !== null && Math.abs(s - m60) < 18) k = PAL.motorway;
@@ -55,7 +57,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })));
   })();
 
-  // ---- ribbons along the corridor: roads, ballast, rails ----
+  // ---- ribbons along the corridor: roads; ballast and rails along each track ----
   const segs: { s0: number; s1: number; len: number }[] = [];
   for (let i = 0; i < c.pts.length - 1; i++) { const s0 = c.cum[i]!, s1 = c.cum[i + 1]!; segs.push({ s0, s1, len: s1 - s0 }); }
   const unit = new THREE.BoxGeometry(1, 1, 1);
@@ -69,21 +71,39 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     });
     scene.add(inst); return inst;
   }
-  for (const t of net.tracks) { ribbon(t.offset, 3.4, 0.5, -0.25, MAT.ballast); for (const dx of [-0.72, 0.72]) ribbon(t.offset + dx, 0.1, 0.16, 0.08, MAT.rail); }
-  ribbon(-95, 12, 0.2, 0.1, MAT.road); ribbon(110, 12, 0.2, 0.1, MAT.road);
+  // a track's ballast and rails, short pieces so they follow it into a station's layout and across the crossovers
+  const STEP = 20, nStep = Math.ceil(c.length / STEP);
+  const pa = newFrame(), pb = newFrame();
+  function trackRibbon(trackId: string, lateral: number, width: number, height: number, y: number, mat: THREE.Material): void {
+    const inst = new THREE.InstancedMesh(unit, mat, nStep);
+    for (let i = 0; i < nStep; i++) {
+      const s0 = i * STEP, s1 = Math.min(c.length, s0 + STEP);
+      net.trackAt(trackId, s0, pa); net.trackAt(trackId, s1, pb);
+      const ax = pa.x + pa.nx * lateral, az = pa.z + pa.nz * lateral, bx = pb.x + pb.nx * lateral, bz = pb.z + pb.nz * lateral;
+      const len = Math.hypot(bx - ax, bz - az) || 0.01;
+      e.set(0, Math.atan2(-(bz - az), bx - ax), 0); q.setFromEuler(e); v3.set((ax + bx) / 2, y, (az + bz) / 2); sc.set(len + 0.3, height, width);
+      m4.compose(v3, q, sc); inst.setMatrixAt(i, m4);
+    }
+    scene.add(inst);
+  }
+  for (const t of net.tracks) { trackRibbon(t.id, 0, 3.4, 0.5, -0.25, MAT.ballast); for (const dx of [-0.72, 0.72]) trackRibbon(t.id, dx, 0.1, 0.16, 0.08, MAT.rail); }
+  ribbon(-95, 12, 0.2, 0.1, MAT.road); ribbon(126, 12, 0.2, 0.1, MAT.road);
 
-  // ---- OHLE masts and wires ----
+  // ---- OHLE: a mast outside each outer track with an arm reaching over it, and a wire over every track ----
   (function ohle() {
     const n = Math.floor(c.length / 55) * 2;
-    const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.2, 0.25, 7.5, 6), MAT.steel, n), arms = new THREE.InstancedMesh(new THREE.BoxGeometry(14, 0.3, 0.3), MAT.steel, n);
+    const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.2, 0.25, 7.5, 6), MAT.steel, n), arms = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 0.3, 6), MAT.steel, n);
     let k = 0; const wire: number[] = [];
-    for (let s = 30; s < c.length && k < n; s += 55) for (const off of [-19, 25]) {
-      const p = c.at(s, off); e.set(0, yawFor(p), 0); q.setFromEuler(e); sc.set(1, 1, 1);
-      v3.set(p.x, 3.75, p.z); m4.compose(v3, q, sc); poles.setMatrixAt(k, m4);
-      const pa = c.at(s, off + (off < 0 ? 7 : -7)); v3.set(pa.x, 6.8, pa.z); m4.compose(v3, q, sc); arms.setMatrixAt(k, m4); k++;
+    for (let s = 30; s < c.length && k < n; s += 55) {
+      let lo = Infinity, hi = -Infinity; for (const t of net.tracks) { const o = net.offsetAt(t.id, s); lo = Math.min(lo, o); hi = Math.max(hi, o); }
+      for (const [off, inward] of [[lo - 3.2, 1], [hi + 3.2, -1]] as const) {
+        const p = c.at(s, off); e.set(0, yawFor(p), 0); q.setFromEuler(e); sc.set(1, 1, 1);
+        v3.set(p.x, 3.75, p.z); m4.compose(v3, q, sc); poles.setMatrixAt(k, m4);
+        const pa2 = c.at(s, off + inward * 3); v3.set(pa2.x, 6.8, pa2.z); m4.compose(v3, q, sc); arms.setMatrixAt(k, m4); k++;
+      }
     }
     poles.count = arms.count = k; scene.add(poles); scene.add(arms);
-    for (const t of net.tracks) for (let i = 0; i < c.pts.length - 1; i++) { const a = c.at(c.cum[i]!, t.offset), b = c.at(c.cum[i + 1]!, t.offset); wire.push(a.x, 5.4, a.z, b.x, 5.4, b.z); }
+    for (const t of net.tracks) for (let i = 0; i < nStep; i++) { net.trackAt(t.id, i * STEP, pa); net.trackAt(t.id, Math.min(c.length, (i + 1) * STEP), pb); wire.push(pa.x, 5.4, pa.z, pb.x, 5.4, pb.z); }
     const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(wire), 3));
     scene.add(new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x8c93a3 })));
   })();
@@ -98,7 +118,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       if (valley && s > valley.s0 - 40 && s < valley.s1 + 40 && Math.abs(off) < 700) continue;
       const city = s > c.length - 1600;
       const nearStation = Math.min(...stationS.map(x => Math.abs(x - s)));
-      if (nearStation < 200 && Math.abs(off) < 130) continue;   // the station's own kit fills this
+      if (nearStation < 220 && Math.abs(off) < 180) continue;   // the station's own kit fills this
       const dens = city ? 0.95 : 0.3 + 0.45 * Math.exp(-Math.pow((s - c.length * 0.55) / 2500, 2)) + (nearStation < 400 ? 0.25 : 0);
       if (seed(k, 4) > dens) continue;
       const terrace = !city && seed(k, 5) < 0.5;
@@ -125,9 +145,12 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     }
     const geo = new THREE.ExtrudeGeometry(shape, { depth: 3, bevelEnabled: false });
     const frame = c.at(s0 + len / 2); const gp = new THREE.Group(); gp.position.set(frame.x, 0, frame.z); gp.rotation.y = yawFor(frame); scene.add(gp);
-    for (const off of [-23, 23]) { const m = new THREE.Mesh(geo, MAT.brick); m.position.set(-len / 2, 0, off); gp.add(m); }
-    box(gp, len, 1.2, 48, MAT.brickDark, 0, -0.6, 2.5);
-    for (const off of [-22.5, 27.5]) box(gp, len, 1.6, 0.8, MAT.brickDark, 0, 0.4, off);
+    // as wide as the four tracks on it, with a few metres of cess and a parapet each side
+    let lo = Infinity, hi = -Infinity; for (const t of net.tracks) { const o = net.offsetAt(t.id, s0 + len / 2); lo = Math.min(lo, o); hi = Math.max(hi, o); }
+    const w0 = lo - 6, w1 = hi + 6;
+    for (const off of [w0, w1 - 3]) { const m = new THREE.Mesh(geo, MAT.brick); m.position.set(-len / 2, 0, off); gp.add(m); }
+    box(gp, len, 1.2, w1 - w0, MAT.brickDark, 0, -0.6, (w0 + w1) / 2);
+    for (const off of [w0 + 0.4, w1 - 0.4]) box(gp, len, 1.6, 0.8, MAT.brickDark, 0, 0.4, off);
     // M60 lane lights in the valley
     const sm = along(landmarks['m60']);
     if (sm !== null) { for (let off = -680; off < 700; off += 70) { const p = c.at(sm, off); box(scene, 0.6, 0.3, 14, MAT.warm, p.x, groundY(p.x, p.z) + 0.6, p.z).rotation.y = yawFor(p); } }

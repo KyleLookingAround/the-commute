@@ -4,7 +4,7 @@
 // figures catch up with that number. Figures are about 1.4 times life size so a queue reads from the stock zoom.
 import * as THREE from 'three';
 import { MAT, PAL } from './scene.ts';
-import type { BuiltStation, Face, Part } from './stations.ts';
+import type { BuiltStation, Face, Kit } from './stations.ts';
 import type { GameState, Train } from '../sim/types.ts';
 
 const geo = new THREE.CylinderGeometry(0.34, 0.42, 2.0, 7); geo.translate(0, 1.0, 0);
@@ -25,20 +25,23 @@ interface Agent { u: number; v: number; tu: number; tv: number; mode: Mode; spot
 interface FaceLayer { face: Face; trackV: number; agents: Agent[]; nextSpot: number; entrance: { u: number; v: number }; due: number }
 /** primed: the station has been synced while owned, so the figures already stand in place; before that (a loaded save,
  * a station just bought) the first count is placed directly rather than walked in as a stampede. */
-interface Layer { im: THREE.InstancedMesh; heads: THREE.InstancedMesh; faces: [FaceLayer, FaceLayer]; s: number; nextCoat: number; alighted: number; primed: boolean }
+/** s: where trains stop; at: where the kit stands (u = 0), so a train's u in the kit is its s minus at. */
+interface Layer { im: THREE.InstancedMesh; heads: THREE.InstancedMesh; faces: [FaceLayer, FaceLayer]; s: number; at: number; nextCoat: number; alighted: number; primed: boolean }
 
-/** Where a face's passengers come and go: the subway or footbridge's stairs if the kit has one, else the platform's south end. */
-function entranceOf(parts: Part[], face: Face): { u: number; v: number } {
-  const way = parts.find(p => p.type === 'subway' || p.type === 'footbridge');
-  return { u: way && 'u' in way ? way.u : face.u0 - 8, v: face.v };
+/** Where a face's passengers come and go: the kit's own entrance (a terminus's concourse), else the subway or
+ * footbridge's stairs, else the platform's south end. */
+function entranceOf(kit: Kit, face: Face): { u: number; v: number } {
+  const way = kit.parts.find(p => p.type === 'subway' || p.type === 'footbridge');
+  return { u: kit.entrance ?? (way && 'u' in way ? way.u : face.u0 - 8), v: face.v };
 }
 
 export class PassengerLayer {
   max: number;
   layers: Layer[];
   private coats: THREE.Color[];
-  /** stationS: each station's distance along the corridor; trackV: the stopping service's track offsets by direction. */
-  constructor(builtStations: BuiltStation[], stationS: number[], trackV: { north: number; south: number }, max = 320) {
+  /** stations: where each one's trains stop and its kit stands along the corridor; trackV: where the stopping service's
+   * tracks run across each station, by direction. */
+  constructor(builtStations: BuiltStation[], stations: { s: number; at: number }[], trackV: { north: number; south: number }[], max = 320) {
     this.max = max;
     this.coats = [PAL.pax, PAL['pax-2'], PAL['pax-3'], PAL['pax-4']];
     this.layers = builtStations.map((b, i) => {
@@ -46,9 +49,9 @@ export class PassengerLayer {
       im.count = heads.count = 0; im.castShadow = true; b.group.add(im); b.group.add(heads);
       const f = b.kit.faces;
       return {
-        im, heads, s: stationS[i] ?? 0, nextCoat: i * 7, alighted: -1, primed: false,
-        faces: [{ face: f.north, trackV: trackV.north, agents: [], nextSpot: 0, entrance: entranceOf(b.kit.parts, f.north), due: 0 },
-          { face: f.south, trackV: trackV.south, agents: [], nextSpot: 0, entrance: entranceOf(b.kit.parts, f.south), due: 0 }],
+        im, heads, s: stations[i]?.s ?? 0, at: stations[i]?.at ?? 0, nextCoat: i * 7, alighted: -1, primed: false,
+        faces: [{ face: f.north, trackV: trackV[i]?.north ?? 0, agents: [], nextSpot: 0, entrance: entranceOf(b.kit, f.north), due: 0 },
+          { face: f.south, trackV: trackV[i]?.south ?? 0, agents: [], nextSpot: 0, entrance: entranceOf(b.kit, f.south), due: 0 }],
       };
     });
   }
@@ -60,13 +63,13 @@ export class PassengerLayer {
     // a mix of two spreads along the platform: most within 40 m of the stairs, the rest anywhere
     const nearStairs = hash(k, 1) < 0.6;
     const u = nearStairs ? F.entrance.u + (hash(k, 2) - 0.5) * 80 : F.face.u0 + 4 + hash(k, 3) * len;
-    const v = F.face.v + into * (0.6 + hash(k, 4) * 5.5);
+    const v = F.face.v + into * (0.4 + hash(k, 4) * ((F.face.depth ?? 4) - 0.4));
     return [Math.max(F.face.u0 + 4, Math.min(F.face.u1 - 4, u)), v];
   }
 
   /** The door nearest u on a train standing at this station: doors sit near each car's ends. */
-  private nearestDoor(tr: Train, stationS: number, u: number): number {
-    const total = tr.cars * CAR_LEN + (tr.cars - 1) * CAR_GAP, x0 = tr.s - stationS - total / 2;
+  private nearestDoor(tr: Train, at: number, u: number): number {
+    const total = tr.cars * CAR_LEN + (tr.cars - 1) * CAR_GAP, x0 = tr.s - at - total / 2;
     let best = u, bd = Infinity;
     for (let c = 0; c < tr.cars; c++) for (const d of [2.9, CAR_LEN - 2.9]) { const x = x0 + c * (CAR_LEN + CAR_GAP) + d; const dd = Math.abs(x - u); if (dd < bd) { bd = dd; best = x; } }
     return best;
@@ -84,7 +87,7 @@ export class PassengerLayer {
       else if (S.alighted > L.alighted) {
         const F = L.faces[standing && standing.dir < 0 ? 1 : 0], n = Math.min(S.alighted - L.alighted, 60);
         for (let j = 0; j < n && F.agents.length < this.max / 2; j++) {
-          const door = standing ? this.nearestDoor(standing, L.s, F.face.u0 + ((j * 37) % (F.face.u1 - F.face.u0))) : (F.face.u0 + F.face.u1) / 2;
+          const door = standing ? this.nearestDoor(standing, L.at, F.face.u0 + ((j * 37) % (F.face.u1 - F.face.u0))) : (F.face.u0 + F.face.u1) / 2;
           const edge = F.face.v + Math.sign(F.trackV - F.face.v) * (Math.abs(F.trackV - F.face.v) - 2.6);
           F.agents.push({ u: door + (j % 3 - 1) * 0.8, v: edge, tu: F.entrance.u, tv: F.entrance.v, mode: 'leave', spot: -1, coat: L.nextCoat++ % this.coats.length, idle: 0, pace: 0.85 + hash(j, 8) * 0.3 });
         }
@@ -115,7 +118,7 @@ export class PassengerLayer {
         const boards = standing !== null && (standing.dir > 0 ? 0 : 1) === fi;
         for (let n = present.length; n > want; n--) {
           const leaver = present.find(p => p.mode === 'wait') ?? present[present.length - 1]; if (!leaver) break;
-          if (boards && standing) { leaver.mode = 'board'; leaver.tu = this.nearestDoor(standing, L.s, leaver.u); leaver.tv = F.face.v + Math.sign(F.trackV - F.face.v) * (Math.abs(F.trackV - F.face.v) - 2.6); }
+          if (boards && standing) { leaver.mode = 'board'; leaver.tu = this.nearestDoor(standing, L.at, leaver.u); leaver.tv = F.face.v + Math.sign(F.trackV - F.face.v) * (Math.abs(F.trackV - F.face.v) - 2.6); }
           else { leaver.mode = 'leave'; leaver.tu = F.entrance.u; leaver.tv = F.entrance.v; }
           present.splice(present.indexOf(leaver), 1);
         }

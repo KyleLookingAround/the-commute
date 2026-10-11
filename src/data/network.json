@@ -126,17 +126,27 @@
     }
   ],
   "tracks": [
-    { "id": "down-slow", "corridor": "main", "offset": -13, "use": "stopping services towards Manchester" },
-    { "id": "down-fast", "corridor": "main", "offset": 1, "use": "expresses towards Manchester" },
-    { "id": "up-fast", "corridor": "main", "offset": 5, "use": "expresses towards Stockport and London" },
-    { "id": "up-slow", "corridor": "main", "offset": 19, "use": "stopping services towards Stockport" }
+    { "id": "down-slow", "corridor": "main", "offset": 0, "use": "stopping services towards Manchester" },
+    { "id": "down-fast", "corridor": "main", "offset": 4.4, "use": "expresses towards Manchester" },
+    { "id": "up-fast", "corridor": "main", "offset": 9.2, "use": "expresses towards Stockport and London" },
+    { "id": "up-slow", "corridor": "main", "offset": 13.8, "use": "stopping services towards Stockport" }
+  ],
+  "trackNote": "Offsets are where each track runs across the corridor, 1.25 times the real spacing from the OpenStreetMap tracks so the trains, drawn 1.3 times real width, pass clear of each other. On the open line the corridor follows the westmost track. The layout list moves the tracks where the corridor follows another track and around the stations; they ease between layouts over `ease` metres.",
+  "ease": 200,
+  "layout": [
+    { "station": "stockport", "u0": -220, "u1": 150, "offsets": { "down-slow": 0.25, "up-slow": 0.25, "down-fast": 32, "up-fast": 45.6 },
+      "note": "The stopper turns round in platform 4, so both its tracks run into it; the fast lines take platforms 3 and 2 either side of the two wide islands." },
+    { "corridor": "main", "s0": 3350, "s1": 7550, "offsets": { "down-slow": -4.6, "down-fast": 0, "up-fast": 5, "up-slow": 9.8 },
+      "note": "From the crossover north of the viaduct to Slade Lane junction the corridor follows the second track from the west. Heaton Chapel and Levenshulme are in this stretch." },
+    { "station": "piccadilly", "u0": -360, "u1": 60, "offsets": { "down-slow": 0, "up-slow": 0, "down-fast": -6.75, "up-fast": -6.75 },
+      "note": "The stopper turns round in platform 5, so both its tracks run into it; the expresses come into platform 6 alongside." }
   ],
   "stations": [
     { "id": "stockport", "name": "Stockport", "corridor": "main", "lat": 53.40545, "lon": -2.163044, "miles": 0, "catchment": 900, "price": 0, "kit": "stockport", "retail": "Greggs" },
     { "id": "heaton-chapel", "name": "Heaton Chapel", "corridor": "main", "lat": 53.425993, "lon": -2.179289, "miles": 1.75, "catchment": 260, "price": 9000, "kit": "heaton-chapel", "retail": "Coffee cart" },
     { "id": "levenshulme", "name": "Levenshulme", "corridor": "main", "lat": 53.444904, "lon": -2.192957, "miles": 3, "catchment": 320, "price": 30000, "kit": "levenshulme", "retail": "Bakery" },
     { "id": "ardwick", "name": "Ardwick", "corridor": "main", "lat": 53.471161, "lon": -2.213209, "miles": 5, "catchment": 12, "price": 45000, "kit": "ardwick", "retail": "Vending machine" },
-    { "id": "piccadilly", "name": "Manchester Piccadilly", "corridor": "main", "lat": 53.47722, "lon": -2.23014, "miles": 6, "catchment": 2200, "price": 150000, "kit": "piccadilly", "retail": "Food hall" }
+    { "id": "piccadilly", "name": "Manchester Piccadilly", "corridor": "main", "lat": 53.47722, "lon": -2.23014, "miles": 6, "catchment": 2200, "price": 150000, "kit": "piccadilly", "retail": "Food hall", "stop": -35 }
   ],
   "landmarks": [
     { "id": "viaduct", "name": "Stockport Viaduct", "corridor": "main", "from": { "lat": 53.4085, "lon": -2.1655 }, "to": { "lat": 53.413, "lon": -2.1705 }, "kind": "viaduct", "arches": 27, "height": 34 },

@@ -29,6 +29,53 @@ test('network: track offsets are perpendicular to the corridor', () => {
   assert.ok(Math.abs((b.x - a.x) * a.dx + (b.z - a.z) * a.dz) < 1e-6, 'offset is perpendicular to travel');
 });
 
+// the kits are the view's, but where their platforms stand against the network's tracks is a fact about the data
+interface KitFaces { faces: Record<'north' | 'south', { v: number }>; parts: { type: string; v0?: number; v1?: number; u0?: number; u1?: number }[] }
+const kit = (id: string) => JSON.parse(readFileSync(new URL(`../src/data/kits/${id}.json`, import.meta.url), 'utf8')) as KitFaces;
+const stopper = def.services?.find(s => s.id === 'stopper');
+
+test('tracks: the stopper stands just clear of the platform its passengers wait on, at every station', () => {
+  const n = net();
+  if (!stopper) throw new Error('no stopper');
+  for (const st of n.stations) {
+    const k = kit(st.kit);
+    for (const dir of ['north', 'south'] as const) {
+      const tv = n.offsetAt(stopper.tracks[dir], st.s), fv = k.faces[dir].v, side = Math.sign(fv - tv);
+      // the platform the face stands on: the one whose edge nearest the track is between the track and the face
+      const edges = k.parts.filter(p => p.type === 'platform' && p.v0 !== undefined && p.v1 !== undefined && !('upgrade' in p))
+        .map(p => side > 0 ? p.v0! : p.v1!).filter(e => (e - tv) * side > 0 && (fv - e) * side >= 0);
+      assert.ok(edges.length, `${st.id} ${dir}: a platform between the track at ${tv.toFixed(2)} and the face at ${fv}`);
+      const gap = Math.min(...edges.map(e => Math.abs(e - tv)));
+      // trains are drawn 3.64 m wide: the edge clears half of that and is close enough to step across
+      assert.ok(gap >= 1.95 && gap <= 3, `${st.id} ${dir}: platform edge ${gap.toFixed(2)} m from the track`);
+    }
+  }
+});
+
+test('tracks: a train turning round at either end stays on the track it came in on', () => {
+  const n = net();
+  if (!stopper) throw new Error('no stopper');
+  for (const st of [n.stations[0]!, n.stations[n.stations.length - 1]!])
+    assert.equal(n.offsetAt(stopper.tracks.north, st.s), n.offsetAt(stopper.tracks.south, st.s), `${st.id}: both directions in one platform`);
+});
+
+test('tracks: on the open line and through the stations the four tracks keep clear of each other', () => {
+  const n = net(), ids = n.tracks.map(t => t.id);
+  const between = n.stations.slice(1).map((st, i) => (st.s + n.stations[i]!.s) / 2);
+  for (const s of [...n.stations.slice(1, -1).map(st => st.s), ...between]) {
+    const o = ids.map(id => n.offsetAt(id, s)).sort((a, b) => a - b);
+    for (let i = 1; i < o.length; i++) assert.ok(o[i]! - o[i - 1]! >= 4.2, `at ${s.toFixed(0)} m two tracks are ${(o[i]! - o[i - 1]!).toFixed(2)} m apart`);
+  }
+});
+
+test('tracks: no track steps sideways anywhere along the line', () => {
+  const n = net(), L = n.corridor('main').length;
+  for (const t of n.tracks) {
+    let prev = n.offsetAt(t.id, 0);
+    for (let s = 1; s <= L; s++) { const o = n.offsetAt(t.id, s); assert.ok(Math.abs(o - prev) < 0.6, `${t.id} jumps ${(o - prev).toFixed(2)} m at ${s} m`); prev = o; }
+  }
+});
+
 test('demand: peaks in the morning and evening, quiet at night', () => {
   assert.ok(demandCurve(8) > demandCurve(12.5));
   assert.ok(demandCurve(17.5) > demandCurve(12.5));

@@ -18,7 +18,6 @@ The goal or problem in two or three sentences, from the player's side.
 
 - The rules, with the numbers that matter (`TUNING` in `src/sim/sim.js`), and the clock they run on.
 - When it unlocks: a station, an upgrade, or from the start.
-- Managers and recommendations: what they do for players who'd rather not handle it.
 
 ## Saved state
 

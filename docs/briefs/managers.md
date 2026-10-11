@@ -1,5 +1,7 @@
 # Brief: managers and recommendations
 
+**On hold (the owner, 11 October 2026):** the player buys every upgrade themselves, with no managers or recommendations, at least for now. Don't start a session from this brief unless the owner brings it back.
+
 ## Goal and what it may touch
 
 - The owner's preference made real: players who don't want the details get managers and recommendations; players who want them take control. Move the bot's buying policy into the sim as an advisor that ranks a player's next buys, use it for a highlighted best next buy (on its card and on the map), a manager per station (a switch on the station's panel: it buys that station's next steps as money allows, keeping a reserve) and a line controller (units, cars, timetable). Managers act inside the sim's step, so they run the same when catching up after time away, in the bot and in tests.

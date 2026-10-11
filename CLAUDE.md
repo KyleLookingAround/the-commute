@@ -90,7 +90,7 @@ From the owner's other games and the brief for this one.
 - Keep text concise and in UK English.
 - Balance matters: check with the bot after pacing or economy changes.
 - Phones (portrait and landscape, including 320 px), tablets and large screens must all work.
-- Players who don't want the details get managers and recommendations; players who want them can take control themselves.
+- The player buys every upgrade themselves: no managers, advisor or recommended buys, at least for now (the owner, 11 October 2026).
 - Saves stay on the device.
 - It stays an incremental upgrade game: buy the next thing, unlock the next station.
 - Colourful and alive, not bleak: a model railway in daylight, with a real sky and a day that visibly turns.

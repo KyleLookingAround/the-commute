@@ -30,11 +30,11 @@ The loop on Hazel Grove to Piccadilly is worth playing for hours before the map 
 
 - **Stations grow from a halt** (built 11 October 2026, the owner's decision). Every bought station, and Stockport at the start, is a halt: one platform on one line, trains one way. It grows through stages with prerequisites, each a visible stage of its kit: a way across, the second platform (Stockport's platform 3 lets the line run extra units), the booking office, and the rest of Stockport (platforms 0 to 2, which the Hazel Grove line needs) and of Piccadilly (the shed and bays). Reachable stages show with what they open next; the rest stay hidden. Roads, walls, sidings and signal boxes are scenery. The opening re-tuned: more, cheaper steps at Stockport first, and peaks that bite again.
 - **Upgrades, better** (built 11 October 2026). A card for each step a station can take next: price, what it adds, what it opens after, and how much to go until the money's there (after overgrow's shed). Tapping a card draws its parts on the map as an amber ghost with the camera on them; buying it makes them rise into place, and a bought station rises out of the fog. Next: tapping a Built chip to frame what it built, and the line's upgrades as cards too.
-- **Managers and recommendations** (an owner preference not built yet). A station manager who buys that station's next step within a budget, a line controller for units and cars, and a highlighted best next buy for players who want a nudge; each can be switched off by players who want control.
+- **Managers and recommendations: not for now** (the owner, 11 October 2026). The player buys every upgrade themselves; no station managers, line controller or highlighted best next buy. `docs/briefs/managers.md` is kept on hold in case that changes.
 - **Pressure that bites.** Peaks lose fewer since trains board through their stop. Decide what pushes the player at the peaks (crowded platforms and packed trains you can see, people turning back at the entrance) and tune it with the bot.
 - **Impacts on the map, not text.** People turning away from a full platform, a packed train, a new stage rising when bought, a quiet glow on the stations earning most.
 - **Credits** (done 11 October 2026). The page footer credits "© OpenStreetMap contributors" (ODbL), linked to their copyright page, and the geograph.org.uk photographs the kits were checked against.
-- **The first shareable release.** When the owner calls it: the halt-to-station loop, managers, the upgrades UI, phones checked down to 320 px, What's new, and saves migrated from then on. The full loop (issues, specs, PRs, look backs) switches on (the `release` playbook).
+- **The first shareable release.** When the owner calls it: the halt-to-station loop, the upgrades UI, phones checked down to 320 px, What's new, and saves migrated from then on. The full loop (issues, specs, PRs, look backs) switches on (the `release` playbook).
 
 ## 3. The line, alive and complete
 
@@ -85,7 +85,7 @@ The whole county on one map: ten boroughs, every railway and tram line, opened u
 - **Every line:** about a hundred railway stations (the Bolton and Wigan lines, the Calder Valley to Rochdale, the Atherton line, the line to Liverpool through Urmston, the Airport) and the whole Metrolink, about a hundred stops (Bury, Altrincham, Eccles and MediaCity, Trafford Park, the Airport, Ashton, Oldham and Rochdale).
 - **Demand from where people live and work:** an origin and destination model from census population and jobs instead of a catchment per station; commuting into Manchester; football at Old Trafford and the Etihad and concerts at Co-op Live as surges on the map; the Airport's flights.
 - **The map at county scale:** the world in tiles loaded by zoom, national terrain, towns drawn by density from land use instead of house by house, stations as markers far out with their kits up close, trains as moving lights at county zoom; a county-wide OpenStreetMap pipeline with checks; a frame-time and memory budget on phones, checked.
-- **Running a big network:** a schematic line-diagram view beside the 3D map, overviews by region and line, managers by region.
+- **Running a big network:** a schematic line-diagram view beside the 3D map, overviews by region and line, and, if the owner brings them back, managers by region.
 - **Maybe buses** as feeders, a third mode, only if they earn their place.
 
 ## 8. Passenger mode
@@ -110,7 +110,7 @@ Past the plausible the network goes science fiction, still a model railway in da
 
 - **Eras:** the trains (electric units, then maglev on the viaduct, then pods in tubes, then lines in the sky), the stations (towers, then sky ports), the sky (airships by day, lit traffic lanes at night); the commute shrinking from Stockport to Piccadilly in minutes to one.
 - **A deep prestige system** (the owner's idea, 11 October 2026), in layers:
-  - *Contract renewal*, the shorter loop: the operating contract ends, the network goes back to halts, and the reputation earned (passengers carried, and how well) buys permanent perks in a tree: starting cash, managers sooner, quicker building, bigger catchments, a unit to start with.
+  - *Contract renewal*, the shorter loop: the operating contract ends, the network goes back to halts, and the reputation earned (passengers carried, and how well) buys permanent perks in a tree: starting cash, quicker building, bigger catchments, a unit to start with.
   - *Eras*, the longer loop: start again in the next technology with heritage earned from the last; each era has its own stations and vehicles, and the old ones stay on the map as a heritage line and museum by the viaduct.
   - *Challenges:* runs with a twist (storm season, strike days, no barriers, one unit only), each with a lasting reward.
   - *Milestones* that last through every reset.

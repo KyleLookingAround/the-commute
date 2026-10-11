@@ -5,7 +5,7 @@
 - Run the rest of phase 2 of `docs/ROADMAP.md` to done, short of the first release (the owner calls that): three items, each in its own fresh session with its own committed brief, then a small loose-ends session.
   1. `docs/briefs/upgrades-ui.md`: the upgrade cards, the ghost preview and stages rising when built.
   2. `docs/briefs/impacts.md`: people turning back, full trains, earning stations; and a measured report on whether the peaks bite enough.
-  3. `docs/briefs/managers.md`: the advisor, best next buy, station managers and the line controller.
+  3. ~~`docs/briefs/managers.md`~~: dropped by the owner on 11 October 2026 (the player buys every upgrade themselves); the brief stays, on hold.
 - Order: 1 and 2 can run at once (they don't share files). 3 starts when 1 has landed on `main`, and its session gets a message saying so.
 - The coordinator itself writes no game code. It may touch `docs/briefs/` (a loose-ends brief at the end), `docs/ROADMAP.md` (marking items done) and nothing else.
 

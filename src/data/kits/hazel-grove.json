@@ -1,6 +1,6 @@
 {
   "id": "hazel-grove",
-  "note": "From the OpenStreetMap export (11 October 2026), 1.25 times real across the line like the tracks: two side platforms running 160 m north from the station's point (trains stop 70 m along to stand at them), 2.1 m outside the Hazel Grove line's tracks, the footbridge between them, a second footbridge at the north end, the signal box and the station building on the east side (set behind its platform, from memory), and the Chester Road bridge over the line to the south. Positive v is east. Shelters, canopy and lamps are from memory. Departure boards on each platform and by the station building; the large car park east of the station (placed by eye) and Sheffield stands by the building with the footbridge (from memory).",
+  "note": "From the OpenStreetMap export (11 October 2026), 1.25 times real across the line like the tracks: two side platforms running 160 m north from the station's point (trains stop 70 m along to stand at them), 2.1 m outside the Hazel Grove line's tracks, the footbridge between them, the Hatherlow Lane footbridge at the north end, the signal box and the station building on the east side (set behind its platform, from memory), and the Chester Road bridge over the line to the south. Positive v is east. Photos (geograph 2570931, 2570952 and 2570954 David Dixon 2011, 3792044 2013, 3312342 and 3312344 2013, 3994894 2014, 5487906 2017, 7627420 and 7628007 2023, 7822658 2024, 8413977 to 8413981 DS Pugh 2026, 826699 1988): the station footbridge is enclosed and glazed with a lift tower at each end; the north footbridge carries Hatherlow Lane's footpath over the line on plain steel girders and doesn't reach the platforms, so it's scenery. The building is single-storey red brick under a shallow hipped roof (drawn flat), about 4 m to the eaves, at car-park level on the east side. The west platform has the one canopy, about 45 m on blue columns running north from the footbridge with a brick block at its north end (with the canopy); the east platform has no shelter or canopy in any photo, so it has none. The signal box is white weatherboard on brick at the back of the east platform. The large car park is on the east side behind the platform and in front of the building (placed by eye, its size a guess); a bus shelter on the forecourt. No taxi rank shows in the photos: the rank is the game's. Departure boards on each platform and by the station building; Sheffield stands by the building with the footbridge (from memory).",
   "platformLength": 175,
   "faces": { "north": { "v": -7.5, "u0": 0, "u1": 150 }, "south": { "v": 3.1, "u0": 0, "u1": 150 } },
   "parts": [
@@ -12,16 +12,13 @@
     { "type": "stairs", "u": 37, "v": 5.1, "upgrade": ["crossing", "platform2"] },
     { "type": "lifts", "u": 37, "towers": [-9.5], "upgrade": "lifts" },
     { "type": "lifts", "u": 37, "towers": [5.1], "upgrade": ["lifts", "platform2"] },
-    { "type": "footbridge", "u": 127.5, "v0": -15, "v1": 11, "towers": [-9.5], "upgrade": "crossing" },
-    { "type": "stairs", "u": 127.5, "v": 5.1, "upgrade": ["crossing", "platform2"] },
-    { "type": "footprint", "outline": [[-8.5, 8.4], [7, 8.4], [7, 20], [-8.5, 20]], "y0": 0, "y1": 6.5, "mat": "brick", "upgrade": "building" },
-    { "type": "box", "u0": -9.5, "u1": 8, "v0": 7.9, "v1": 20.5, "y0": 6.5, "y1": 7.3, "mat": "roof", "upgrade": "building" },
+    { "type": "footprint", "outline": [[-8.5, 8.4], [7, 8.4], [7, 20], [-8.5, 20]], "y0": 0, "y1": 5.2, "mat": "brick", "upgrade": "building" },
+    { "type": "box", "u0": -9.5, "u1": 8, "v0": 7.9, "v1": 20.5, "y0": 5.2, "y1": 5.9, "mat": "roof", "upgrade": "building" },
     { "type": "windows", "u0": -5, "u1": 4, "v": 8.3, "ys": [3], "every": 4.5, "upgrade": "building" },
     { "type": "signalbox", "u": 71, "v": 12.5, "scenery": true },
-    { "type": "shelter", "u": 90, "v": -9.5, "back": -1 },
-    { "type": "shelter", "u": 110, "v": 5.1, "upgrade": "platform2" },
-    { "type": "canopy", "u0": 0, "u1": 120, "v0": -12.5, "v1": -6.5, "upgrade": "canopy" },
-    { "type": "canopy", "u0": 10, "u1": 120, "v0": 2.1, "v1": 8.1, "upgrade": ["canopy", "platform2"] },
+    { "type": "shelter", "u": 70, "v": -9.5, "back": -1 },
+    { "type": "canopy", "u0": 40, "u1": 88, "v0": -12.5, "v1": -6.5, "upgrade": "canopy" },
+    { "type": "footprint", "outline": [[92, -12.5], [98, -12.5], [98, -9.8], [92, -9.8]], "y0": 1, "y1": 4, "mat": "brick", "upgrade": "canopy" },
     { "type": "lamps", "u0": -10, "u1": 155, "v": -9.5, "every": 25 },
     { "type": "lamps", "u0": -10, "u1": 155, "v": 5.1, "every": 25, "upgrade": "platform2" },
     { "type": "retail", "u": 20, "v": -11.2, "label": "Newsagent", "small": true, "upgrade": "retail" },
@@ -34,7 +31,7 @@
     { "type": "box", "u0": -87, "u1": -75, "v0": 7, "v1": 30, "y0": 0, "y1": 6.4, "mat": "brickDark", "scenery": true },
     { "type": "box", "u0": -40, "u1": 210, "v0": -14.5, "v1": -13, "y0": 0, "y1": 2.6, "mat": "brickDark", "scenery": true },
     { "type": "box", "u0": 10, "u1": 210, "v0": 20.5, "v1": 22, "y0": 0, "y1": 2.6, "mat": "brickDark", "scenery": true },
-    { "type": "board", "u": 103, "v": -9.5, "serves": "north" },
+    { "type": "board", "u": 80, "v": -9.5, "serves": "north" },
     { "type": "board", "u": 95, "v": 5.1, "serves": "south", "upgrade": "platform2" },
     { "type": "board", "u": 15, "v": 5.1, "serves": "both", "upgrade": "building" },
     { "type": "lamps", "u0": 165, "u1": 195, "v": -9.5, "every": 25, "upgrade": "extend" },
@@ -42,6 +39,11 @@
     { "type": "carpark", "u0": 20, "u1": 125, "v0": 24, "v1": 62 },
     { "type": "cycles", "u": 9, "v": 23, "n": 5, "upgrade": "crossing" },
     { "type": "taxi", "u": -20, "v": 26, "back": [1, 0], "kerb": -1, "n": 5, "door": [0, 21], "upgrade": "taxi", "note": "Cabs waiting outside the station building, from memory, placed by eye" },
-    { "type": "busstop", "u": -8, "v": 33, "back": [1, 0], "kerb": -1, "door": [0, 21], "note": "On the forecourt beyond the taxi rank, from memory" }
+    { "type": "busstop", "u": -8, "v": 33, "back": [1, 0], "kerb": -1, "door": [0, 21], "note": "On the forecourt beyond the taxi rank, from memory" },
+    { "type": "box", "u0": 125.8, "u1": 129.2, "v0": -20, "v1": 16, "y0": 6.6, "y1": 7.3, "mat": "steel", "scenery": true },
+    { "type": "box", "u0": 125.8, "u1": 126.1, "v0": -20, "v1": 16, "y0": 6.2, "y1": 8.4, "mat": "steel", "scenery": true },
+    { "type": "box", "u0": 128.9, "u1": 129.2, "v0": -20, "v1": 16, "y0": 6.2, "y1": 8.4, "mat": "steel", "scenery": true },
+    { "type": "box", "u0": 125, "u1": 130, "v0": -26, "v1": -20, "y0": 0, "y1": 7.3, "mat": "concrete", "scenery": true },
+    { "type": "box", "u0": 125, "u1": 130, "v0": 16, "v1": 22, "y0": 0, "y1": 7.3, "mat": "concrete", "scenery": true }
   ]
 }

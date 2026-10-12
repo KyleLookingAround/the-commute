@@ -1,0 +1,19 @@
+/* The settings sheet (src/ui/settings.ts) and the stage's button that opens it. Every colour and size from tokens.css. */
+.views .vset{width:var(--touch);padding:0;font-size:var(--text-lg);line-height:1}
+.settings{width:min(420px,calc(100vw - 2 * var(--s-4)));max-height:calc(100dvh - 2 * var(--s-4));overflow:auto;padding:var(--s-4);border-radius:var(--r);background:var(--surface);color:var(--ink);border:1px solid var(--line-strong);font-family:var(--display)}
+.settings::backdrop{background:var(--scrim)}
+.set-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2)}
+.settings h2{margin:0;font-size:var(--text-lg);font-weight:800}
+.settings h3{margin:var(--s-4) 0 var(--s-2);font-size:var(--text-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--soft)}
+.set-close{width:var(--touch);height:var(--touch);border-radius:var(--r-pill);font-size:var(--text-lg)}
+.set-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-2);margin-bottom:var(--s-2)}
+.set-row button{min-height:var(--touch);padding-inline:var(--s-3);border-radius:var(--r-pill);font-size:var(--text);color:var(--soft)}
+.set-row button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.set-seg{gap:0}
+.set-seg button{border-radius:0;min-width:88px}
+.set-seg button:first-child{border-radius:var(--r-pill) 0 0 var(--r-pill)}
+.set-seg button:last-child{border-radius:0 var(--r-pill) var(--r-pill) 0;margin-left:-1px}
+.set-vol{display:flex;align-items:center;gap:var(--s-2);flex:1 1 160px;font-size:var(--text-sm);color:var(--soft)}
+.set-vol input{flex:1;min-width:0;height:var(--touch);margin:0;accent-color:var(--accent)}
+.set-vol input:disabled{opacity:.4}
+.set-note{margin:var(--s-2) 0 0;font-size:var(--text-sm);color:var(--soft)}

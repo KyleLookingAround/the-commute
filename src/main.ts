@@ -26,6 +26,9 @@ import { OrbitRig } from './render/camera.ts';
 import { ReachLayer, withBought, savingText } from './render/reach.ts';
 import { HomesLayer } from './render/homes.ts';
 import { Sky } from './render/sky.ts';
+import { Sound } from './render/sound.ts';
+import { Settings } from './ui/settings.ts';
+import { loadPrefs, savePrefs, type Prefs } from './app/prefs.ts';
 import { UI, fmt } from './ui/panel.ts';
 import type { Els } from './ui/panel.ts';
 import * as store from './app/storage.ts';
@@ -41,7 +44,7 @@ declare global {
     __orbit?: Partial<import('./render/camera.ts').Orbit>;
     /** For the checks: how many groups of parts the preview shows, how many are still rising into place, and how many
      * times the camera has framed something (a card's parts, a Built chip's, a train). */
-    __view?: { reach?: () => { now: number[]; target: number[]; ghosts: number; minutes: boolean }; homes?: () => { shown: number[]; room: number[]; rising: number }; preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean } };
+    __view?: { reach?: () => { now: number[]; target: number[]; ghosts: number; minutes: boolean }; homes?: () => { shown: number[]; room: number[]; rising: number }; preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean }; life?: () => { cases: number; bikes: number; figures: number; shadows: boolean; ratio: number; heard: { running: boolean; brakes: number; departs: number; calls: number; birds: number } } };
   }
 }
 
@@ -96,6 +99,8 @@ const view = {
   // the reach as drawn: each station's glow now and where it's easing to, the ghost rings, and the minutes view
   reach: () => ({ ...reach.radii(), ghosts: reach.ghosts(), minutes: reach.minutesOn }),
   trouble: () => ({ hazards: trains.hazards.count, cautions: trains.posts.count, buses: buses.count, spare: trains.spare.visible }),
+  // life as drawn: suitcases and bikes beside the figures, figures drawn, and what the sound has started
+  life: () => ({ cases: pax.layers.reduce((n, L) => n + L.cases.count, 0), bikes: pax.layers.reduce((n, L) => n + L.bikes.count, 0), figures: pax.layers.reduce((n, L) => n + L.im.count, 0), shadows: renderer.shadowMap.enabled, ratio: renderer.getPixelRatio(), heard: { ...sound.heard } }),
 };
 window.__view = view;
 const partBox = new THREE.Box3();
@@ -138,6 +143,27 @@ function showLine(id: string | null, bought = false): void {
   const m = trains.meshes[k]; if (m) frameBox(trainBox.setFromObject(m));
 }
 const sky = new Sky(scene, sun, lineMiddle());
+
+// ---- settings: sound, and graphics for older phones (kept on the device, never in the save) ----
+let prefs = loadPrefs();
+const sound = new Sound(prefs.sound, prefs.volume);
+sound.listen(document);
+const stationsXZ = net.stations.map((_, i) => stationXZ(i));
+/** Apply the graphics settings: shadows (every material is rebuilt with or without them), fewer figures, sharpness. */
+function graphics(p: Prefs, was: Prefs | null): void {
+  if (!was || was.shadows !== p.shadows) {
+    renderer.shadowMap.enabled = p.shadows;
+    if (was) scene.traverse(o => { if (o instanceof THREE.Mesh) for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.needsUpdate = true; });
+  }
+  pax.setFewer(p.fewer);
+  renderer.setPixelRatio(p.sharp ? Math.min(2, window.devicePixelRatio || 1) : 1);
+}
+graphics(prefs, null);
+new Settings(el<HTMLButtonElement>('vSet'), prefs, p => {
+  const was = prefs; prefs = p; savePrefs(p);
+  sound.setVolume(p.volume); if (p.sound !== was.sound) sound.setOn(p.sound);
+  graphics(p, was);
+});
 
 // ---- labels ----
 const lblBox = el('lbls');
@@ -214,6 +240,7 @@ function frame(now: number): void {
   resize(); rig.update(dt);
   const light = lighting(lockHour ?? sim.hour(), rig.o);
   sky.update(light.horizon, light.daylight, camera, dt);
+  sound.update(sim, rig.o, light.daylight, stationsXZ, trains.meshes, realDt);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
   syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt); trains.sync(sim.g, dtGame, endAhead); pax.sync(sim.g, dtGame); labels();
   life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim);

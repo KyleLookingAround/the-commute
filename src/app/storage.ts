@@ -1,5 +1,5 @@
 // Saving to the device: one localStorage key, guarded so a private window or a full store never breaks the game.
-// This is the only place the game names localStorage; the sim never does (tools/rules.mjs).
+// This file and src/app/prefs.ts (the player's settings, kept apart) are the only places the game names localStorage; the sim never does (tools/rules.mjs).
 import { migrate, SaveError } from '../sim/save.ts';
 import type { GameState } from '../sim/types.ts';
 

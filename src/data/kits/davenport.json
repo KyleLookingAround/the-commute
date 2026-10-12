@@ -1,6 +1,6 @@
 {
   "id": "davenport",
-  "note": "From the OpenStreetMap export (11 October 2026), 1.25 times real across the line like the tracks: two side platforms on the Hazel Grove line, 2.1 m outside its two tracks, the footbridge and steps at the north end, Bramhall Lane over the line just beyond it, and the booking office up at street level beside the bridge on the east side. Positive v is east. The cutting walls are low because the ground here isn't cut away. Shelters, canopy and lamps are from memory. Departure boards on each platform and by the steps to the booking office; Sheffield stands on the platform by the footbridge with it (from memory).",
+  "note": "From the OpenStreetMap export (11 October 2026), 1.25 times real across the line like the tracks: two side platforms on the Hazel Grove line, 2.1 m outside its two tracks (trains stop 20 m south of the station's point, in the middle of the platforms, so a six-car unit stands on them extended), the footbridge and steps at the north end, Bramhall Lane over the line just beyond it, and the booking office up at street level beside the bridge on the east side. Positive v is east. The cutting walls are low because the ground here isn't cut away. Shelters, canopy and lamps are from memory. Departure boards on each platform and by the steps to the booking office; Sheffield stands on the platform by the footbridge with it (from memory).",
   "platformLength": 150,
   "faces": { "north": { "v": -3.1, "u0": -95, "u1": 50 }, "south": { "v": 7.5, "u0": -95, "u1": 48 } },
   "parts": [

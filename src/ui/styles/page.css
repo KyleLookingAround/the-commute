@@ -97,3 +97,10 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .foot .credits{flex-basis:100%;font-size:var(--text-sm)}
 .foot .credits a{color:var(--soft)}
 @media (prefers-reduced-motion: reduce){ .toast,.ucard{transition:none} }
+/* the compass: shows once north isn't up the screen; the needle points north, and a tap puts it back up */
+.north{position:absolute;right:10px;bottom:10px;width:var(--touch);height:var(--touch);padding:0;border-radius:999px;background:rgba(12,16,32,.8);display:grid;place-items:center}
+.north[hidden]{display:none}
+.north span{display:block;font-family:var(--mono);font-size:var(--text-sm);font-weight:600;line-height:1;color:var(--fg);padding-top:14px;position:relative}
+.north span::before{content:"";position:absolute;left:50%;top:0;transform:translateX(-50%);border:5px solid transparent;border-top:0;border-bottom:10px solid var(--danger)}
+/* the strip's slider: drag along it to glide down the line (plain until the redesign) */
+.glide{width:100%;height:var(--s-6);margin:0 0 calc(-1 * var(--s-2));accent-color:var(--accent);touch-action:pan-y}

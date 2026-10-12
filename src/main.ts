@@ -9,10 +9,11 @@ import kitPiccadilly from './data/kits/piccadilly.json';
 import kitDavenport from './data/kits/davenport.json';
 import kitWoodsmoor from './data/kits/woodsmoor.json';
 import kitHazelGrove from './data/kits/hazel-grove.json';
-import { fromGeo } from './sim/network.ts';
+import { fromGeo, newFrame } from './sim/network.ts';
 import { Sim, TUNING } from './sim/sim.ts';
 import type { NetworkGeoDef } from './sim/types.ts';
 import { createScene } from './render/scene.ts';
+import { groundAt } from './render/terrain.ts';
 import { buildWorld } from './render/world.ts';
 import { buildStations, syncStations, previewUpgrade, partsBox, setReducedMotion } from './render/stations.ts';
 import type { Kit } from './render/stations.ts';
@@ -23,7 +24,8 @@ import { BusLayer } from './render/buses.ts';
 import { LinkLayer } from './render/links.ts';
 import { TrainLayer } from './render/trains.ts';
 import { PassengerLayer } from './render/passengers.ts';
-import { OrbitRig } from './render/camera.ts';
+import { OrbitRig, wrapPi } from './render/camera.ts';
+import { Picker } from './render/pick.ts';
 import { ReachLayer, withBought, savingText } from './render/reach.ts';
 import { HomesLayer } from './render/homes.ts';
 import { Sky } from './render/sky.ts';
@@ -56,6 +58,8 @@ declare global {
     /** For the checks: how many groups of parts the preview shows, how many are still rising into place, and how many
      * times the camera has framed something (a card's parts, a Built chip's, a train). */
     __view?: { reach?: () => { now: number[]; target: number[]; ghosts: number; minutes: boolean }; homes?: () => { shown: number[]; room: number[]; rising: number }; preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean }; life?: () => { cases: number; bikes: number; figures: number; shadows: boolean; ratio: number; heard: { running: boolean; brakes: number; departs: number; calls: number; birds: number }; pools: number; lamplight: number; works: [number, number] | null; beacons: number; expresses: number };
+      camera?: () => import('./render/camera.ts').Orbit & { above: number; fromLine: number; flying: boolean; riding: number; moves: number; compass: boolean; along: number };
+      spot?: (kind: 'station' | 'train', i: number) => [number, number] | null; under?: (x: number, y: number) => [number, number] | null;
       weather?: () => { now: string; rain: number; snow: number; fog: number; cover: number; wet: number; settle: number; season: number; falling: boolean; brollies: number; trees: number; fogFar: number; patter: number } };
   }
 }
@@ -105,7 +109,10 @@ const faceTrack = (st: (typeof net.stations)[number], dir: 'north' | 'south') =>
 const trackV = net.stations.map(st => ({ north: faceTrack(st, 'north'), south: faceTrack(st, 'south') }));
 const pax = new PassengerLayer(built, net.stations, trackV, net.stations.findIndex(st => st.id === 'piccadilly'));
 const rig = new OrbitRig(camera, canvas, scene);
-{ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches; setReducedMotion(reduced); reach.setReducedMotion(reduced); }
+{ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches; setReducedMotion(reduced); reach.setReducedMotion(reduced); rig.reduced = reduced; }
+// where the camera looks stays near the line: the nearest point on it as drawn
+const mainLine = net.corridor('main'), nearF = newFrame();
+rig.line = (x, z) => net.place('main', mainLine.nearest(x, z), 0, nearF);
 const view = {
   preview: 0, framed: 0, rising: () => built.reduce((n, b) => n + b.gated.filter(gt => gt.rise < 1).length, 0) + (lineside.rise < 1 ? 1 : 0) + (trains.spareRising < 1 ? 1 : 0),
   // homes that grow as drawn: how many new buildings stand at each station, and how many it has room for
@@ -123,6 +130,21 @@ const view = {
     pools: pax.layers.reduce((n, L) => n + L.pools.count, 0), lamplight: pax.lamplight, works: trains.eng.visible ? [trains.eng.children[0]!.position.x, trains.eng.children[0]!.position.z] as [number, number] : null, beacons: trains.beacons.count, expresses: sim.g.trains.filter(t => t.state !== 'away' && sim.svc(t.svc).express).length }),
 };
 window.__view = view;
+// the camera as it is, for the checks: the orbit, how far above the ground and from the line, flying, riding, the compass
+Object.assign(view, { camera: () => {
+  const p = camera.position, n = net.place('main', mainLine.nearest(rig.o.tx, rig.o.tz), 0, newFrame());
+  return { ...rig.o, above: p.y - groundAt(p.x, p.z), fromLine: Math.hypot(rig.o.tx - n.x, rig.o.tz - n.z), flying: !!rig.tween, riding: rig.riding ? trains.meshes.indexOf(rig.riding as THREE.Group) : -1, moves: rig.moves, compass: !compass.hidden, along: +glide.value };
+},
+  // where a station's label or a train stands on the screen, in client pixels (null off it), and the ground under a point
+  spot: (kind: 'station' | 'train', i: number) => {
+    const r = canvas.getBoundingClientRect(), o = kind === 'station' ? built[i]?.label : trains.meshes[i];
+    if (!o || (kind === 'train' && !o.visible)) return null;
+    if (kind === 'station') o.getWorldPosition(v3); else new THREE.Box3().setFromObject(o).getCenter(v3);
+    v3.project(camera); if (v3.z > 1 || Math.abs(v3.x) > 1 || Math.abs(v3.y) > 1) return null;
+    return [r.left + (v3.x + 1) / 2 * r.width, r.top + (1 - v3.y) / 2 * r.height];
+  },
+  under: (x: number, y: number) => { const v = new THREE.Vector3(); return rig.ground(x, y, v) ? [v.x, v.z] : null; },
+});
 // the weather as drawn: the spell and its shares, what's falling, umbrellas up, the trees, how far the fog lets you see
 Object.assign(view, { weather: () => ({ now: sim.g.weather.now, ...weather.look, season: Math.floor(weather.look.year * 4) % 4, falling: weather.falling(), brollies: pax.layers.reduce((n, L) => n + L.brollies.count, 0),
   trees: weather.trees.count, fogFar: scene.fog instanceof THREE.Fog ? scene.fog.far : 0, patter: sound.heard.patter }) });
@@ -240,6 +262,31 @@ const ui = new UI(sim, els, {
   lockHour: h => { lockHour = h; ui.setLight(lockHour ?? sim.hour(), lockHour !== null); },
   reset: () => { store.wipe(); sim = new Sim(net, Sim.fresh(net, seed)); preview(null, null); ui.sim = sim; ui.selected = 0; ui.picked = null; ui.linePicked = null; ui.buildAll(); const [x, z] = stationXZ(0); rig.focus(x, z); },
 });
+// tapping the map: a train to ride alongside, a station to fly to and open
+const picker = new Picker(camera, canvas, built, trains.meshes);
+rig.onTap = (x, y) => {
+  const hit = picker.pick(x, y); if (!hit) return;
+  if (hit.kind === 'train') { const m = trains.meshes[hit.i]; if (m) rig.ride(m); } else ui.select(hit.i);
+};
+// the compass: shows once north isn't up, and puts it back
+const compass = el<HTMLButtonElement>('vNorth'), needle = el('vNeedle');
+compass.addEventListener('click', () => rig.north());
+let needleAt = NaN;
+function pointNorth(): void {
+  const th = wrapPi(rig.o.th), off = Math.abs(th) > 0.05;
+  if (compass.hidden === off) compass.hidden = !off;
+  if (off && Math.abs(th - needleAt) > 0.005) { needleAt = th; needle.style.transform = `rotate(${th}rad)`; }
+}
+// the strip's slider: drag along it and the camera glides down the line; it follows the camera otherwise
+const glide = el<HTMLInputElement>('glide');
+const ends = net.stations.map(st => st.s), sLo = Math.min(...ends) - 300, sHi = Math.max(...ends) + 300;
+glide.min = String(Math.round(sLo)); glide.max = String(Math.round(sHi));
+let gliding = false;
+glide.addEventListener('pointerdown', () => { gliding = true; });
+addEventListener('pointerup', () => { gliding = false; }); addEventListener('pointercancel', () => { gliding = false; });
+glide.addEventListener('input', () => { const f = net.place('main', +glide.value, 0, nearF); rig.glide(f.x, f.z); });
+function followGlide(): void { if (!gliding && document.activeElement !== glide) glide.value = String(Math.round(mainLine.nearest(rig.o.tx, rig.o.tz))); }
+followGlide();
 // the minutes view: the ground shaded by minutes to Manchester, with its key; off by default
 const vMins = el<HTMLButtonElement>('vMins'), minsKey = el('minsKey');
 vMins.addEventListener('click', () => { const on = !reach.minutesOn; reach.showMinutes(on); vMins.setAttribute('aria-pressed', String(on)); minsKey.hidden = !on; labelTop = on ? minsKey.offsetTop + minsKey.offsetHeight + 8 : 64; });
@@ -280,7 +327,7 @@ function frame(now: number): void {
   const realDt = (now - prev) / 1000, dt = Math.min(0.1, realDt); prev = now;
   const dtGame = dt * GAME_PER_REAL * speed;
   sim.advance(dtGame);
-  resize(); rig.update(dt);
+  resize(); rig.update(dt); pointNorth();
   // the light follows the season: a long summer day, an early winter dusk
   const light = lighting(solarHour(lockHour ?? sim.hour(), yearAt(sim.g.t)), rig.o);
   sky.update(light.horizon, light.daylight, camera, dt);
@@ -290,7 +337,7 @@ function frame(now: number): void {
   // the rise takes about a second however slow the frames, so it gets the frame's real time
   syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt); trains.sync(sim, dtGame); pax.sync(sim.g, dtGame); labels();
   life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim);
-  uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
+  uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); followGlide(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
   renderer.render(scene, camera);
   requestAnimationFrame(frame);

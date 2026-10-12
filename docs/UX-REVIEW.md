@@ -5,7 +5,7 @@ A look at how the game looks and works, from a player's side, run when the owner
 ## 1. Look
 
 1. `npm run build`, then `npm run shots` and look at every screenshot in `build/shots/`: phone, landscape phone, tablet and desktop, at four times of day.
-2. Play a few minutes in a browser too, at least on a phone in portrait: orbit the map, buy an upgrade, watch a train arrive, buy a station.
+2. Play a few minutes in a browser too, at least on a phone in portrait: slide, pinch and turn the map, buy an upgrade, watch a train arrive, buy a station.
 3. Read the last two notes in `docs/ux/`, so a review builds on the last one instead of repeating it.
 
 ## 2. Judge

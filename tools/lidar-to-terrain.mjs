@@ -4,6 +4,7 @@
 // draws (src/render/terrain.ts).
 //
 //    node tools/lidar-to-terrain.mjs [--fresh]
+//    node tools/lidar-to-terrain.mjs --coarsen    (no fetching: gives a base.json from before the far ring its far ring)
 //
 // 1. Fetches the DTM over the map's area from the Environment Agency's WCS into data/raw/dtm/ (gitignored; --fresh
 //    fetches again): every 4 m over the whole area, every 1 m within FINE_BAND of the line. About 120 requests, a minute
@@ -14,7 +15,8 @@
 //    zero: the page draws the ground relative to it, so the tracks, stations and trains stay where they are.
 // 3. Writes the tiles, in game metres (x east, z south of the network's origin), heights in decimetres above Ordnance
 //    Datum, so a wider map (phase 8) can reuse them:
-//    - src/data/terrain/base.json: every BASE_CELL m over the whole area (tiles of TILE cells), the rail level every
+//    - src/data/terrain/base.json: every FAR_CELL m over the whole area (tiles of TILE cells of BASE_CELL m) and every
+//      BASE_CELL m within FAR_RING of the line (`near`, in blocks of BLOCK cells), the rail level every
 //      RAIL_STEP m along the corridor, and the datum, a smooth field of the rail level away from the line (DATUM_CELL);
 //      bundled with the page, since the world is built from it at start.
 //    - src/data/terrain/fine/<i>_<j>.txt: every FINE_CELL m within FINE_BAND of the line, fetched by the page as the
@@ -37,6 +39,7 @@ const PAD = 1500;          // metres of ground round the corridor's bounding box
 const BASE_CELL = 32, FINE_CELL = 2, TILE = 128;
 const FINE_BAND = 100;     // fine samples within this many metres of the corridor (the line's widest layouts reach 80 m)
 const RAIL_STEP = 5, DATUM_CELL = 64;
+const FAR_CELL = 64, BLOCK = 32, FAR_RING = 1500;   // the far ring: see nearBlock
 const LATERAL = 1.25;      // the tracks and kits are drawn this many times real across the line
 const COARSE_CHUNK = 2000, COARSE_RES = 4, FINE_CHUNK = 500;
 
@@ -78,6 +81,57 @@ function toBNG(lat, lon) {
   return [E0 + IV * dl + V * dl ** 3 + VI * dl ** 5, I + II * dl * dl + III * dl ** 4 + IIIA * dl ** 6];
 }
 const gameToBNG = (x, z) => toBNG(...toLatLon(x, z));
+
+// ---------------------------------------------------------------------------------------------------------------
+// The encoding (decodeGrid in src/render/terrain.ts): rows of samples, each the difference from left + up - up-left
+// (or the one neighbour there is), as one of 89 characters for -44..44, else '~' and three base-64 digits; '!' and a
+// count (one character, 1..90) for a run of samples with none.
+const ALPHA = []; for (let k = 35; k <= 125; k++) if (k !== 92) ALPHA.push(String.fromCharCode(k));   // 90: no '"' or '\'
+const ESC = ALPHA[89], NONE = '!';
+function encodeGrid(v, w, h) {
+  let out = '';
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const x = v[j * w + i];
+    if (x === null) { let k = 1; while (k < 90 && i + k < w && v[j * w + i + k] === null) k++; out += NONE + ALPHA[k - 1]; i += k - 1; continue; }
+    const L = i > 0 ? v[j * w + i - 1] : null, U = j > 0 ? v[(j - 1) * w + i] : null, UL = i > 0 && j > 0 ? v[(j - 1) * w + i - 1] : null;
+    const pred = L !== null && U !== null && UL !== null ? L + U - UL : L !== null ? L : U !== null ? U : 0, r = x - pred;
+    if (r >= -44 && r <= 44) out += ALPHA[r + 44];
+    else { const q = r + 131072; out += ESC + ALPHA[(q >> 12) & 63] + ALPHA[(q >> 6) & 63] + ALPHA[q & 63]; }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The far ring: the base tiles are every FAR_CELL m, and only the BLOCK-cell blocks within FAR_RING of the line are
+// every BASE_CELL m besides, since further out the base mesh (every 48 m) is all that's drawn, seen from a kilometre off
+const linePts = []; for (let s = 0; s <= c.length; s += 20) linePts.push(c.at(Math.min(s, c.length)));
+const BS = BASE_CELL * BLOCK;
+/** Whether the near block (bi, bj) has any of it within FAR_RING of the line. */
+const nearBlock = (bi, bj) => {
+  const x0 = bi * BS, z0 = bj * BS, x1 = x0 + BS, z1 = z0 + BS;
+  return linePts.some(p => Math.hypot(Math.max(x0 - p.x, 0, p.x - x1), Math.max(z0 - p.z, 0, p.z - z1)) < FAR_RING);
+};
+// --coarsen: no fetching; rewrite a base.json written before the far ring (every tile every BASE_CELL m) from its own
+// samples: every other one for the tiles, and the near blocks cut out as they are
+if (process.argv.includes('--coarsen')) {
+  const { decodeGrid } = await import('../src/render/terrain.ts');
+  const file = join(root, 'src/data/terrain/base.json'), b = JSON.parse(readFileSync(file, 'utf8')), was = statSync(file).size;
+  if (b.near) { console.log('base.json already has its far ring'); process.exit(0); }
+  const step = FAR_CELL / b.cell, N0 = b.tile + 1, N1 = b.tile / step + 1, per = b.tile / BLOCK, tiles = {}, near = {};
+  const cut = (v, i0, j0, n, k) => { const w = new Array(n * n); for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const h = v[(j0 + j * k) * N0 + i0 + i * k]; w[j * n + i] = h === h ? Math.round(h * 10) : null; } return encodeGrid(w, n, n); };
+  for (const [key, text] of Object.entries(b.tiles)) {
+    const [ti, tj] = key.split(',').map(Number), v = decodeGrid(text, N0, N0);
+    tiles[key] = cut(v, 0, 0, N1, step);
+    for (let a = 0; a < per; a++) for (let c2 = 0; c2 < per; c2++) {
+      const bi = ti * per + a, bj = tj * per + c2;
+      if (nearBlock(bi, bj)) near[`${bi},${bj}`] = cut(v, a * BLOCK, c2 * BLOCK, BLOCK + 1, 1);
+    }
+  }
+  const { tiles: _, rail, datum, ...rest } = b;
+  writeFileSync(file, JSON.stringify({ ...rest, farCell: FAR_CELL, block: BLOCK, tiles, near, rail, datum }) + '\n');
+  console.log(`base.json: tiles every ${FAR_CELL} m and ${Object.keys(near).length} near blocks every ${b.cell} m, ${(was / 1024).toFixed(0)} KB to ${(statSync(file).size / 1024).toFixed(0)} KB`);
+  process.exit(0);
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // The area, in game metres, snapped out to whole base tiles
@@ -209,39 +263,29 @@ for (let j = 0; j < dh; j++) for (let i = 0; i < dw; i++) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// The encoding (decodeGrid in src/render/terrain.ts): rows of samples, each the difference from left + up - up-left
-// (or the one neighbour there is), as one of 89 characters for -44..44, else '~' and three base-64 digits; '!' and a
-// count (one character, 1..90) for a run of samples with none.
-const ALPHA = []; for (let k = 35; k <= 125; k++) if (k !== 92) ALPHA.push(String.fromCharCode(k));   // 90: no '"' or '\'
-const ESC = ALPHA[89], NONE = '!';
-function encodeGrid(v, w, h) {
-  let out = '';
-  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
-    const x = v[j * w + i];
-    if (x === null) { let k = 1; while (k < 90 && i + k < w && v[j * w + i + k] === null) k++; out += NONE + ALPHA[k - 1]; i += k - 1; continue; }
-    const L = i > 0 ? v[j * w + i - 1] : null, U = j > 0 ? v[(j - 1) * w + i] : null, UL = i > 0 && j > 0 ? v[(j - 1) * w + i - 1] : null;
-    const pred = L !== null && U !== null && UL !== null ? L + U - UL : L !== null ? L : U !== null ? U : 0, r = x - pred;
-    if (r >= -44 && r <= 44) out += ALPHA[r + 44];
-    else { const q = r + 131072; out += ESC + ALPHA[(q >> 12) & 63] + ALPHA[(q >> 6) & 63] + ALPHA[q & 63]; }
-  }
-  return out;
-}
-
-// ---------------------------------------------------------------------------------------------------------------
 // The tiles
 const outDir = join(root, 'src/data/terrain'), fineDir = join(outDir, 'fine');
 rmSync(fineDir, { recursive: true, force: true }); mkdirSync(fineDir, { recursive: true });
 const N = TILE + 1;
-const base = {};
-for (let ti = ti0; ti <= ti1; ti++) for (let tj = tj0; tj <= tj1; tj++) {
-  const v = new Array(N * N);
-  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const h = ground(ti * BT + i * BASE_CELL, tj * BT + j * BASE_CELL, BASE_CELL); v[j * N + i] = Number.isFinite(h) ? Math.round(h * 10) : null; }
+/** n by n samples every `cell` m from (x0, z0), in decimetres, encoded. */
+function grid(x0, z0, cell, n) {
+  const v = new Array(n * n);
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const h = ground(x0 + i * cell, z0 + j * cell, cell); v[j * n + i] = Number.isFinite(h) ? Math.round(h * 10) : null; }
   // a void the size of a cell (a lake, a reservoir) takes its neighbours' level
   for (let pass = 0; pass < 8; pass++) for (let k = 0; k < v.length; k++) if (v[k] === null) {
-    const i = k % N, j = (k / N) | 0, nb = [[i - 1, j], [i + 1, j], [i, j - 1], [i, j + 1]].filter(([a, b]) => a >= 0 && b >= 0 && a < N && b < N).map(([a, b]) => v[b * N + a]).filter(q => q !== null && q !== undefined);
+    const i = k % n, j = (k / n) | 0, nb = [[i - 1, j], [i + 1, j], [i, j - 1], [i, j + 1]].filter(([a, b]) => a >= 0 && b >= 0 && a < n && b < n).map(([a, b]) => v[b * n + a]).filter(q => q !== null && q !== undefined);
     if (nb.length) v[k] = Math.round(nb.reduce((s, q) => s + q, 0) / nb.length);
   }
-  base[`${ti},${tj}`] = encodeGrid(v, N, N);
+  return encodeGrid(v, n, n);
+}
+const base = {}, nearBase = {};
+for (let ti = ti0; ti <= ti1; ti++) for (let tj = tj0; tj <= tj1; tj++) {
+  base[`${ti},${tj}`] = grid(ti * BT, tj * BT, FAR_CELL, BT / FAR_CELL + 1);
+  const per = TILE / BLOCK;
+  for (let a = 0; a < per; a++) for (let b = 0; b < per; b++) {
+    const bi = ti * per + a, bj = tj * per + b;
+    if (nearBlock(bi, bj)) nearBase[`${bi},${bj}`] = grid(bi * BS, bj * BS, BASE_CELL, BLOCK + 1);
+  }
 }
 // fine tiles: only the samples within the band, so most of a tile along a diagonal stretch is '!'
 const FT = FINE_CELL * TILE, near = (x, z) => { const s = c.nearest(x, z), p = c.at(s); return Math.hypot(x - p.x, z - p.z); };
@@ -260,8 +304,8 @@ for (let ti = fi0; ti <= fi1; ti++) for (let tj = fj0; tj <= fj1; tj++) {
 }
 const out = {
   note: 'From the Environment Agency LIDAR Composite DTM 1 m (Open Government Licence), by tools/lidar-to-terrain.mjs: heights in decimetres above Ordnance Datum, in game metres from the network origin (x east, z south). Contains Environment Agency information © Environment Agency and/or database right.',
-  cell: BASE_CELL, tile: TILE, fineCell: FINE_CELL, fineBand: FINE_BAND, lateral: LATERAL,
-  tiles: base,
+  cell: BASE_CELL, tile: TILE, farCell: FAR_CELL, block: BLOCK, fineCell: FINE_CELL, fineBand: FINE_BAND, lateral: LATERAL,
+  tiles: base, near: nearBase,
   rail: { step: RAIL_STEP, dm: dmRail },
   datum: { x0: dx0, z0: dz0, cell: DATUM_CELL, w: dw, h: dh, dm: encodeGrid(Array.from(datum), dw, dh) },
 };

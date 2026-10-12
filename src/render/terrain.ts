@@ -2,7 +2,7 @@
 // valley under the viaduct, the cuttings and the embankments. The railway is the datum: the tracks, stations and trains
 // stay at y = 0, and the ground is drawn at its real height less the rail's real level there, so it rises into cuttings
 // and falls away under embankments and the viaduct without moving a kit.
-// - Base tiles (src/data/terrain/base.json, every 32 m over the map) come with the page; fine tiles (every 2 m within
+// - Base tiles (src/data/terrain/base.json, every 64 m over the map, and every 32 m in blocks within 1.5 km of the line) come with the page; fine tiles (every 2 m within
 //   100 m of the line) are fetched as the camera comes near. A wider map (phase 8) adds tiles and levels the same way.
 // - The railway's land is flat at 0: every track with its cess, and each station's pad, the ground its kit's parts
 //   stand on. The tracks and kits are drawn 1.25 times real across the line, so beyond that land the ground is read
@@ -53,8 +53,8 @@ export interface KitDef { parts: KitPart[] }
 
 export class Terrain {
   readonly net: Network;
-  private base = new Map<string, Tile>(); private fine = new Map<string, Tile>();
-  private baseSize: number; private fineSize: number;
+  private base = new Map<string, Tile>(); private near = new Map<string, Tile>(); private fine = new Map<string, Tile>();
+  private baseSize: number; private nearSize: number; private fineSize: number;
   readonly fineCell: number; readonly fineBand: number; readonly lateral: number;
   private railDm: number[]; private railStep: number;
   private datum: { x0: number; z0: number; cell: number; w: number; h: number; v: Float32Array };
@@ -72,8 +72,15 @@ export class Terrain {
     this.baseSize = data.cell * data.tile; this.fineCell = data.fineCell; this.fineSize = data.fineCell * data.tile;
     this.fineBand = data.fineBand; this.lateral = data.lateral;
     let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    // the base tiles are every farCell m; within a kilometre and a half of the line, blocks every cell m besides
+    this.nearSize = data.cell * data.block;
+    for (const [key, text] of Object.entries(data.near)) {
+      const [i, j] = key.split(',').map(Number) as [number, number], n = data.block + 1;
+      this.near.set(key, { x0: i * this.nearSize, z0: j * this.nearSize, cell: data.cell, n, v: decodeGrid(text, n, n) });
+    }
     for (const [key, text] of Object.entries(data.tiles)) {
-      const [i, j] = key.split(',').map(Number) as [number, number], t: Tile = { x0: i * this.baseSize, z0: j * this.baseSize, cell: data.cell, n: data.tile + 1, v: decodeGrid(text, data.tile + 1, data.tile + 1) };
+      const n = this.baseSize / data.farCell + 1;
+      const [i, j] = key.split(',').map(Number) as [number, number], t: Tile = { x0: i * this.baseSize, z0: j * this.baseSize, cell: data.farCell, n, v: decodeGrid(text, n, n) };
       this.base.set(key, t); x0 = Math.min(x0, t.x0); z0 = Math.min(z0, t.z0); x1 = Math.max(x1, t.x0 + this.baseSize); z1 = Math.max(z1, t.z0 + this.baseSize);
     }
     this.bounds = { x0, z0, x1, z1 };
@@ -176,11 +183,13 @@ export class Terrain {
   }
   /** The real ground (m above Ordnance Datum) at a point: from a fine tile where one is loaded, else the base. */
   raw(x: number, z: number): number {
-    const f = sample(this.fine, this.fineSize, this.fineCell, x, z);
+    const f = sample(this.fine, this.fineSize, x, z);
     return f === f ? f : this.baseAt(x, z);
   }
   private baseAt(x: number, z: number): number {
-    const v = sample(this.base, this.baseSize, this.base.values().next().value?.cell ?? 32, Math.max(this.bounds.x0, Math.min(this.bounds.x1 - 0.01, x)), Math.max(this.bounds.z0, Math.min(this.bounds.z1 - 0.01, z)));
+    const cx = Math.max(this.bounds.x0, Math.min(this.bounds.x1 - 0.01, x)), cz = Math.max(this.bounds.z0, Math.min(this.bounds.z1 - 0.01, z));
+    const n = sample(this.near, this.nearSize, cx, cz); if (n === n) return n;
+    const v = sample(this.base, this.baseSize, cx, cz);
     return v === v ? v : this.rail(0);
   }
   /** Whether s is on a viaduct. */
@@ -248,9 +257,9 @@ function shape(g: number, out: number, pad: boolean, g0: number): number {
 }
 
 /** Bilinear from whichever tile holds the point: NaN where a tile or a sample is missing. */
-function sample(tiles: Map<string, Tile>, size: number, cell: number, x: number, z: number): number {
+function sample(tiles: Map<string, Tile>, size: number, x: number, z: number): number {
   const i = Math.floor(x / size), j = Math.floor(z / size), t = tiles.get(`${i},${j}`); if (!t) return NaN;
-  const fx = (x - t.x0) / cell, fz = (z - t.z0) / cell, a = Math.min(t.n - 2, Math.floor(fx)), b = Math.min(t.n - 2, Math.floor(fz)), tx = fx - a, tz = fz - b, v = t.v, k = b * t.n + a;
+  const fx = (x - t.x0) / t.cell, fz = (z - t.z0) / t.cell, a = Math.min(t.n - 2, Math.floor(fx)), b = Math.min(t.n - 2, Math.floor(fz)), tx = fx - a, tz = fz - b, v = t.v, k = b * t.n + a;
   return (v[k]! * (1 - tx) + v[k + 1]! * tx) * (1 - tz) + (v[k + t.n]! * (1 - tx) + v[k + t.n + 1]! * tx) * tz;
 }
 

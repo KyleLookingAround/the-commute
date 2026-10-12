@@ -12,7 +12,7 @@ import { gzipSync } from 'node:zlib';
 import { register } from 'tsx/esm/api';
 
 const BUDGET = {
-  entryKB: 600,            // gzipped script loaded before the first frame (the entry chunk and what it imports at once)
+  entryKB: 450,            // gzipped script loaded before the first frame (the entry chunk and what it imports at once)
   calls: { open: 600, busy: 1400 },              // draw calls a frame, shadows included
   triangles: { open: 950000, busy: 1050000 },   // triangles a frame, shadows included
   geometries: 800, textures: 16, programs: 40,

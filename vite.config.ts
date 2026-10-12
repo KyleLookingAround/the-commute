@@ -31,6 +31,13 @@ function offline(): Plugin {
 // GitHub Pages serves the site under /the-commute/
 export default defineConfig({
   base: process.env.GITHUB_ACTIONS ? '/the-commute/' : '/',
-  build: { target: 'es2020', sourcemap: false },
+  build: {
+    target: 'es2020', sourcemap: false, chunkSizeWarningLimit: 600,
+    // the fine terrain tiles are fetched as the camera comes near: never inline the small ones into the script
+    assetsInlineLimit: file => (file.endsWith('.txt') ? false : undefined),
+    // three and the terrain base change least, so they're their own files: fetched alongside the game's own script
+    // (the page preloads them), and still cached when only the game changes
+    rollupOptions: { output: { manualChunks: id => (id.includes('/node_modules/three/') ? 'three' : id.includes('/src/data/terrain/') ? 'terrain' : undefined) } },
+  },
   plugins: [offline()],
 });

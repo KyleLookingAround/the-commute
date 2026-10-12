@@ -27,7 +27,7 @@
   --map-ballast:#7a7068; --map-rail:#e4e7ec; --map-canopy:#4f6a8c; --map-steel:#8a94a3; --map-glass:#b8dcef; --map-glass-glow:#27405a;
   --map-roof:#4a4046; --map-timber:#e3d6b6; --map-road:#6c7078; --map-shed:#a6b2c2; --map-lamp:#fff1c9; --map-warm:#ffd88a;
   --map-locked:#6e7894; --map-pax:#f2b63a; --map-pax-glow:#6a4a10; --map-pax-head:#f3d9b8; --map-pax-2:#3f6fd8; --map-pax-3:#d84a3f; --map-pax-4:#5e6168; --map-column:#9c2b2b; --map-pyramid:#3f8fd8; --map-pyramid-glow:#0d2a4a;
-  --map-house:#8a5f50; --map-coin:#f5c542; --map-coin-glow:#5a3f08; --map-win-empty:#9db8cc; --map-win-busy:#ffd27a;
+  --map-house:#8a5f50; --map-coin:#f5c542; --map-coin-glow:#5a3f08; --map-win-empty:#9db8cc; --map-win-busy:#ffd27a; --map-late:#ff8a1c;
   /* the preview's ghost: blueprint cyan, apart from the passengers' amber, and clear of brick, grass and platform by day and at dusk */
   --map-signal:#1d2128; --map-signal-green:#3dff7a; --map-board:#f7f7f2; --map-board-ink:#14161a;
   --map-ghost:#4fdcff; --map-house-sat:0.45; --map-tower-sat:0.15; --map-house-light:0.42; --map-tower-light:0.5;

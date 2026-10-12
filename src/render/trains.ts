@@ -3,7 +3,8 @@
 // A train coming in to the end of its run crosses over to the track it will leave on as it runs in, so it stands at the
 // platform its passengers board from and never jumps across when it turns round.
 // A train looks as full as it is: its windows go from cool glass when empty to warm and lit as it fills, riders show in
-// them, and when it's nearly full people stand in the doorways.
+// them, and when it's nearly full people stand in the doorways. A train running late carries an amber lamp over its
+// leading cab, from a minute late, growing until it's five minutes late; on time it looks as it always has.
 import * as THREE from 'three';
 import { yawFor } from './world.ts';
 import { PAL } from './scene.ts';
@@ -58,6 +59,8 @@ const riderGeo = new THREE.BoxGeometry(0.7, 1.0, 0.05), standGeo = new THREE.Box
 const riderMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
 const MAX_RIDERS = 1200, MAX_STANDING = 240;
 const m4 = new THREE.Matrix4(), winCol = new THREE.Color();
+// the late lamp: from LATE seconds late, scaled from 0.6 to 1.6 by LATE_FULL
+const LATE = 60, LATE_FULL = 300, MAX_LAMPS = 16, lampGeo = new THREE.BoxGeometry(1.1, 0.7, 1.1);
 
 export class TrainLayer {
   scene: THREE.Scene;
@@ -71,6 +74,7 @@ export class TrainLayer {
   riders: THREE.InstancedMesh;
   standing: THREE.InstancedMesh;
   coats: THREE.Color[];
+  lamps: THREE.InstancedMesh;
   private counts = { r: 0, s: 0 };
   constructor(scene: THREE.Scene, net: Network, services: ServiceDef[]) {
     this.scene = scene; this.net = net; this.mat = new THREE.MeshLambertMaterial({ vertexColors: true });
@@ -85,6 +89,15 @@ export class TrainLayer {
     this.riders = new THREE.InstancedMesh(riderGeo, riderMat, MAX_RIDERS); this.standing = new THREE.InstancedMesh(standGeo, riderMat, MAX_STANDING);
     for (const im of [this.riders, this.standing]) { im.count = 0; im.frustumCulled = false; scene.add(im); }
     this.coats = [PAL.pax, PAL['pax-2'], PAL['pax-3'], PAL['pax-4']];
+    this.lamps = new THREE.InstancedMesh(lampGeo, new THREE.MeshBasicMaterial({ color: PAL.late }), MAX_LAMPS);
+    this.lamps.count = 0; this.lamps.frustumCulled = false; scene.add(this.lamps);
+  }
+  /** An amber lamp on the roof over a late train's leading cab, bigger the later it is (m's matrix is current). */
+  private lateLamp(m: THREE.Mesh, tr: Train): void {
+    if (tr.late < LATE || this.lamps.count >= MAX_LAMPS) return;
+    const k = 0.6 + Math.min(1, (tr.late - LATE) / (LATE_FULL - LATE)), front = tr.dir * (tr.cars * 23.6 / 2 - 2.2);
+    m4.makeScale(k, k, k).setPosition(front, 4.0 * 1.3 + 0.35 * k, 0).premultiply(m.matrix);
+    this.lamps.setMatrixAt(this.lamps.count++, m4);
   }
   /** Recolour a unit's windows for how full it is (0 to 1): only when that changes by a tenth, so not every frame. */
   private windows(m: THREE.Mesh, full: number): void {
@@ -127,7 +140,7 @@ export class TrainLayer {
   }
   sync(g: GameState, dtGame: number, endAhead: EndAhead): void {
     while (this.meshes.length < g.trains.length) { const m = new THREE.Mesh(unitGeometry(2, NORTHERN), this.mat); m.userData['cars'] = 2; m.castShadow = true; this.scene.add(m); this.meshes.push(m); }
-    const at = this.counts; at.r = 0; at.s = 0;
+    const at = this.counts; at.r = 0; at.s = 0; this.lamps.count = 0;
     g.trains.forEach((tr, i) => {
       const m = this.meshes[i], svc = this.services[tr.svc]; if (!m || !svc) return;
       if (m.userData['cars'] !== tr.cars) { m.geometry.dispose(); m.geometry = unitGeometry(tr.cars, liveryFor(svc.operator)); m.userData['cars'] = tr.cars; m.userData['full'] = -1; }
@@ -136,8 +149,9 @@ export class TrainLayer {
       if (rem !== null && rem < CROSS && on !== leaving) this.placeAcross(m, on, leaving, tr.s, 1 - rem / CROSS, tr.dir);
       else this.place(m, on, tr.s);
       const full = Math.min(1, tr.onboard / (tr.cars * TUNING.seatsPerCar));
-      this.windows(m, full); this.ridersIn(m, tr, full, at);
+      this.windows(m, full); this.ridersIn(m, tr, full, at); this.lateLamp(m, tr);
     });
+    this.lamps.instanceMatrix.needsUpdate = true;
     this.riders.count = at.r; this.standing.count = at.s;
     for (const im of [this.riders, this.standing]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
     const L = this.net.corridor('main').length;

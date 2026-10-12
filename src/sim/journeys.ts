@@ -55,13 +55,17 @@ export function walk(sim: Sim, T: Tuning, i: number): number {
 /** How much a second of waiting at a station weighs against one riding: less under a canopy. */
 export function waitWeight(sim: Sim, T: Tuning, i: number): number { return sim.ups(i).canopy ? T.waitCanopy : T.waitWeight; }
 
+/** A service's planned round trip as the timetable has it: each way's running and stops, and the turnaround (with
+ * its recovery time) at each end. Its units share it, so the gap between them is the cycle over the units. */
+export function cycle(sim: Sim, T: Tuning, svc: number): number { return run(sim, T, svc, 0).total + run(sim, T, svc, 1).total + 2 * sim.turnaround(); }
+
 /** Every station to every other, door to door; null where no train goes that way from there. */
 export function journeys(sim: Sim, T: Tuning): (Journey | null)[][] {
   const n = sim.S.length, runs: Run[][] = [], waits: number[] = [];
   sim.svcs.forEach((v, k) => {
     runs[k] = [run(sim, T, k, 0), run(sim, T, k, 1)];
-    const units = sim.unitsFor(v), cycle = runs[k]![0]!.total + runs[k]![1]!.total + 2 * T.turnaround;
-    waits[k] = units ? cycle / units / 2 : Infinity;
+    const units = sim.unitsFor(v);
+    waits[k] = units ? cycle(sim, T, k) / units / 2 : Infinity;
   });
   /** A ride from i to j on service k, if its trains call at both going that way. */
   const leg = (k: number, i: number, j: number): Leg | null => {

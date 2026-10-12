@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fromGeo } from '../src/sim/network.ts';
-import { Sim, demandCurve } from '../src/sim/sim.ts';
+import { Sim, demandCurve, TUNING } from '../src/sim/sim.ts';
 import { migrate, SAVE_VERSION, SaveError } from '../src/sim/save.ts';
 import type { NetworkGeoDef } from '../src/sim/types.ts';
 
@@ -170,8 +170,53 @@ test('sim: a train boards through its stop, a door at a time, and a longer train
     return S.boarded;
   };
   const two = boardAt(2), four = boardAt(4);
-  assert.ok(two >= 120 && two <= 130, `a 2-car unit boards about 126 in a 45 s stop, got ${two}`);
+  assert.ok(two >= 100 && two <= 120, `a 2-car unit boards about 110 in a 45 s stop, slowing as it fills, got ${two}`);
   assert.equal(four, 200, 'four cars have the doors and the room for everyone');
+});
+
+/** The main line's first unit standing at Heaton Chapel northbound, with n people waiting for Manchester. */
+const standing = (n: number, onboard = 0) => {
+  const sim = new Sim(net()); sim.g.cash = 1e6; sim.buyStation(1); sim.step(1);
+  const tr = sim.g.trains[0]!, S = sim.state(1);
+  S.q[0] = n ? [{ t: sim.g.t, dest: 4, n }] : []; S.waiting = n;
+  Object.assign(tr, { dir: 1, s: sim.station(1).s, v: 0, cars: 2, onboard, load: tr.load.map((_, j) => j === 4 ? onboard : 0), next: 1, state: 'run' });
+  // arrive: the train is a hair short of the platform
+  tr.s -= 0.1; sim.stepTrain(tr, 1);
+  assert.equal(tr.state, 'dwell', 'it has arrived');
+  return { sim, tr };
+};
+/** Stand a train until it leaves; how long it stood and how late it left. */
+const leave = (sim: Sim, tr: ReturnType<typeof standing>['tr']) => { let late = -1; sim.onDepart = (_t, _i, l) => { late = l; }; for (let k = 0; k < 400 && tr.state === 'dwell'; k++) { sim.g.t += 1; sim.stepTrain(tr, 1); } return { stood: tr.stood, late }; };
+
+test('timetable: a train never leaves before it is due, and a quiet stop keeps time', () => {
+  const { sim, tr } = standing(0);
+  const due = tr.due; assert.ok(due > sim.g.t, 'due away after it arrives');
+  const r = leave(sim, tr);
+  assert.ok(r.stood >= 44 && r.stood <= 46, `it stands its planned 45 s, stood ${r.stood}`);
+  assert.equal(r.late, 0);
+});
+
+test('timetable: a crowded platform holds a train, it leaves late, and the lateness carries to its next stop', () => {
+  const quiet = standing(20), busy = standing(140, 60);
+  const q = leave(quiet.sim, quiet.tr), b = leave(busy.sim, busy.tr);
+  assert.equal(q.late, 0, 'twenty people board in the planned stop');
+  assert.ok(b.late > 30, `140 people for a train already 60 full hold it, left ${b.late} s late`);
+  assert.ok(b.stood <= TUNING.dwellMin + TUNING.overrun + 1, 'never past the most a stop overruns');
+  // its next departure is planned from when it was due, not when it left
+  const tr = busy.tr, sim = busy.sim;
+  for (let k = 0; k < 2000 && tr.state !== 'dwell'; k++) { sim.g.t += 1; sim.stepTrain(tr, 1); }
+  assert.equal(tr.state, 'dwell', 'it reached its next stop');
+  const planned = sim.isEnd(tr, tr.calling!) ? sim.turnaround() : TUNING.dwell;
+  assert.ok(sim.g.t + planned - tr.due > 30, 'and arrived there still behind its timetable');
+});
+
+test('timetable: extra units spread out to an even gap at the ends', () => {
+  const sim = new Sim(net()); sim.g.cash = 1e7; growStockport(sim); sim.buyLine('units'); sim.buyLine('units');
+  const deps: number[] = [];
+  sim.onDepart = (tr, i) => { if (i === 0 && tr.svc === 'stopper') deps.push(sim.g.t); };
+  sim.advance(4 * 3600);
+  const gaps = deps.slice(-4).map((t, k, a) => k ? t - a[k - 1]! : 0).slice(1), h = sim.headway('stopper');
+  for (const gap of gaps) assert.ok(Math.abs(gap - h) < 60, `units leave Stockport about ${h.toFixed(0)} s apart, got ${gap.toFixed(0)}`);
 });
 
 test('branch: buying Davenport after Piccadilly opens the Hazel Grove line, and each station after extends it', () => {

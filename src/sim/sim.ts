@@ -7,7 +7,7 @@
 import { rand, freshSeed } from './random.ts';
 import { SAVE_VERSION } from './save.ts';
 import type { Network } from './network.ts';
-import { journeys, type Journey } from './journeys.ts';
+import { journeys, cycle, runTime, type Journey } from './journeys.ts';
 import type { GameState, LineUpgradeId, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
 /** A station upgrade. name null: the station names it (its retail, or its stage in `grow`). requires: upgrades at the
@@ -39,8 +39,17 @@ export const TUNING = {
   dayRate: 6,                                  // clock hours per sim hour: a game day is four hours of sim time
   fareBase: 1.5, farePerMile: 0.6, fareMult: 12.0,   // 6x the fare of the old 6x clock: the same money per real minute from a sixth of the trains
   seatsPerCar: 75, accel: 1.0, brake: 1.1, vmax: 33.5, vmaxFast: 40,
-  dwell: 45, turnaround: 120,
-  doorsPerCar: 2, boardPerDoor: 0.7,           // passengers a second through each door: a 2-car unit boards about 125 in a 45 s stop
+  // the timetable (docs/DESIGN.md, Timetable): a stop is planned at dwell and a turnaround at turnaround, but a train
+  // can do them in dwellMin and turnMin when nobody's about, so a late one makes time up (the rest of a turnaround is
+  // recovery); it never leaves early, and stays while people are still getting on and off, up to overrun past the least
+  dwell: 45, turnaround: 120, dwellMin: 30, turnMin: 60, overrun: 120,
+  recoveryFast: 30,                            // the faster timetable keeps some of its saving as recovery at each end
+  alight: 0.5,                                 // someone getting off takes half the door time of someone getting on
+  squeeze: 1.0,                                // seconds a full train is held for each person left trying to get on
+  dispatch: 15,                                // seconds from the platform clearing to leaving: doors shut, all clear
+  separation: 400,                             // metres a train keeps behind the one ahead on its line
+  doorsPerCar: 2, boardPerDoor: 0.7,           // passengers a second through each door: a 2-car unit boards about 110 in a 45 s stop
+  doorsCrowd: 0.7,                             // ...slowing as it fills, to 30% of that when full: people squeeze in
   platformCap: 150, platformCapExtended: 320,
   collectNoBarriers: 0.82, collectBooking: 0.9, platformsBonus: 1.2, kioskPerPax: 0.35, retailPerPax: 0.8,
   // door to door (src/sim/journeys.ts), in sim seconds, which are real ones: people travel when the whole journey fits
@@ -79,6 +88,10 @@ export class Sim {
   fixedEnds: Set<number>;
   /** Door-to-door journeys between stations, and what they were worked out for (see `journeyKey`). */
   private jt: (Journey | null)[][] = []; private jkey = -1;
+  /** Called as a train leaves a stop, with how late it is (seconds past its timetabled departure); for measuring. */
+  onDepart: ((tr: Train, i: number, late: number) => void) | null = null;
+  /** Each service's planned round trip, worked out with the journeys. */
+  private cycles: number[] = [];
   /** Scratch for generate: trips an hour to each station, and how full each service runs each way. */
   private rates: Float64Array; private crowding: Float64Array; private trainsEachWay: Float64Array;
   constructor(network: Network, state?: GameState) {
@@ -97,7 +110,7 @@ export class Sim {
       ups: network.stations.map(() => ({})),
       line: { units: 0, cars: 0, timetable: 0 },
       st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0 })),
-      trains: [],
+      trains: [], ends: {},
       stats: { boarded: 0, lost: 0 },
     };
   }
@@ -113,6 +126,8 @@ export class Sim {
   unitsInService(): number { return 1 + this.g.line.units; }
   carsPerUnit(): number { return 2 + 2 * this.g.line.cars; }
   vmax(): number { return this.g.line.timetable ? TUNING.vmaxFast : TUNING.vmax; }
+  /** The timetabled turnaround at the end of a run, recovery included. */
+  turnaround(): number { return TUNING.turnaround + (this.g.line.timetable ? TUNING.recoveryFast : 0); }
   capacity(i: number): number { return this.ups(i).extend ? TUNING.platformCapExtended : TUNING.platformCap; }
   /** The game clock's hour of the day, which runs dayRate times faster than the sim's seconds. */
   hour(): number { return (this.g.t * TUNING.dayRate / 3600) % 24; }
@@ -178,7 +193,7 @@ export class Sim {
         // the main line's units spread along it, alternate ways; a branch's unit starts at its home, heading out
         const out = v.home !== null && v.route.indexOf(v.home) > 0 ? -1 : 1;
         const [s, dir] = v.home === null ? [s0 + (s1 - s0) * ((k + 0.5) / n), (k % 2 === 0 ? 1 : -1) as 1 | -1] : [this.station(v.home).s, out as 1 | -1];
-        g.trains.push({ id: g.trains.length, svc: v.id, dir, s, v: 0, state: 'run', dwell: 0, next: null, load: this.S.map(() => 0), onboard: 0, cars: this.carsPerUnit(), calling: null, boardAcc: 0 });
+        g.trains.push({ id: g.trains.length, svc: v.id, dir, s, v: 0, state: 'run', dwell: 0, next: null, load: this.S.map(() => 0), onboard: 0, cars: this.carsPerUnit(), calling: null, boardAcc: 0, due: -1, late: 0, stood: 0, quiet: 0 });
       }
     }
     for (const tr of g.trains) tr.cars = this.carsPerUnit();
@@ -197,12 +212,38 @@ export class Sim {
   callAt(tr: Train, i: number): void {
     const g = this.g, S = this.state(i);
     const off = tr.load[i] ?? 0; tr.onboard -= off; tr.load[i] = 0; S.alighted += off;
+    let out = off;
     if (this.isEnd(tr, i)) tr.load.forEach((n, j) => {
       if (n <= 0) return;
-      tr.load[j] = 0; tr.onboard -= n; S.changed += n; S.waiting += n;
+      tr.load[j] = 0; tr.onboard -= n; S.changed += n; S.waiting += n; out += n;
       S.q[this.dirIdx(i, j)].push({ t: g.t, dest: j, n, paid: true });
     });
-    tr.calling = i; tr.boardAcc = 0;
+    // the doors let everyone off before anyone gets on
+    tr.calling = i; tr.boardAcc = -out * TUNING.alight;
+  }
+  /** Whether people are still getting on or off a train that has stood `least` seconds: some still to get off, some
+   * waiting its way and room for them, or, once it's full, a crowd still trying the doors (the bigger, the longer). */
+  busy(tr: Train, least: number): boolean {
+    const i = tr.calling; if (i === null) return false;
+    if (tr.boardAcc < 0 || tr.quiet < TUNING.dispatch) return true;
+    let left = 0; for (const c of this.state(i).q[tr.dir > 0 ? 0 : 1]) left += c.n;
+    return left > 0 && (tr.onboard < tr.cars * TUNING.seatsPerCar || tr.stood < least + TUNING.squeeze * left);
+  }
+  /** The planned gap between a service's units, from its round trip. */
+  headway(svc: string): number {
+    const k = this.svcs.findIndex(v => v.id === svc), v = this.svcs[k]!, n = this.unitsFor(v);
+    if (this.jkey < 0) this.refreshJourneys();
+    return n ? (this.cycles[k] ?? 0) / n : 0;
+  }
+  /** A train stands at a stop: when it's due away from there by the timetable. A train with no plan yet (a new unit)
+   * starts on time from here. At the end of its run it also keeps the gap behind the unit that last left this end, so
+   * the units spread out evenly round the line. */
+  timetable(tr: Train, i: number, end: boolean): void {
+    const g = this.g;
+    if (tr.due < 0) tr.due = g.t + (end ? this.turnaround() : TUNING.dwell);
+    if (!end) return;
+    const ends = g.ends[tr.svc] ??= [-1e9, -1e9], e = i === this.span(this.svc(tr.svc))[0] ? 0 : 1;
+    tr.due = Math.max(tr.due, ends[e]! + this.headway(tr.svc)); ends[e] = tr.due;
   }
   /** Board a dwelling train for dt seconds: its doors take boardPerDoor passengers a second each, from the front of the
    * queue for its direction, until it's full; anyone who reaches the platform while it stands gets on too. A busy stop
@@ -210,7 +251,7 @@ export class Sim {
   board(tr: Train, dt: number): void {
     const i = tr.calling; if (i === null) return;
     const g = this.g, S = this.state(i), ups = this.ups(i), q = S.q[tr.dir > 0 ? 0 : 1], seats = tr.cars * TUNING.seatsPerCar;
-    tr.boardAcc += tr.cars * TUNING.doorsPerCar * TUNING.boardPerDoor * dt;
+    tr.boardAcc += tr.cars * TUNING.doorsPerCar * TUNING.boardPerDoor * (1 - TUNING.doorsCrowd * (tr.onboard / seats) ** 2) * dt;
     let room = Math.min(Math.floor(tr.boardAcc), seats - tr.onboard);
     const collect = ups.barriers ? 1 : ups.building ? TUNING.collectBooking : TUNING.collectNoBarriers;
     const retail = (ups.kiosk ? TUNING.kioskPerPax : 0) + (ups.retail ? TUNING.retailPerPax : 0);
@@ -225,19 +266,47 @@ export class Sim {
     }
     // a door with nobody at it doesn't save up for later
     if (!q.length) tr.boardAcc = Math.min(tr.boardAcc, 1);
+    // once everyone's off and the platform has cleared (or the train's full), the doors start closing; anyone arriving
+    // in the meantime still gets on, but doesn't hold it
+    if (tr.boardAcc >= 0 && (!q.length || tr.onboard >= seats)) tr.quiet += dt;
+  }
+  /** A standing train boards, and leaves once it has stood its least, it's due away, and nobody is still getting on or
+   * off (or it has overrun as far as it will). Leaving, it plans its next departure: the run there at line speed and
+   * the stop or turnaround there, from when it was due away here, so lateness carries on down the line. */
+  depart(tr: Train, dt: number): void {
+    const g = this.g, i = tr.calling ?? tr.next;
+    this.board(tr, dt); tr.dwell -= dt; tr.stood += dt;
+    const end = i !== null && this.isEnd(tr, i), least = end ? TUNING.turnMin : TUNING.dwellMin;
+    tr.late = Math.max(0, g.t - tr.due);
+    if (tr.dwell > 0 || g.t < tr.due || (this.busy(tr, least) && tr.stood < least + TUNING.overrun)) return;
+    tr.state = 'run'; tr.calling = null; tr.next = this.nextStop(tr);
+    if (i !== null) {
+      this.onDepart?.(tr, i, tr.late);
+      const j = tr.next, run = runTime(Math.abs(this.station(j).s - this.station(i).s), this.vmax(), TUNING.accel, TUNING.brake);
+      tr.due += run + (this.isEnd(tr, j) ? this.turnaround() : TUNING.dwell);
+    }
+  }
+  /** How far a running train can go before it closes on the one ahead of it on its line (same service, same way). */
+  clear(tr: Train): number {
+    let gap = Infinity;
+    for (const o of this.g.trains) if (o !== tr && o.svc === tr.svc && o.dir === tr.dir) { const d = (o.s - tr.s) * tr.dir; if (d > 0 && d < gap) gap = d; }
+    return gap - TUNING.separation;
   }
   stepTrain(tr: Train, dt: number): void {
-    if (tr.state === 'dwell') { this.board(tr, dt); tr.dwell -= dt; if (tr.dwell <= 0) { tr.state = 'run'; tr.next = null; tr.calling = null; } return; }
+    if (tr.state === 'dwell') { this.depart(tr, dt); return; }
     if (tr.next === null) tr.next = this.nextStop(tr);
-    const target = this.station(tr.next).s, rem = Math.abs(target - tr.s), last = this.isEnd(tr, tr.next);
+    const target = this.station(tr.next).s, rem = Math.abs(target - tr.s), last = this.isEnd(tr, tr.next), room = this.clear(tr);
     tr.v = Math.min(this.vmax(), tr.v + TUNING.accel * dt);
     tr.v = Math.max(0.5, Math.min(tr.v, Math.sqrt(2 * TUNING.brake * Math.max(rem, 0))));
-    const step = tr.v * dt;
+    // a train closing on the one ahead brakes to stand behind it
+    if (room < rem) tr.v = Math.min(tr.v, Math.sqrt(2 * TUNING.brake * Math.max(room, 0)));
+    const step = room < rem ? Math.min(tr.v * dt, Math.max(room, 0)) : tr.v * dt;
     if (step >= rem) {
       tr.s = target; tr.v = 0;
       if (last) tr.dir = tr.dir > 0 ? -1 : 1;      // reverse first so boarding uses the departure direction
       this.callAt(tr, tr.next);
-      tr.state = 'dwell'; tr.dwell = last ? TUNING.turnaround : TUNING.dwell;
+      tr.state = 'dwell'; tr.dwell = last ? TUNING.turnMin : TUNING.dwellMin; tr.stood = 0; tr.quiet = 0;
+      this.timetable(tr, tr.next, last);
     } else tr.s += tr.dir * step;
   }
 
@@ -258,6 +327,7 @@ export class Sim {
   refreshJourneys(): void {
     const k = this.journeyKey(); if (k === this.jkey) return;
     this.jt = journeys(this, TUNING); this.jkey = k;
+    this.cycles = this.svcs.map((_, v) => cycle(this, TUNING, v));
   }
   /** How a journey feels, in seconds: its felt time, and the ride longer on a crowded train. */
   felt(J: Journey): number {

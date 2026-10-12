@@ -78,14 +78,22 @@ export interface Queued { t: number; dest: number; n: number; paid?: boolean; gi
  * passengers who got off here to catch another train. */
 export interface StationState { acc: number; q: [Queued[], Queued[]]; waiting: number; boarded: number; alighted: number; changed: number; revenue: number; lost: number }
 /** svc: the service it runs; calling: the station a dwelling train is boarding at; boardAcc: boarding it has room for
- * this stop and hasn't used yet, in passengers (its doors take a share of a passenger each second). load: how many
- * on board are going to each station, including those who'll change at the end of this train's run. */
+ * this stop and hasn't used yet, in passengers (its doors take a share of a passenger each second; below zero while
+ * people are still getting off). load: how many on board are going to each station, including those who'll change at
+ * the end of this train's run. dwell: the least it still has to stand here (below zero once that's done). due: when
+ * the timetable has it leave the stop it's at or running to (sim seconds; -1 until a new unit's first stop). late:
+ * seconds past due, live while it stands and as it left its last stop while it runs. stood: seconds at this stop;
+ * quiet: seconds since its platform first cleared there (the doors closing). */
 export interface Train {
   id: number; svc: string; dir: 1 | -1; s: number; v: number; state: 'run' | 'dwell'; dwell: number;
   next: number | null; load: number[]; onboard: number; cars: number; calling: number | null; boardAcc: number;
+  due: number; late: number; stood: number; quiet: number;
 }
 export interface GameState {
   v: number; seed: number; rngState: number; t: number; day: number; cash: number; earned: number;
   owned: boolean[]; ups: Partial<Record<UpgradeId, boolean>>[]; line: Record<LineUpgradeId, number>;
   st: StationState[]; trains: Train[]; stats: { boarded: number; lost: number };
+  /** By service, the timetabled departure of the unit that last turned round at each end of its run (0 the south end,
+   * 1 the north), which the next unit keeps a headway behind. */
+  ends: Record<string, [number, number]>;
 }

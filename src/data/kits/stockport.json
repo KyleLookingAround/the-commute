@@ -61,9 +61,14 @@
     { "type": "lamps", "u0": -200, "u1": -170, "v": 5.5, "every": 30, "upgrade": "extend" },
     { "type": "lamps", "u0": -200, "u1": -170, "v": 26, "every": 30, "upgrade": ["extend", "platform2"] },
     { "type": "lamps", "u0": -175, "u1": -145, "v": 61.75, "every": 30, "upgrade": ["extend", "platforms"] },
-    { "type": "carpark", "u0": -113, "u1": -23, "v0": 136, "v1": 177, "y": 9, "deck": true },
+    { "type": "carpark", "u0": -113, "u1": -23, "v0": 136, "v1": 177, "y": 9, "deck": true, "upgrade": "carpark" },
     { "type": "cycles", "u": 46, "v": 120, "n": 8, "upgrade": "building" },
     { "type": "taxi", "u": 64, "v": 124, "back": [1, 0], "kerb": -1, "n": 6, "door": [24, 120], "upgrade": "taxi", "note": "The rank on Station Road outside the entrance, from memory, placed by eye" },
-    { "type": "busstop", "u": -12, "v": 127, "back": [1, 0], "kerb": 1, "door": [24, 120], "note": "Outside the Station Road entrance, past the taxi rank and the cycle stands; replacement buses stand on Station Road, from memory" }
+    { "type": "busstop", "u": -12, "v": 127, "back": [1, 0], "kerb": 1, "door": [24, 120], "note": "Outside the Station Road entrance, past the taxi rank and the cycle stands; replacement buses stand on Station Road, from memory" },
+    { "type": "box", "u0": -115, "u1": -21, "v0": 134, "v1": 179, "y0": 12.4, "y1": 12.9, "mat": "concrete", "upgrade": "carpark2", "note": "The upper deck: a second level on the multi-storey, a game choice for a bigger car park" },
+    { "type": "box", "u0": -115, "u1": -113, "v0": 134, "v1": 179, "y0": 9, "y1": 12.4, "mat": "concrete", "upgrade": "carpark2" },
+    { "type": "box", "u0": -23, "u1": -21, "v0": 134, "v1": 179, "y0": 9, "y1": 12.4, "mat": "concrete", "upgrade": "carpark2" },
+    { "type": "carpark", "u0": -113, "u1": -23, "v0": 136, "v1": 177, "y": 12.9, "deck": true, "upgrade": "carpark2" },
+    { "type": "buslink", "u": 328, "v": 58, "back": [1, 0], "kerb": 1, "bays": 6, "hall": [320, 425, 66, 115, 9], "street": true, "upgrade": "bus", "note": "Stockport Interchange: the bus station between Wellington Road (the A6) and the viaduct, centred about 53.40889, -2.16306 (Wikipedia, Stockport Interchange, which gives 18 stands, opened 17 March 2024, under Viaduct Park, a 2-acre (0.8 ha) roof garden, beside a 17-storey block of flats, with a link to Station Road). Placed at its real distance from the station (not 1.25 times across); six of the stands drawn, along its viaduct side; the hall about 105 by 50 m and 9 m to the park, the flats, the helix ramp and the Station Road link left out; sizes from memory." }
   ]
 }

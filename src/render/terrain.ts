@@ -255,10 +255,11 @@ function sample(tiles: Map<string, Tile>, size: number, cell: number, x: number,
 }
 
 /** The boxes (u0, u1, v0, v1) a kit part stands on, from whichever of its fields say where it is; none for a part
- * that stands above the ground (a road on a bridge). */
+ * that stands above the ground (a road on a bridge) or on it (`street`). */
 export function partBoxes(p: KitPart): [number, number, number, number][] {
   const num = (k: string) => typeof p[k] === 'number' ? p[k] as number : undefined;
-  if ((num('y0') ?? 0) >= 3) return [];
+  // a part at street level stands on the ground, off the pad
+  if ((num('y0') ?? 0) >= 3 || p['street'] === true) return [];
   const pts: [number, number][] = [], us: number[] = [], vs: number[] = [];
   for (const k of ['u0', 'u1', 'u']) { const v = num(k); if (v !== undefined) us.push(v); }
   for (const k of ['v0', 'v1', 'v']) { const v = num(k); if (v !== undefined) vs.push(v); }

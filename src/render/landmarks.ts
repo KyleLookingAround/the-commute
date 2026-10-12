@@ -8,6 +8,7 @@ import { MAT, PAL, box } from './scene.ts';
 import { newFrame, projectLatLon } from '../sim/network.ts';
 import type { Corridor, Network } from '../sim/network.ts';
 import type { LandmarkDef, LatLon, NetworkGeoDef } from '../sim/types.ts';
+import { kitFiles } from './terrain.ts';
 
 /** A landmark as the data gives it, with the fields only the renderer reads: a footprint (w along x, d along z, metres),
  * a turn (degrees anticlockwise from east), a shape for the towers, and where its position and look came from. */
@@ -175,6 +176,13 @@ function buildPyramid(scene: THREE.Scene, def: NetworkGeoDef, m: Mark, groundY: 
 // shops and offices round them between the viaduct and the A6 ----
 function town(scene: THREE.Scene, net: Network, c: Corridor, def: NetworkGeoDef, marks: Mark[], groundY: (x: number, z: number) => number, bands: { river: number | null; m60: number | null }): void {
   const taken: [number, number, number][] = [];   // footprints already standing: x, z, radius
+  // a station's buildings down at street level (Stockport Interchange's hall), from the kits
+  const kits = kitFiles();
+  for (const st of net.stations) for (const p of kits[st.kit]?.parts ?? []) {
+    const hall = p['hall'] as number[] | undefined; if (p.type !== 'buslink' || !hall) continue;
+    const [u0 = 0, u1 = 0, v0 = 0, v1 = 0] = hall, F = net.stationFrame(st.id), u = (u0 + u1) / 2, v = (v0 + v1) / 2;
+    taken.push([F.x + F.dx * u + F.nx * v, F.z + F.dz * u + F.nz * v, Math.hypot(u1 - u0, v1 - v0) / 2 + 6]);
+  }
   const root = new THREE.Group();
   const footY = (x: number, z: number, r: number) => Math.min(groundY(x - r, z - r), groundY(x + r, z - r), groundY(x - r, z + r), groundY(x + r, z + r), groundY(x, z)) - 0.5;
   const at = (m: Mark) => m.lat !== undefined && m.lon !== undefined ? projectLatLon(m.lat, m.lon, def.origin) : null;

@@ -20,6 +20,7 @@ import { Lineside } from './render/lineside.ts';
 import { StationLife } from './render/life.ts';
 import { TaxiLayer } from './render/taxis.ts';
 import { BusLayer } from './render/buses.ts';
+import { LinkLayer } from './render/links.ts';
 import { TrainLayer } from './render/trains.ts';
 import { PassengerLayer } from './render/passengers.ts';
 import { OrbitRig } from './render/camera.ts';
@@ -95,6 +96,7 @@ const life = new StationLife(built, sim);
 const taxis = new TaxiLayer(built);
 const trains = new TrainLayer(scene, net, networkDef.services ?? []);
 const buses = new BusLayer(scene, net, built);
+const links = new LinkLayer(scene, built);
 // where the track runs beside each platform face, from the service that boards there that way (at Stockport the main
 // line northbound, the Hazel Grove line southbound), so passengers stand back from the right edge
 const faceTrack = (st: (typeof net.stations)[number], dir: 'north' | 'south') => { const svc = net.boardingService(st.id, dir); return svc ? net.offsetAt(svc.tracks[dir], st.s) : 0; };
@@ -109,6 +111,10 @@ const view = {
   // what's going wrong as drawn: hazard lamps lit or not, caution posts, buses, and the spare unit in the sidings
   // the reach as drawn: each station's glow now and where it's easing to, the ghost rings, and the minutes view
   reach: () => ({ ...reach.radii(), ghosts: reach.ghosts(), minutes: reach.minutesOn }),
+  // car parks and bus links as drawn: cars standing in each station's car parks, and the town's buses at the links
+  // point the camera (for the checks' screenshots)
+  look: (o: Partial<import('./render/camera.ts').Orbit>) => { Object.assign(rig.o, o); },
+  access: () => ({ cars: built.map(b => b.live.parks.reduce((a, f) => a + f.mesh.count, 0)), buses: links.count }),
   trouble: () => ({ hazards: trains.hazards.count, cautions: trains.posts.count, buses: buses.count, spare: trains.spare.visible }),
   // life as drawn: suitcases and bikes beside the figures, figures drawn, and what the sound has started
   life: () => ({ cases: pax.layers.reduce((n, L) => n + L.cases.count, 0), bikes: pax.layers.reduce((n, L) => n + L.bikes.count, 0), figures: pax.layers.reduce((n, L) => n + L.im.count, 0), shadows: renderer.shadowMap.enabled, ratio: renderer.getPixelRatio(), heard: { ...sound.heard },
@@ -280,7 +286,7 @@ function frame(now: number): void {
   sound.update(sim, rig.o, light.daylight, stationsXZ, trains.meshes, realDt); pax.setDaylight(light.daylight);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
   syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt); trains.sync(sim, dtGame); pax.sync(sim.g, dtGame); labels();
-  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim);
+  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim);
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
   renderer.render(scene, camera);

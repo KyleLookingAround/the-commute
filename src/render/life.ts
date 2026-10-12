@@ -1,7 +1,7 @@
 // Station life: what makes a bought station look busy rather than placed. Departure boards listing the next trains off
 // the timetable (late ones in amber), shops lit inside and open by day, shuttered at night, with a queue at the counter
-// when the station's busy, car parks filling through the morning and emptying in the evening, cycle racks with bikes
-// coming and going. The kit parts (board, carpark, cycles, and the shop in retail) are built here and noted in each
+// when the station's busy, car parks with the sim's parked cars (filling through the morning, emptying in the evening),
+// cycle racks with bikes coming and going. The kit parts (board, carpark, cycles, and the shop in retail) are built here and noted in each
 // station's Live; StationLife reads the sim on a timer, never every frame, and only ever reads it. Cars, bikes, bay
 // lines and customers are instanced.
 import * as THREE from 'three';
@@ -9,6 +9,7 @@ import { MAT, PAL, box } from './scene.ts';
 import { TUNING, type Sim } from '../sim/sim.ts';
 import { runTime } from '../sim/journeys.ts';
 import type { Train } from '../sim/types.ts';
+import { parked, spaces } from '../sim/access.ts';
 
 /** Which way's trains a board lists: towards Manchester, away, or both (a booking office's). */
 export type Serves = 'north' | 'south' | 'both';
@@ -209,7 +210,7 @@ const TICK = 0.5;              // real seconds between looks at the sim
 const BOARD_TICK = 1;          // ...and between board redraws
 const REF = 0.25;              // people a sim second boarding and leaving that counts as busy (Stockport's morning peak)
 const FAST = 300, SLOW = 3600; // sim seconds: busyness rises over five minutes and falls over an hour
-/** How full a car park is through the day: empty at dawn, filling to mid-morning, full through the day, emptying in
+/** How full a cycle rack is through the day: empty at dawn, filling to mid-morning, full through the day, emptying in
  * the evening, a few left overnight. */
 export function parkShape(h: number): number {
   const ease = (a: number, b: number) => { const t = Math.max(0, Math.min(1, (h - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -261,7 +262,9 @@ export class StationLife {
         bz.last = count; bz.t = g.t;
       }
       const owned = !!g.owned[i], held = Math.min(1, bz.held / REF), now = Math.min(1, bz.now / REF);
-      for (const f of b.live.parks) step(f, owned ? f.cap * park * (0.15 + 0.85 * held) : 0, snap);
+      // the car park as full as the sim's: its share of the spaces taken (every drawn stage the same share)
+      const room = owned ? spaces(sim, i) : 0, full = room ? Math.min(1, parked(st) / room) : 0;
+      for (const f of b.live.parks) step(f, f.cap * full, snap);
       for (const f of b.live.racks) step(f, owned ? f.cap * park * (0.2 + 0.8 * held) : 0, snap);
       for (const s of b.live.shops) { s.shutter.visible = !open; step(s.people, owned && open ? s.people.cap * now * 1.2 : 0, snap); }
     });

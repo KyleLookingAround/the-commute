@@ -11,11 +11,15 @@ import { yawFor } from './world.ts';
 import { buildBoard, buildCarPark, buildCycles, buildShop, emptyLive, type Live } from './life.ts';
 import { buildRank, type RankPart } from './taxis.ts';
 import { buildBusStop, type BusStopPart } from './buses.ts';
+import { buildLink, type LinkPart } from './links.ts';
+import { groundAt, partBoxes } from './terrain.ts';
 import type { Network } from '../sim/network.ts';
 import type { GameState, Station } from '../sim/types.ts';
 
 // ---- the kit format ----
-interface Gated { upgrade?: string | string[]; until?: string; scenery?: boolean }
+/** street: the part stands on the ground at street level (where its middle is), not at rail level on the station's pad:
+ * a car park, bus stop or bus station away from the platforms. */
+interface Gated { upgrade?: string | string[]; until?: string; scenery?: boolean; street?: boolean }
 interface Span { u0: number; u1: number }
 interface Footprint extends Span { v0: number; v1: number }
 export type Part =
@@ -68,7 +72,9 @@ export type Part =
   /** A taxi rank and its cabs (src/render/taxis.ts). */
   | (Gated & RankPart & { type: 'taxi' })
   /** A stop for rail replacement buses (src/render/buses.ts). */
-  | (Gated & BusStopPart & { type: 'busstop' });
+  | (Gated & BusStopPart & { type: 'busstop' })
+  /** A bus link's stop or bus station, with its buses coming and going (src/render/links.ts). */
+  | (Gated & LinkPart & { type: 'buslink' });
 export type PartType = Part['type'];
 /** Where each direction's passengers wait: from a line at v (near the platform edge) from u0 to u1, back into the
  * platform as far as depth (4 m if not given). */
@@ -289,9 +295,18 @@ const partBuilders: Builders = {
   cycles(gp, p, live) { buildCycles(gp, p, live, seedOf(p.u, p.v)); },
   taxi(gp, p, live) { buildRank(gp, p, live); },
   busstop(gp, p, live) { buildBusStop(gp, p, live); },
+  buslink(gp, p, live) { buildLink(gp, p, live); },
 };
 // the builders are keyed by the part's type, so the one looked up always takes the part; the cast says so once
 const build = (part: Part, into: THREE.Group, live: Live) => (partBuilders[part.type] as (gp: THREE.Group, p: Part, live: Live) => void)(into, part, live);
+/** A part at street level: built into a group of its own lifted (or sunk) to the ground under its middle, in a station
+ * group placed at `frame` (the ground is in the world's frame; the station's group only turns about y). */
+function onGround(part: Part, into: THREE.Group, live: Live, frame: { x: number; z: number; dx: number; dz: number; nx: number; nz: number }): void {
+  const boxes = partBoxes({ ...part, street: false } as unknown as Parameters<typeof partBoxes>[0]), b = boxes[boxes.length - 1];
+  const u = b ? (b[0] + b[1]) / 2 : 0, v = b ? (b[2] + b[3]) / 2 : 0;
+  const g = new THREE.Group(); g.position.y = groundAt(frame.x + frame.dx * u + frame.nx * v, frame.z + frame.dz * u + frame.nz * v);
+  into.add(g); build(part, g, live);
+}
 /** One part on its own, in the kit's frame: what the geometry check measures trains against. */
 export function partGroup(part: Part): THREE.Group { const gp = new THREE.Group(); if (part.type in partBuilders) build(part, gp, emptyLive()); return gp; }
 
@@ -314,13 +329,14 @@ export function buildStations(scene: THREE.Scene, net: Network, kits: Record<str
     for (const part of kit.parts) {
       if (!(part.type in partBuilders)) { console.warn('unknown part', part.type); continue; }
       const needs = part.upgrade === undefined ? [] : Array.isArray(part.upgrade) ? part.upgrade : [part.upgrade];
-      if (part.scenery) build(part, scenery, live);
+      const put = (into: THREE.Group) => part.street ? onGround(part, into, live, frame) : build(part, into, live);
+      if (part.scenery) put(scenery);
       else if (needs.length || part.until) {
         const key = `${needs.join('+')}|${part.until ?? ''}`;
         let gate = gates.get(key);
         if (!gate) { gate = { group: new THREE.Group(), needs, until: part.until ?? null, shown: false, rise: 1, ghost: false }; gate.group.visible = false; gp.add(gate.group); gates.set(key, gate); }
-        build(part, gate.group, live);
-      } else build(part, fixed, live);
+        put(gate.group);
+      } else put(fixed);
     }
     const gated = [...gates.values()];
     const label = new THREE.Object3D(); label.position.set(0, 14, 0); gp.add(label);

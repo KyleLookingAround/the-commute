@@ -15,7 +15,8 @@ import { register } from 'tsx/esm/api';
 // the sim is TypeScript; tsx loads it as Node can't, registered here so `node tools/bot.mjs` needs no flag
 register();
 const { fromGeo } = await import('../src/sim/network.ts');
-const { Sim } = await import('../src/sim/sim.ts');
+const { Sim, UPGRADES, TUNING } = await import('../src/sim/sim.ts');
+const { spaces, parked } = await import('../src/sim/access.ts');
 const { WEATHER } = await import('../src/sim/weather.ts');
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -34,6 +35,8 @@ if (args.includes('--fair')) WEATHER.felt = false;
  * second platform (trains both ways), its booking office and barriers, then cheap wins, a taxi rank where people have
  * been giving up (a dozen or more), a spare unit once a train has failed, and the faster timetable once there's money
  * to spare. */
+/** The stations whose car park has filled, this run (the bot's memory: it builds the second stage there). */
+const full = new Set();
 export function act(sim) {
   const g = sim.g, home = sim.svcs[0].route[0];
   const up = (i, id) => g.owned[i] && !g.ups[i][id] && sim.buyUpgrade(i, id) ? `${id}:${sim.S[i].id}` : null;
@@ -45,6 +48,14 @@ export function act(sim) {
   }
   for (const id of ['crossing', 'platform2', 'building', 'barriers', 'kiosk']) for (let i = 0; i < sim.S.length; i++) { const r = up(i, id); if (r) return r; }
   for (let i = 0; i < sim.S.length; i++) if (g.st[i].lost >= 12) { const r = up(i, 'taxi'); if (r) return r; }
+  // car parks and bus links before a morning, once there's twice the money: a car park where people would drive, its
+  // second stage once it has filled, and a bus link where people would come by bus
+  const h = sim.hour(), dawn = h >= 4 && h < 9;
+  for (let i = 0; i < sim.S.length; i++) for (const id of ['carpark', 'carpark2', 'bus']) {
+    const u = UPGRADES.find(x => x.id === id), a = sim.S[i].access, price = sim.upgradePrice(i, u);
+    if (!a || !dawn || !sim.offered(i, u) || g.cash < 2 * price) continue;
+    if (id === 'carpark' ? a.drive > 0 : id === 'carpark2' ? full.has(i) : a.bus > 0 || a.busShare) { const r = up(i, id); if (r) return r; }
+  }
   if (g.line.spare < 1 && g.cash > 15000 && sim.buyLine('spare')) return 'spare';
   if (g.line.units < 2 && g.cash > 30000 && sim.buyLine('units')) return 'unit';
   if (g.line.cars < 1 && g.cash > 25000 && sim.buyLine('cars')) return 'cars';
@@ -59,6 +70,9 @@ function peakOf(sim) { const h = sim.hour(), k = h >= 6 && h < 10 ? 'am' : h >= 
 
 export function play(seed, hoursToPlay = hours) {
   const net = fromGeo(def), sim = new Sim(net, Sim.fresh(net, seed));
+  full.clear();
+  // car parks and bus links: when each filled (by game day), for the table
+  const filled = sim.S.map(() => new Set());
   const reached = {}; let lastCash = sim.g.cash, quietSince = 0, longestQuiet = 0, dayQuiet = 0, longestDayQuiet = 0;
   // lateness: every main-line departure, and at each peak who gave up where and how late trains ran
   const late = { deps: 0, within: 0, worst: 0 }, peaks = {}, main = sim.svcs[0].id;
@@ -86,6 +100,7 @@ export function play(seed, hoursToPlay = hours) {
     lostWas = sim.g.st.map(S => S.lost); cabWas = sim.g.st.map(S => S.cab);
     // daytime quiet: hours between 06:00 and 22:00 with nothing bought (the night is quiet by design)
     const clock = sim.hour(); dayQuiet = clock >= 6 && clock < 22 ? dayQuiet + 1 / 60 : 0;
+    sim.g.st.forEach((S, i) => { const n = spaces(sim, i); if (n && parked(S) >= n) { full.add(i); filled[i].add(sim.g.day); } });
     let did; while ((did = act(sim))) { mark(did, h); quietSince = h; dayQuiet = 0; }
     longestDayQuiet = Math.max(longestDayQuiet, dayQuiet);
     if (sim.g.cash !== lastCash) { lastCash = sim.g.cash; }
@@ -97,12 +112,20 @@ export function play(seed, hoursToPlay = hours) {
     'lost beyond home %': g.stats.lost ? +(100 * (1 - g.st[home].lost / g.stats.lost)).toFixed(1) : 0,
     'failures': g.trouble.fails, 'signal failures': g.trouble.signals, 'by bus': g.trouble.bused, 'lost in trouble': troubleLost,
     'wet hours': +(g.weather.wet / 3600).toFixed(2),
-    'express £': Math.round(g.stats.express), 'through': g.stats.through,
+    'express £': Math.round(g.stats.express), 'through': g.stats.through, 'by car': g.stats.car, 'by bus link': g.stats.bus,
     'homes grown': Math.round(g.homes.reduce((a, h, i) => a + h - sim.S[i].catchment, 0)),
     'within 5 min %': late.deps ? +(100 * late.within / late.deps).toFixed(1) : 100, 'worst late min': +(late.worst / 60).toFixed(1) };
   for (const p of Object.values(peaks)) { p.within = p.deps ? +(100 * p.within / p.deps).toFixed(1) : 100; p.worst = +(p.worst / 60).toFixed(1); }
   const play = fingerprint({ v: g.v, owned: g.owned, ups: g.ups, line: g.line, cash: Math.round(g.cash), boarded: g.stats.boarded, lost: g.stats.lost, cab: g.stats.cab, bused: g.trouble.bused, homes: g.homes.map(Math.round) });
-  return { seed, reached, measures, peaks, play, used };
+  // what each car park and bus link brought: people, and roughly what they earned (the charge, and each one's fare to
+  // where most go, as collected there)
+  const access = {};
+  sim.S.forEach((st, i) => {
+    const S = g.st[i]; if (!S.car && !S.bus) return;
+    const j = sim.destination(i), fare = j === null ? 0 : sim.fare(i, j) * (g.ups[i].barriers ? 1 : g.ups[i].building ? 0.9 : 0.82);
+    access[st.id] = { car: S.car, bus: S.bus, earned: Math.round(S.car * (fare + TUNING.parkCharge) + S.bus * fare), 'days full': filled[i].size };
+  });
+  return { seed, reached, measures, peaks, play, used, access };
 }
 
 function fingerprint(o) { const s = JSON.stringify(o); let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16).padStart(8, '0'); }
@@ -133,6 +156,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const ps = runs.map(r => r.peaks[k] ?? { lost: {}, cab: {}, within: 100, worst: 0 });
     const cabs = cabIds.map(i => mean(ps.map(p => p.cab[i] ?? 0)));
     console.log(`| ${k} | ${ids.map(i => mean(ps.map(p => p.lost[i] ?? 0))).join(' | ')} | ${cabs.join(' | ')}${cabs.length ? ' | ' : ''}${mean(ps.map(p => p.within))} | ${mean(ps.map(p => p.worst))} |`);
+  }
+  // car parks and bus links, mean of the seeds
+  const acc = [...new Set(runs.flatMap(r => Object.keys(r.access)))];
+  if (acc.length) {
+    console.log('\n| Car parks and bus links (mean of seeds) | by car | by bus | earned £ | game days it filled |');
+    console.log('| --- | --- | --- | --- | --- |');
+    for (const id of acc) { const xs = runs.map(r => r.access[id] ?? { car: 0, bus: 0, earned: 0, 'days full': 0 }); console.log(`| ${id} | ${mean(xs.map(x => x.car))} | ${mean(xs.map(x => x.bus))} | ${mean(xs.map(x => x.earned))} | ${mean(xs.map(x => x['days full']))} |`); }
   }
   console.log(off ? `\n${off} measure${off === 1 ? '' : 's'} off the baseline` : '\nall within the baseline');
   if (jsonOut) { mkdirSync(dirname(join(root, jsonOut)), { recursive: true }); writeFileSync(join(root, jsonOut), JSON.stringify(runs, null, 2)); }

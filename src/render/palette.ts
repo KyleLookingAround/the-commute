@@ -18,6 +18,7 @@ const FALLBACK = {
   'board-led': '#ffb52e', 'shop-lit': '#ffe2a6', shutter: '#9aa3ad', 'bay-line': '#eeeeea',
   'cab': '#1f2126', 'cab-sign': '#ffc928', 'cab-bay': '#f2d23c',
   hazard: '#ffa21a', bus: '#2f7fd6', 'bus-band': '#ffd23f', 'bus-stop': '#d8322f',
+  'link-bus': '#f5c518', 'link-band': '#26282d', 'link-park': '#72b84f', 'link-trees': '#3e8a3a', 'reach-outer': '#ffe7a3',
   'suit-1': '#2c3a5c', 'suit-2': '#45474f', 'suit-3': '#b98a5a', cyclist: '#b5e32b', bike: '#d0402f', case: '#e86a9a', 'case-2': '#3fb6c4',
   eng: '#ffd21f', 'eng-dark': '#3a3a3e', 'eng-beacon': '#ff8a00',
   'kit-city': '#7ec3ee', 'kit-united': '#d8262f', 'kit-county': '#1f55b5',

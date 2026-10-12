@@ -11,6 +11,7 @@ import { journeys, cycle, runTime, waitWeight, type Journey } from './journeys.t
 import { freshWeather, stepWeather, feel, weatherKey } from './weather.ts';
 import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
 import { stepExpress, nextSlot } from './expresses.ts';
+import { stepAccess, openAccess } from './access.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
 /** A station upgrade. name null: the station names it (its retail, or its stage in `grow`). requires: upgrades at the
@@ -25,6 +26,9 @@ export const UPGRADES: Upgrade[] = [
   { id: 'platform2', name: null, price: 3500, desc: 'Trains call both ways, so the crowd going home too', requires: ['crossing'], stage: true },
   { id: 'building', name: null, price: 3000, desc: '90% of fares collected (82% at a halt)', stage: true },
   { id: 'taxi', name: null, price: 1200, desc: 'Cabs take some who’d give up on the train: a cut of each fare', stage: true },
+  { id: 'carpark', name: null, price: 4000, desc: 'Drivers from beyond a walk park and ride, while there are spaces: a charge a car', stage: true },
+  { id: 'carpark2', name: null, price: 7000, desc: 'More spaces, so the car park fills later', requires: ['carpark'], stage: true },
+  { id: 'bus', name: null, price: 3000, desc: 'Buses bring people from beyond a walk', stage: true },
   { id: 'kiosk', name: 'Kiosk', price: 1500, desc: '+£0.35 per boarding passenger' },
   { id: 'canopy', name: 'Canopy', price: 2500, desc: 'Waiting in the dry feels a quarter shorter' },
   { id: 'barriers', name: 'Ticket barriers', price: 4000, desc: 'Collect every fare', requires: ['building'] },
@@ -102,6 +106,12 @@ export const TUNING = {
   // when its trip to where its people go fits everyone's budget, scaled by the share it fits (the reach curve), so a
   // station whose trip feels about the hour grows at half this and one with long waits barely at all
   grow: 0.06,
+  // car parks and bus links (src/sim/access.ts, docs/DESIGN.md): the census's pools beyond a walk travel when their trip
+  // fits as everyone's does, the drive or bus taking the place of the walk from home. A driver drives (felt as riding),
+  // parks and walks parkWalk; a car takes one space until parkStay clock hours later and pays parkCharge. A bus rider
+  // waits busWait for the bus (felt as waiting) and changes onto the train (busChange felt) after a short busWalk; at
+  // Stockport the Interchange makes that change busSave quicker and covered for those who already come by bus
+  parkWalk: 3 * 60, parkStay: 9, parkCharge: 20, busWait: 6 * 60, busWalk: 2 * 60, busChange: 5 * 60, busSave: 4 * 60,
 };
 export type Tuning = typeof TUNING;
 
@@ -174,9 +184,9 @@ export class Sim {
       owned: network.stations.map((_, i) => i === 0),
       ups: network.stations.map(() => ({})),
       line: { units: 0, cars: 0, timetable: 0, spare: 0 },
-      st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0, cab: 0, cabs: [], through: 0 })),
+      st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0, cab: 0, cabs: [], through: 0, car: 0, bus: 0, carAcc: 0, busAcc: 0, parked: [] })),
       trains: [], ends: {}, trouble: freshTrouble(), weather: freshWeather(seed, 6.5 * 3600 / TUNING.dayRate),
-      stats: { boarded: 0, lost: 0, cab: 0, through: 0, express: 0 },
+      stats: { boarded: 0, lost: 0, cab: 0, through: 0, express: 0, car: 0, bus: 0 },
       homes: network.stations.map(s => s.catchment),
     };
   }
@@ -538,9 +548,10 @@ export class Sim {
   /** Trips an hour at hour h from station i to each other station, into `rates`: from the homes at one end to what
    * draws people at the other (and in the evening home again), times the hour's demand, falling away smoothly as the
    * door-to-door journey passes the time budget. Returns the total. */
+  /** What scales station i's trips an hour at hour h: the hour's demand, its platforms, the weather, over Piccadilly's draw. */
+  tripScale(i: number, h: number): number { return demandCurve(h) * TUNING.demand * (this.ups(i).platforms ? TUNING.platformsBonus : 1) * feel(this.g).travel / this.net.station('piccadilly').draw; }
   tripRates(i: number, h: number): number {
-    const a = this.station(i), ups = this.ups(i), out = h < 12 ? TUNING.amOut : TUNING.pmOut, ref = this.net.station('piccadilly').draw;
-    const scale = demandCurve(h) * TUNING.demand * (ups.platforms ? TUNING.platformsBonus : 1) * feel(this.g).travel / ref;
+    const a = this.station(i), out = h < 12 ? TUNING.amOut : TUNING.pmOut, scale = this.tripScale(i, h);
     let tot = 0;
     for (let j = 0; j < this.S.length; j++) {
       const J = j === i ? null : this.journey(i, j);
@@ -635,7 +646,7 @@ export class Sim {
     const g = this.g; this.ensureTrains();
     const dayLen = 86400 / TUNING.dayRate, d0 = Math.floor(g.t / dayLen); g.t += dt; if (Math.floor(g.t / dayLen) > d0) g.day++;
     stepWeather(g, dt); this.refreshJourneys(); this.measureCrowding(); this.grow(dt);
-    for (let i = 0; i < this.S.length; i++) { if (!g.owned[i]) continue; this.generate(i, dt); this.expire(i); }
+    for (let i = 0; i < this.S.length; i++) { if (!g.owned[i]) continue; this.generate(i, dt); stepAccess(this, TUNING, i, dt); this.expire(i); }
     stepTrouble(this, TUNING);
     for (const tr of g.trains) this.stepTrain(tr, dt);
   }
@@ -659,6 +670,7 @@ export class Sim {
     if (!u || !ups || !this.canBuyUpgrade(i, id)) return false;
     this.g.cash -= this.upgradePrice(i, u); ups[u.id] = true;
     if (u.id === 'taxi') this.state(i).cabs = new Array<number>(TUNING.cabs).fill(0);   // the rank opens with every cab in
+    openAccess(this, i, u.id);
     this.refreshJourneys(); return true;
   }
   /** Whether a line upgrade can be seen yet: extra units need room for a second train to turn at the line's home

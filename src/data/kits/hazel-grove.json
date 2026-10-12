@@ -36,7 +36,7 @@
     { "type": "board", "u": 15, "v": 5.1, "serves": "both", "upgrade": "building" },
     { "type": "lamps", "u0": 165, "u1": 195, "v": -9.5, "every": 25, "upgrade": "extend" },
     { "type": "lamps", "u0": 165, "u1": 195, "v": 5.1, "every": 25, "upgrade": ["extend", "platform2"] },
-    { "type": "carpark", "u0": 20, "u1": 125, "v0": 24, "v1": 62 },
+    { "type": "carpark", "u0": 20, "u1": 125, "v0": 24, "v1": 62, "upgrade": "carpark" },
     { "type": "cycles", "u": 9, "v": 23, "n": 5, "upgrade": "crossing" },
     { "type": "taxi", "u": -20, "v": 26, "back": [1, 0], "kerb": -1, "n": 5, "door": [0, 21], "upgrade": "taxi", "note": "Cabs waiting outside the station building, from memory, placed by eye" },
     { "type": "busstop", "u": -8, "v": 33, "back": [1, 0], "kerb": -1, "door": [0, 21], "note": "On the forecourt beyond the taxi rank, from memory" },
@@ -44,6 +44,8 @@
     { "type": "box", "u0": 125.8, "u1": 126.1, "v0": -20, "v1": 16, "y0": 6.2, "y1": 8.4, "mat": "steel", "scenery": true },
     { "type": "box", "u0": 128.9, "u1": 129.2, "v0": -20, "v1": 16, "y0": 6.2, "y1": 8.4, "mat": "steel", "scenery": true },
     { "type": "box", "u0": 125, "u1": 130, "v0": -26, "v1": -20, "y0": 0, "y1": 7.3, "mat": "concrete", "scenery": true },
-    { "type": "box", "u0": 125, "u1": 130, "v0": 16, "v1": 22, "y0": 0, "y1": 7.3, "mat": "concrete", "scenery": true }
+    { "type": "box", "u0": 125, "u1": 130, "v0": 16, "v1": 22, "y0": 0, "y1": 7.3, "mat": "concrete", "scenery": true },
+    { "type": "carpark", "u0": 20, "u1": 125, "v0": 62, "v1": 92, "upgrade": "carpark2", "note": "The extension beyond the car park, a game choice for a bigger one; not survey" },
+    { "type": "buslink", "u": -30, "v": 44, "back": [1, 0], "kerb": -1, "upgrade": "bus", "note": "A stop on the station approach for the buses along the A6 (Buxton Road), from memory, placed by eye" }
   ]
 }

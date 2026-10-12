@@ -311,7 +311,7 @@ test('halt: a bought station is one platform one way, until its second platform'
 test('halt: Piccadilly as a halt is the platform trains leave from, and offers only its own stages', () => {
   const sim = new Sim(net()), pic = sim.net.station('piccadilly').index;
   assert.equal(sim.haltDir(pic), 1);
-  assert.deepEqual(sim.visibleUpgrades(pic).filter(u => u.stage).map(u => u.id), ['building', 'taxi']);
+  assert.deepEqual(sim.visibleUpgrades(pic).filter(u => u.stage).map(u => u.id), ['building', 'taxi', 'carpark']);
 });
 
 test('taxi rank: some who give up take a cab while one is in, earning a cut; the rest are lost; cabs come back', () => {

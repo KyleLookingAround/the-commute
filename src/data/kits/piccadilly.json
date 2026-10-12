@@ -51,7 +51,7 @@
     { "type": "board", "u": 39.4, "v": -20, "serves": "both", "y": 6, "wall": true, "along": true, "upgrade": "building" },
     { "type": "lamps", "u0": -330, "u1": -305, "v": 5.5, "every": 30, "upgrade": "extend" },
     { "type": "box", "u0": -150, "u1": -30, "v0": 62, "v1": 100, "y0": 0, "y1": 16, "mat": "rust", "scenery": true },
-    { "type": "carpark", "u0": -149, "u1": -31, "v0": 63, "v1": 99, "y": 16, "deck": true },
+    { "type": "carpark", "u0": -149, "u1": -31, "v0": 63, "v1": 99, "y": 16, "deck": true, "upgrade": "carpark" },
     { "type": "cycles", "u": 100, "v": 0, "n": 8, "across": true, "upgrade": "building" },
     { "type": "taxi", "u": 60, "v": 54, "back": [1, 0], "kerb": -1, "n": 6, "door": [70, 49], "upgrade": "taxi", "note": "The rank on the London Road side, from memory, placed by eye" },
     { "type": "busstop", "u": 80, "v": 61, "back": [1, 0], "kerb": -1, "door": [70, 49], "note": "On the approach beyond the taxi rank, where replacement coaches stand, from memory" },

@@ -3,13 +3,14 @@
 // From the first release on, every version gets a migration step here, and saved fields are never renamed or removed.
 import type { GameState } from './types.ts';
 
-export const SAVE_VERSION = 12;   // 2: stations count who alighted; 3: trains board through the stop; 4: services and changing trains;
+export const SAVE_VERSION = 13;   // 2: stations count who alighted; 3: trains board through the stop; 4: services and changing trains;
                                  // 5: stations start as halts and grow; 6: each waiting group has its own time to give up;
                                  // 7: trains run to a timetable (due, late, stood) and each service's ends keep their headway;
                                  // 8: taxi ranks (each station's cab tally and its cabs, the game's cab total);
                                  // 9: things going wrong (trouble: failed trains, signal failures, replacement buses) and the spare unit
                                  // 10: homes that grow (each station's homes); 11: the weather
                                  // 12: every platform in use (each train's platform, the expresses, through passengers)
+                                 // 13: car parks and bus links (each station's car, bus, carAcc, busAcc and parked; the game's car and bus)
 
 /** A save as parsed from JSON: some version's shape, known only once migrated. */
 type RawSave = Record<string, unknown> & { v?: number };

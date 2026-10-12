@@ -30,6 +30,10 @@ export interface StationGeoDef {
   /** The most homes the station's land could hold as the line brings it within reach (homes that grow, from the census:
    * its homes and half as many again as live within a walk); its homes grow from `catchment` towards it. */
   ceiling?: number;
+  /** Who'd come from beyond a walk (src/sim/access.ts, from the census): drive, the homes that would drive here and
+   * park, their drive in seconds and the distance nine in ten live within (metres); bus, the same by bus; busShare, the
+   * share of the station's own homes that already come by bus (Stockport's), whose bus leg a bus link makes quicker. */
+  access?: Access;
   /** Where a number came from when it's from memory rather than survey. */
   note?: string;
   /** Where trains stop, in metres along the line from the station's own point (its kit's origin); 0 if not given. */
@@ -40,7 +44,7 @@ export interface StationGeoDef {
   straight?: number[];
   /** The stages this station grows through after it's a halt, by upgrade: what each is called here, and a description
    * or price where they differ from the usual. A stage not listed isn't offered here. */
-  grow?: Partial<Record<StageId, { name: string; desc?: string; price?: number }>>;
+  grow?: Partial<Record<StageId, { name: string; desc?: string; price?: number; spaces?: number }>>;
   /** Something that must be built elsewhere before this station can be bought. */
   needs?: { station: string; upgrade: string };
   /** The platform faces trains stand at, where they're more than the halt's one and the second platform's (the sim
@@ -57,6 +61,7 @@ export interface PlatformDef {
 }
 /** A service's platforms at a station, by the platform ids: calling going north or south, or turning round. */
 export interface ServicePlatforms { north?: string[]; south?: string[]; turn?: string[] }
+export interface Access { drive: number; driveTime: number; driveR: number; bus: number; busTime: number; busR: number; busShare?: number }
 /** route: the stations a service calls at, in order along the corridor (south to north). home: a service with one
  * runs from there only as far along its route as stations are owned, and not at all until one is; without one it runs
  * the whole route, its ends always served. Scenery services carry nobody. */
@@ -99,7 +104,7 @@ export interface Frame { x: number; z: number; heading: number; dx: number; dz: 
 // ---- the saved game ----
 /** The stages a station grows through from a halt: a way across the line, a second platform, a booking office, and at
  * the big stations the rest of the station. Offered only where the station's `grow` lists them. */
-export type StageId = 'crossing' | 'platform2' | 'building' | 'platforms' | 'taxi';
+export type StageId = 'crossing' | 'platform2' | 'building' | 'platforms' | 'taxi' | 'carpark' | 'carpark2' | 'bus';
 export type UpgradeId = StageId | 'kiosk' | 'barriers' | 'canopy' | 'lifts' | 'extend' | 'retail';
 export type LineUpgradeId = 'units' | 'cars' | 'timetable' | 'spare';
 /** A group of passengers who joined a platform queue together: when (game seconds), where to, how many, whether
@@ -109,12 +114,15 @@ export interface Queued { t: number; dest: number; n: number; paid?: boolean; gi
 /** alighted: passengers who got off here at the end of their journey, so the view can show them leaving; changed:
  * passengers who got off here to catch another train. cab: people who gave up on the train and took a cab from the
  * taxi rank instead; cabs: when each of the rank's cabs is back from its last fare (sim seconds; free once that's
- * passed), none until a rank is built. */
+ * passed), none until a rank is built. car, bus: people who came from beyond a walk by car and parked, or by bus;
+ * carAcc, busAcc: their part-people saved up; parked: the cars in the car park by the game hour they leave (24, none
+ * until a car park is built). */
 export interface StationState {
   acc: number; q: [Queued[], Queued[]]; waiting: number; boarded: number; alighted: number; changed: number; revenue: number; lost: number;
   cab: number; cabs: number[];
   /** Long-distance passengers getting on and off the expresses here. */
   through: number;
+  car: number; bus: number; carAcc: number; busAcc: number; parked: number[];
 }
 /** svc: the service it runs; calling: the station a dwelling train is boarding at; boardAcc: boarding it has room for
  * this stop and hasn't used yet, in passengers (its doors take a share of a passenger each second; below zero while
@@ -152,7 +160,7 @@ export interface GameState {
   owned: boolean[]; ups: Partial<Record<UpgradeId, boolean>>[]; line: Record<LineUpgradeId, number>;
   st: StationState[]; trains: Train[];
   /** through: long-distance passengers on and off the expresses at owned stations; express: what the expresses paid. */
-  stats: { boarded: number; lost: number; cab: number; through: number; express: number };
+  stats: { boarded: number; lost: number; cab: number; through: number; express: number; car: number; bus: number };
   /** By service, the timetabled departure of the unit that last turned round at each end of its run (0 the south end,
    * 1 the north), which the next unit keeps a headway behind. */
   ends: Record<string, [number, number]>;

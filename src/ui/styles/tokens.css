@@ -41,6 +41,9 @@
   --map-cab:#1f2126; --map-cab-sign:#ffc928; --map-cab-bay:#f2d23c;
   /* things going wrong: hazard and caution lamps, the rail replacement buses and their stop */
   --map-hazard:#ffa21a; --map-bus:#2f7fd6; --map-bus-band:#ffd23f; --map-bus-stop:#d8322f;
+  /* bus links: the town's buses in Greater Manchester's yellow with a dark skirt, Stockport Interchange's roof park and its
+     trees; and the reach's fainter outer ring where a car park or bus link brings people from */
+  --map-link-bus:#f5c518; --map-link-band:#26282d; --map-link-park:#72b84f; --map-link-trees:#3e8a3a; --map-reach-outer:#ffe7a3;
   /* the landmarks: the viaduct's 1880s widening a shade redder than the 1840 brick, its floodlights, the Pyramid lit, the
      Plaza's faience and sign, Merseyway's render and fascias, the city's towers on the horizon and their red lamps */
   --map-brick-new:#b8664a; --map-viaduct-lit:#ffb877; --map-pyramid-lit:#5fb4ff; --map-pyramid-frame:#1d3f66; --map-sandstone:#b8664c; --map-faience:#efe6cf;

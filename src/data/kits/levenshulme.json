@@ -37,6 +37,7 @@
     { "type": "cycles", "u": -62, "v": 33, "n": 4, "upgrade": "crossing" },
     { "type": "taxi", "u": -60, "v": 37, "back": [1, 0], "kerb": -1, "n": 4, "door": [-74, 32], "upgrade": "taxi", "note": "Cabs waiting on the forecourt off Station View, below the east platform, placed by eye" },
     { "type": "busstop", "u": -80, "v": 44, "back": [1, 0], "kerb": -1, "door": [-74, 32], "note": "On Station View beyond the taxi rank, placed by eye" },
-    { "type": "carpark", "u0": -45, "u1": 15, "v0": 46, "v1": 76 }
+    { "type": "carpark", "u0": -45, "u1": 15, "v0": 46, "v1": 76, "street": true, "upgrade": "carpark" },
+    { "type": "buslink", "u": -104, "v": 50, "back": [1, 0], "kerb": -1, "street": true, "upgrade": "bus", "note": "A stop on Station View below the station, for the buses off Stockport Road (the A6), placed by eye" }
   ]
 }

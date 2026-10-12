@@ -35,6 +35,8 @@
   /* things going wrong: hazard and caution lamps, the rail replacement buses and their stop */
   --map-hazard:#ffa21a; --map-bus:#2f7fd6; --map-bus-band:#ffd23f; --map-bus-stop:#d8322f;
   --map-car-1:#c8283a; --map-car-2:#2a5cb0; --map-car-3:#c9ccd1; --map-car-4:#f4f4f0; --map-car-5:#2b2e35; --map-car-6:#3a8a55;
+  /* the reach: a warm daylight glow over the homes within the time budget, and the minutes view's bands, nearest first */
+  --map-reach:#ffcf5c; --map-mins-1:#ffe066; --map-mins-2:#ffad5a; --map-mins-3:#f07fa0; --map-mins-4:#a58be0;
   --map-ghost:#4fdcff; --map-house-sat:0.45; --map-tower-sat:0.15; --map-house-light:0.42; --map-tower-light:0.5;
 }
 @media (prefers-reduced-motion: reduce){ :root{ --motion:0ms } }

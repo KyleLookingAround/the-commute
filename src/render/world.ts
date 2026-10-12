@@ -10,7 +10,8 @@ const seed = (a: number, b: number) => { const s = Math.sin(a * 127.1 + b * 311.
 // Rotation about Y that maps local +x to the corridor direction (dx, dz) and local +z to the offset normal.
 export const yawFor = (p: { dx: number; dz: number }): number => Math.atan2(-p.dz, p.dx);
 
-export interface World { groundY: (x: number, z: number) => number; yawFor: typeof yawFor }
+/** groundY: the ground's height; ground: the terrain's material, which the reach (src/render/reach.ts) draws on. */
+export interface World { groundY: (x: number, z: number) => number; yawFor: typeof yawFor; ground: THREE.MeshLambertMaterial }
 
 export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef): World {
   const c = net.corridor('main');
@@ -35,6 +36,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   { const far = new THREE.Mesh(new THREE.PlaneGeometry(60000, 60000), new THREE.MeshLambertMaterial({ color: PAL.grass, depthWrite: false })); far.rotation.x = -Math.PI / 2; far.position.y = -0.6; far.renderOrder = -1; scene.add(far); }
 
   // ---- terrain: a plane over the corridor's bounding box ----
+  const ground = new THREE.MeshLambertMaterial({ vertexColors: true });
   (function terrain() {
     const pts = c.pts; let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
     for (const p of pts) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
@@ -54,7 +56,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       col[i * 3] = k.r; col[i * 3 + 1] = k.g; col[i * 3 + 2] = k.b;
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.computeVertexNormals();
-    scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })));
+    scene.add(new THREE.Mesh(g, ground));
   })();
 
   // ---- ribbons along the corridor: roads; ballast and rails along each track ----
@@ -180,7 +182,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     box(scene, 60, 2, 60, MAT.concrete, p.x, y0 + 1, p.z);
   }
 
-  return { groundY, yawFor };
+  return { groundY, yawFor, ground };
 }
 
 function xz(def: NetworkGeoDef, ll: LatLon): [number, number] { const p = projectLatLon(ll.lat, ll.lon, def.origin); return [p.x, p.z]; }

@@ -23,6 +23,7 @@ import { BusLayer } from './render/buses.ts';
 import { TrainLayer } from './render/trains.ts';
 import { PassengerLayer } from './render/passengers.ts';
 import { OrbitRig } from './render/camera.ts';
+import { ReachLayer, withBought, savingText } from './render/reach.ts';
 import { Sky } from './render/sky.ts';
 import { UI, fmt } from './ui/panel.ts';
 import type { Els } from './ui/panel.ts';
@@ -39,7 +40,7 @@ declare global {
     __orbit?: Partial<import('./render/camera.ts').Orbit>;
     /** For the checks: how many groups of parts the preview shows, how many are still rising into place, and how many
      * times the camera has framed something (a card's parts, a Built chip's, a train). */
-    __view?: { preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean } };
+    __view?: { reach?: () => { now: number[]; target: number[]; ghosts: number; minutes: boolean }; preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean } };
   }
 }
 
@@ -68,7 +69,8 @@ let lockHour: number | null = window.__lockHour ?? null;
 function el<T extends HTMLElement>(id: string): T { const e = document.getElementById(id); if (!e) throw new Error(`index.html has no #${id}`); return e as T; }
 const canvas = el<HTMLCanvasElement>('gl');
 const { renderer, scene, camera, sun, lighting, resize } = createScene(canvas);
-buildWorld(scene, net, networkDef);
+const world = buildWorld(scene, net, networkDef);
+const reach = new ReachLayer(world.ground, net);
 const built = buildStations(scene, net, kits);
 const lineside = new Lineside(scene, net);
 // everything on the ground so far throws and takes shadows; the sky, added after, does neither
@@ -83,10 +85,12 @@ const faceTrack = (st: (typeof net.stations)[number], dir: 'north' | 'south') =>
 const trackV = net.stations.map(st => ({ north: faceTrack(st, 'north'), south: faceTrack(st, 'south') }));
 const pax = new PassengerLayer(built, net.stations, trackV);
 const rig = new OrbitRig(camera, canvas, scene);
-setReducedMotion(matchMedia('(prefers-reduced-motion: reduce)').matches);
+{ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches; setReducedMotion(reduced); reach.setReducedMotion(reduced); }
 const view = {
   preview: 0, framed: 0, rising: () => built.reduce((n, b) => n + b.gated.filter(gt => gt.rise < 1).length, 0) + (lineside.rise < 1 ? 1 : 0) + (trains.spareRising < 1 ? 1 : 0),
   // what's going wrong as drawn: hazard lamps lit or not, caution posts, buses, and the spare unit in the sidings
+  // the reach as drawn: each station's glow now and where it's easing to, the ghost rings, and the minutes view
+  reach: () => ({ ...reach.radii(), ghosts: reach.ghosts(), minutes: reach.minutesOn }),
   trouble: () => ({ hazards: trains.hazards.count, cautions: trains.posts.count, buses: buses.count, spare: trains.spare.visible }),
 };
 window.__view = view;
@@ -96,6 +100,7 @@ function preview(i: number | null, id: string | null): void {
   const ups = i === null ? {} : sim.ups(i);
   lineside.preview(false, !!sim.g.line.timetable); trains.previewSpare(false);
   view.preview = previewUpgrade(built, i, ups, id);
+  reach.preview(i !== null && id ? withBought(sim, i, id) : null);
   const b = i === null ? undefined : built[i], box = b && id ? partsBox(b, ups, id, partBox) : null;
   if (box) frameBox(box);
 }
@@ -112,6 +117,7 @@ const trainBox = new THREE.Box3();
 function showLine(id: string | null, bought = false): void {
   preview(null, null);
   if (id === null) return;
+  if (!bought) reach.preview(withBought(sim, null, id));
   if (id === 'timetable') {
     view.preview = lineside.preview(!bought, !!sim.g.line.timetable);
     const box = lineside.siteBox(rig.o.tx, rig.o.tz, partBox); if (box) frameBox(box, 40);
@@ -133,6 +139,8 @@ const sky = new Sky(scene, sun, lineMiddle());
 const lblBox = el('lbls');
 const lbls = built.map(() => { const d = document.createElement('div'); d.className = 'lbl'; lblBox.appendChild(d); return d; });
 const v3 = new THREE.Vector3();
+/** Labels hide above this line, where the stage's own controls (and the minutes view's key, while it shows) sit. */
+let labelTop = 64;
 function labels(): void {
   const w = canvas.clientWidth, h = canvas.clientHeight;
   built.forEach((b, i) => {
@@ -140,7 +148,7 @@ function labels(): void {
     b.label.getWorldPosition(v3); v3.project(camera);
     const top = (1 - v3.y) / 2 * h;
     // off screen, or in the top band where the stage's own controls sit
-    if (v3.z > 1 || Math.abs(v3.x) > 1.1 || Math.abs(v3.y) > 1.1 || top < 64) { d.style.display = 'none'; return; }
+    if (v3.z > 1 || Math.abs(v3.x) > 1.1 || Math.abs(v3.y) > 1.1 || top < labelTop) { d.style.display = 'none'; return; }
     d.style.display = ''; d.style.left = ((v3.x + 1) / 2 * w) + 'px'; d.style.top = top + 'px';
     const s = b.station, owned = !!sim.g.owned[i], txt = owned ? s.name : `${s.name} · <b>${fmt(s.price)}</b>`;
     if (d.innerHTML !== txt) d.innerHTML = txt; d.classList.toggle('lock', !owned);
@@ -170,9 +178,13 @@ const ui = new UI(sim, els, {
   showBuilt: (i, id) => showBuilt(i, id),
   // a unit just bought, or longer cars, show on the map at the next frame's sync: frame it after that
   showLine: (id, bought) => { if (bought) requestAnimationFrame(() => requestAnimationFrame(() => showLine(id, true))); else showLine(id); },
+  saves: (i, id) => savingText(sim, i, id),
   lockHour: h => { lockHour = h; ui.setLight(lockHour ?? sim.hour(), lockHour !== null); },
   reset: () => { store.wipe(); sim = new Sim(net, Sim.fresh(net, seed)); preview(null, null); ui.sim = sim; ui.selected = 0; ui.picked = null; ui.linePicked = null; ui.buildAll(); const [x, z] = stationXZ(0); rig.focus(x, z); },
 });
+// the minutes view: the ground shaded by minutes to Manchester, with its key; off by default
+const vMins = el<HTMLButtonElement>('vMins'), minsKey = el('minsKey');
+vMins.addEventListener('click', () => { const on = !reach.minutesOn; reach.showMinutes(on); vMins.setAttribute('aria-pressed', String(on)); minsKey.hidden = !on; labelTop = on ? minsKey.offsetTop + minsKey.offsetHeight + 8 : 64; });
 function persist(): void { store.save({ g: sim.g, selected: ui.selected }); }
 
 // ---- welcome back ----
@@ -199,7 +211,7 @@ function frame(now: number): void {
   const light = lighting(lockHour ?? sim.hour(), rig.o);
   sky.update(light.horizon, light.daylight, camera, dt);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
-  syncStations(built, sim.g, realDt); lineside.sync(!!sim.g.line.timetable, realDt); trains.sync(sim.g, dtGame, endAhead); pax.sync(sim.g, dtGame); labels();
+  syncStations(built, sim.g, realDt); reach.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt); trains.sync(sim.g, dtGame, endAhead); pax.sync(sim.g, dtGame); labels();
   life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim);
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }

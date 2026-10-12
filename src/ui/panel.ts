@@ -37,6 +37,8 @@ export interface Handlers {
   showLine: (id: string | null, bought?: boolean) => void;
   /** Lock the light to an hour of the day, or null to follow the clock again. The sim's clock never changes. */
   lockHour: (hour: number | null) => void;
+  /** What buying an upgrade (at station i, or on the line when i is null) saves in minutes, in words, or null. */
+  saves: (i: number | null, id: string) => string | null;
 }
 
 export class UI {
@@ -116,6 +118,7 @@ export class UI {
           <span class="head"><b>${name}</b><span class="price">${fmt(price)}</span></span>
           ${u.stage ? '<span class="tags"><span class="tag">Next stage</span></span>' : ''}
           <span class="adds">${sim.upgradeDesc(i, u)}</span>
+          ${saved(this.on.saves(i, u.id))}
           ${opens.length ? `<span class="opens"><span>Then</span> ${opens.map(o => `<i>${o}</i>`).join('')}</span>` : ''}
         </button>
         <div class="act"><span class="togo" data-togo="${u.id}"><meter min="0" max="${price}" value="0"></meter><span></span></span><button class="buyup" data-up="${u.id}">Buy</button></div>`;
@@ -182,6 +185,7 @@ export class UI {
       d.innerHTML = `<button class="pick" aria-pressed="false" data-lpick="${u.id}">
           <span class="head"><b>${step(u, lvl)}</b><span class="price">${fmt(price)}</span></span>
           <span class="adds">${u.desc}</span>
+          ${saved(this.on.saves(null, u.id))}
           ${opens.length ? `<span class="opens"><span>Then</span> ${opens.map(o => `<i>${o}</i>`).join('')}</span>` : ''}
         </button>
         <div class="act"><span class="togo"><meter min="0" max="${price}" value="0"></meter><span></span></span><button class="buyup" data-lup="${u.id}">Buy</button></div>`;
@@ -217,6 +221,8 @@ export class UI {
     this.updateStrip(); this.updatePanel(); this.updateLinePanel();
   }
 }
+/** A card's line saying what it saves in minutes, from the reach, or nothing. */
+const saved = (txt: string | null): string => txt ? `<span class="saves" data-saves>${txt}</span>` : '';
 /** Mark the chosen card in a panel (by its data-<key> button), or none. */
 function mark(root: HTMLElement, key: string, id: string | null): void {
   root.querySelectorAll<HTMLElement>(`[data-${key}]`).forEach(b => { const on = b.dataset[key] === id; b.setAttribute('aria-pressed', String(on)); b.parentElement?.classList.toggle('sel', on); });

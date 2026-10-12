@@ -23,6 +23,13 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .lbl b{color:var(--accent);font-weight:600}
 .views{position:absolute;right:10px;top:10px;display:flex;gap:6px}
 .views button{height:var(--touch);padding-inline:14px;font-size:13px;border-radius:999px;background:rgba(12,16,32,.8)}
+.views button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+/* the minutes view's key: each band's colour and the minutes it ends at */
+.mins{position:absolute;right:10px;top:60px;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:4px 8px;max-width:calc(100% - 20px);padding:6px 10px;border-radius:var(--r);background:rgba(12,16,32,.8);border:1px solid var(--line);font-size:var(--text-sm);pointer-events:none}
+.mins[hidden]{display:none}
+.mins b{flex-basis:100%;text-align:right;font-weight:700;font-size:var(--text-xs);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.mins span{display:flex;align-items:center;gap:4px;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.mins i{display:inline-block;width:12px;height:12px;border-radius:3px}
 .toast{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);background:rgba(12,16,32,.9);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;max-width:90%;text-align:center;pointer-events:none;transition:opacity .4s}
 .toast[hidden]{display:block;opacity:0}
 /* the light's clock: slide to lock the time of day for a look around; the button lets the clock run again */
@@ -60,6 +67,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .ucard .tags{display:flex;gap:var(--s-1);flex-wrap:wrap}
 .ucard .tag{font-family:var(--mono);font-size:var(--text-xs);letter-spacing:.06em;text-transform:uppercase;color:var(--accent-ink);background:var(--accent);border-radius:var(--r-pill);padding:1px 7px}
 .ucard .adds{font-size:var(--text-sm);color:var(--fg);line-height:1.35}
+.ucard .saves{font-size:var(--text-sm);color:var(--map-reach);line-height:1.35}
 .ucard .opens,.built{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-1);font-size:var(--text-sm);color:var(--muted)}
 .ucard .opens>span,.built>span{font-family:var(--mono);font-size:var(--text-xs);letter-spacing:.06em;text-transform:uppercase}
 .ucard .opens>span::after{content:" →"}

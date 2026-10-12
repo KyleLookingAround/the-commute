@@ -37,6 +37,9 @@ export type Part =
   /** A brick bridge over the line from u0 to u1 (its width along the line), its face from v0 to v1 up to y1, with
    * segmental arches cut through it: each span [va, vb, spring, crown]. Piers stand between the spans to the ground. */
   | (Gated & Span & { type: 'arches'; v0: number; v1: number; y1: number; spans: [number, number, number, number][]; mat?: string })
+  /** A glass entrance round in plan (Stockport's on Station Road): half an ellipse w along the line and d out from its
+   * flat back at (u, v) towards `facing` across the line, glazed to y1 under a flat roof slab that overhangs it. */
+  | (Gated & { type: 'drum'; u: number; v: number; w: number; d: number; y1: number; facing: 1 | -1 })
   /** A ramp along the line at v, w wide, from (u0, y0) to (u1, y1), with a handrail each side. */
   | (Gated & Span & { type: 'ramp'; v: number; w: number; y0: number; y1: number })
   /** A footbridge's stair tower on its own, for a platform built after the bridge. */
@@ -200,6 +203,23 @@ const partBuilders: Builders = {
       v = vb;
     }
     if (p.v1 > v) boxUV(gp, { u0: p.u0, u1: p.u1, v0: v, v1: p.v1, y0: 0, y1: p.y1 }, mat);
+  },
+  drum(gp, p) {
+    // a half cylinder of glass (its curve from +u round to -u through `facing`), squashed to d across, mullions round
+    // it, and a thin slab on top that follows the curve
+    const half = (r: number, h: number, mat: THREE.Material, y: number, open: boolean) => {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 24, 1, open, Math.PI / 2, Math.PI), mat);
+      m.scale.z = -p.facing * (p.d + r - p.w / 2) / r; m.position.set(p.u, y, p.v); gp.add(m);
+    };
+    half(p.w / 2, p.y1, MAT.glass, p.y1 / 2, true);
+    half(p.w / 2 + 1.2, 0.5, MAT.steel, p.y1 + 0.25, false);
+    for (let k = 1; k < 8; k++) {
+      const t = Math.PI * k / 8; box(gp, 0.25, p.y1, 0.25, MAT.steel, p.u + Math.cos(t) * p.w / 2, p.y1 / 2, p.v + p.facing * Math.sin(t) * p.d);
+    }
+    for (const y of [p.y1 / 3, (2 * p.y1) / 3]) {
+      const band = new THREE.Mesh(new THREE.TorusGeometry(p.w / 2, 0.12, 4, 24, Math.PI), MAT.steel);
+      band.rotation.x = -Math.PI / 2; band.scale.y = -p.facing * p.d / (p.w / 2); band.position.set(p.u, y, p.v); gp.add(band);
+    }
   },
   ramp(gp, p) {
     const du = p.u1 - p.u0, dy = p.y1 - p.y0, len = Math.hypot(du, dy), tilt = Math.atan2(dy, du), cu = (p.u0 + p.u1) / 2, cy = (p.y0 + p.y1) / 2;

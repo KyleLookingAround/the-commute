@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { MAT, PAL, box, boxUV, matFor } from './scene.ts';
 import { yawFor } from './world.ts';
 import { buildBoard, buildCarPark, buildCycles, buildShop, emptyLive, type Live } from './life.ts';
+import { buildRank, type RankPart } from './taxis.ts';
 import type { Network } from '../sim/network.ts';
 import type { GameState, Station } from '../sim/types.ts';
 
@@ -45,7 +46,9 @@ export type Part =
   /** A car park that fills with the hour and how busy the station is: tarmac and bays at y, or bays on a deck. */
   | (Gated & Footprint & { type: 'carpark'; y?: number; deck?: boolean })
   /** n Sheffield stands in a row from (u, v), along the line or across it, with bikes that come and go. */
-  | (Gated & { type: 'cycles'; u: number; v: number; n: number; y?: number; across?: boolean });
+  | (Gated & { type: 'cycles'; u: number; v: number; n: number; y?: number; across?: boolean })
+  /** A taxi rank and its cabs (src/render/taxis.ts). */
+  | (Gated & RankPart & { type: 'taxi' });
 export type PartType = Part['type'];
 /** Where each direction's passengers wait: from a line at v (near the platform edge) from u0 to u1, back into the
  * platform as far as depth (4 m if not given). */
@@ -137,6 +140,7 @@ const partBuilders: Builders = {
   board(gp, p, live) { buildBoard(gp, p, live); },
   carpark(gp, p, live) { buildCarPark(gp, p, live, seedOf(p.u0, p.v0)); },
   cycles(gp, p, live) { buildCycles(gp, p, live, seedOf(p.u, p.v)); },
+  taxi(gp, p, live) { buildRank(gp, p, live); },
 };
 // the builders are keyed by the part's type, so the one looked up always takes the part; the cast says so once
 const build = (part: Part, into: THREE.Group, live: Live) => (partBuilders[part.type] as (gp: THREE.Group, p: Part, live: Live) => void)(into, part, live);

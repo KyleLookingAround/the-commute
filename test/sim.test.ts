@@ -1,5 +1,5 @@
 // The sim's tests: the network's geometry, the demand curve, boarding and money, termini, platforms, buying in order,
-// pacing, the seed, and saves. node:test, no browser; run with npm test.
+// pacing, taxi ranks, the seed, and saves. node:test, no browser; run with npm test.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -310,7 +310,29 @@ test('halt: a bought station is one platform one way, until its second platform'
 test('halt: Piccadilly as a halt is the platform trains leave from, and offers only its own stages', () => {
   const sim = new Sim(net()), pic = sim.net.station('piccadilly').index;
   assert.equal(sim.haltDir(pic), 1);
-  assert.deepEqual(sim.visibleUpgrades(pic).filter(u => u.stage).map(u => u.id), ['building']);
+  assert.deepEqual(sim.visibleUpgrades(pic).filter(u => u.stage).map(u => u.id), ['building', 'taxi']);
+});
+
+test('taxi rank: some who give up take a cab while one is in, earning a cut; the rest are lost; cabs come back', () => {
+  const sim = new Sim(net(), Sim.fresh(net(), 5)), S = sim.state(0), pic = sim.net.station('piccadilly').index;
+  assert.ok(!sim.visibleUpgrades(sim.net.station('ardwick').index).some(u => u.id === 'taxi'), 'only where a rank is offered');
+  // without a rank everyone who gives up is lost
+  sim.giveUp(0, pic, 5);
+  assert.equal(S.lost, 5); assert.equal(S.cab, 0);
+  sim.g.cash = 10000; assert.ok(sim.buyUpgrade(0, 'taxi'));
+  assert.equal(sim.cabsIn(0), TUNING.cabs, 'the rank opens with every cab in');
+  // a crowd gives up: cabs take parties until the rank is empty, and the rest still go home
+  const cash = sim.g.cash; let gave = 0;
+  for (let k = 0; k < 40; k++) { sim.giveUp(0, pic, 2); gave += 2; }
+  assert.equal(sim.cabsIn(0), 0, 'a busy moment empties the rank');
+  assert.ok(S.cab > 0 && S.cab <= TUNING.cabs * TUNING.cabSeats, `took ${S.cab} by cab`);
+  assert.equal(S.cab + S.lost, gave + 5, 'everyone who gave up is counted, by cab or lost');
+  assert.equal(sim.g.stats.cab, S.cab);
+  assert.ok(Math.abs(sim.g.cash - cash - S.cab * sim.fare(0, pic) * TUNING.cabCut) < 1e-6, 'the player takes a cut of each fare');
+  // the cabs come back from Piccadilly after the ride there and back
+  const back = TUNING.cabRank + 2 * TUNING.cabMile * Math.abs(sim.station(0).miles - sim.station(pic).miles);
+  sim.g.t += back - 1; assert.equal(sim.cabsIn(0), 0);
+  sim.g.t += 2; assert.equal(sim.cabsIn(0), TUNING.cabs);
 });
 
 test('sim: line upgrades add units and lengthen trains', () => {

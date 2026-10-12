@@ -31,6 +31,7 @@
   /* the preview's ghost: blueprint cyan, apart from the passengers' amber, and clear of brick, grass and platform by day and at dusk */
   --map-signal:#1d2128; --map-signal-green:#3dff7a; --map-board:#f7f7f2; --map-board-ink:#14161a;
   --map-board-led:#ffb52e; --map-shop-lit:#ffe2a6; --map-shutter:#9aa3ad; --map-bay-line:#eeeeea;
+  --map-cab:#1f2126; --map-cab-sign:#ffc928; --map-cab-bay:#f2d23c;
   --map-car-1:#c8283a; --map-car-2:#2a5cb0; --map-car-3:#c9ccd1; --map-car-4:#f4f4f0; --map-car-5:#2b2e35; --map-car-6:#3a8a55;
   --map-ghost:#4fdcff; --map-house-sat:0.45; --map-tower-sat:0.15; --map-house-light:0.42; --map-tower-light:0.5;
 }

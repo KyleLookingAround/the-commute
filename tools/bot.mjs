@@ -28,8 +28,8 @@ const hours = +opt('--hours', 8), jsonOut = opt('--json', null);
 
 /** The sensible player's policy, in priority order: a second unit first (Stockport needs its subway and platform 3 for
  * it), then the next station (as a halt, building whatever it waits on elsewhere), then each station's way across and
- * second platform (trains both ways), its booking office and barriers, then cheap wins, and the faster timetable once
- * there's money to spare. */
+ * second platform (trains both ways), its booking office and barriers, then cheap wins, a taxi rank where people have
+ * been giving up (a dozen or more), and the faster timetable once there's money to spare. */
 export function act(sim) {
   const g = sim.g, home = sim.svcs[0].route[0];
   const up = (i, id) => g.owned[i] && !g.ups[i][id] && sim.buyUpgrade(i, id) ? `${id}:${sim.S[i].id}` : null;
@@ -40,6 +40,7 @@ export function act(sim) {
     break;
   }
   for (const id of ['crossing', 'platform2', 'building', 'barriers', 'kiosk']) for (let i = 0; i < sim.S.length; i++) { const r = up(i, id); if (r) return r; }
+  for (let i = 0; i < sim.S.length; i++) if (g.st[i].lost >= 12) { const r = up(i, 'taxi'); if (r) return r; }
   if (g.line.units < 2 && g.cash > 30000 && sim.buyLine('units')) return 'unit';
   if (g.line.cars < 1 && g.cash > 25000 && sim.buyLine('cars')) return 'cars';
   if (g.line.timetable < 1 && g.cash > 45000 && sim.buyLine('timetable')) return 'timetable';
@@ -56,20 +57,21 @@ export function play(seed, hoursToPlay = hours) {
   const reached = {}; let lastCash = sim.g.cash, quietSince = 0, longestQuiet = 0, dayQuiet = 0, longestDayQuiet = 0;
   // lateness: every main-line departure, and at each peak who gave up where and how late trains ran
   const late = { deps: 0, within: 0, worst: 0 }, peaks = {}, main = sim.svcs[0].id;
-  const peak = k => peaks[k] ??= { lost: {}, deps: 0, within: 0, worst: 0 };
+  const peak = k => peaks[k] ??= { lost: {}, cab: {}, deps: 0, within: 0, worst: 0 };
   sim.onDepart = (tr, i, s) => {
     if (tr.svc !== main) return;
     late.deps++; if (s <= 300) late.within++; late.worst = Math.max(late.worst, s);
     const k = peakOf(sim); if (!k) return;
     const p = peak(k); p.deps++; if (s <= 300) p.within++; p.worst = Math.max(p.worst, s);
   };
-  let lostWas = sim.g.st.map(S => S.lost);
+  let lostWas = sim.g.st.map(S => S.lost), cabWas = sim.g.st.map(S => S.cab);
   const mark = (k, h) => { if (reached[k] === undefined) reached[k] = +h.toFixed(2); };
   for (let step = 0; step < hoursToPlay * 60; step++) {          // one decision a game minute
     sim.advance(60);
     const h = step / 60, k = peakOf(sim);
     sim.g.st.forEach((S, i) => { const d = S.lost - lostWas[i]; if (k && d > 0) { const l = peak(k).lost; l[sim.S[i].id] = (l[sim.S[i].id] ?? 0) + d; } });
-    lostWas = sim.g.st.map(S => S.lost);
+    sim.g.st.forEach((S, i) => { const d = S.cab - cabWas[i]; if (k && d > 0) { const c = peak(k).cab; c[sim.S[i].id] = (c[sim.S[i].id] ?? 0) + d; } });
+    lostWas = sim.g.st.map(S => S.lost); cabWas = sim.g.st.map(S => S.cab);
     // daytime quiet: hours between 06:00 and 22:00 with nothing bought (the night is quiet by design)
     const clock = sim.hour(); dayQuiet = clock >= 6 && clock < 22 ? dayQuiet + 1 / 60 : 0;
     let did; while ((did = act(sim))) { mark(did, h); quietSince = h; dayQuiet = 0; }
@@ -79,11 +81,11 @@ export function play(seed, hoursToPlay = hours) {
     for (let i = 1; i < sim.S.length; i++) if (sim.g.owned[i]) mark('owns:' + sim.S[i].id, h);
   }
   const g = sim.g, home = sim.svcs[0].route[0];
-  const measures = { 'cash at end': Math.round(g.cash), 'boarded': g.stats.boarded, 'lost': g.stats.lost, 'longest quiet hours': +longestQuiet.toFixed(1), 'longest daytime quiet': +longestDayQuiet.toFixed(2),
+  const measures = { 'cash at end': Math.round(g.cash), 'boarded': g.stats.boarded, 'lost': g.stats.lost, 'by cab': g.stats.cab, 'longest quiet hours': +longestQuiet.toFixed(1), 'longest daytime quiet': +longestDayQuiet.toFixed(2),
     'lost beyond home %': g.stats.lost ? +(100 * (1 - g.st[home].lost / g.stats.lost)).toFixed(1) : 0,
     'within 5 min %': late.deps ? +(100 * late.within / late.deps).toFixed(1) : 100, 'worst late min': +(late.worst / 60).toFixed(1) };
   for (const p of Object.values(peaks)) { p.within = p.deps ? +(100 * p.within / p.deps).toFixed(1) : 100; p.worst = +(p.worst / 60).toFixed(1); }
-  const play = fingerprint({ v: g.v, owned: g.owned, ups: g.ups, line: g.line, cash: Math.round(g.cash), boarded: g.stats.boarded, lost: g.stats.lost });
+  const play = fingerprint({ v: g.v, owned: g.owned, ups: g.ups, line: g.line, cash: Math.round(g.cash), boarded: g.stats.boarded, lost: g.stats.lost, cab: g.stats.cab });
   return { seed, reached, measures, peaks, play };
 }
 
@@ -104,14 +106,17 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const b = band(mean, baseline.ranges[k]); if (b === 'off') off++;
     console.log(`| ${k} | ${baseline.ranges[k].join('–')} | ${vals.map(v => v === undefined ? 'none' : v).join(' | ')} | ${mean === undefined ? 'none' : +mean.toFixed(1)} | ${b} |`);
   }
-  // the peaks, mean of the seeds: who gave up at each station, and how late main-line trains left their stops
+  // the peaks, mean of the seeds: who gave up at each station (and how many of them took a cab), and how late
+  // main-line trains left their stops
   const mean = xs => +(xs.reduce((a, b) => a + b, 0) / xs.length).toFixed(1);
   const pk = [...new Set(runs.flatMap(r => Object.keys(r.peaks)))], ids = [...new Set(runs.flatMap(r => Object.values(r.peaks).flatMap(p => Object.keys(p.lost))))];
-  console.log(`\n| Peak (mean of seeds) | ${ids.map(i => 'lost ' + i).join(' | ')} | within 5 min % | worst late min |`);
-  console.log(`| --- | ${ids.map(() => '---').join(' | ')} | --- | --- |`);
+  const cabIds = [...new Set(runs.flatMap(r => Object.values(r.peaks).flatMap(p => Object.keys(p.cab))))];
+  console.log(`\n| Peak (mean of seeds) | ${ids.map(i => 'lost ' + i).join(' | ')} | ${cabIds.map(i => 'cab ' + i).join(' | ')}${cabIds.length ? ' | ' : ''}within 5 min % | worst late min |`);
+  console.log(`| --- | ${[...ids, ...cabIds].map(() => '---').join(' | ')} | --- | --- |`);
   for (const k of pk) {
-    const ps = runs.map(r => r.peaks[k] ?? { lost: {}, within: 100, worst: 0 });
-    console.log(`| ${k} | ${ids.map(i => mean(ps.map(p => p.lost[i] ?? 0))).join(' | ')} | ${mean(ps.map(p => p.within))} | ${mean(ps.map(p => p.worst))} |`);
+    const ps = runs.map(r => r.peaks[k] ?? { lost: {}, cab: {}, within: 100, worst: 0 });
+    const cabs = cabIds.map(i => mean(ps.map(p => p.cab[i] ?? 0)));
+    console.log(`| ${k} | ${ids.map(i => mean(ps.map(p => p.lost[i] ?? 0))).join(' | ')} | ${cabs.join(' | ')}${cabs.length ? ' | ' : ''}${mean(ps.map(p => p.within))} | ${mean(ps.map(p => p.worst))} |`);
   }
   console.log(off ? `\n${off} measure${off === 1 ? '' : 's'} off the baseline` : '\nall within the baseline');
   if (jsonOut) { mkdirSync(dirname(join(root, jsonOut)), { recursive: true }); writeFileSync(join(root, jsonOut), JSON.stringify(runs, null, 2)); }

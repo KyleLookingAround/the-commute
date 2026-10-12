@@ -52,6 +52,7 @@
     { "type": "lamps", "u0": -330, "u1": -305, "v": 5.5, "every": 30, "upgrade": "extend" },
     { "type": "box", "u0": 48, "u1": 104, "v0": 60, "v1": 108, "y0": 0, "y1": 12, "mat": "concrete", "scenery": true },
     { "type": "carpark", "u0": 49, "u1": 103, "v0": 61, "v1": 107, "y": 12, "deck": true },
-    { "type": "cycles", "u": 100, "v": 0, "n": 8, "across": true, "upgrade": "building" }
+    { "type": "cycles", "u": 100, "v": 0, "n": 8, "across": true, "upgrade": "building" },
+    { "type": "taxi", "u": 60, "v": 54, "back": [1, 0], "kerb": -1, "n": 6, "door": [70, 49], "upgrade": "taxi", "note": "The rank on the London Road side, from memory, placed by eye" }
   ]
 }

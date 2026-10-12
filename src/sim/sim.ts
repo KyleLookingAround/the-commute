@@ -21,6 +21,7 @@ export const UPGRADES: Upgrade[] = [
   { id: 'crossing', name: null, price: 2000, desc: 'The far side walks across, not round: 5 min off their walk', stage: true },
   { id: 'platform2', name: null, price: 3500, desc: 'Trains call both ways, so the crowd going home too', requires: ['crossing'], stage: true },
   { id: 'building', name: null, price: 3000, desc: '90% of fares collected (82% at a halt)', stage: true },
+  { id: 'taxi', name: null, price: 1200, desc: 'Cabs take some who’d give up on the train: a cut of each fare', stage: true },
   { id: 'kiosk', name: 'Kiosk', price: 1500, desc: '+£0.35 per boarding passenger' },
   { id: 'canopy', name: 'Canopy', price: 2500, desc: 'Waiting in the dry feels a quarter shorter' },
   { id: 'barriers', name: 'Ticket barriers', price: 4000, desc: 'Collect every fare', requires: ['building'] },
@@ -67,6 +68,11 @@ export const TUNING = {
   delayWeight: 3,                              // waiting feels three times riding (UK appraisal weighs lateness about so)
   demand: 1.95,                                // trips an hour for a station's catchment, at peak, with the city on its doorstep
   amOut: 0.8, pmOut: 0.35,                     // the share of trips from home rather than going home, before and after noon
+  // taxi ranks (docs/DESIGN.md, Taxi ranks): of a party giving up on the train, each takes a cab with chance cabShare
+  // while one's in; a cab takes up to cabSeats going the same way and is away cabRank plus the ride there and back at
+  // cabMile seconds a mile (town traffic), and the player takes a cut of the cab fare: half of it, and a cab fare is
+  // about three times the train's, so cabCut times the train fare
+  cabs: 6, cabSeats: 4, cabShare: 0.6, cabRank: 3 * 60, cabMile: 2 * 60, cabCut: 1.5,
 };
 export type Tuning = typeof TUNING;
 
@@ -114,9 +120,9 @@ export class Sim {
       owned: network.stations.map((_, i) => i === 0),
       ups: network.stations.map(() => ({})),
       line: { units: 0, cars: 0, timetable: 0 },
-      st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0 })),
+      st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0, cab: 0, cabs: [] })),
       trains: [], ends: {},
-      stats: { boarded: 0, lost: 0 },
+      stats: { boarded: 0, lost: 0, cab: 0 },
     };
   }
 
@@ -413,14 +419,40 @@ export class Sim {
     if (count <= 0) return;
     const g = this.g, S = this.state(i), cap = this.capacity(i);
     const room = Math.max(0, cap - S.waiting), take = Math.min(room, count);
-    S.lost += count - take; g.stats.lost += count - take;
-    if (take <= 0) return;
     let tot = 0; for (let j = 0; j < this.S.length; j++) if (this.dirIdx(i, j) === dirIdx) tot += this.rates[j]!;
-    if (tot <= 0) return;
-    let r = this.rand() * tot, dest = -1;
-    for (let j = 0; j < this.S.length; j++) { if (this.dirIdx(i, j) !== dirIdx || !this.rates[j]) continue; dest = j; r -= this.rates[j]!; if (r <= 0) break; }
+    // those turned away only need somewhere to go if there's a cab to take them there
+    if (take < count) this.giveUp(i, S.cabs.length && tot > 0 ? this.pickDest(i, dirIdx, tot) : -1, count - take);
+    if (take <= 0 || tot <= 0) return;
+    const dest = this.pickDest(i, dirIdx, tot);
     S.q[dirIdx].push({ t: g.t, dest, n: take, give: g.t + this.patience(i, dest) }); S.waiting += take;
   }
+  /** Where a group setting out from station i one way is going, chosen by the trips to each place (the last
+   * `tripRates`), tot being their sum that way. */
+  pickDest(i: number, dirIdx: 0 | 1, tot: number): number {
+    let r = this.rand() * tot, dest = -1;
+    for (let j = 0; j < this.S.length; j++) { if (this.dirIdx(i, j) !== dirIdx || !this.rates[j]) continue; dest = j; r -= this.rates[j]!; if (r <= 0) break; }
+    return dest;
+  }
+  /** n people at station i bound for dest give up on the train: turned away by a full platform, or out of patience.
+   * Where there's a taxi rank each takes a cab with chance cabShare, while there's a cab in: a cab takes up to cabSeats
+   * of them and is away for the ride there and back, and the player takes a cut of each fare. The rest go home, lost;
+   * a busy peak empties the rank. */
+  giveUp(i: number, dest: number, n: number): void {
+    const g = this.g, S = this.state(i);
+    if (S.cabs.length && dest >= 0) {
+      let want = 0; for (let k = 0; k < n; k++) if (this.rand() < TUNING.cabShare) want++;
+      const away = TUNING.cabRank + 2 * TUNING.cabMile * Math.abs(this.station(i).miles - this.station(dest).miles);
+      for (let k = 0; k < S.cabs.length && want > 0; k++) {
+        if (S.cabs[k]! > g.t) continue;
+        const m = Math.min(want, TUNING.cabSeats), rev = m * this.fare(i, dest) * TUNING.cabCut;
+        S.cabs[k] = g.t + away; want -= m; n -= m; S.cab += m; g.stats.cab += m;
+        g.cash += rev; g.earned += rev; S.revenue += rev;
+      }
+    }
+    S.lost += n; g.stats.lost += n;
+  }
+  /** How many of a station's cabs stand at its rank now. */
+  cabsIn(i: number): number { const S = this.state(i); let n = 0; for (const t of S.cabs) if (t <= this.g.t) n++; return n; }
   /** How long a group setting out from station i for station j will wait. Their own time budget is drawn from the
    * people who'd make this journey at all (the fall-off in tripRates is how budgets spread: half of people's exceed
    * TUNING.budget), and they wait until what's left of it after the walks, the ride and any change is used up. So
@@ -442,7 +474,7 @@ export class Sim {
     const g = this.g, S = this.state(i);
     for (const q of S.q) {
       let k = 0;
-      for (const c of q) { if (c.give !== undefined && g.t > c.give) { S.waiting -= c.n; S.lost += c.n; g.stats.lost += c.n; } else q[k++] = c; }
+      for (const c of q) { if (c.give !== undefined && g.t > c.give) { S.waiting -= c.n; this.giveUp(i, c.dest, c.n); } else q[k++] = c; }
       q.length = k;
     }
   }
@@ -474,7 +506,9 @@ export class Sim {
   buyUpgrade(i: number, id: string): boolean {
     const u = UPGRADES.find(u => u.id === id), ups = this.g.ups[i];
     if (!u || !ups || !this.canBuyUpgrade(i, id)) return false;
-    this.g.cash -= this.upgradePrice(i, u); ups[u.id] = true; this.refreshJourneys(); return true;
+    this.g.cash -= this.upgradePrice(i, u); ups[u.id] = true;
+    if (u.id === 'taxi') this.state(i).cabs = new Array<number>(TUNING.cabs).fill(0);   // the rank opens with every cab in
+    this.refreshJourneys(); return true;
   }
   /** Whether a line upgrade can be seen yet: extra units need room for a second train to turn at the line's home
    * terminus (Stockport's platform 3). */

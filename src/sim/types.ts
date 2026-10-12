@@ -67,7 +67,7 @@ export interface Frame { x: number; z: number; heading: number; dx: number; dz: 
 // ---- the saved game ----
 /** The stages a station grows through from a halt: a way across the line, a second platform, a booking office, and at
  * the big stations the rest of the station. Offered only where the station's `grow` lists them. */
-export type StageId = 'crossing' | 'platform2' | 'building' | 'platforms';
+export type StageId = 'crossing' | 'platform2' | 'building' | 'platforms' | 'taxi';
 export type UpgradeId = StageId | 'kiosk' | 'barriers' | 'canopy' | 'lifts' | 'extend' | 'retail';
 export type LineUpgradeId = 'units' | 'cars' | 'timetable';
 /** A group of passengers who joined a platform queue together: when (game seconds), where to, how many, whether
@@ -75,8 +75,13 @@ export type LineUpgradeId = 'units' | 'cars' | 'timetable';
  * go home (none for someone changing trains). */
 export interface Queued { t: number; dest: number; n: number; paid?: boolean; give?: number }
 /** alighted: passengers who got off here at the end of their journey, so the view can show them leaving; changed:
- * passengers who got off here to catch another train. */
-export interface StationState { acc: number; q: [Queued[], Queued[]]; waiting: number; boarded: number; alighted: number; changed: number; revenue: number; lost: number }
+ * passengers who got off here to catch another train. cab: people who gave up on the train and took a cab from the
+ * taxi rank instead; cabs: when each of the rank's cabs is back from its last fare (sim seconds; free once that's
+ * passed), none until a rank is built. */
+export interface StationState {
+  acc: number; q: [Queued[], Queued[]]; waiting: number; boarded: number; alighted: number; changed: number; revenue: number; lost: number;
+  cab: number; cabs: number[];
+}
 /** svc: the service it runs; calling: the station a dwelling train is boarding at; boardAcc: boarding it has room for
  * this stop and hasn't used yet, in passengers (its doors take a share of a passenger each second; below zero while
  * people are still getting off). load: how many on board are going to each station, including those who'll change at
@@ -92,7 +97,7 @@ export interface Train {
 export interface GameState {
   v: number; seed: number; rngState: number; t: number; day: number; cash: number; earned: number;
   owned: boolean[]; ups: Partial<Record<UpgradeId, boolean>>[]; line: Record<LineUpgradeId, number>;
-  st: StationState[]; trains: Train[]; stats: { boarded: number; lost: number };
+  st: StationState[]; trains: Train[]; stats: { boarded: number; lost: number; cab: number };
   /** By service, the timetabled departure of the unit that last turned round at each end of its run (0 the south end,
    * 1 the north), which the next unit keeps a headway behind. */
   ends: Record<string, [number, number]>;

@@ -18,6 +18,7 @@ import { buildStations, syncStations, previewUpgrade, partsBox, setReducedMotion
 import type { Kit } from './render/stations.ts';
 import { Lineside } from './render/lineside.ts';
 import { StationLife } from './render/life.ts';
+import { TaxiLayer } from './render/taxis.ts';
 import { TrainLayer } from './render/trains.ts';
 import { PassengerLayer } from './render/passengers.ts';
 import { OrbitRig } from './render/camera.ts';
@@ -69,6 +70,7 @@ const lineside = new Lineside(scene, net);
 // everything on the ground so far throws and takes shadows; the sky, added after, does neither
 scene.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = true; o.receiveShadow = true; } });
 const life = new StationLife(built, sim);
+const taxis = new TaxiLayer(built);
 const trains = new TrainLayer(scene, net, networkDef.services ?? []);
 // where the track runs beside each platform face, from the service that boards there that way (at Stockport the main
 // line northbound, the Hazel Grove line southbound), so passengers stand back from the right edge
@@ -184,7 +186,7 @@ function frame(now: number): void {
   sky.update(light.horizon, light.daylight, camera, dt);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
   syncStations(built, sim.g, realDt); lineside.sync(!!sim.g.line.timetable, realDt); trains.sync(sim.g, dtGame, endAhead); pax.sync(sim.g, dtGame); labels();
-  life.sync(sim, lockHour ?? sim.hour(), dt);
+  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame);
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
   renderer.render(scene, camera);

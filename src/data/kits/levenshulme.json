@@ -33,6 +33,7 @@
     { "type": "board", "u": -42, "v": -9.7, "serves": "both", "upgrade": "building" },
     { "type": "lamps", "u0": 75, "u1": 100, "v": -9.7, "every": 25, "upgrade": "extend" },
     { "type": "lamps", "u0": 82, "u1": 110, "v": 14.9, "every": 25, "upgrade": ["extend", "platform2"] },
-    { "type": "cycles", "u": -56, "v": -20, "n": 4, "upgrade": "crossing" }
+    { "type": "cycles", "u": -56, "v": -20, "n": 4, "upgrade": "crossing" },
+    { "type": "taxi", "u": -45, "v": -26, "back": [1, 0], "kerb": 1, "n": 4, "door": [-62, -18], "upgrade": "taxi", "note": "Cabs waiting by the street-level entrance on the west side, from memory, placed by eye" }
   ]
 }

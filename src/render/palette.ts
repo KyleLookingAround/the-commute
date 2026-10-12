@@ -13,6 +13,7 @@ const FALLBACK = {
   coin: '#f5c542', 'coin-glow': '#5a3f08', 'win-empty': '#9db8cc', 'win-busy': '#ffd27a', late: '#ff8a1c', ghost: '#4fdcff',
   signal: '#1d2128', 'signal-green': '#3dff7a', board: '#f7f7f2', 'board-ink': '#14161a',
   'board-led': '#ffb52e', 'shop-lit': '#ffe2a6', shutter: '#9aa3ad', 'bay-line': '#eeeeea',
+  'cab': '#1f2126', 'cab-sign': '#ffc928', 'cab-bay': '#f2d23c',
   'car-1': '#c8283a', 'car-2': '#2a5cb0', 'car-3': '#c9ccd1', 'car-4': '#f4f4f0', 'car-5': '#2b2e35', 'car-6': '#3a8a55',
 };
 const NUMBERS = { 'house-sat': 0.45, 'tower-sat': 0.15, 'house-light': 0.42, 'tower-light': 0.5 };

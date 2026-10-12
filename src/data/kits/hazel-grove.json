@@ -40,6 +40,7 @@
     { "type": "lamps", "u0": 165, "u1": 195, "v": -9.5, "every": 25, "upgrade": "extend" },
     { "type": "lamps", "u0": 165, "u1": 195, "v": 5.1, "every": 25, "upgrade": ["extend", "platform2"] },
     { "type": "carpark", "u0": 20, "u1": 125, "v0": 24, "v1": 62 },
-    { "type": "cycles", "u": 9, "v": 23, "n": 5, "upgrade": "crossing" }
+    { "type": "cycles", "u": 9, "v": 23, "n": 5, "upgrade": "crossing" },
+    { "type": "taxi", "u": -20, "v": 26, "back": [1, 0], "kerb": -1, "n": 5, "door": [0, 21], "upgrade": "taxi", "note": "Cabs waiting outside the station building, from memory, placed by eye" }
   ]
 }

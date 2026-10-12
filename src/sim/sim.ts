@@ -10,7 +10,8 @@ import type { Network } from './network.ts';
 import { journeys, cycle, runTime, waitWeight, type Journey } from './journeys.ts';
 import { freshWeather, stepWeather, feel, weatherKey } from './weather.ts';
 import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
-import type { GameState, LineUpgradeId, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
+import { stepExpress, nextSlot } from './expresses.ts';
+import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
 /** A station upgrade. name null: the station names it (its retail, or its stage in `grow`). requires: upgrades at the
  * same station that must be built first; one the station doesn't offer counts as built. stage: offered only where the
@@ -56,6 +57,14 @@ export const TUNING = {
   // faces are all taken stands at its signal, approach metres short of where it stops, until one is free, and a face is
   // free once the train leaving it has run clear metres on (its tail off the platform)
   approach: 450, clear: 150,
+  claim: 700,                                  // metres out a train claims the platform it will stand at (the view draws it there)
+  carPitch: 23.6,                              // metres from one car's middle to the next's
+  // the expresses (src/sim/expresses.ts, docs/DESIGN.md, Expresses): they run at expressSpeed, stand expressDwell at a
+  // stop, and from the clock's expressFrom to expressTo they don't come on (no long-distance trains through the small
+  // hours). At each call at a station the player owns one pays the access charge, and its long-distance passengers
+  // (expressPax a call at the peak's height, by the demand curve, off and as many on) each pay throughShare of their
+  // fare to the station
+  expressSpeed: 40, expressDwell: 60, expressFrom: 23, expressTo: 5.5, accessCharge: 40, expressPax: 30, throughShare: 2,
   doorsPerCar: 2, boardPerDoor: 0.7,           // passengers a second through each door: a 2-car unit boards about 110 in a 45 s stop
   doorsCrowd: 0.7,                             // ...slowing as it fills, to 30% of that when full: people squeeze in
   platformCap: 150, platformCapExtended: 320,
@@ -106,14 +115,24 @@ export function demandCurve(h: number): number {
 }
 
 /** A passenger service as the sim runs it: its route as station indices south to north, and its home if it only runs
- * as far as stations are owned from there. The first service is the main line, whose units the line upgrades buy. */
-interface Svc { id: string; route: number[]; home: number | null }
+ * as far as stations are owned from there. The first service is the main line, whose units the line upgrades buy.
+ * plats: its platforms (indices into the station's `plats`) at the stations its data lists. An express runs through
+ * from off the map (src/sim/expresses.ts): portal is where it comes on and goes off, along the corridor. */
+export interface Svc {
+  id: string; route: number[]; home: number | null; def: ServiceDef; tracks: { north: string; south: string };
+  plats: Map<number, { north?: number[]; south?: number[]; turn?: number[] }>;
+  express: { south: string; every: number; at: number; portal: number } | null;
+}
+/** A platform face as the sim knows it: its data, and which ways trains call at it where no service says. */
+export interface Plat { def: PlatformDef; ways: (0 | 1)[] }
 
 export class Sim {
   net: Network;
   S: Station[];
   g: GameState;
   svcs: Svc[];
+  /** Each station's platform faces: its data's, or the halt's (1) and the second platform's (2). */
+  plats: Plat[][];
   /** Stations always served whether owned or not: the ends of the services that run their whole route (Stockport and
    * Piccadilly), so there's somewhere to go from the start. */
   fixedEnds: Set<number>;
@@ -132,9 +151,20 @@ export class Sim {
     this.net = network;
     this.S = network.stations;              // [{ id, name, s, miles, catchment, price, retail, index }]
     this.g = state || Sim.fresh(network);
-    this.svcs = network.services().map(s => ({ id: s.def.id, route: s.route, home: s.home }));
-    if (!this.svcs.length) throw new Error('network.json names no passenger service');
-    this.fixedEnds = new Set(this.svcs.filter(v => v.home === null).flatMap(v => [v.route[0]!, v.route[v.route.length - 1]!]));
+    this.svcs = network.services().map(s => ({ id: s.def.id, route: s.route, home: s.home, def: s.def, tracks: s.def.tracks, plats: new Map(), express: null }));
+    if (!this.svcs.length || this.svcs[0]!.def.through) throw new Error('network.json names no passenger service first');
+    this.fixedEnds = new Set(this.local().filter(v => v.home === null).flatMap(v => [v.route[0]!, v.route[v.route.length - 1]!]));
+    this.plats = this.S.map((st, i) => st.platforms?.map(def => ({ def, ways: (def.ways ?? ['north', 'south']).map(w => w === 'north' ? 0 : 1) as (0 | 1)[] }))
+      ?? [{ def: { id: '1' }, ways: [this.haltDir(i)] }, ...(st.grow?.platform2 ? [{ def: { id: '2', upgrade: 'platform2' as const }, ways: [1 - this.haltDir(i) as 0 | 1] }] : [])]);
+    for (const v of this.svcs) {
+      for (const [id, P] of Object.entries(v.def.platforms ?? {})) {
+        if (!P) continue;
+        const i = network.station(id).index, ix = (ids?: string[]) => ids?.map(p => { const k = this.plats[i]!.findIndex(q => q.def.id === p); if (k < 0) throw new Error(`${v.id}: no platform ${p} at ${id}`); return k; });
+        v.plats.set(i, { north: ix(P.north), south: ix(P.south), turn: ix(P.turn) });
+      }
+      const th = v.def.through;
+      if (th) v.express = { ...th, portal: network.extent(v.tracks.north)[0] + v.def.cars * TUNING.carPitch / 2 };
+    }
     this.rates = new Float64Array(this.S.length); this.crowding = new Float64Array(this.svcs.length * 2); this.trainsEachWay = new Float64Array(this.svcs.length * 2);
     this.growth = new Float64Array(this.S.length);
   }
@@ -144,9 +174,9 @@ export class Sim {
       owned: network.stations.map((_, i) => i === 0),
       ups: network.stations.map(() => ({})),
       line: { units: 0, cars: 0, timetable: 0, spare: 0 },
-      st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0, cab: 0, cabs: [] })),
+      st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0, cab: 0, cabs: [], through: 0 })),
       trains: [], ends: {}, trouble: freshTrouble(), weather: freshWeather(seed, 6.5 * 3600 / TUNING.dayRate),
-      stats: { boarded: 0, lost: 0, cab: 0 },
+      stats: { boarded: 0, lost: 0, cab: 0, through: 0, express: 0 },
       homes: network.stations.map(s => s.catchment),
     };
   }
@@ -173,12 +203,12 @@ export class Sim {
   /** Which way station j lies from station i: 0 towards Manchester (further along the corridor), 1 away. */
   dirIdx(i: number, j: number): 0 | 1 { return this.station(j).s > this.station(i).s ? 0 : 1; }
   /** The one way a halt's platform serves: towards Manchester where any train goes on that way, otherwise away. */
-  haltDir(i: number): 0 | 1 { return this.svcs.some(v => { const k = v.route.indexOf(i); return k >= 0 && k < v.route.length - 1; }) ? 0 : 1; }
+  haltDir(i: number): 0 | 1 { return this.local().some(v => { const k = v.route.indexOf(i); return k >= 0 && k < v.route.length - 1; }) ? 0 : 1; }
   /** Whether trains travelling one way (0 towards Manchester, 1 away) have a platform here: a halt only its one way,
    * both once it has a second platform. */
   serves(i: number, d: 0 | 1): boolean { return !!this.ups(i).platform2 || d === this.haltDir(i); }
   /** Whether a train turns round here, at the end of a run (a terminus, or as far as a branch is owned). */
-  runEnd(i: number): boolean { return this.fixedEnds.has(i) || this.svcs.some(v => { const sp = this.span(v); return sp[0] === i || sp[sp.length - 1] === i; }); }
+  runEnd(i: number): boolean { return this.fixedEnds.has(i) || this.local().some(v => { const sp = this.span(v); return sp[0] === i || sp[sp.length - 1] === i; }); }
   /** Whether a passenger travelling one way can get off here: a platform for that way, or a train turning round. */
   arrivable(i: number, d: 0 | 1): boolean { return this.reachable(i) && (this.serves(i, d) || this.runEnd(i)); }
 
@@ -204,6 +234,8 @@ export class Sim {
   }
 
   // ---- services ----
+  /** The services that carry the line's own passengers: all but the expresses. */
+  local(): Svc[] { return this.svcs.filter(v => !v.express); }
   svc(id: string): Svc { const v = this.svcs.find(v => v.id === id); if (!v) throw new Error(`no service "${id}"`); return v; }
   /** The stations a service runs between now, in route order: its whole route, or from its home as far each way as
    * stations are owned (none until one beyond home is). */
@@ -217,28 +249,41 @@ export class Sim {
   /** Units a service runs: the main line's are bought with the line upgrades; a branch runs one once it's open. */
   unitsFor(v: Svc): number { return this.span(v).length < 2 ? 0 : v === this.svcs[0] ? this.unitsInService() : 1; }
   /** Whether a station is the end of a train's run, where it turns round. */
-  isEnd(tr: Train, i: number): boolean { const sp = this.span(this.svc(tr.svc)); return i === sp[0] || i === sp[sp.length - 1]; }
+  isEnd(tr: Train, i: number): boolean {
+    const v = this.svc(tr.svc), sp = this.span(v);
+    return v.express ? i === sp[sp.length - 1] : i === sp[0] || i === sp[sp.length - 1];
+  }
 
   // ---- trains ----
   ensureTrains(): void {
     const g = this.g;
     for (const v of this.svcs) {
       const n = this.unitsFor(v), sp = this.span(v); if (!n) continue;
+      // an express comes on at its next slot
+      if (v.express) {
+        if (!g.trains.some(t => t.svc === v.id)) g.trains.push({ ...this.unit(v, v.express.portal, 1), state: 'away', due: nextSlot(v.express, g.t), onboard: 0 });
+        continue;
+      }
       const s0 = this.station(sp[0]!).s, s1 = this.station(sp[sp.length - 1]!).s;
       for (let k = g.trains.filter(t => t.svc === v.id).length; k < n; k++) {
         // the main line's units spread along it, alternate ways; a branch's unit starts at its home, heading out
         const out = v.home !== null && v.route.indexOf(v.home) > 0 ? -1 : 1;
         const [s, dir] = v.home === null ? [s0 + (s1 - s0) * ((k + 0.5) / n), (k % 2 === 0 ? 1 : -1) as 1 | -1] : [this.station(v.home).s, out as 1 | -1];
-        g.trains.push({ id: g.trains.length, svc: v.id, dir, s, v: 0, state: 'run', dwell: 0, next: null, load: this.S.map(() => 0), onboard: 0, cars: this.carsPerUnit(), calling: null, boardAcc: 0, due: -1, late: 0, stood: 0, quiet: 0 });
+        g.trains.push(this.unit(v, s, dir));
       }
     }
-    for (const tr of g.trains) tr.cars = this.carsPerUnit();
+    for (const tr of g.trains) if (!this.svc(tr.svc).express) tr.cars = this.carsPerUnit();
+  }
+  /** A new unit of a service at s, heading dir. */
+  private unit(v: Svc, s: number, dir: 1 | -1): Train {
+    return { id: this.g.trains.length, svc: v.id, dir, s, v: 0, state: 'run', dwell: 0, next: null, load: this.S.map(() => 0), onboard: 0,
+      cars: v.express ? v.def.cars : this.carsPerUnit(), calling: null, boardAcc: 0, due: -1, late: 0, stood: 0, quiet: 0, pf: -1, pfAt: -1, bound: -1 };
   }
   nextStop(tr: Train): number {
     // the next station the train calls at in its direction (dir +1 = towards Manchester, increasing s): one on its
     // service's run that's owned, or the end of the run
     const sp = this.span(this.svc(tr.svc)), first = sp[0]!, last = sp[sp.length - 1]!;
-    const d: 0 | 1 = tr.dir > 0 ? 0 : 1, calls = (i: number) => i === first || i === last || (!!this.g.owned[i] && this.serves(i, d));
+    const d: 0 | 1 = tr.dir > 0 ? 0 : 1, calls = (i: number) => this.svc(tr.svc).express ? this.callsAt(tr, i) : i === first || i === last || (!!this.g.owned[i] && this.serves(i, d));
     if (tr.dir > 0) { for (const i of sp) if (this.station(i).s > tr.s + 1 && calls(i)) return i; return last; }
     for (let k = sp.length - 1; k >= 0; k--) { const i = sp[k]!; if (this.station(i).s < tr.s - 1 && calls(i)) return i; }
     return first;
@@ -323,58 +368,107 @@ export class Sim {
     }
   }
   // ---- platforms ----
-  /** Whether a train calls at station i: an owned station with a platform its way, or either end of its run. */
-  callsAt(tr: Train, i: number): boolean { return this.isEnd(tr, i) || (!!this.g.owned[i] && this.serves(i, tr.dir > 0 ? 0 : 1)); }
-  /** The faces a train can use at station i, and which trains share them: where it turns round, the platforms trains
-   * turn in (one at a halt, a second with the second platform, two more with the rest of the station; as many as
-   * needed at a station the player doesn't own, which is the railway's and fully built), shared by every train turning
-   * there; elsewhere the one platform its way, shared with the trains going the same way. */
-  faces(tr: Train, i: number): number {
-    if (!this.isEnd(tr, i)) return 1;
-    if (!this.g.owned[i]) return Infinity;
-    const u = this.ups(i); return 1 + (u.platform2 ? 1 : 0) + (u.platforms ? 2 : 0);
+  /** Whether a train calls at station i: an owned station with a platform its way, or either end of its run; an
+   * express wherever its route has a platform built for it its way, and always at the end of its run. */
+  callsAt(tr: Train, i: number): boolean {
+    if (this.isEnd(tr, i)) return true;
+    const v = this.svc(tr.svc);
+    if (v.express) return v.route.includes(i) && this.platsFor(tr, i, tr.dir > 0 ? 'north' : 'south').length > 0;
+    return !!this.g.owned[i] && this.serves(i, tr.dir > 0 ? 0 : 1);
   }
-  /** Whether train o takes a face at station i: standing there, inside its signal running in, or not yet clear of
+  /** Whether platform p at station i is built: every platform at a station the player doesn't own (the railway's,
+   * fully built), and at one they do, once its stage is bought. */
+  built(i: number, p: number): boolean {
+    if (!this.g.owned[i]) return true;
+    const up = this.plats[i]?.[p]?.def.upgrade, ups = this.ups(i);
+    return up === undefined || [up].flat().every(u => !!ups[u as UpgradeId]);
+  }
+  /** The platforms a train of this service can use at station i, calling one way or turning round, built ones only,
+   * the one to try first first: its service's list there (a turning list shared out by unit, so each unit has its own
+   * first choice and every platform built is in use), or the station's faces that way. */
+  platsFor(tr: Train, i: number, kind: 'north' | 'south' | 'turn'): number[] {
+    const v = this.svc(tr.svc), P = this.plats[i] ?? [], own = v.plats.get(i)?.[kind];
+    const all = own ?? P.flatMap((f, k) => kind === 'turn' || f.ways.includes(kind === 'north' ? 0 : 1) ? [k] : []);
+    const ok = all.filter(p => this.built(i, p));
+    if (kind !== 'turn' || !own || ok.length < 2) return ok;
+    let unit = 0; for (const o of this.g.trains) { if (o === tr) break; if (o.svc === tr.svc) unit++; }
+    const k = unit % ok.length; return [...ok.slice(k), ...ok.slice(0, k)];
+  }
+  /** What a train running in to station i will stand at: turning round there, or calling its way. */
+  kindAt(tr: Train, i: number): 'north' | 'south' | 'turn' { return this.isEnd(tr, i) ? 'turn' : tr.dir > 0 ? 'north' : 'south'; }
+  /** Where along the line a train stands at station i on platform p: the station's stop, or the platform's own; an
+   * express turning round stands with its front where the longest stopping unit's would, so it clears the buffers. */
+  stopAt(tr: Train, i: number, p: number): number {
+    const st = this.station(i), u = this.plats[i]?.[p]?.def.stop;
+    let s = u === undefined ? st.s : st.at + u;
+    if (this.svc(tr.svc).express && this.isEnd(tr, i)) s += tr.dir * (this.longest() - tr.cars) * TUNING.carPitch / 2;
+    return s;
+  }
+  /** The most cars a stopping unit can have. */
+  longest(): number { return 2 + 2 * (LINE_UPGRADES.find(u => u.id === 'cars')?.max ?? 0); }
+  /** Whether train o takes platform p at station i: standing there, running in having claimed it, or not yet clear of
    * the platform leaving. */
-  holds(o: Train, i: number): boolean {
-    if (o.state === 'dwell') return (o.calling ?? o.next) === i;
+  holds(o: Train, i: number, p: number): boolean {
+    if (o.state === 'away') return false;
+    if (o.state === 'dwell') return o.pfAt === i && o.pf === p;
     const d = (this.station(i).s - o.s) * o.dir;
-    if (o.next === i) return d < TUNING.approach;
-    return d <= 0 && d > -TUNING.clear && this.callsAt(o, i);
+    if (o.next === i && o.bound === p && d < TUNING.claim) return true;
+    return o.pfAt === i && o.pf === p && d <= 0 && d > -TUNING.clear;
   }
-  /** Whether a train running in to station i must wait at its signal: every face it could use is taken. */
-  blocked(tr: Train, i: number): boolean {
-    const turn = this.isEnd(tr, i), n = this.faces(tr, i); if (!isFinite(n)) return false;
-    let taken = 0;
-    for (const o of this.g.trains) if (o !== tr && this.isEnd(o, i) === turn && (turn || o.dir === tr.dir) && this.holds(o, i) && ++taken >= n) return true;
+  /** A train running in to station i claims the first of its platforms there nobody else holds; at a station the
+   * player doesn't own (the railway's, which never holds a train) or once it's too close to stop, its first choice
+   * whether or not it's free. Returns whether it has one. */
+  claim(tr: Train, i: number, force: boolean): boolean {
+    if (tr.bound >= 0) return true;
+    const ps = this.platsFor(tr, i, this.kindAt(tr, i));
+    for (const p of ps) if (!this.g.trains.some(o => o !== tr && this.holds(o, i, p))) { tr.bound = p; return true; }
+    if (force || !this.g.owned[i]) { tr.bound = ps[0] ?? 0; return true; }
     return false;
   }
-  /** How far a running train can go before it closes on the one ahead of it on its line (same service, same way). */
+  /** How far a running train can go before it closes on the one ahead of it on its line (the same track, same way). */
   clear(tr: Train): number {
-    let gap = Infinity;
-    for (const o of this.g.trains) if (o !== tr && o.svc === tr.svc && o.dir === tr.dir) { const d = (o.s - tr.s) * tr.dir; if (d > 0 && d < gap) gap = d; }
+    let gap = Infinity; const track = this.trackOf(tr);
+    for (const o of this.g.trains) if (o !== tr && o.state !== 'away' && o.dir === tr.dir && this.trackOf(o) === track) { const d = (o.s - tr.s) * tr.dir; if (d > 0 && d < gap) gap = d; }
     return gap - TUNING.separation;
   }
-  stepTrain(tr: Train, dt: number): void {
-    if (tr.state === 'dwell') { this.depart(tr, dt); return; }
-    // a failed unit stands where it is until it's rescued, and the trains behind it wait
-    if (failed(this.g, tr)) { tr.v = 0; return; }
-    if (tr.next === null) tr.next = this.nextStop(tr);
-    const target = this.station(tr.next).s, rem = Math.abs(target - tr.s), last = this.isEnd(tr, tr.next);
-    // it can go as far as the train ahead allows, and no further than its signal while the platform's taken
-    const room = rem >= TUNING.approach && this.blocked(tr, tr.next) ? Math.min(this.clear(tr), rem - TUNING.approach) : this.clear(tr);
-    tr.v = Math.min(this.vmax(), tr.v + TUNING.accel * dt, cautionLimit(this.g, TUNING, tr.s, tr.dir));
+  /** The track a train runs on, by its service and direction. */
+  trackOf(tr: Train): string { const t = this.svc(tr.svc).tracks; return tr.dir > 0 ? t.north : t.south; }
+  /** Run a train towards `target` (s along the line) for dt, as far as the train ahead and its signal allow; where it
+   * hasn't a platform yet at `stop`, it claims one from `claim` metres out and stands at its signal, approach metres
+   * short, until it has. Returns whether it has arrived. */
+  move(tr: Train, dt: number, target: number, stop: number | null, limit: number): boolean {
+    let rem = Math.abs(target - tr.s);
+    if (stop !== null && tr.bound < 0 && rem < TUNING.claim) {
+      if (this.claim(tr, stop, rem < TUNING.approach)) { target = this.stopAt(tr, stop, tr.bound); rem = Math.abs(target - tr.s); }
+    }
+    // it can go as far as the train ahead allows, and no further than its signal while it has no platform
+    const held = stop !== null && tr.bound < 0 && rem >= TUNING.approach;
+    const room = held ? Math.min(this.clear(tr), rem - TUNING.approach) : this.clear(tr);
+    tr.v = Math.min(limit, tr.v + TUNING.accel * dt, cautionLimit(this.g, TUNING, tr.s, tr.dir));
     tr.v = Math.max(0.5, Math.min(tr.v, Math.sqrt(2 * TUNING.brake * Math.max(rem, 0))));
     // a train closing on the one ahead, or on a red signal, brakes to stand behind it
     if (room < rem) tr.v = Math.min(tr.v, Math.sqrt(2 * TUNING.brake * Math.max(room, 0)));
     const step = room < rem ? Math.min(tr.v * dt, Math.max(room, 0)) : tr.v * dt;
-    if (step >= rem) {
-      tr.s = target; tr.v = 0;
+    if (step >= rem) { tr.s = target; tr.v = 0; return true; }
+    tr.s += tr.dir * step; return false;
+  }
+  /** A train stands at the platform it claimed: it's the one it holds now. */
+  standAt(tr: Train, i: number): void { if (tr.bound < 0) this.claim(tr, i, true); tr.pf = tr.bound; tr.pfAt = i; tr.bound = -1; }
+  stepTrain(tr: Train, dt: number): void {
+    if (this.svc(tr.svc).express) { stepExpress(this, TUNING, tr, dt); return; }
+    if (tr.state === 'dwell') { this.depart(tr, dt); return; }
+    // a failed unit stands where it is until it's rescued, and the trains behind it wait
+    if (failed(this.g, tr)) { tr.v = 0; return; }
+    if (tr.next === null) tr.next = this.nextStop(tr);
+    const i = tr.next, last = this.isEnd(tr, i);
+    const target = tr.bound >= 0 ? this.stopAt(tr, i, tr.bound) : this.station(i).s;
+    if (this.move(tr, dt, target, i, this.vmax())) {
       if (last) tr.dir = tr.dir > 0 ? -1 : 1;      // reverse first so boarding uses the departure direction
-      this.callAt(tr, tr.next);
+      this.standAt(tr, i);
+      this.callAt(tr, i);
       tr.state = 'dwell'; tr.dwell = last ? TUNING.turnMin : TUNING.dwellMin; tr.stood = 0; tr.quiet = 0;
-      this.timetable(tr, tr.next, last);
-    } else tr.s += tr.dir * step;
+      this.timetable(tr, i, last);
+    }
   }
 
   // ---- journeys ----

@@ -102,7 +102,7 @@ const view = {
   trouble: () => ({ hazards: trains.hazards.count, cautions: trains.posts.count, buses: buses.count, spare: trains.spare.visible }),
   // life as drawn: suitcases and bikes beside the figures, figures drawn, and what the sound has started
   life: () => ({ cases: pax.layers.reduce((n, L) => n + L.cases.count, 0), bikes: pax.layers.reduce((n, L) => n + L.bikes.count, 0), figures: pax.layers.reduce((n, L) => n + L.im.count, 0), shadows: renderer.shadowMap.enabled, ratio: renderer.getPixelRatio(), heard: { ...sound.heard },
-    pools: pax.layers.reduce((n, L) => n + L.pools.count, 0), lamplight: pax.lamplight, works: trains.eng.visible ? [trains.eng.children[0]!.position.x, trains.eng.children[0]!.position.z] as [number, number] : null, beacons: trains.beacons.count, expresses: trains.express.filter(e => e.unit.group.visible).length }),
+    pools: pax.layers.reduce((n, L) => n + L.pools.count, 0), lamplight: pax.lamplight, works: trains.eng.visible ? [trains.eng.children[0]!.position.x, trains.eng.children[0]!.position.z] as [number, number] : null, beacons: trains.beacons.count, expresses: sim.g.trains.filter(t => t.state !== 'away' && sim.svc(t.svc).express).length }),
 };
 window.__view = view;
 const partBox = new THREE.Box3();
@@ -248,10 +248,6 @@ ui.setSpeed(1); ui.buildAll(); ui.setLight(lockHour ?? sim.hour(), lockHour !== 
 document.documentElement.dataset['sim'] = 'ready';   // the checks wait for this
 { const [x, z] = stationXZ(ui.selected); Object.assign(rig.o, { tx: x, ty: 2, tz: z, r: 230, th: 5.5, ph: 1.2 }, window.__orbit ?? {}); }
 
-// how far a train running in to the end of its run has to go, so the view can cross it over to its departure platform
-const endAhead = (tr: (typeof sim.g.trains)[number]): number | null =>
-  tr.state === 'run' && tr.next !== null && sim.isEnd(tr, tr.next) ? Math.abs(sim.station(tr.next).s - tr.s) : null;
-
 // ---- loop ----
 let prev = performance.now(), uiAcc = 0, saveAcc = 0;
 function frame(now: number): void {
@@ -263,7 +259,7 @@ function frame(now: number): void {
   sky.update(light.horizon, light.daylight, camera, dt);
   sound.update(sim, rig.o, light.daylight, stationsXZ, trains.meshes, realDt); pax.setDaylight(light.daylight);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
-  syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt); trains.sync(sim.g, dtGame, endAhead); pax.sync(sim.g, dtGame); labels();
+  syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt); trains.sync(sim, dtGame); pax.sync(sim.g, dtGame); labels();
   life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim);
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }

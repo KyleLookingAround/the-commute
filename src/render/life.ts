@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { MAT, PAL, box } from './scene.ts';
 import { TUNING, type Sim } from '../sim/sim.ts';
 import { runTime } from '../sim/journeys.ts';
+import type { Train } from '../sim/types.ts';
 
 /** Which way's trains a board lists: towards Manchester, away, or both (a booking office's). */
 export type Serves = 'north' | 'south' | 'both';
@@ -114,14 +115,35 @@ export function buildShop(gp: THREE.Group, p: { u: number; v: number; y?: number
 }
 
 // ---- the departure boards' timetable ----
-interface Dep { t: number; late: number; dest: number; d: 0 | 1 }
+/** A departure: when, how late, where to (a station, or an express's destination off the map by name), which way,
+ * and from which platform (its number on the boards). */
+interface Dep { t: number; late: number; dest: number; to: string | null; d: 0 | 1; plat: string }
 const ROWS = 2;
+/** The platform a train leaves station i from: the one it stands at or has claimed, or the one it would try first. */
+function platOf(sim: Sim, tr: Train, i: number, kind: 'north' | 'south' | 'turn'): string {
+  const p = tr.state === 'dwell' && tr.pfAt === i ? tr.pf : tr.state === 'run' && tr.next === i && tr.bound >= 0 ? tr.bound : sim.platsFor(tr, i, kind)[0] ?? 0;
+  return sim.plats[i]?.[p]?.def.id ?? '';
+}
+/** An express's next calls at station i: standing or running in there, or (off the map, or on its way to Piccadilly)
+ * the call it makes there next if it has a platform there its way. */
+function expressDeps(sim: Sim, tr: Train, i: number, out: Dep[]): void {
+  const v = sim.svc(tr.svc), last = v.route[v.route.length - 1]!, s = (k: number) => sim.station(k).s;
+  const to = (d: 0 | 1) => d === 0 ? { dest: last, to: null } : { dest: -1, to: v.express!.south };
+  const run = (a: number, b: number) => runTime(Math.abs(b - a), TUNING.expressSpeed, TUNING.accel, TUNING.brake);
+  const at = (t: number, d: 0 | 1, kind: 'north' | 'south' | 'turn') => out.push({ t, late: tr.late, ...to(d), d, plat: platOf(sim, tr, i, kind) });
+  const calls = (d: 0 | 1) => i === last || sim.platsFor(tr, i, d === 0 ? 'north' : 'south').length > 0;
+  if (tr.state === 'dwell' && tr.pfAt === i) { at(tr.due, tr.dir > 0 ? 0 : 1, sim.kindAt(tr, i)); return; }
+  if (tr.state === 'run' && tr.next === i) { const d: 0 | 1 = i === last ? 1 : tr.dir > 0 ? 0 : 1; at(tr.due, d, sim.kindAt(tr, i)); return; }
+  if (tr.state === 'away' && calls(0)) at(tr.due + run(v.express!.portal, s(i)) + (i === last ? sim.turnaround() : TUNING.expressDwell), i === last ? 1 : 0, i === last ? 'turn' : 'north');
+  else if (tr.state !== 'away' && tr.dir > 0 && i !== last && calls(1)) at(tr.due + run(s(last), s(i)) + TUNING.expressDwell, 1, 'south');
+}
 /** The next departures from station i, both ways, earliest first: each unit's next two calls here each way, worked on
  * from when it's due away from the stop it's at or running to, the way the sim plans them (the run at line speed, the
- * planned stop or turnaround), carrying the lateness it has now. */
+ * planned stop or turnaround), carrying the lateness it has now; and the expresses' next calls. */
 export function departures(sim: Sim, i: number, out: Dep[]): Dep[] {
   out.length = 0;
   for (const tr of sim.g.trains) {
+    if (sim.svc(tr.svc).express) { if (tr.due >= 0) expressDeps(sim, tr, i, out); continue; }
     let stop = tr.state === 'dwell' ? (tr.calling ?? tr.next) : tr.next;
     if (stop === null || tr.due < 0) continue;
     const sp = sim.span(sim.svc(tr.svc)); if (sp.length < 2) continue;
@@ -130,7 +152,7 @@ export function departures(sim: Sim, i: number, out: Dep[]): Dep[] {
     let dir = tr.state === 'run' && (stop === first || stop === last) ? -tr.dir : tr.dir, t = tr.due, found = 0;
     for (let hop = 0; hop < sp.length * 4 && found < 4; hop++) {
       const d: 0 | 1 = dir > 0 ? 0 : 1;
-      if (stop === i) { out.push({ t, late: tr.late, dest: d === 0 ? last : first, d }); found++; }
+      if (stop === i) { out.push({ t, late: tr.late, dest: d === 0 ? last : first, to: null, d, plat: platOf(sim, tr, i, stop === first || stop === last ? 'turn' : d === 0 ? 'north' : 'south') }); found++; }
       // the next stop it calls at that way: the end of its run, or an owned station with a platform its way
       let nx = d === 0 ? last : first;
       for (let k = 0; k < sp.length; k++) {
@@ -150,7 +172,8 @@ const clock = (t: number) => { const s = Math.floor((t * TUNING.dayRate) % 86400
 /** How late a train is, in the game clock's minutes, once its cab lamp shows (a minute or more). */
 const lateMins = (late: number) => late >= 60 ? Math.round(late * TUNING.dayRate / 60) : 0;
 
-/** One board face, drawn on a canvas: the next two trains, each its time and destination over On time or how late. */
+/** One board face, drawn on a canvas: the next two trains, each its time and destination over its platform and On
+ * time or how late. */
 class Face {
   readonly tex: THREE.CanvasTexture; readonly mat: THREE.MeshBasicMaterial;
   private readonly cv = document.createElement('canvas'); private text = '';
@@ -161,7 +184,7 @@ class Face {
     this.draw([], []);
   }
   draw(rows: Dep[], names: string[]): void {
-    const text = rows.map(r => `${r.t}|${r.dest}|${lateMins(r.late)}`).join(',') || 'none';
+    const text = rows.map(r => `${r.t}|${r.dest}|${r.to}|${r.plat}|${lateMins(r.late)}`).join(',') || 'none';
     if (text === this.text) return;
     this.text = text;
     const x = this.cv.getContext('2d'); if (!x) return;
@@ -171,8 +194,10 @@ class Face {
     rows.forEach((r, k) => {
       const y = 30 + k * 96, m = lateMins(r.late);
       x.font = '600 40px Arial, Helvetica, sans-serif'; x.fillStyle = LED;
-      x.fillText(clock(r.t), 12, y); x.fillText(names[r.dest] ?? '', 138, y, 362);
-      x.font = '600 34px Arial, Helvetica, sans-serif'; x.fillStyle = m ? LATE : LED;
+      x.fillText(clock(r.t), 12, y); x.fillText(r.to ?? names[r.dest] ?? '', 138, y, 362);
+      x.font = '600 34px Arial, Helvetica, sans-serif';
+      if (r.plat) x.fillText(`Plat ${r.plat}`, 12, y + 42, 120);
+      x.fillStyle = m ? LATE : LED;
       x.fillText(m ? `${m} min late` : 'On time', 138, y + 42);
     });
     this.tex.needsUpdate = true;

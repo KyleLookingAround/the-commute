@@ -223,8 +223,9 @@ test('timetable: extra units spread out to an even gap at the ends', () => {
  * its time, and the second running in towards it from 2 km out. */
 const twoAt = (sim: Sim, i: number, dir: 1 | -1) => {
   sim.g.line.units = 1; sim.ensureTrains();
-  const [a, b] = sim.g.trains as [Train, Train], at = sim.station(i).s, end = sim.isEnd(a, i);
+  const [a, b] = sim.g.trains.filter(t => t.svc === 'stopper') as [Train, Train], at = sim.station(i).s, end = sim.isEnd(a, i);
   Object.assign(a, { dir: end ? -dir : dir, s: at, v: 0, state: 'dwell', calling: i, next: i, dwell: 0, due: sim.g.t + 600, stood: 0, quiet: 0, boardAcc: 0 });
+  Object.assign(a, { pfAt: i, pf: sim.platsFor(a, i, sim.kindAt(a, i))[0] });
   Object.assign(b, { dir, s: at - dir * 2000, v: 0, state: 'run', next: i, due: sim.g.t + 900 });
   return { a, b, gap: () => Math.abs(at - b.s) };
 };
@@ -286,7 +287,7 @@ test('branch: passengers change at Stockport, pay once, and arrive', () => {
   assert.ok(sim.state(dav).alighted > 0, 'people reached the branch');
   // every journey is either over, on a train, waiting to change, or given up (some of those changing)
   const paidWaiting = sim.g.st.reduce((a, S) => a + S.q.flat().filter(c => c.paid).reduce((b, c) => b + c.n, 0), 0);
-  const done = sim.g.st.reduce((a, S) => a + S.alighted, 0) + sim.g.trains.reduce((a, t) => a + t.onboard, 0) + paidWaiting;
+  const done = sim.g.st.reduce((a, S) => a + S.alighted, 0) + sim.g.trains.filter(t => !sim.svc(t.svc).express).reduce((a, t) => a + t.onboard, 0) + paidWaiting;
   assert.ok(done <= sim.g.stats.boarded && sim.g.stats.boarded <= done + sim.g.stats.lost, `journeys ${sim.g.stats.boarded}, accounted ${done} + lost ${sim.g.stats.lost}`);
 });
 
@@ -341,9 +342,10 @@ test('sim: line upgrades add units and lengthen trains', () => {
   assert.equal(sim.buyLine('units'), false, "an extra unit waits for Stockport's platform 3");
   assert.ok(sim.buyUpgrade(0, 'crossing') && sim.buyUpgrade(0, 'platform2'));
   assert.equal(sim.buyLine('units'), true); sim.step(1);
-  assert.equal(sim.g.trains.length, 2);
+  assert.equal(sim.g.trains.filter(t => t.svc === 'stopper').length, 2);
   assert.equal(sim.buyLine('cars'), true); sim.step(1);
   assert.equal(sim.g.trains[0]!.cars, 4);
+  assert.equal(sim.g.trains.find(t => t.svc === 'avanti')!.cars, 9, 'an express keeps its own length');
 });
 
 test('pacing: Heaton Chapel is affordable within about an hour of real time at 1x', () => {
@@ -374,7 +376,7 @@ test('sim: passengers who get off are counted at their destination', () => {
   // on their way still: on a train, on a replacement bus, or set down by one to wait for the train on (fare paid)
   const onBus = sim.g.trouble.buses.reduce((a, b) => a + b.load.reduce((n, c) => n + c.n, 0), 0);
   const setDown = sim.g.st.reduce((a, s) => a + s.q.flat().reduce((n, c) => n + (c.paid ? c.n : 0), 0), 0);
-  assert.equal(sim.g.st.reduce((a, s) => a + s.alighted, 0) + sim.g.trains.reduce((a, t) => a + t.onboard, 0) + onBus + setDown, sim.g.stats.boarded, 'everyone who boarded has either arrived or is still on their way');
+  assert.equal(sim.g.st.reduce((a, s) => a + s.alighted, 0) + sim.g.trains.filter(t => !sim.svc(t.svc).express).reduce((a, t) => a + t.onboard, 0) + onBus + setDown, sim.g.stats.boarded, 'everyone who boarded has either arrived or is still on their way');
 });
 
 // ---- things going wrong (src/sim/trouble.ts) ----
@@ -465,4 +467,52 @@ test('homes: growth is slow (a few game days, not minutes), saved, and brings mo
   assert.equal(again.homes(0), sim.homes(0), 'homes are saved');
   sim.g.homes[0] = sim.ceiling(0);
   assert.ok(sim.tripRates(0, 8) > before * 1.05, 'more homes, more trips');
+});
+
+// ---- every platform in use ----
+test('platforms: at Stockport the stoppers turn in 4 and 3 by turns once there are two units, and each platform built has trains', () => {
+  const sim = new Sim(net(), Sim.fresh(net(), 2)); sim.g.cash = 1e7; growStockport(sim); sim.buyLine('units');
+  const used: Record<string, number> = {};
+  sim.onDepart = (tr, i) => { if (tr.svc === 'stopper' && i === 0) { const k = sim.plats[0]![tr.pf]!.def.id; used[k] = (used[k] ?? 0) + 1; } };
+  sim.advance(2 * 3600);
+  assert.ok((used['4'] ?? 0) > 2 && (used['3'] ?? 0) > 2, `both platforms in use: ${JSON.stringify(used)}`);
+  // a third unit turns in the bay, platform 0
+  sim.buyLine('units'); for (const k in used) delete used[k];
+  sim.advance(2 * 3600);
+  assert.ok((used['0'] ?? 0) > 0, `the bay in use: ${JSON.stringify(used)}`);
+});
+
+test('expresses: they run through Stockport until its platform 3 is built, then call, pay and take the platform', () => {
+  const calls = (p3: boolean) => {
+    const sim = new Sim(net(), Sim.fresh(net(), 3)); sim.g.cash = 1e7; sim.buyUpgrade(0, 'crossing');
+    if (p3) sim.buyUpgrade(0, 'platform2');
+    let n = 0, at3 = 0;
+    sim.onDepart = (tr, i) => { if (sim.svc(tr.svc).express && i === 0) { n++; if (sim.plats[0]![tr.pf]!.def.id === '3') at3++; } };
+    sim.advance(3 * 3600);
+    return { n, at3, paid: sim.g.stats.express, through: sim.g.stats.through };
+  };
+  const before = calls(false), after = calls(true);
+  assert.equal(before.n, 0, 'no calls before platform 3');
+  assert.equal(before.paid, 0);
+  assert.ok(after.n >= 10 && after.at3 === after.n, `they call at platform 3 (${after.n} calls)`);
+  assert.ok(after.paid > after.n * TUNING.accessCharge - 1 && after.through > 0, 'and pay the access charge and a share of through fares');
+});
+
+test('expresses: an express standing in platform 3 holds a stopper that wants it until it leaves', () => {
+  // platforms 4 and 3 but not yet the bay
+  const sim = new Sim(net(), Sim.fresh(net(), 1)); sim.g.cash = 1e7; sim.buyUpgrade(0, 'crossing'); sim.buyUpgrade(0, 'platform2');
+  sim.buyLine('units'); sim.ensureTrains();
+  const ex = sim.g.trains.find(t => t.svc === 'avanti')!, p3 = sim.plats[0]!.findIndex(p => p.def.id === '3');
+  Object.assign(ex, { state: 'dwell', s: sim.station(0).s, dir: 1, pfAt: 0, pf: p3, stood: 0, due: sim.g.t + 1e6, calling: 0 });
+  // a stopper running in to turn finds 4 taken too: it waits at its signal
+  const [a, b] = sim.g.trains.filter(t => t.svc === 'stopper') as [Train, Train];
+  Object.assign(a, { state: 'dwell', s: sim.station(0).s, dir: 1, pfAt: 0, pf: 0, stood: 0, due: sim.g.t + 1e6, calling: 0, next: 0 });
+  Object.assign(b, { state: 'run', dir: -1, s: sim.station(0).s + 2000, v: 0, next: 0, due: sim.g.t + 900, bound: -1 });
+  for (let k = 0; k < 300; k++) { sim.g.t += 1; sim.stepTrain(b, 1); }
+  assert.ok(b.state === 'run' && b.v === 0 && Math.abs(b.s - sim.station(0).s - TUNING.approach) < 1, 'it stands at the signal');
+  ex.due = sim.g.t;
+  const state = () => b.state as Train['state'];
+  for (let k = 0; k < 600 && state() !== 'dwell'; k++) { sim.g.t += 1; sim.stepTrain(ex, 1); sim.stepTrain(b, 1); }
+  assert.equal(state(), 'dwell', 'and runs in once the express has gone');
+  assert.equal(sim.plats[0]![b.pf]!.def.id, '3');
 });

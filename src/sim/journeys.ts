@@ -65,6 +65,8 @@ export function cycle(sim: Sim, T: Tuning, svc: number): number { return run(sim
 export function journeys(sim: Sim, T: Tuning): (Journey | null)[][] {
   const n = sim.S.length, runs: Run[][] = [], waits: number[] = [];
   sim.svcs.forEach((v, k) => {
+    // the expresses carry the line's own passengers nowhere: long-distance tickets only, as the game has it
+    if (v.express) { const none = { arr: new Map(), dep: new Map(), total: 0 }; runs[k] = [none, none]; waits[k] = Infinity; return; }
     runs[k] = [run(sim, T, k, 0), run(sim, T, k, 1)];
     const units = sim.unitsFor(v);
     waits[k] = units ? cycle(sim, T, k) / units / 2 : Infinity;

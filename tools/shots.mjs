@@ -49,8 +49,9 @@ async function stationShots(only, extra) {
     const sim = new Sim(net, Sim.fresh(net, 1)), g = sim.g;
     g.owned = g.owned.map(() => true);
     g.ups = net.stations.map((st, i) => Object.fromEntries(UPGRADES.filter(u => sim.offered(i, u)).map(u => [u.id, true])));
-    g.line = { units: 3, cars: 2, timetable: 1 };
-    sim.ensureTrains(); sim.advance(5);
+    g.line = { units: 3, cars: 2, timetable: 1, spare: 0 };
+    // a while into the morning, so the units and the expresses stand at their platforms round the line
+    sim.ensureTrains(); sim.advance(+(process.env.SHOT_RUN ?? 5));
     return sim;
   };
   for (const st of net.stations) {
@@ -58,7 +59,12 @@ async function stationShots(only, extra) {
     // a unit of the service that calls here standing at the stop, due away long after the shot
     const sim = grown(), g = sim.g, svc = net.boardingService(st.id, 'north') ?? net.boardingService(st.id, 'south');
     const tr = g.trains.find(t => t.svc === svc?.id), dir = st.index === net.services().find(v => v.def.id === svc?.id)?.route.at(-1) ? -1 : 1;
-    if (tr) Object.assign(tr, { s: st.s, v: 0, dir, state: 'dwell', dwell: 9999, calling: st.index, next: st.index, due: g.t + 9999 });
+    if (tr) {
+      Object.assign(tr, { s: st.s, v: 0, dir, state: 'dwell', dwell: 9999, calling: st.index, next: st.index, due: g.t + 9999, bound: -1 });
+      // at the first platform it would use there
+      Object.assign(tr, { pfAt: st.index, pf: sim.platsFor(tr, st.index, sim.kindAt(tr, st.index))[0] ?? 0 });
+      tr.s = sim.stopAt(tr, st.index, tr.pf);
+    }
     const save = JSON.stringify({ g, selected: st.index });
     const F = net.stationFrame(st.id), u = st.s - st.at, aim = (du, dv) => [F.x + F.dx * (u + du) + F.nx * dv, F.z + F.dz * (u + du) + F.nz * dv];
     const [tx, tz] = aim(0, 0), along = Math.atan2(-F.dx, -F.dz);

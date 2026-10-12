@@ -6,13 +6,15 @@
 //   same all the way along the platform and its extension.
 // - Clearance: no solid part (anything between rail top and roof height but the rails themselves: platforms,
 //   buildings, stairs, shelters, columns, piers, walls, lamps, boards) stands in the space a train's bodies sweep on
-//   any track a service runs on, expresses included, at any point through a station, crossing over at the end of a
-//   run included. The open line has no kit parts; its masts and signals are placed outside the outer track.
-// - Stops: every unit standing at a stop is wholly alongside the platform its passengers board from (the shortest
-//   unit on the halt's platform, the longest with the extension, or the longest the kit says its real platforms take),
-//   on the side the face is, short of any buffer stop and inside its track.
-// - The drawing matches the sim: wherever a unit stands or runs, the bogies of each car it draws (its body straight between) lie on its
-//   track's centreline as the sim's network gives it (within ON m), and a standing unit is centred on the sim's stop.
+//   any track a service runs on, expresses included, at any point through a station, running in to and out of every
+//   platform each service uses there (its crossovers, and the turn at the end of a run) included. The open line has
+//   no kit parts; its masts and signals are placed outside the outer track.
+// - Stops: every unit standing at every platform its service uses is wholly alongside it (the shortest unit on the
+//   halt's platform, the longest with the extension, or the longest the kit says its real platforms take; an express
+//   its own length), on the platform's edge 2.1 m from where it stands, short of any buffer stop.
+// - The drawing matches the sim: wherever a unit runs on its own track, the bogies of each car it draws (its body
+//   straight between) lie on its track's centreline as the sim's network gives it (within ON m); standing, on its
+//   platform's track or rails; and a standing unit is centred where the sim stops it.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';
@@ -23,7 +25,8 @@ globalThis.document ??= { createElement: () => ({ getContext: () => null }) };
 const THREE = await import('three');
 const { fromGeo } = await import('../../src/sim/network.ts');
 const { partGroup } = await import('../../src/render/stations.ts');
-const { unitPoses, serviceRange } = await import('../../src/render/trains.ts');
+const { unitPoses, serviceRange, offsetOn, NO_BERTHS } = await import('../../src/render/trains.ts');
+const { Sim, UPGRADES } = await import('../../src/sim/sim.ts');
 
 const EDGE = 2.1, EDGE_TOL = 0.1;   // platform edge from the track's centreline
 const HALF = 1.93;                  // a body's half width as drawn, 1.3 times real, with the riders in its windows
@@ -37,7 +40,32 @@ export default async function ({ ok, root, kits: given }) {
   const kits = given ?? Object.fromEntries(net.stations.map(st => [st.kit, JSON.parse(readFileSync(join(root, 'src/data/kits', st.kit + '.json'), 'utf8'))]));
   const services = def.services ?? [];
   const poses = [];
-  const lengths = svc => svc.scenery ? [svc.cars] : CARS;
+  const lengths = svc => svc.scenery || svc.through ? [svc.cars] : CARS;
+  // the line fully built and every station owned, so every platform is there
+  const sim = new Sim(net); sim.g.owned = sim.g.owned.map(() => true); sim.g.ups = sim.g.ups.map(() => Object.fromEntries(UPGRADES.map(u => [u.id, true])));
+  /** Where each service stands at a station, and on which platforms: [service, kind, the way it runs in, the way it
+   * stands, platform indices]. A line turns at its ends (a line with a home, wherever it's been opened to as well). */
+  const standsAt = i => {
+    const out = [];
+    for (const v of sim.svcs) {
+      const k = v.route.indexOf(i); if (k < 0) continue;
+      const last = v.route.length - 1, home = v.home === null ? -1 : v.route.indexOf(v.home), kinds = [];
+      if (v.express) { kinds.push(k === last ? ['turn', 1, -1] : ['north', 1, 1], ...(k === last ? [] : [['south', -1, -1]])); }
+      else {
+        if (k === last || (home >= 0 && k !== 0 && k === home)) kinds.push(['turn', 1, -1]);
+        if (k === 0 || (home >= 0 && k !== home)) kinds.push(['turn', -1, 1]);
+        if (k > 0 && k < last && home < 0) kinds.push(['north', 1, 1], ['south', -1, -1]);
+        if (home >= 0 && k !== home && k !== 0 && k !== last) kinds.push(['north', 1, 1], ['south', -1, -1]);
+      }
+      const tr = { svc: v.id, dir: 1, cars: v.def.cars };
+      for (const [kind, din, dout] of kinds) {
+        const own = v.plats.get(i)?.[kind], all = own ?? sim.plats[i].flatMap((f, p) => kind === 'turn' || f.ways.includes(kind === 'north' ? 0 : 1) ? [p] : []);
+        out.push({ v, kind, din, dout, plats: all });
+      }
+    }
+    return out;
+  };
+  const berthFor = (i, p, turn) => { const st = net.stations[i]; return { st, at: st.at, def: sim.plats[i][p]?.def ?? null, turn }; };
 
   for (const st of net.stations) {
     const kit = kits[st.kit], F = net.stationFrame(st.id);
@@ -65,8 +93,8 @@ export default async function ({ ok, root, kits: given }) {
       }
       return Math.sqrt(best);
     };
-    const bodies = (svc, s, dir, cars, rem) => {
-      const n = unitPoses(net, svc, s, dir, cars, rem, poses), out = [];
+    const bodies = (svc, s, dir, cars, berths) => {
+      const n = unitPoses(net, svc, s, dir, cars, berths ?? NO_BERTHS, poses), out = [];
       for (let k = 0; k < n; k++) {
         const p = poses[k], [cu, cv] = toKit(p.x, p.z), au = p.dx * F.dx + p.dz * F.dz, av = p.dx * F.nx + p.dz * F.nz;
         out.push({ cu, cv, au, av, hl: p.len / 2, bogie: p.bogie });
@@ -139,79 +167,85 @@ export default async function ({ ok, root, kits: given }) {
         if (cars === lengths(svc).at(-1) && Math.round(s) % 5 === 0) onTrack(bs, id, `${svc.id} on ${id}`);
       }
     }
-    // ---- crossing over running in to the end of a run here ----
-    const ends = [];
-    for (const v of net.services()) {
-      const k = v.route.indexOf(st.index); if (k < 0) continue;
-      const last = v.route.length - 1, home = v.home === null ? -1 : v.route.indexOf(v.home);
-      // the main line turns at both ends of its route; a line with a home turns there and wherever it's been opened to
-      if (k === last || (home >= 0 && k !== 0 && k === home)) ends.push([v.def, 1]);
-      if (k === 0 || (home >= 0 && k !== home)) ends.push([v.def, -1]);
-    }
-    for (const [svc, d] of ends) for (const cars of CARS) for (let rem = 0; rem < 400; rem += STEP) {
-      const bs = bodies(svc, st.s - d * rem, d, cars, rem);
-      sweep(bs, `${svc.id} crossing over`);
+    // ---- running in to and out of every platform each service uses here ----
+    const stands = standsAt(st.index);
+    for (const { v, kind, din, dout, plats } of stands) for (const p of plats) for (const cars of lengths(v.def)) {
+      const b = berthFor(st.index, p, kind === 'turn'), at = sim.stopAt({ svc: v.id, dir: din, cars }, st.index, p);
+      for (let rem = 0; rem < 1300; rem += STEP) {
+        sweep(bodies(v.def, at - din * rem, din, cars, { ahead: b, behind: null }), `${v.id} running in to ${sim.plats[st.index][p].def.id}`);
+        sweep(bodies(v.def, at + dout * rem, dout, cars, { ahead: null, behind: b }), `${v.id} leaving ${sim.plats[st.index][p].def.id}`);
+      }
     }
     const list = [...hits.entries()].sort((a, b) => b[1].d - a[1].d);
-    ok(`geometry: at ${st.name} no solid part stands where a train passes, crossing over included`, !list.length,
+    ok(`geometry: at ${st.name} no solid part stands where a train passes, in and out of every platform included`, !list.length,
       list.slice(0, 6).map(([k, h]) => `${k} ${h.d.toFixed(2)} m in at u ${h.u.toFixed(0)}`).join('; ') + (list.length > 6 ? `; and ${list.length - 6} more` : ''));
     ok(`geometry: at ${st.name} the trains drawn on the line stay on the sim's track`, stray.d <= ON, `${stray.d.toFixed(2)} m off, ${stray.at}`);
 
     // ---- the platforms trains stand at ----
     const plats = kit.parts.filter(p => p.type === 'platform');
     const edgeBad = [], standBad = [];
-    for (const v of net.services()) {
-      const k = v.route.indexOf(st.index); if (k < 0) continue;
-      for (const [dir, d] of [['north', 1], ['south', -1]]) {
-        // a unit stands here this way unless this is the end its route runs out of that way
-        if ((d > 0 && k === v.route.length - 1) || (d < 0 && k === 0)) continue;
-        if (net.boardingService(st.id, dir)?.id !== v.def.id && !(v.home !== null && v.route[k] !== v.home)) continue;
-        const id = v.def.tracks[dir], face = kit.faces[dir], tv = vAt(id, (face.u0 + face.u1) / 2);
-        if (tv === null) { edgeBad.push(`${dir}: the ${id} track doesn't pass the face`); continue; }
-        // the platform the face stands on, and its edge on the track's side
-        const side = Math.sign(face.v - tv);
-        const own = plats.find(p => p.v0 <= face.v && face.v <= p.v1 && ![].concat(p.upgrade ?? []).includes('extend'));
-        if (!own) { edgeBad.push(`${dir}: no platform under the face at v ${face.v}`); continue; }
-        const edge = side > 0 ? own.v0 : own.v1;
-        // the run of platform along that edge: the halt's (or the stage's) and the extension's
-        const run = plats.filter(p => Math.abs((side > 0 ? p.v0 : p.v1) - edge) < 0.05 && p.u1 >= own.u0 - 0.5 && p.u0 <= own.u1 + 0.5 || p === own);
-        const ext = plats.filter(p => Math.abs((side > 0 ? p.v0 : p.v1) - edge) < 0.05 && [].concat(p.upgrade ?? []).includes('extend') && (Math.abs(p.u1 - own.u0) < 0.5 || Math.abs(p.u0 - own.u1) < 0.5));
+    const seen = new Set();
+    for (const { v, kind, din, dout, plats: ps } of stands) for (const p of ps) {
+      const P = sim.plats[st.index][p], b = berthFor(st.index, p, kind === 'turn'), where = `${v.id} at ${P.def.id}`;
+      // where its track runs across the kit, as the drawing has a unit standing there
+      const tvAt = u => offsetOn(net, v.def, dout, 2, { ahead: null, behind: b }, st.at + u);
+      const face = kit.faces[dout > 0 ? 'north' : 'south'], mid = sim.stopAt({ svc: v.id, dir: din, cars: 2 }, st.index, p) - st.at, tv = tvAt(mid);
+      // the platform edge 2.1 m from the track there: on the face's side for the station's own one face each way
+      const near = plats.filter(q => q.u0 <= mid && mid <= q.u1 && ![].concat(q.upgrade ?? []).includes('extend'));
+      const own = P.def.v === undefined
+        ? near.find(q => q.v0 <= face.v && face.v <= q.v1)
+        : near.find(q => Math.abs(q.v0 - tv - EDGE) < 0.3 || Math.abs(tv - q.v1 - EDGE) < 0.3);
+      if (!own) { edgeBad.push(`${where}: no platform ${EDGE} m from the track at v ${tv.toFixed(2)}`); continue; }
+      const side = P.def.v === undefined ? Math.sign(face.v - tv) : Math.abs(own.v0 - tv - EDGE) < 0.3 ? 1 : -1;
+      const edge = side > 0 ? own.v0 : own.v1;
+      // the run of platform along that edge, its parts end to end (a stage's beside the halt's), and its extension
+      const along = q => Math.abs((side > 0 ? q.v0 : q.v1) - edge) < 0.05, isExt = q => [].concat(q.upgrade ?? []).includes('extend');
+      const run = [own]; for (let grew = true; grew;) { grew = false; for (const q of plats) if (!run.includes(q) && along(q) && !isExt(q) && run.some(r => q.u0 <= r.u1 + 0.5 && q.u1 >= r.u0 - 0.5)) { run.push(q); grew = true; } }
+      const r0 = Math.min(...run.map(q => q.u0)), r1 = Math.max(...run.map(q => q.u1));
+      const ext = plats.filter(q => along(q) && isExt(q) && (Math.abs(q.u1 - r0) < 0.5 || Math.abs(q.u0 - r1) < 0.5));
+      const key = `${edge}|${side}|${P.def.id}|${dout}`;
+      if (!seen.has(key)) {
+        seen.add(key);
         let worst = { g: EDGE, u: 0 };
-        for (const p of [own, ...ext]) for (let u = p.u0; u <= p.u1; u += 5) {
-          const t = vAt(id, u); if (t === null) continue;
-          const g = (edge - t) * side; if (Math.abs(g - EDGE) > Math.abs(worst.g - EDGE)) worst = { g, u };
+        for (const q of [...run, ...ext]) for (let u = q.u0; u <= q.u1; u += 5) {
+          const t = tvAt(u), g = (edge - t) * side; if (Math.abs(g - EDGE) > Math.abs(worst.g - EDGE)) worst = { g, u };
         }
-        if (Math.abs(worst.g - EDGE) > EDGE_TOL) edgeBad.push(`${dir} (${id}): the edge is ${worst.g.toFixed(2)} m from the track at u ${worst.u.toFixed(0)}`);
-        // units standing at the stop: the shortest on the halt's platform, the longest on the extended one
-        const u0 = Math.min(own.u0, ...ext.map(p => p.u0)), u1 = Math.max(own.u1, ...ext.map(p => p.u1));
-        // a kit whose real platforms are too short for the longest unit says how many cars they take (`longest`)
-        const longest = Math.max(...CARS.filter(n => n <= (kit.longest ?? CARS.at(-1))));
-        for (const [cars, a, b] of [[CARS[0], own.u0, own.u1], [longest, u0, u1]]) {
-          const bs = bodies(v.def, st.s, d, cars, null);
-          let lo = Infinity, hi = -Infinity, wrong = false;
-          for (const B of bs) for (const kk of [-1, 1]) for (const w of [-1, 1]) {
-            const pu = B.cu + kk * B.au * B.hl + w * -B.av * HALF, pv = B.cv + kk * B.av * B.hl + w * B.au * HALF;
-            lo = Math.min(lo, pu); hi = Math.max(hi, pu); if ((edge - pv) * side < 0) wrong = true;
-          }
-          if (lo < a - 0.5 || hi > b + 0.5) standBad.push(`${dir}: a ${cars}-car unit stands from u ${lo.toFixed(0)} to ${hi.toFixed(0)}, the platform${cars === CARS[0] ? '' : ' extended'} runs ${a} to ${b}`);
-          if (wrong) standBad.push(`${dir}: a ${cars}-car unit stands on the platform's side of its edge`);
-          // the middle of the unit on the sim's stop
-          const mid = bs.reduce((m, B) => m + B.cu, 0) / bs.length, want = st.s - st.at;
-          if (Math.abs(mid - want) > 0.5) standBad.push(`${dir}: a ${cars}-car unit is centred at u ${mid.toFixed(1)}, the sim stops it at ${want.toFixed(1)}`);
-          // inside its track and short of any buffer stop on its line
-          const L = line(id), sLo = Math.min(L[0][0], L.at(-1)[0]), sHi = Math.max(L[0][0], L.at(-1)[0]);
-          if (lo < sLo - 0.5 || hi > sHi + 0.5) standBad.push(`${dir}: a ${cars}-car unit runs off the end of ${id}`);
-          for (const p of kit.parts) if (p.type === 'rails' && p.buffer) {
-            const [bu, bv] = p.points[0], t = vAt(id, bu);
-            if (t !== null && Math.abs(t - bv) < 0.5 && bu > lo - 1 && bu < hi + 1) standBad.push(`${dir}: a ${cars}-car unit runs into the buffer stop at u ${bu}`);
-          }
-        }
-        // passengers stand back from the track the renderer was told is there
-        const told = net.offsetAt(id, st.s);
-        if (Math.abs(told - tv) > 0.2) edgeBad.push(`${dir}: passengers are told the track is at v ${told.toFixed(2)}, it's at ${tv.toFixed(2)}`);
+        // a bay's rails leave the platform's line beyond its end, so only along the platform it stands at
+        if (Math.abs(worst.g - EDGE) > EDGE_TOL) edgeBad.push(`${where}: the edge is ${worst.g.toFixed(2)} m from the track at u ${worst.u.toFixed(0)}`);
       }
+      const u0 = Math.min(r0, ...ext.map(q => q.u0)), u1 = Math.max(r1, ...ext.map(q => q.u1));
+      const longest = Math.max(...CARS.filter(n => n <= (kit.longest ?? CARS.at(-1))));
+      const sizes = v.express ? [[v.def.cars, u0, u1]] : [[CARS[0], r0, r1], [longest, u0, u1]];
+      for (const [cars, a, z] of sizes) {
+        const at = sim.stopAt({ svc: v.id, dir: din, cars }, st.index, p), bs = bodies(v.def, at, dout, cars, { ahead: null, behind: b });
+        let lo = Infinity, hi = -Infinity, wrong = false;
+        for (const B of bs) for (const kk of [-1, 1]) for (const w of [-1, 1]) {
+          const pu = B.cu + kk * B.au * B.hl + w * -B.av * HALF, pv = B.cv + kk * B.av * B.hl + w * B.au * HALF;
+          lo = Math.min(lo, pu); hi = Math.max(hi, pu); if ((edge - pv) * side < 0) wrong = true;
+        }
+        if (lo < a - 0.5 || hi > z + 0.5) standBad.push(`${where}: a ${cars}-car unit stands from u ${lo.toFixed(0)} to ${hi.toFixed(0)}, the platform${cars === CARS[0] ? '' : ' extended'} runs ${a} to ${z}`);
+        if (wrong) standBad.push(`${where}: a ${cars}-car unit stands on the platform's side of its edge`);
+        const midU = bs.reduce((m, B) => m + B.cu, 0) / bs.length, want = at - st.at;
+        if (Math.abs(midU - want) > 0.5) standBad.push(`${where}: a ${cars}-car unit is centred at u ${midU.toFixed(1)}, the sim stops it at ${want.toFixed(1)}`);
+        // its bogies on the platform's track, as the sim's network (or the bay's rails) has it
+        for (const B of bs) for (const k of [-B.bogie, B.bogie]) {
+          const bu = B.cu + k * B.au, d = Math.abs(B.cv + k * B.av - tvAt(bu)); if (d > stray.d) stray = { d, at: `${where} at u ${bu.toFixed(0)}` };
+        }
+        for (const r of kit.parts) if (r.type === 'rails' && r.buffer) {
+          const [bu, bv] = r.points[0];
+          if (Math.abs(tvAt(bu) - bv) < 0.5 && bu > lo - 1 && bu < hi + 1) standBad.push(`${where}: a ${cars}-car unit runs into the buffer stop at u ${bu}`);
+        }
+      }
+      // passengers stand back from the track the renderer was told is there: the station's own face each way
+      if (P.def.v === undefined && P.def.track === undefined && kind !== 'turn') {
+        const id = v.def.tracks[dout > 0 ? 'north' : 'south'], told = net.offsetAt(id, st.s), t = vAt(id, (face.u0 + face.u1) / 2);
+        if (t !== null && Math.abs(told - t) > 0.2) edgeBad.push(`${where}: passengers are told the track is at v ${told.toFixed(2)}, it's at ${t.toFixed(2)}`);
+      }
+      // the data's v is where the drawing has it
+      if (P.def.v !== undefined && Math.abs(P.def.v - tv) > 0.2) edgeBad.push(`${where}: the data says v ${P.def.v}, the track's at ${tv.toFixed(2)}`);
     }
+    ok(`geometry: at ${st.name} the trains standing at their platforms stay on the platform's track`, stray.d <= ON, `${stray.d.toFixed(2)} m off, ${stray.at}`);
     ok(`geometry: at ${st.name} each platform edge is ${EDGE} m from its track all the way along`, !edgeBad.length, edgeBad.join('; '));
-    ok(`geometry: at ${st.name} a standing unit is wholly alongside its platform, on the face's side, short of the buffers`, !standBad.length, [...new Set(standBad)].join('; '));
+    ok(`geometry: at ${st.name} a standing unit is wholly alongside every platform its service uses, on the right side, short of the buffers`, !standBad.length, [...new Set(standBad)].join('; '));
   }
 }

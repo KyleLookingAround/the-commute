@@ -199,7 +199,14 @@
   ],
   "stations": [
     { "id": "stockport", "straight": [-215, 155], "name": "Stockport", "corridor": "main", "lat": 53.40545, "lon": -2.163044, "miles": 0, "catchment": 1000, "draw": 730, "ceiling": 1120, "note": "Census 2021 (tools/census-to-network.mjs, 12 October 2026): 87,219 residents whose best trip in is from here, 8,600 working within a walk; draw: the town centre, Merseyway and the offices round the station", "price": 0, "kit": "stockport", "retail": "Greggs",
-      "grow": { "crossing": { "name": "Subway" }, "platform2": { "name": "Platform 3", "desc": "Room for a second train to turn here: lets the line run more units" }, "building": { "name": "Booking hall" }, "taxi": { "name": "Taxi rank on Station Road" }, "platforms": { "name": "Platforms 0, 1 and 2", "desc": "+20% catchment, and platform 1 for the Hazel Grove line to turn in" } } },
+      "grow": { "crossing": { "name": "Subway" }, "platform2": { "name": "Platform 3", "desc": "Room for a second train to turn here: lets the line run more units" }, "building": { "name": "Booking hall" }, "taxi": { "name": "Taxi rank on Station Road" }, "platforms": { "name": "Platforms 0, 1 and 2", "desc": "+20% catchment, platform 1 for the Hazel Grove line, 2 for the expresses south and bay 0 for a third train to turn" } },
+      "platforms": [
+        { "id": "4", "v": 0.25, "track": "down-slow" },
+        { "id": "3", "v": 32, "track": "down-fast", "upgrade": "platform2" },
+        { "id": "2", "v": 45.6, "track": "up-fast", "upgrade": "platforms" },
+        { "id": "1", "v": 77.9, "track": "branch-north", "upgrade": "platforms" },
+        { "id": "0", "v": 82.1, "path": [[-41, 82.1], [170, 82.1], [250, 64], [330, 34], [400, 13.8]], "upgrade": "platforms", "stop": 32, "note": "The kit draws it as a bay with its buffers at the south end, so a train from Manchester turns in it, standing at its north end; really trains run through it south towards Hazel Grove" }
+      ] },
     { "id": "heaton-chapel", "straight": [-90, 140], "name": "Heaton Chapel", "corridor": "main", "lat": 53.425993, "lon": -2.179289, "miles": 1.75, "catchment": 200, "draw": 520, "ceiling": 310, "note": "Census 2021 (tools/census-to-network.mjs, 12 October 2026): 17,813 residents whose best trip in is from here, 6,064 working within a walk; draw: shops on the A6 and a few schools", "price": 9000, "kit": "heaton-chapel", "retail": "Coffee cart", "stop": 16,
       "grow": { "crossing": { "name": "Footbridge" }, "platform2": { "name": "Second platform" }, "building": { "name": "Booking office" }, "taxi": { "name": "Taxi rank" } } },
     { "id": "levenshulme", "straight": [-85, 125], "name": "Levenshulme", "corridor": "main", "lat": 53.444904, "lon": -2.192957, "miles": 3, "catchment": 370, "draw": 480, "ceiling": 590, "note": "Census 2021 (tools/census-to-network.mjs, 12 October 2026): 31,849 residents whose best trip in is from here, 5,635 working within a walk; draw: the A6 shops, markets and schools", "price": 30000, "kit": "levenshulme", "retail": "Bakery",
@@ -207,7 +214,21 @@
     { "id": "ardwick", "straight": [-55, 90], "name": "Ardwick", "corridor": "main", "lat": 53.471161, "lon": -2.213209, "miles": 5, "catchment": 160, "draw": 370, "ceiling": 290, "note": "Census 2021 (tools/census-to-network.mjs, 12 October 2026): 14,099 residents whose best trip in is from here, 4,353 working within a walk; draw: the industrial estates and the train depot nearby", "price": 45000, "kit": "ardwick", "retail": "Vending machine", "stop": 8,
       "grow": { "crossing": { "name": "Footbridge" }, "platform2": { "name": "Second platform" }, "building": { "name": "Staff hut" } } },
     { "id": "piccadilly", "straight": [-345, 60], "name": "Manchester Piccadilly", "corridor": "main", "lat": 53.47722, "lon": -2.23014, "miles": 6, "catchment": 830, "draw": 6000, "ceiling": 1010, "note": "Census 2021 (tools/census-to-network.mjs, 12 October 2026): 71,781 residents whose best trip in is from here, 70,247 working within a walk; draw: the city centre, its offices, universities and shops", "price": 150000, "kit": "piccadilly", "retail": "Food hall", "stop": -35,
-      "grow": { "building": { "name": "Concourse", "desc": "90% of fares collected, and room for barriers and a food hall" }, "platforms": { "name": "The train shed and bays", "price": 60000 }, "taxi": { "name": "Taxi rank" } } },
+      "grow": { "building": { "name": "Concourse", "desc": "90% of fares collected, and room for barriers and a food hall" }, "platforms": { "name": "The train shed and bays", "price": 60000 }, "taxi": { "name": "Taxi rank" } },
+      "platforms": [
+        { "id": "1", "v": 34.5, "path": [[46, 34.5], [-220, 34.5], [-560, 4.4]], "upgrade": "platforms" },
+        { "id": "2", "v": 29.6, "path": [[44, 29.6], [-220, 29.6], [-560, 4.4]], "upgrade": "platforms" },
+        { "id": "3", "v": 18.6, "path": [[43, 18.6], [-220, 18.6], [-560, 4.4]], "upgrade": "platforms" },
+        { "id": "4", "v": 13.2, "path": [[41, 13.2], [-230, 13.2], [-560, 4.4]], "upgrade": "platforms" },
+        { "id": "5", "v": 0, "track": "down-slow" },
+        { "id": "6", "v": -6.75, "track": "down-fast", "upgrade": "platforms" },
+        { "id": "7", "v": -17.9, "path": [[38, -17.9], [-260, -17.9], [-560, -6.8]], "upgrade": "platforms" },
+        { "id": "8", "v": -23.9, "path": [[36, -23.9], [-320, -23.9], [-560, -6.8]], "upgrade": "platforms" },
+        { "id": "9", "v": -37.1, "path": [[36, -37.1], [-320, -37.1], [-560, -6.8]], "upgrade": "platforms" },
+        { "id": "10", "v": -44, "path": [[34, -44], [-160, -44], [-560, -6.8]], "upgrade": "platforms" },
+        { "id": "11", "v": -76.6, "path": [[39, -76.6], [-160, -76.6], [-560, -6.8]], "upgrade": "platforms" },
+        { "id": "12", "v": -81, "path": [[37, -81], [-140, -81], [-560, -6.8]], "upgrade": "platforms" }
+      ] },
     { "id": "davenport", "straight": [-150, 80], "name": "Davenport", "corridor": "main", "lat": 53.390734, "lon": -2.1521585, "miles": -1.25, "catchment": 160, "draw": 310, "ceiling": 290, "note": "Census 2021 (tools/census-to-network.mjs, 12 October 2026): 13,992 residents whose best trip in is from here, 3,661 working within a walk; draw: local shops and schools", "price": 80000, "kit": "davenport", "retail": "Sandwich bar", "stop": -20,
       "grow": { "crossing": { "name": "Footbridge" }, "platform2": { "name": "Second platform" }, "building": { "name": "Booking office" } }, "needs": { "station": "stockport", "upgrade": "platforms" } },
     { "id": "woodsmoor", "straight": [-100, 85], "name": "Woodsmoor", "corridor": "main", "lat": 53.3861409, "lon": -2.1412433, "miles": -2, "catchment": 130, "draw": 750, "ceiling": 230, "note": "Census 2021 (tools/census-to-network.mjs, 12 October 2026): 11,398 residents whose best trip in is from here, 8,837 working within a walk; draw: Stepping Hill Hospital, a walk up the road", "price": 110000, "kit": "woodsmoor", "retail": "Coffee cart", "stop": -20,
@@ -245,26 +266,20 @@
     { "id": "cis-tower", "name": "CIS Tower", "lat": 53.4869, "lon": -2.2393, "kind": "tower", "shape": "slab", "height": 118, "w": 40, "d": 16, "note": "The 1962 office slab with its service tower up one side; from memory." },
     { "id": "town-hall", "name": "Manchester Town Hall", "lat": 53.4794, "lon": -2.2446, "kind": "tower", "shape": "spire", "height": 87, "w": 10, "d": 10, "note": "The clock tower and spire; from memory." }
   ],
+  "platformNote": "Which platform each service uses (12 October 2026). The owner: trains from Stockport to Manchester use platforms 3 and 4, both of them. Wikipedia (Stockport railway station, Manchester Piccadilly station, read 12 October 2026): at Stockport platform 4 is the northbound stoppers', 3 the northbound main-line trains (Avanti West Coast, 3 an hour, and CrossCountry, 2 an hour, to Piccadilly), 2 the southbound main-line trains (to London, Bristol and Bournemouth), 1 southbound stoppers and signalled for trains to Manchester, 0 southbound towards Hazel Grove and Buxton, 3a the weekly train to Stalybridge; at Piccadilly platform 1 is on the north side (the kit's +v) and 13 and 14 on the south, 5 to 9 are the longest and mostly Avanti's and CrossCountry's, 10 to 12 shorter, for local trains including the Buxton line. Game choices: the stopper turns at Stockport in 4, 3 and the bay 0, and at Piccadilly in 5, 11, 12 and 4, each unit its own first choice so every platform built has trains; the Hazel Grove line turns in Stockport's 1; the expresses use 3 north and 2 south at Stockport (running through until those are built) and 6 and 7 at Piccadilly (5 while the player owns it without the shed). A through station's platforms are the halt's (1) and the second platform (2), which aren't their real numbers everywhere. The expresses' destinations south: Avanti's London Euston, CrossCountry's Bristol Temple Meads (some go to Bournemouth); one of each every 1,200 sim seconds (two clock hours), not their real frequency, which the clock running six times faster would make a train every few minutes.",
   "services": [
     { "id": "stopper", "name": "Northern stopping service", "operator": "northern", "tracks": { "north": "down-slow", "south": "up-slow" }, "calls": "all", "cars": 2,
-      "route": ["stockport", "heaton-chapel", "levenshulme", "ardwick", "piccadilly"] },
+      "route": ["stockport", "heaton-chapel", "levenshulme", "ardwick", "piccadilly"],
+      "platforms": { "stockport": { "turn": ["4", "3", "0"] }, "piccadilly": { "turn": ["5", "11", "12", "4"] } } },
     { "id": "hazel-grove", "name": "Hazel Grove line", "operator": "northern", "tracks": { "north": "branch-north", "south": "branch-south" }, "calls": "all", "cars": 2,
-      "route": ["hazel-grove", "woodsmoor", "davenport", "stockport"], "home": "stockport" },
-    {
-      "id": "avanti",
-      "name": "Avanti West Coast",
-      "operator": "avanti",
-      "tracks": {
-        "north": "down-fast",
-        "south": "up-fast"
-      },
-      "calls": [
-        "stockport",
-        "piccadilly"
-      ],
-      "cars": 9,
-      "scenery": true
-    }
+      "route": ["hazel-grove", "woodsmoor", "davenport", "stockport"], "home": "stockport",
+      "platforms": { "stockport": { "turn": ["1"] } } },
+    { "id": "avanti", "name": "Avanti West Coast", "operator": "avanti", "tracks": { "north": "down-fast", "south": "up-fast" }, "calls": ["stockport", "piccadilly"], "cars": 9,
+      "route": ["stockport", "piccadilly"], "through": { "south": "London Euston", "every": 1200, "at": 300 },
+      "platforms": { "stockport": { "north": ["3"], "south": ["2"] }, "piccadilly": { "turn": ["6", "7", "5"] } } },
+    { "id": "crosscountry", "name": "CrossCountry", "operator": "crosscountry", "tracks": { "north": "down-fast", "south": "up-fast" }, "calls": ["stockport", "piccadilly"], "cars": 5,
+      "route": ["stockport", "piccadilly"], "through": { "south": "Bristol Temple Meads", "every": 1200, "at": 900 },
+      "platforms": { "stockport": { "north": ["3"], "south": ["2"] }, "piccadilly": { "turn": ["7", "6", "5"] } } }
   ],
   "roadNote": "Roads between neighbouring stations, for the rail replacement buses (and later trams and buses): from memory, 12 October 2026, since OpenStreetMap couldn't be reached from the session that drew them. Each follows the real main road, mostly the A6, which runs beside the line all the way, with the side streets to each station; corners are approximate to tens of metres. tools/osm-to-roads.mjs redraws them from an OpenStreetMap export.",
   "roads": [

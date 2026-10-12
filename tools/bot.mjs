@@ -63,7 +63,10 @@ export function play(seed, hoursToPlay = hours) {
   // lateness: every main-line departure, and at each peak who gave up where and how late trains ran
   const late = { deps: 0, within: 0, worst: 0 }, peaks = {}, main = sim.svcs[0].id;
   const peak = k => peaks[k] ??= { lost: {}, cab: {}, deps: 0, within: 0, worst: 0 };
+  // how often each platform at the two big stations has a train leave it, by its number on the boards
+  const used = {}, big = new Set(['stockport', 'piccadilly']);
   sim.onDepart = (tr, i, s) => {
+    const st = sim.S[i].id; if (big.has(st) && tr.pfAt === i) { const k = `${st} ${sim.plats[i][tr.pf]?.def.id}`; used[k] = (used[k] ?? 0) + 1; }
     if (tr.svc !== main) return;
     late.deps++; if (s <= 300) late.within++; late.worst = Math.max(late.worst, s);
     const k = peakOf(sim); if (!k) return;
@@ -94,11 +97,12 @@ export function play(seed, hoursToPlay = hours) {
     'lost beyond home %': g.stats.lost ? +(100 * (1 - g.st[home].lost / g.stats.lost)).toFixed(1) : 0,
     'failures': g.trouble.fails, 'signal failures': g.trouble.signals, 'by bus': g.trouble.bused, 'lost in trouble': troubleLost,
     'wet hours': +(g.weather.wet / 3600).toFixed(2),
+    'express £': Math.round(g.stats.express), 'through': g.stats.through,
     'homes grown': Math.round(g.homes.reduce((a, h, i) => a + h - sim.S[i].catchment, 0)),
     'within 5 min %': late.deps ? +(100 * late.within / late.deps).toFixed(1) : 100, 'worst late min': +(late.worst / 60).toFixed(1) };
   for (const p of Object.values(peaks)) { p.within = p.deps ? +(100 * p.within / p.deps).toFixed(1) : 100; p.worst = +(p.worst / 60).toFixed(1); }
   const play = fingerprint({ v: g.v, owned: g.owned, ups: g.ups, line: g.line, cash: Math.round(g.cash), boarded: g.stats.boarded, lost: g.stats.lost, cab: g.stats.cab, bused: g.trouble.bused, homes: g.homes.map(Math.round) });
-  return { seed, reached, measures, peaks, play };
+  return { seed, reached, measures, peaks, play, used };
 }
 
 function fingerprint(o) { const s = JSON.stringify(o); let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16).padStart(8, '0'); }
@@ -107,7 +111,7 @@ function band(value, [lo, hi]) { if (value === undefined) return 'none'; if (val
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const runs = seeds.map(s => play(s));
-  for (const r of runs) { console.log(`SEED ${r.seed}`); console.log('REACHED ' + JSON.stringify(r.reached)); console.log('MEASURES ' + JSON.stringify(r.measures)); console.log('PEAKS ' + JSON.stringify(r.peaks)); console.log('PLAY ' + r.play); }
+  for (const r of runs) { console.log(`SEED ${r.seed}`); console.log('REACHED ' + JSON.stringify(r.reached)); console.log('MEASURES ' + JSON.stringify(r.measures)); console.log('PEAKS ' + JSON.stringify(r.peaks)); console.log('PLATFORMS ' + JSON.stringify(Object.fromEntries(Object.entries(r.used).sort()))); console.log('PLAY ' + r.play); }
   const keys = Object.keys(baseline.ranges);
   console.log(`\n| Milestone or measure (${hours} game hours) | Range | ${runs.map(r => 'seed ' + r.seed).join(' | ')} | Mean | Band |`);
   console.log(`| --- | --- | ${runs.map(() => '---').join(' | ')} | --- | --- |`);

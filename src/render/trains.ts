@@ -1,7 +1,10 @@
 // Train units as vertex-coloured box geometry, positioned on their service's track by distance along the corridor. The
 // cars are real length but 1.3 times real height and width, model-railway style, so a train reads from the stock zoom.
-// A train coming in to the end of its run crosses over to the track it will leave on as it runs in, so it stands at the
-// platform its passengers board from and never jumps across when it turns round.
+// A train stands at the platform the sim gave it (`Train.bound` running in, `Train.pf` standing and leaving): running in,
+// it crosses from its own track to that platform's (its track, or the rails drawn into a bay) where the two come
+// closest, nearest the station, and leaving it crosses back the same way; turning round, it leaves on the track it
+// came in on, so it never jumps across. The expresses are the sim's trains like any other, hidden while they're away
+// off the map.
 // A train looks as full as it is: its windows go from cool glass when empty to warm and lit as it fills, riders show in
 // them, and when it's nearly full people stand in the doorways. A train running late carries an amber lamp over its
 // leading cab, from a minute late, growing until it's five minutes late; on time it looks as it always has.
@@ -14,17 +17,18 @@
 import * as THREE from 'three';
 import { yawFor } from './world.ts';
 import { PAL } from './scene.ts';
-import { LINE_UPGRADES, TUNING } from '../sim/sim.ts';
+import { LINE_UPGRADES, TUNING, type Sim } from '../sim/sim.ts';
 import { newFrame } from '../sim/network.ts';
 import type { Train } from '../sim/types.ts';
 import type { Network } from '../sim/network.ts';
-import type { Frame, GameState, ServiceDef } from '../sim/types.ts';
+import type { Frame, GameState, PlatformDef, ServiceDef, Station } from '../sim/types.ts';
 
 type RGB = [number, number, number];
 export interface Livery { body: RGB; roof: RGB; band: RGB; door: RGB; win: RGB; nose: RGB }
 export const LIVERIES: Record<string, Livery> = {
   northern: { body: [0.93, 0.93, 0.95], roof: [0.35, 0.36, 0.4], band: [0.52, 0.3, 0.72], door: [0.2, 0.25, 0.55], win: [0.95, 0.85, 0.55], nose: [0.17, 0.17, 0.25] },
   avanti: { body: [0.9, 0.91, 0.92], roof: [0.3, 0.32, 0.34], band: [0.12, 0.5, 0.36], door: [0.14, 0.55, 0.4], win: [0.95, 0.85, 0.55], nose: [0.1, 0.1, 0.12] },
+  crosscountry: { body: [0.62, 0.63, 0.67], roof: [0.3, 0.3, 0.33], band: [0.56, 0.12, 0.32], door: [0.45, 0.1, 0.27], win: [0.95, 0.85, 0.55], nose: [0.12, 0.12, 0.14] },
 };
 const NORTHERN = LIVERIES['northern']!;
 const GHOST_SPARE = new THREE.MeshBasicMaterial({ color: PAL.ghost, transparent: true, opacity: 0.5, depthWrite: false, fog: false });
@@ -52,10 +56,13 @@ export function carGeometry(liv: Livery, noseLow: boolean, noseHigh: boolean): T
 }
 
 /** A unit on the map: a group of cars, each its own mesh so it follows the track round curves and across crossovers. */
-interface Unit { group: THREE.Group; cars: THREE.Mesh[]; full: number }
-interface Express { svc: ServiceDef; unit: Unit; t: number; dir: 1 | -1; range: [number, number] }
-/** How far a train coming in to the end of its run has left to go, or null when it isn't. */
-export type EndAhead = (tr: Train) => number | null;
+interface Unit { group: THREE.Group; cars: THREE.Mesh[]; full: number; livery?: string }
+/** A platform a unit is drawn at: the station, the platform (null: the one face its way, on its own track), and
+ * whether it turns round there. */
+export interface Berth { st: Station; at: number; def: PlatformDef | null; turn: boolean; cross?: Map<number, { x0: number; len: number }> }
+/** The platform a unit is running in to, and the one it stands at or is leaving. */
+export interface Berths { ahead: Berth | null; behind: Berth | null }
+export const NO_BERTHS: Berths = { ahead: null, behind: null };
 const CAR = 23, PITCH = CAR + 0.6;   // a car's length, and from one car's middle to the next
 const BOGIE = 8;                     // a car's bogies stand this far either side of its middle, and steer it
 // a train running in to the end of its run crosses to the track it will leave on over CROSS metres, finishing HOLD
@@ -96,32 +103,94 @@ const SPARE_AT: [number, number] = [78, -33];
 export interface CarPose { x: number; z: number; dx: number; dz: number; len: number; bogie: number }
 const POSES: CarPose[] = [];
 const fa = newFrame(), fb = newFrame(), fc = newFrame();
-/** Where each car of a unit of a service is drawn, centred at s, on the track for its direction; running in to the end
- * of its run (rem metres to go) the cars follow the crossover to the track it will leave on, each where it is along it.
- * A car rides on its bogies: they're on the track, and its body runs straight between them. Fills out (car 0 at the Stockport
- * end) and returns how many cars; the geometry check sweeps the same poses past the stations. */
-export function unitPoses(net: Network, svc: ServiceDef, s: number, dir: number, cars: number, rem: number | null, out: CarPose[]): number {
-  const on = dir > 0 ? svc.tracks.north : svc.tracks.south, leaving = dir > 0 ? svc.tracks.south : svc.tracks.north;
-  const end = rem === null || on === leaving ? null : s + dir * rem;
+/** Where each car of a unit of a service is drawn, centred at s, heading dir: on its track, or by a station on the
+ * platform it's running in to or leaving (berths). A car rides on its bogies: they're on the track, and its body runs
+ * straight between them. Fills out (car 0 at the Stockport end) and returns how many cars; the geometry check sweeps
+ * the same poses past the stations. */
+export function unitPoses(net: Network, svc: ServiceDef, s: number, dir: number, cars: number, berths: Berths, out: CarPose[]): number {
   for (let c = 0; c < cars; c++) {
     const x = s + (c - (cars - 1) / 2) * PITCH, o = out[c] ?? (out[c] = { x: 0, z: 0, dx: 1, dz: 0, len: CAR, bogie: BOGIE });
-    const a = onPath(net, on, leaving, end, dir, x - BOGIE, fa), b = onPath(net, on, leaving, end, dir, x + BOGIE, fb), n = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+    const a = onPath(net, svc, dir, cars, berths, x - BOGIE, fa), b = onPath(net, svc, dir, cars, berths, x + BOGIE, fb), n = Math.hypot(b.x - a.x, b.z - a.z) || 1;
     o.dx = (b.x - a.x) / n; o.dz = (b.z - a.z) / n; o.x = (a.x + b.x) / 2; o.z = (a.z + b.z) / 2; o.len = CAR; o.bogie = n / 2;
   }
   return cars;
 }
-/** A point x along the path a unit runs: its track, or running in to the end of its run (end not null), the
- * crossover from its track to the one it will leave on, which ends HOLD metres short of the stop. */
-function onPath(net: Network, on: string, leaving: string, end: number | null, dir: number, x: number, f: Frame): Frame {
-  if (end === null) return net.trackAt(on, x, f);
-  const k = smooth(Math.max(0, Math.min(1, (HOLD + CROSS - (end - x) * dir) / CROSS)));
-  return net.place(net.track(on).corridor, x, net.offsetAt(on, x) * (1 - k) + net.offsetAt(leaving, x) * k, f);
+/** A point x along the path a unit runs: its own track, crossing to a berth's platform near a station. */
+function onPath(net: Network, svc: ServiceDef, dir: number, cars: number, B: Berths, x: number, f: Frame): Frame {
+  const on = dir > 0 ? svc.tracks.north : svc.tracks.south;
+  return net.place(net.track(on).corridor, x, offsetOn(net, svc, dir, cars, B, x), f);
+}
+/** Where across the line a unit's point x runs: its own track's offset, eased onto the platform it's leaving and the
+ * one it's running in to over their crossovers. */
+export function offsetOn(net: Network, svc: ServiceDef, dir: number, cars: number, B: Berths, x: number): number {
+  const on = dir > 0 ? svc.tracks.north : svc.tracks.south;
+  let o = net.offsetAt(on, x);
+  if (B.behind) o = eased(net, svc, on, cars, B.behind, dir > 0 ? 1 : -1, true, x, o);
+  if (B.ahead) o = eased(net, svc, on, cars, B.ahead, dir > 0 ? -1 : 1, false, x, o);
+  return o;
+}
+/** Which track a platform's trains stand on, by id: its own, or (none given) the train's own going on, which at a
+ * turn is the one it leaves on. */
+function berthTrack(svc: ServiceDef, on: string, b: Berth, behind: boolean): string | null {
+  if (b.def?.path) return null;
+  return b.def?.track ?? (b.turn && !behind ? (on === svc.tracks.north ? svc.tracks.south : svc.tracks.north) : on);
+}
+/** A platform's offset at x: its track's, or along the rails drawn into a bay (held at their ends beyond them). */
+function berthOffset(net: Network, track: string | null, b: Berth, x: number): number {
+  if (track) return net.offsetAt(track, x);
+  const P = b.def?.path ?? [], u = x - b.at, U = (k: number) => P[k]?.[0] ?? 0, V = (k: number) => P[k]?.[1] ?? 0, n = P.length - 1;
+  // beyond either end of the rails, the end's offset
+  if ((u - U(0)) * (U(n) - U(0)) <= 0) return V(0);
+  if ((u - U(n)) * (U(0) - U(n)) <= 0) return V(n);
+  for (let k = 0; k < n; k++) if ((u - U(k)) * (u - U(k + 1)) <= 0 && U(k) !== U(k + 1)) return V(k) + (V(k + 1) - V(k)) * (u - U(k)) / (U(k + 1) - U(k));
+  return V(n);
+}
+/** The unit's offset o at x eased onto berth b's platform: fully on it from where the crossover starts to the
+ * station, back on its own track beyond it, side -1 or 1 being the way the crossover lies from the station. The
+ * crossover is where the two tracks come closest (within 0.3 m), the nearest such place to the station clear of the
+ * unit standing there, and is 12 times as long as the tracks are apart (60 m at least). */
+function eased(net: Network, svc: ServiceDef, on: string, cars: number, b: Berth, side: number, behind: boolean, x: number, o: number): number {
+  const track = berthTrack(svc, on, b, behind); if (track === on) return o;
+  // each crossover worked out once, kept on the berth by track, side and length
+  const key = ((net.tracks.findIndex(t => t.id === on) * 2 + (side > 0 ? 1 : 0)) * 2 + (behind ? 1 : 0)) * 32 + cars, cross = b.cross ??= new Map();
+  let c = cross.get(key);
+  if (!c) {
+    // clear of the unit standing there: centred on the stop, or a long express at the end of its run with its front
+    // where the longest stopping unit's is
+    const stop = b.def?.stop === undefined ? b.st.s : b.at + b.def.stop, reach = b.turn && cars > LONGEST ? (cars - LONGEST / 2) * PITCH : cars * PITCH / 2;
+    const start = stop + side * (reach + 5), [e0, e1] = net.extent(on), d = (y: number) => Math.abs(net.offsetAt(on, y) - berthOffset(net, track, b, y));
+    let least = Infinity;
+    for (let y = start; Math.abs(y - start) <= 1200 && y >= e0 && y <= e1; y += side * 5) least = Math.min(least, d(y));
+    let x0 = start; for (let y = start; Math.abs(y - start) <= 1200 && y >= e0 && y <= e1; y += side * 5) if (d(y) <= least + 0.3) { x0 = y; break; }
+    c = { x0, len: Math.max(60, 12 * d(x0 + side * 60)) }; cross.set(key, c);
+  }
+  const w = Math.max(0, Math.min(1, (c.x0 + side * c.len - x) * side / c.len));
+  if (w <= 0) return o;
+  const k = smooth(w); return o + (berthOffset(net, track, b, x) - o) * k;
+}
+/** Where a train is drawn by the stations: the platform it has claimed (or will) at its next stop, and the one it
+ * stands at or last left, while it's near it. Fills out. */
+export function berthsOf(sim: Sim, tr: Train, out: Berths): Berths {
+  out.ahead = null; out.behind = null;
+  const near = TUNING.claim + 600;
+  if (tr.pfAt >= 0 && Math.abs(sim.station(tr.pfAt).s - tr.s) < near) out.behind = berth(sim, tr.pfAt, tr.pf, sim.isEnd(tr, tr.pfAt));
+  if (tr.state === 'run' && tr.next !== null && tr.next !== tr.pfAt && Math.abs(sim.station(tr.next).s - tr.s) < near) {
+    const i = tr.next, kind = sim.kindAt(tr, i), p = tr.bound >= 0 ? tr.bound : sim.platsFor(tr, i, kind)[0] ?? -1;
+    out.ahead = berth(sim, i, p, kind === 'turn');
+  }
+  return out;
+}
+const BERTHS: Berth[] = [];
+function berth(sim: Sim, i: number, p: number, turn: boolean): Berth {
+  // one berth object per station, platform and turn, made once
+  const k = (i * 64 + Math.max(0, p + 1)) * 2 + (turn ? 1 : 0), st = sim.station(i);
+  return BERTHS[k] ??= { st, at: st.at, def: sim.plats[i]?.[p]?.def ?? null, turn };
 }
 /** Where a service's units run, by their middles: a passenger service between the stops at the ends of its route; an
  * express from where its tracks begin (its tail on them) to the end of its run, standing where the longest stopping
  * unit would at its last call. */
 export function serviceRange(net: Network, svc: ServiceDef): [number, number] {
-  if (!svc.scenery) { const ss = (svc.route ?? []).map(id => net.station(id).s); return [Math.min(...ss), Math.max(...ss)]; }
+  if (!svc.scenery && !svc.through) { const ss = (svc.route ?? []).map(id => net.station(id).s); return [Math.min(...ss), Math.max(...ss)]; }
   const half = (svc.cars * PITCH - 0.6) / 2, last = net.station((Array.isArray(svc.calls) ? svc.calls : []).at(-1) ?? net.stations.at(-1)!.id);
   return [Math.max(net.extent(svc.tracks.north)[0], net.extent(svc.tracks.south)[0]) + half, last.s + (LONGEST * PITCH - 0.6) / 2 - half];
 }
@@ -134,7 +203,9 @@ export class TrainLayer {
   meshes: THREE.Group[];
   private units: Unit[];
   services: Record<string, ServiceDef>;
-  express: Express[];
+  /** The first express service and the stretch of fast line it runs, which the engineering train runs too. */
+  private fast: { svc: ServiceDef; range: [number, number] } | null;
+  private berths: Berths = { ahead: null, behind: null };
   riders: THREE.InstancedMesh;
   standing: THREE.InstancedMesh;
   coats: THREE.Color[];
@@ -158,8 +229,8 @@ export class TrainLayer {
     this.scene = scene; this.net = net; this.mat = new THREE.MeshLambertMaterial({ vertexColors: true });
     this.meshes = []; this.units = [];
     this.services = Object.fromEntries(services.map(s => [s.id, s]));
-    // scenery expresses on the fast lines, from where those lines begin to the platform at the end of their run
-    this.express = services.filter(s => s.scenery).map(s => ({ svc: s, unit: this.unit(s.cars, liveryFor(s.operator)), t: 0, dir: 1, range: serviceRange(net, s) }));
+    const ex = services.find(s => s.through || s.scenery);
+    this.fast = ex ? { svc: ex, range: serviceRange(net, ex) } : null;
     this.riders = new THREE.InstancedMesh(riderGeo, riderMat, MAX_RIDERS); this.standing = new THREE.InstancedMesh(standGeo, riderMat, MAX_STANDING);
     for (const im of [this.riders, this.standing]) { im.count = 0; im.frustumCulled = false; scene.add(im); }
     this.coats = [PAL.pax, PAL['pax-2'], PAL['pax-3'], PAL['pax-4']];
@@ -226,8 +297,8 @@ export class TrainLayer {
     return u;
   }
   /** Put a unit's cars where unitPoses says. */
-  private pose(u: Unit, svc: ServiceDef, s: number, dir: number, rem: number | null): void {
-    const n = unitPoses(this.net, svc, s, dir, u.cars.length, rem, POSES);
+  private pose(u: Unit, svc: ServiceDef, s: number, dir: number, berths: Berths): void {
+    const n = unitPoses(this.net, svc, s, dir, u.cars.length, berths, POSES);
     for (let c = 0; c < n; c++) {
       const p = POSES[c]!, m = u.cars[c]!;
       m.position.set(p.x, 0, p.z); m.rotation.y = Math.atan2(-p.dz, p.dx); m.updateMatrix();
@@ -272,13 +343,16 @@ export class TrainLayer {
       }
     });
   }
-  sync(g: GameState, dtGame: number, endAhead: EndAhead): void {
+  sync(sim: Sim, dtGame: number): void {
+    const g = sim.g;
     while (this.units.length < g.trains.length) { const u = this.unit(2, NORTHERN); this.units.push(u); this.meshes.push(u.group); }
     const at = this.counts; at.r = 0; at.s = 0; this.lamps.count = 0;
     g.trains.forEach((tr, i) => {
       const u = this.units[i], svc = this.services[tr.svc]; if (!u || !svc) return;
-      if (u.cars.length !== tr.cars) this.unit(tr.cars, liveryFor(svc.operator), u);
-      this.pose(u, svc, tr.s, tr.dir, endAhead(tr));
+      // an express off the map isn't drawn
+      if (tr.state === 'away') { u.group.visible = false; return; }
+      if (u.cars.length !== tr.cars || u.livery !== svc.operator) { this.unit(tr.cars, liveryFor(svc.operator), u); u.livery = svc.operator; }
+      this.pose(u, svc, tr.s, tr.dir, berthsOf(sim, tr, this.berths));
       const full = Math.min(1, tr.onboard / (tr.cars * TUNING.seatsPerCar));
       this.windows(u, full); this.ridersIn(u, tr, full, at); this.lateLamp(u, tr);
     });
@@ -287,12 +361,12 @@ export class TrainLayer {
     this.trouble(g, dtReal);
     this.riders.count = at.r; this.standing.count = at.s;
     for (const im of [this.riders, this.standing]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
-    // the engineering train, on the nights it runs; the expresses are off the fast lines while it's out
-    const works = engineering(g.seed, g.t), ex0 = this.express[0];
+    // the engineering train, on the nights it runs, when no express is about (they don't run in the small hours)
+    const works = engineering(g.seed, g.t), fast = this.fast;
     this.beacons.count = 0;
-    if (works && ex0) {
-      const [s0, s1] = ex0.range;
-      this.pose({ group: this.eng, cars: this.engCars, full: 0 }, ex0.svc, s0 + works.at * (s1 - s0), works.dir, null);
+    if (works && fast) {
+      const [s0, s1] = fast.range;
+      this.pose({ group: this.eng, cars: this.engCars, full: 0 }, fast.svc, s0 + works.at * (s1 - s0), works.dir, NO_BERTHS);
       // two beacons on each car's roof, turning: each lit for part of a real second, out of step
       const ms = performance.now();
       this.engCars.forEach((m, c) => { for (const e of [-1, 1]) if ((ms / 1000 + c * 0.5 + (e > 0 ? 0.25 : 0)) % 1 < 0.45) {
@@ -300,14 +374,5 @@ export class TrainLayer {
       } });
     } else this.eng.visible = false;
     this.beacons.instanceMatrix.needsUpdate = true;
-    // an express runs up to the end of its run and stands there out the half period, then runs back and is gone
-    for (const ex of this.express) {
-      if (works) { ex.t += dtGame; ex.unit.group.visible = false; continue; }
-      ex.t += dtGame; const period = 900, run = (ex.t % period) * 45, [s0, s1] = ex.range, len = s1 - s0;
-      ex.dir = Math.floor(ex.t / period) % 2 === 0 ? 1 : -1;
-      if (ex.dir > 0) this.pose(ex.unit, ex.svc, s0 + Math.min(run, len), 1, null);
-      else if (run < len) this.pose(ex.unit, ex.svc, s1 - run, -1, null);
-      else ex.unit.group.visible = false;
-    }
   }
 }

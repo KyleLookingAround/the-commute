@@ -43,13 +43,33 @@ export interface StationGeoDef {
   grow?: Partial<Record<StageId, { name: string; desc?: string; price?: number }>>;
   /** Something that must be built elsewhere before this station can be bought. */
   needs?: { station: string; upgrade: string };
+  /** The platform faces trains stand at, where they're more than the halt's one and the second platform's (the sim
+   * makes those two up for a station that doesn't list its own). */
+  platforms?: PlatformDef[];
 }
+/** A platform face: the number on the boards; where its track runs (`track`, a network track along the face, or `path`,
+ * the drawn rails from the platform out to where they join the line, as kit (u, v) points; neither: the train's own
+ * track); the stage it comes with (none: the halt's); `stop`, the kit u a unit stands centred on if not the station's
+ * stop; `ways`, which way trains calling there go where no service lists it. */
+export interface PlatformDef {
+  id: string; v?: number; track?: string; path?: number[][]; upgrade?: string | string[]; stop?: number;
+  ways?: ('north' | 'south')[]; note?: string;
+}
+/** A service's platforms at a station, by the platform ids: calling going north or south, or turning round. */
+export interface ServicePlatforms { north?: string[]; south?: string[]; turn?: string[] }
 /** route: the stations a service calls at, in order along the corridor (south to north). home: a service with one
  * runs from there only as far along its route as stations are owned, and not at all until one is; without one it runs
  * the whole route, its ends always served. Scenery services carry nobody. */
 export interface ServiceDef {
   id: string; name: string; operator: string; tracks: { north: string; south: string };
   calls: string | string[]; cars: number; scenery?: boolean; route?: string[]; home?: string;
+  /** The platforms it uses at each station, preferred first; a station not listed: whichever face is its way. A `turn`
+   * list is shared out by unit (the first unit the first platform, the second the next), so each one built is used. */
+  platforms?: Record<string, ServicePlatforms | undefined>;
+  /** A long-distance train running through from beyond the map: it comes in where its tracks begin, calls at its
+   * route's stations where it has a platform, turns at the last, and goes back off the map to `south`, one every
+   * `every` sim seconds, the first `at` seconds into the cycle. */
+  through?: { south: string; every: number; at: number };
 }
 export interface LandmarkDef {
   id: string; name: string; kind: string; corridor?: string;
@@ -93,6 +113,8 @@ export interface Queued { t: number; dest: number; n: number; paid?: boolean; gi
 export interface StationState {
   acc: number; q: [Queued[], Queued[]]; waiting: number; boarded: number; alighted: number; changed: number; revenue: number; lost: number;
   cab: number; cabs: number[];
+  /** Long-distance passengers getting on and off the expresses here. */
+  through: number;
 }
 /** svc: the service it runs; calling: the station a dwelling train is boarding at; boardAcc: boarding it has room for
  * this stop and hasn't used yet, in passengers (its doors take a share of a passenger each second; below zero while
@@ -102,9 +124,12 @@ export interface StationState {
  * seconds past due, live while it stands and as it left its last stop while it runs. stood: seconds at this stop;
  * quiet: seconds since its platform first cleared there (the doors closing). */
 export interface Train {
-  id: number; svc: string; dir: 1 | -1; s: number; v: number; state: 'run' | 'dwell'; dwell: number;
+  id: number; svc: string; dir: 1 | -1; s: number; v: number; state: 'run' | 'dwell' | 'away'; dwell: number;
   next: number | null; load: number[]; onboard: number; cars: number; calling: number | null; boardAcc: number;
   due: number; late: number; stood: number; quiet: number;
+  /** The platform (index in the sim's list for the station) it stands at or last left, and that station (-1 none);
+   * bound: the platform it has claimed at its next stop (-1 not yet). An express is `away` while it's off the map. */
+  pf: number; pfAt: number; bound: number;
 }
 /** Things going wrong (docs/DESIGN.md, Things going wrong). A failed train: the unit (by id) stands where it failed
  * from `from` until `until`, blocking its line one way (d, 0 towards Manchester) between the stations either side
@@ -125,7 +150,9 @@ export interface Weather { rngState: number; now: Sky; was: Sky; since: number; 
 export interface GameState {
   v: number; seed: number; rngState: number; t: number; day: number; cash: number; earned: number;
   owned: boolean[]; ups: Partial<Record<UpgradeId, boolean>>[]; line: Record<LineUpgradeId, number>;
-  st: StationState[]; trains: Train[]; stats: { boarded: number; lost: number; cab: number };
+  st: StationState[]; trains: Train[];
+  /** through: long-distance passengers on and off the expresses at owned stations; express: what the expresses paid. */
+  stats: { boarded: number; lost: number; cab: number; through: number; express: number };
   /** By service, the timetabled departure of the unit that last turned round at each end of its run (0 the south end,
    * 1 the north), which the next unit keeps a headway behind. */
   ends: Record<string, [number, number]>;

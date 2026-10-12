@@ -16,7 +16,7 @@ const GAP = 9;                // real seconds at least between announcements
 const MAX_EVENTS = 4;         // brakes and departures started in one look, at most (10x can bunch them)
 
 /** What a train was doing at the last look, to hear it change. */
-interface Was { state: 'run' | 'dwell'; next: number | null }
+interface Was { state: 'run' | 'dwell' | 'away'; next: number | null }
 
 export class Sound {
   private ctx: AudioContext | null = null;

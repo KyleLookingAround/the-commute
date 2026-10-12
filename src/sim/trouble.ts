@@ -36,7 +36,8 @@ function start(sim: Sim, T: Tuning): void {
   // nor where it would still be going in a peak's busiest hour, so bad luck stays a hiccup, not a wrecked morning
   if (T.troubleCalm.some(([a, b]) => h >= a && h < b)) { tb.next = g.t + 120; return; }
   if (sim.rand() < T.failShare) {
-    const ok = g.trains.filter(tr => stationsEither(sim, tr, T.failMargin));
+    // the expresses aren't the player's to rescue
+    const ok = g.trains.filter(tr => !sim.svc(tr.svc).express && stationsEither(sim, tr, T.failMargin));
     if (!ok.length) { tb.next = g.t + 120; return; }
     const tr = ok[Math.floor(sim.rand() * ok.length)]!, ab = stationsEither(sim, tr, T.failMargin)!;
     const fix = g.line.spare ? T.rescueSpare : T.rescue;
@@ -46,7 +47,7 @@ function start(sim: Sim, T: Tuning): void {
     // the faster timetable's new signals mostly hold
     if (g.line.timetable && sim.rand() < T.resignalHolds) { tb.next = g.t + after(sim, T); return; }
     const pairs: [number, number][] = [];
-    for (const v of sim.svcs) {
+    for (const v of sim.local()) {
       if (!sim.unitsFor(v)) continue;
       const sp = sim.span(v);
       for (let k = 1; k < sp.length; k++) { const s0 = sim.station(sp[k - 1]!).s, s1 = sim.station(sp[k]!).s; if (s1 - s0 > 3 * T.failMargin) pairs.push([s0 + T.failMargin, s1 - T.failMargin]); }

@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { MAT, PAL, box } from './scene.ts';
 import { TUNING, type Sim } from '../sim/sim.ts';
 import { runTime } from '../sim/journeys.ts';
+import { clockAt, clockText, simAtHour } from '../sim/day.ts';
 import type { Train } from '../sim/types.ts';
 import { parked, spaces } from '../sim/access.ts';
 
@@ -169,9 +170,9 @@ export function departures(sim: Sim, i: number, out: Dep[]): Dep[] {
   return out.sort((a, b) => a.t - b.t);
 }
 /** A sim time as the game's clock reads it. */
-const clock = (t: number) => { const s = Math.floor((t * TUNING.dayRate) % 86400); return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}`; };
+const clock = clockText;
 /** How late a train is, in the game clock's minutes, once its cab lamp shows (a minute or more). */
-const lateMins = (late: number) => late >= 60 ? Math.round(late * TUNING.dayRate / 60) : 0;
+const lateMins = (late: number, t: number) => late >= 60 ? Math.round((clockAt(t) - clockAt(t - late)) / 60) : 0;
 
 /** One board face, drawn on a canvas: the next two trains, each its time and destination over its platform and On
  * time or how late. */
@@ -185,7 +186,7 @@ class Face {
     this.draw([], []);
   }
   draw(rows: Dep[], names: string[]): void {
-    const text = rows.map(r => `${r.t}|${r.dest}|${r.to}|${r.plat}|${lateMins(r.late)}`).join(',') || 'none';
+    const text = rows.map(r => `${r.t}|${r.dest}|${r.to}|${r.plat}|${lateMins(r.late, r.t)}`).join(',') || 'none';
     if (text === this.text) return;
     this.text = text;
     const x = this.cv.getContext('2d'); if (!x) return;
@@ -193,7 +194,7 @@ class Face {
     x.textBaseline = 'middle'; x.textAlign = 'left'; x.fillStyle = LED;
     if (!rows.length) { x.font = '600 40px Arial, Helvetica, sans-serif'; x.textAlign = 'center'; x.fillText('No trains', 256, 96); }
     rows.forEach((r, k) => {
-      const y = 30 + k * 96, m = lateMins(r.late);
+      const y = 30 + k * 96, m = lateMins(r.late, r.t);
       x.font = '600 40px Arial, Helvetica, sans-serif'; x.fillStyle = LED;
       x.fillText(clock(r.t), 12, y); x.fillText(r.to ?? names[r.dest] ?? '', 138, y, 362);
       x.font = '600 34px Arial, Helvetica, sans-serif';
@@ -253,7 +254,7 @@ export class StationLife {
       const count = st.boarded + st.alighted, dt = g.t - bz.t;
       if (bz.last < 0 || count < bz.last || dt < 0 || dt > SLOW) {
         // a new look (the page opened, a new game, back from away): start from the average since the game began
-        const avg = count / Math.max(600, g.t - 6.5 * 3600 / TUNING.dayRate);
+        const avg = count / Math.max(600, g.t - simAtHour(1, 6.5));
         bz.now = bz.held = Math.min(REF, avg * 2); bz.last = count; bz.t = g.t;
       } else if (dt > 0) {
         const rate = (count - bz.last) / dt, k = 1 - Math.exp(-dt / FAST);

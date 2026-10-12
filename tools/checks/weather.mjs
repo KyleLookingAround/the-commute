@@ -4,9 +4,11 @@
 // the rain, the umbrellas and the murk off the map while the game's own weather is still rain; snow in winter falls and
 // settles; fog closes the view in to a few hundred metres; and the year moves dusk: lamp-lit at 17:30 in winter,
 // daylight at 17:30 in summer.
-const DAY = 86400 / 6;   // sim seconds in a game day
+import { register } from 'tsx/esm/api';
 
 export default async function ({ ok, open, SAVE_KEY }) {
+  register();
+  const { simAtHour } = await import('../../src/sim/day.ts');
   const first = await open({ width: 1280, height: 800 });
   await first.page.waitForTimeout(600);
   const fresh = await first.page.evaluate(() => window.__view.weather());
@@ -19,7 +21,7 @@ export default async function ({ ok, open, SAVE_KEY }) {
   if (!save) { ok('weather: a save to move to each spell', false, 'no save written'); return; }
   /** Open this game moved to a spell on a day at an hour (the spell long in, and going on a while yet). */
   const at = async (now, day, hour, vp = { width: 1280, height: 800 }, touch = false) => {
-    const s = JSON.parse(save), t = (day - 1) * DAY + hour * 3600 / 6;
+    const s = JSON.parse(save), t = simAtHour(day, hour);
     s.g.t = t; s.g.day = day; s.at = Date.now();
     s.g.weather = { ...s.g.weather, now, was: now, since: t - 2000, until: t + 6000 };
     return open(vp, { save: JSON.stringify(s), touch });

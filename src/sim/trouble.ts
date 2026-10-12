@@ -1,15 +1,18 @@
 // Things going wrong (docs/DESIGN.md, Things going wrong): now and then a unit fails between stations and blocks its
 // line until it's rescued, or a stretch of line runs at caution after a signal failure. Few and fair: nothing in the
-// first sim hour, nothing at night, one at a time and a while apart, all drawn from the game's seeded random numbers.
+// first six hours by the clock, nothing at night, one at a time and a while apart, all drawn from the game's seeded
+// random numbers.
 // When a failed train stops its line for long enough, rail replacement buses carry people between the stations either
 // side along the road (`roads` in the network data), slower than the train. A spare unit standing by rescues a failed
 // one sooner; the faster timetable's new signals fail less often.
 import type { Sim, Tuning } from './sim.ts';
+import { later } from './day.ts';
 import type { Bus, Train, Trouble } from './types.ts';
 
 export function freshTrouble(): Trouble { return { next: -1, fails: 0, signals: 0, bused: 0, fail: null, caution: null, buses: [] }; }
 
-/** Seconds until the next thing might go wrong: exponential about the mean, never sooner than the gap after the last. */
+/** Seconds until the next thing might go wrong: exponential about the mean, never sooner than the gap after the last.
+ * They're the peaks' sim seconds by the clock (`later`), so things go wrong as often in a game day as they did. */
 function after(sim: Sim, T: Tuning): number { return T.troubleGap - Math.log(1 - sim.rand()) * (T.troubleEvery - T.troubleGap); }
 
 /** The stations either side of a running train: the nearest on its run behind it and ahead of it, whether or not it
@@ -32,7 +35,7 @@ function start(sim: Sim, T: Tuning): void {
   const g = sim.g, tb = g.trouble, h = sim.hour();
   if (tb.fail || tb.caution || g.t < tb.next) return;
   // nothing at night, when nobody would see it or be hurt by it: try again later
-  if (h < T.troubleDayFrom || h >= T.troubleDayTo) { tb.next = g.t + after(sim, T) / 2; return; }
+  if (h < T.troubleDayFrom || h >= T.troubleDayTo) { tb.next = later(g.t, after(sim, T) / 2); return; }
   // nor where it would still be going in a peak's busiest hour, so bad luck stays a hiccup, not a wrecked morning
   if (T.troubleCalm.some(([a, b]) => h >= a && h < b)) { tb.next = g.t + 120; return; }
   if (sim.rand() < T.failShare) {
@@ -45,7 +48,7 @@ function start(sim: Sim, T: Tuning): void {
     tb.fails++;
   } else {
     // the faster timetable's new signals mostly hold
-    if (g.line.timetable && sim.rand() < T.resignalHolds) { tb.next = g.t + after(sim, T); return; }
+    if (g.line.timetable && sim.rand() < T.resignalHolds) { tb.next = later(g.t, after(sim, T)); return; }
     const pairs: [number, number][] = [];
     for (const v of sim.local()) {
       if (!sim.unitsFor(v)) continue;
@@ -62,9 +65,9 @@ function start(sim: Sim, T: Tuning): void {
 /** Once a step: start and end what's going wrong, and run the replacement buses. */
 export function stepTrouble(sim: Sim, T: Tuning): void {
   const g = sim.g, tb = g.trouble;
-  if (tb.next < 0) tb.next = g.t + T.troubleFrom + after(sim, T);
-  if (tb.fail && g.t >= tb.fail.until) { tb.fail = null; tb.next = Math.max(tb.next, g.t + after(sim, T)); }
-  if (tb.caution && g.t >= tb.caution.until) { tb.caution = null; tb.next = Math.max(tb.next, g.t + after(sim, T)); }
+  if (tb.next < 0) tb.next = later(g.t, T.troubleFrom + after(sim, T));
+  if (tb.fail && g.t >= tb.fail.until) { tb.fail = null; tb.next = Math.max(tb.next, later(g.t, after(sim, T))); }
+  if (tb.caution && g.t >= tb.caution.until) { tb.caution = null; tb.next = Math.max(tb.next, later(g.t, after(sim, T))); }
   start(sim, T);
   buses(sim, T);
 }

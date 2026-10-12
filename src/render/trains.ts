@@ -19,6 +19,7 @@ import { yawFor } from './world.ts';
 import { PAL } from './scene.ts';
 import { LINE_UPGRADES, TUNING, type Sim } from '../sim/sim.ts';
 import { newFrame } from '../sim/network.ts';
+import { clockAt } from '../sim/day.ts';
 import type { Train } from '../sim/types.ts';
 import type { Network } from '../sim/network.ts';
 import type { Frame, GameState, PlatformDef, ServiceDef, Station } from '../sim/types.ts';
@@ -90,7 +91,7 @@ const engHash = (a: number, b: number) => { const s = Math.sin(a * 12.9898 + b *
  * Piccadilly's), and which way it's going; null when it isn't out: outside the small hours, or on a night it doesn't run.
  * A night belongs to the game day it starts after midnight on. */
 export function engineering(seed: number, t: number): { at: number; dir: 1 | -1 } | null {
-  const clock = t * TUNING.dayRate / 3600, hour = clock % 24, night = Math.floor(clock / 24);
+  const clock = clockAt(t) / 3600, hour = clock % 24, night = Math.floor(clock / 24);
   if (hour < ENG_FROM || hour >= ENG_TO || engHash(seed % 9973, night * 1.37 + 11) * 100 >= ENG_NIGHTS) return null;
   const k = (hour - ENG_FROM) / (ENG_TO - ENG_FROM), dir = night % 2 ? -1 : 1;
   return { at: dir > 0 ? k : 1 - k, dir };

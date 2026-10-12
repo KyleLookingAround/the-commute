@@ -16,6 +16,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { MAT, PAL } from './scene.ts';
 import type { BuiltStation, Face, Kit } from './stations.ts';
 import { TUNING } from '../sim/sim.ts';
+import { clockAt } from '../sim/day.ts';
 import type { GameState, Train } from '../sim/types.ts';
 
 const geo = new THREE.CylinderGeometry(0.34, 0.42, 2.0, 7); geo.translate(0, 1.0, 0);
@@ -228,7 +229,7 @@ export class PassengerLayer {
 
   sync(g: GameState, dt: number): void {
     this.earners(g, dt);
-    const clock = g.t * TUNING.dayRate / 3600;
+    const clock = clockAt(g.t) / 3600;
     this.hour = clock % 24; this.club = matchOn(g.seed, Math.floor(clock / 24)); this.crowd = crowdAt(this.hour);
     this.layers.forEach((L, i) => {
       const S = g.st[i];

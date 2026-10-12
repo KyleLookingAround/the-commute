@@ -1,5 +1,6 @@
 // Station strip, station panel, line panel, ticker and toasts. Plain DOM, rebuilt on actions and lightly refreshed on a timer.
 import { UPGRADES, LINE_UPGRADES } from '../sim/sim.ts';
+import { pace } from '../sim/day.ts';
 import type { Sim } from '../sim/sim.ts';
 import type { GameState } from '../sim/types.ts';
 
@@ -226,7 +227,9 @@ export class UI {
   }
   tick(): void {
     const g = this.g, c = fmt(g.cash); if (this.els.cash.textContent !== c) this.els.cash.textContent = c;
-    const ck = `Day ${g.day} · ${this.sim.clock()}`; if (this.els.clock.textContent !== ck) this.els.clock.textContent = ck;
+    // a fast-forward mark while the night races by, so the player knows why the time leapt
+    const fast = pace(g.t) >= 3, ck = `Day ${g.day} · ${this.sim.clock()}${fast ? ' »' : ''}`;
+    if (this.els.clock.textContent !== ck) { this.els.clock.textContent = ck; this.els.clock.title = fast ? 'The night passes quickly' : ''; }
     this.updateStrip(); this.updatePanel(); this.updateLinePanel();
   }
 }

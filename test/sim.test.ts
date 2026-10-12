@@ -7,6 +7,7 @@ import { fromGeo } from '../src/sim/network.ts';
 import { Sim, demandCurve, TUNING } from '../src/sim/sim.ts';
 import { migrate, SAVE_VERSION, SaveError } from '../src/sim/save.ts';
 import type { NetworkGeoDef, Train } from '../src/sim/types.ts';
+import { BASE, clockAt, simAtHour } from '../src/sim/day.ts';
 
 const def = JSON.parse(readFileSync(new URL('../src/data/network.json', import.meta.url), 'utf8')) as NetworkGeoDef;
 const net = () => fromGeo(def);
@@ -120,7 +121,7 @@ test('sim: stations must be bought in order and cost what they say', () => {
 test('sim: one unit cannot cope with Stockport at peak, so passengers are lost', () => {
   const sim = new Sim(net());
   sim.buyUpgrade(0, 'crossing');  // the subway brings the far side in
-  sim.advance(4 * 3600 / 6);     // 06:30 to 10:30 on the clock, through the morning peak
+  sim.advance(simAtHour(1, 10.5) - sim.g.t);     // 06:30 to 10:30 on the clock, through the morning peak
   assert.ok(sim.g.stats.lost > 50, `expected lost passengers under pressure, got ${sim.g.stats.lost}`);
 });
 
@@ -212,6 +213,7 @@ test('timetable: a crowded platform holds a train, it leaves late, and the laten
 
 test('timetable: extra units spread out to an even gap at the ends', () => {
   const sim = new Sim(net()); sim.g.cash = 1e7; growStockport(sim); sim.buyLine('units'); sim.buyLine('units');
+  sim.g.trouble.next = Infinity;   // nothing going wrong to hold a unit
   const deps: number[] = [];
   sim.onDepart = (tr, i) => { if (i === 0 && tr.svc === 'stopper') deps.push(sim.g.t); };
   sim.advance(4 * 3600);
@@ -389,10 +391,11 @@ const troubled = (kind: 'fail' | 'caution', seed = 1) => {
   return sim;
 };
 
-test('trouble: nothing goes wrong in the first sim hour, and the same seed brings the same trouble', () => {
+test('trouble: nothing goes wrong in the first six hours by the clock, and the same seed brings the same trouble', () => {
   const run = (seed: number) => {
-    const n = net(), sim = new Sim(n, Sim.fresh(n, seed)), t0 = sim.g.t; let first = -1;
-    for (let k = 0; k < 24 * 360 && first < 0; k++) { sim.advance(10); if (sim.g.trouble.fail || sim.g.trouble.caution) first = sim.g.t - t0; }
+    const n = net(), sim = new Sim(n, Sim.fresh(n, seed)), c0 = clockAt(sim.g.t); let first = -1;
+    // in the peaks' sim seconds by the clock, as troubleFrom is
+    for (let k = 0; k < 24 * 360 && first < 0; k++) { sim.advance(10); if (sim.g.trouble.fail || sim.g.trouble.caution) first = (clockAt(sim.g.t) - c0) / BASE; }
     return { first, at: JSON.stringify(sim.g.trouble) };
   };
   for (const seed of [1, 2, 3, 4]) { const r = run(seed); assert.ok(r.first > TUNING.troubleFrom, `seed ${seed}: first trouble at ${r.first} s`); assert.equal(run(seed).at, r.at); }

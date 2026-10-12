@@ -6,12 +6,12 @@
 // slow the trains a little (less with the faster timetable's new signals), and snow slows everything and keeps a few
 // at home. Gentle on purpose: a wet day is a reason a canopy pays, never a wrecked game.
 import { rand } from './random.ts';
+import { clockAt, hourAt, simAt } from './day.ts';
 import type { GameState, Season, Sky, Weather } from './types.ts';
 
 /** The weather's numbers. `felt` off makes every spell feel fair (the bot's --fair, to measure what the weather costs). */
 export const WEATHER = {
   felt: true,
-  dayRate: 6,                         // TUNING.dayRate: the clock's hours a sim hour (kept here so the sim needs no import cycle)
   seasonDays: 2,                      // game days a season: the year is eight game days, so a long session sees it turn
   yearStart: 0.06,                    // where in the year a new game starts: early spring (0 spring, .25 summer, .5 autumn, .75 winter)
   // the chance of each kind of spell by season, spring to winter: Manchester, so rain is common, but rarely all day
@@ -32,17 +32,18 @@ export const WEATHER = {
 };
 
 const KINDS: Sky[] = ['sun', 'cloud', 'rain', 'fog', 'snow'];
-const SIM_HOUR = 3600 / WEATHER.dayRate;   // sim seconds in one of the clock's hours
+/** The sim time `hours` of the clock's hours after sim time t. */
+const after = (t: number, hours: number) => simAt(clockAt(t) + hours * 3600);
 
 /** A fresh game's weather: its own random numbers from the seed, and a sunny first spell, so the opening is fair. */
 export function freshWeather(seed: number, t: number): Weather {
   const w: Weather = { rngState: (seed ^ 0x5bd1e995) >>> 0, now: 'sun', was: 'sun', since: t, until: 0, wet: 0 };
-  w.until = t + (2 + 2 * rand(w)) * SIM_HOUR;
+  w.until = after(t, 2 + 2 * rand(w));
   return w;
 }
 
 /** Where in the year the game is at sim time t: 0 to 1 from the start of spring. */
-export function yearAt(t: number): number { const days = t * WEATHER.dayRate / 86400; return (WEATHER.yearStart + days / (4 * WEATHER.seasonDays)) % 1; }
+export function yearAt(t: number): number { const days = clockAt(t) / 86400; return (WEATHER.yearStart + days / (4 * WEATHER.seasonDays)) % 1; }
 /** The season at sim time t: 0 spring, 1 summer, 2 autumn, 3 winter. */
 export function seasonAt(t: number): Season { return Math.floor(yearAt(t) * 4) % 4 as Season; }
 export const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'] as const;
@@ -52,7 +53,7 @@ export function stepWeather(g: GameState, dt: number): void {
   const w = g.weather;
   if (w.now === 'rain' || w.now === 'snow') w.wet += dt;
   if (g.t < w.until) return;
-  const odds = WEATHER.odds[seasonAt(g.t)]!, hour = (g.t * WEATHER.dayRate / 3600) % 24;
+  const odds = WEATHER.odds[seasonAt(g.t)]!, hour = hourAt(g.t);
   let r = rand(w), next: Sky = 'cloud';
   for (const k of KINDS) { r -= odds[k]; if (r < 0) { next = k; break; } }
   // rain rarely lasts all day: a wet spell is followed by a dry one; fog lifts by late morning
@@ -60,7 +61,7 @@ export function stepWeather(g: GameState, dt: number): void {
   if (next === 'fog' && (hour < WEATHER.fogFrom || hour >= WEATHER.fogBefore)) next = 'cloud';
   if ((next === 'rain' || next === 'snow') && g.day < WEATHER.dryFrom) next = 'cloud';
   const [lo, hi] = WEATHER.lasts[next];
-  w.was = w.now; w.now = next; w.since = g.t; w.until = g.t + (lo + (hi - lo) * rand(w)) * SIM_HOUR;
+  w.was = w.now; w.now = next; w.since = g.t; w.until = after(g.t, lo + (hi - lo) * rand(w));
 }
 
 /** What the weather and season do to journeys now: walk, wait (open and under a canopy) as multiples of how they

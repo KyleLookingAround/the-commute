@@ -1,6 +1,7 @@
 // Car parks and bus links (src/sim/access.ts): drivers and bus riders from beyond a walk, the car park's spaces filling
 // and emptying, the charge, and the Interchange. node:test, no browser.
 import { test } from 'node:test';
+import { clockAt, simAt, simAtHour } from '../src/sim/day.ts';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fromGeo } from '../src/sim/network.ts';
@@ -32,15 +33,15 @@ test('access: a car park fills over the morning, charges each car, turns the res
   assert.equal(parked(S), 0, 'it opens empty');
   const cap = spaces(sim, 0); assert.ok(cap > 0);
   // from 06:30 to midday by the clock
-  sim.advance(5.5 * 3600 / TUNING.dayRate);
+  sim.advance(simAtHour(1, 12) - sim.g.t);
   assert.ok(S.car > 0, 'drivers came'); assert.equal(sim.g.stats.car, S.car);
   assert.ok(parked(S) <= cap, 'never more cars than spaces');
   assert.equal(parked(S), cap, 'full by midday at Stockport');
   assert.ok(S.revenue >= S.car * TUNING.parkCharge, 'each car pays'); void cash;
-  const came = S.car; sim.advance(600 / TUNING.dayRate * 6);
+  const came = S.car; sim.advance(simAt(clockAt(sim.g.t) + 3600) - sim.g.t);
   assert.equal(S.car, came, 'once full, the rest don\'t come');
   // through the evening and the night
-  sim.advance(14 * 3600 / TUNING.dayRate);
+  sim.advance(simAtHour(2, 2) - sim.g.t);
   assert.ok(parked(S) < cap / 2, `emptied in the evening (${parked(S)} left)`);
   assert.ok(sim.buyUpgrade(0, 'carpark2')); assert.ok(spaces(sim, 0) > cap, 'the second stage adds spaces');
 });
@@ -49,7 +50,7 @@ test('access: the Interchange brings people by bus and its buses reach further',
   const sim = built(), S = sim.state(0);
   assert.equal(accessReach(sim, TUNING, 0), 0);
   assert.ok(sim.buyUpgrade(0, 'bus'));
-  sim.advance(2 * 3600 / TUNING.dayRate);
+  sim.advance(simAtHour(1, 8.5) - sim.g.t);
   assert.ok(S.bus > 0, 'people came by bus'); assert.equal(sim.g.stats.bus, S.bus);
   assert.ok(accessReach(sim, TUNING, 0) > 2000, 'the outer ring reaches kilometres out');
 });

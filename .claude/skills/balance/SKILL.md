@@ -8,9 +8,9 @@ description: Measure and tune The Commute's pacing and economy with the bot on s
 ## What the bot is
 
 - `tools/bot.mjs` plays the game headless in Node through the same `Sim` the page uses, making the choices a sensible player would (its priority order is the comment above `act` in that file): `npm run bot -- --hours 8 --seed 1 --seed 2 --seed 3` (`--json build/bot.json` keeps the runs).
-- It prints, per seed: `SEED`, `REACHED {milestone: game hour}`, `MEASURES`, `PLAY` (a fingerprint of the saved state that affects play); then one table of every seed and their mean against `tools/baseline.json`. It exits 1 only on an error.
+- It prints, per seed: `SEED`, `REACHED {milestone: sim hour}` (at 1×, a sim hour is 20 real minutes; at 3×, 6.7), `MEASURES` (with game days played, and earned and lost a game day, to compare across clock changes), `PLAY` (a fingerprint of the saved state that affects play); then one table of every seed and their mean against `tools/baseline.json`. It exits 1 only on an error.
 - The same seed and code always give the same run. Any change to the code can shift the dice, so judge a change on several seeds, before and after.
-- The `bot` check group proves it plays 8 sim hours (two game days: the clock runs six times faster than the sim's seconds) without an error and repeats from its seed.
+- The `bot` check group proves it plays 8 sim hours (about three and a half game days: the clock runs 6 to 60 times faster than the sim's seconds, `src/sim/day.ts`) without an error and repeats from its seed.
 
 ## 1. Before
 
@@ -44,25 +44,30 @@ Make the change and run the same three seeds into `build/after.log`.
 
 `tools/baseline.json` holds the ranges. They are **proposed**, not yet agreed: its note says when and why each was set, and the owner agrees ranges when the pacing is settled. Hours are sim hours.
 
-| Milestone or measure | Range | Seeds 1, 2, 3 (12 October 2026, homes from Census 2021 that grow) |
+| Milestone or measure | Range | Seeds 1, 2, 3 (12 October 2026, shorter days and quick nights: 8 sim hours are 3.42 game days) |
 | --- | --- | --- |
+| Game days | 3.3–3.6 | 3.42, 3.42, 3.42 (the clock's days in the run; earned and lost a game day are printed beside it) |
 | Second unit | hour 0.25–0.6 | 0.4, 0.4, 0.4 |
-| Heaton Chapel bought | hour 0.5–1.0 | 0.63, 0.63, 0.63 |
-| Levenshulme bought | hour 1.6–2.8 | 2.62, 2.62, 2.62 (4.0 if its £30,000 isn't there before the first night: seed 9 of 1–12; 9 and 12 before homes grew) |
-| Ardwick bought | hour 4.5–6.5 | 5.48, 4.83, 4.77 (seed 1's failed train in the second morning) |
-| Piccadilly bought | hour 8–20 | not in 8 h; 8.55–9.3 in 30 h (9.2 before homes grew), Hazel Grove 13.6–13.8 (14.0) |
-| Cash at 8 h | £25,000–65,000 | £37,513, £63,746, £65,093 |
-| Boarded | 3,500–5,200 | 4,469, 4,731, 4,779 |
-| Lost | 120–300 | 408, 235, 198 |
-| By cab | 15–60 | 60, 44, 37 (taken by a taxi rank instead of lost) |
-| Lost beyond home % | 15–100 | 18, 31, 29 (Heaton Chapel and Levenshulme; trouble's losses are mostly Stockport's) |
-| Longest quiet | 1.6–2.7 h (the night) | 1.2, 2.0, 2.0 |
-| Longest daytime quiet | 0.3–1.0 h | 0.83, 0.63, 0.63 |
-| Main-line departures within 5 min | 90–100% | 97, 100, 100 |
-| Worst late | 0–8 min | 8.6, 3.1, 0.8 (held behind a failed train or crawling past a signal failure) |
-| Failures, signal failures | 0–3 each | 1 and 0, 0 and 2, 0 and 1 |
-| Lost in trouble | 0–150 | 250, 77, 35 (gave up while something was wrong or in the quarter hour after; nothing starts in a peak's busiest hour; seed 1's failed train lands in the second morning) |
-| Homes grown | 80–200 | 128, 132, 132 (homes over the census catchments; about 580 in 30 h) |
-| Wet hours | 0–2.5 | 1.0, 0.48, 0.48 (sim hours of rain or snow; the first game day stays dry; `--fair` plays the same weather unfelt, to measure what it costs) |
+| Heaton Chapel bought | hour 0.5–1.0 | 0.63, 0.63, 0.63 (13 real minutes at 1×) |
+| Levenshulme bought | hour 1.6–2.8 | 1.93, 1.93, 1.92 (39 real minutes at 1×, 13 at 3×) |
+| Ardwick bought | hour 2.6–4.2 | 3.15, 3.45, 3.17 |
+| Piccadilly bought | hour 4.5–8 | 5.82, 5.92, 5.85 |
+| Cash at 8 h | £20,000–120,000 | £71,857, £44,741, £51,608 |
+| Boarded | 10,000–17,000 | 13,784, 13,398, 13,649 |
+| Lost | 400–900 | 550, 581, 683 |
+| By cab | 80–200 | 154, 144, 120 (taken by a taxi rank instead of lost) |
+| Lost beyond home % | 15–100 | 64, 53, 65 (more stations owned) |
+| Longest quiet | 0.5–1.6 h (the night, short now) | 0.7, 1.2, 0.8 |
+| Longest daytime quiet | 0.3–1.2 h | 0.67, 1.18, 0.77 |
+| Main-line departures within 5 min | 90–100% | 97, 99, 99 |
+| Worst late | 0–12 min | 9.4, 8.2, 7.4 (held behind a failed train or crawling past a signal failure) |
+| Failures, signal failures | 0–4, 0–3 | 1 and 1, 3 and 1, 3 and 1 |
+| Lost in trouble | 0–550 | 113, 194, 498 (gave up while something was wrong or in the quarter hour after) |
+| Homes grown | 180–340 | 262, 259, 264 (homes over the census catchments) |
+| Wet hours | 0–2.5 | 1.47, 1.19, 0.76 (sim hours of rain or snow; the first game day stays dry; `--fair` plays the same weather unfelt, to measure what it costs) |
+| Express £, through | 4,500–8,500; 1,300–2,500 | 6,560, 6,340, 6,572; 1,900, 1,830, 1,906 |
+| By car, by bus link | 300–650; 100–260 | 490, 478, 489; 176, 178, 180 |
+
+To compare a change to the clock like for like, run the bot for the same game days before and after (`--hours` takes a fraction: two game days are 4.45 sim hours) and compare earned and lost a game day.
 
 The bot also prints PEAKS: at each morning (06:00–10:00) and evening (16:00–19:30) peak, who gave up at each station, how many took a cab, and how late main-line trains left their stops, with a table of the seeds' mean. Read it for where pressure lands, not just how much.

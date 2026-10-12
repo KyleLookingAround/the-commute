@@ -12,6 +12,7 @@ import type { World } from './world.ts';
 import type { Network } from '../sim/network.ts';
 import type { GameState, Sky as Spell } from '../sim/types.ts';
 import { yearAt } from '../sim/weather.ts';
+import { clockAt } from '../sim/day.ts';
 
 const FADE = 180;              // sim seconds a new spell takes to come in (a minute of real time at 1x)
 const COVER: Record<Spell, number> = { sun: 0.12, cloud: 0.62, rain: 1, fog: 0.8, snow: 0.9 };
@@ -172,8 +173,8 @@ export class WeatherLayer {
     L.rain = this.share(g, 'rain', fade); L.snow = this.share(g, 'snow', fade); L.fog = this.share(g, 'fog', fade);
     L.cover = this.cover(w.now) * fade + this.cover(w.was) * (1 - fade);
     L.year = yearAt(g.t);
-    // wet surfaces dry over a game hour or so; snow settles over a game hour and melts over three
-    const k = dtGame / 600;
+    // wet surfaces dry over a game hour or so; snow settles over a game hour and melts over three, by the clock
+    const k = (clockAt(g.t) - clockAt(g.t - dtGame)) / 3600;
     L.wet = Math.min(1, Math.max(0, L.wet + (L.rain > 0.5 ? k * 2 : -k * 0.8)));
     L.settle = Math.min(1, Math.max(0, L.settle + (L.snow > 0.5 ? k : -k / 3)));
     if (this.fair) { L.wet = 0; L.settle = 0; }

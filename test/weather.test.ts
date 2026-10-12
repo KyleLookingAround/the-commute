@@ -6,24 +6,22 @@ import { readFileSync } from 'node:fs';
 import { fromGeo } from '../src/sim/network.ts';
 import { Sim, TUNING } from '../src/sim/sim.ts';
 import { WEATHER, seasonAt, yearAt, feel } from '../src/sim/weather.ts';
+import { DAY, clockAt, simAt } from '../src/sim/day.ts';
 import type { NetworkGeoDef, Sky } from '../src/sim/types.ts';
 
 const def = JSON.parse(readFileSync(new URL('../src/data/network.json', import.meta.url), 'utf8')) as NetworkGeoDef;
 const net = () => fromGeo(def);
-const DAY = 86400 / TUNING.dayRate;   // sim seconds in a game day
 
 /** The spells a seed sees over some game days, a game minute at a time: how long each kind lasted, in game minutes. */
 function spells(seed: number, days: number): { kinds: Record<string, number>; firstDay: Set<Sky>; sim: Sim } {
   const sim = new Sim(net(), Sim.fresh(net(), seed)), kinds: Record<string, number> = {}, firstDay = new Set<Sky>();
   for (let k = 0; k < days * 24 * 60; k++) {
-    sim.advance(60 / TUNING.dayRate * 60 / 60);
+    sim.advance(simAt(clockAt(sim.g.t) + 60) - sim.g.t);
     const w = sim.g.weather.now; kinds[w] = (kinds[w] ?? 0) + 1;
     if (sim.g.day === 1) firstDay.add(w);
   }
   return { kinds, firstDay, sim };
 }
-
-test('weather: the clock rate it keeps is the sim\'s', () => assert.equal(WEATHER.dayRate, TUNING.dayRate));
 
 test('weather: the same seed brings the same weather, and the weather never moves the rest of the game\'s dice', () => {
   const a = new Sim(net(), Sim.fresh(net(), 7)), b = new Sim(net(), Sim.fresh(net(), 7));

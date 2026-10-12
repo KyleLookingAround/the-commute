@@ -18,6 +18,7 @@ const { fromGeo } = await import('../src/sim/network.ts');
 const { Sim, UPGRADES, TUNING } = await import('../src/sim/sim.ts');
 const { spaces, parked } = await import('../src/sim/access.ts');
 const { WEATHER } = await import('../src/sim/weather.ts');
+const { clockAt } = await import('../src/sim/day.ts');
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'));
@@ -69,7 +70,7 @@ export function act(sim) {
 function peakOf(sim) { const h = sim.hour(), k = h >= 6 && h < 10 ? 'am' : h >= 16 && h < 19.5 ? 'pm' : null; return k && `day ${sim.g.day} ${k}`; }
 
 export function play(seed, hoursToPlay = hours) {
-  const net = fromGeo(def), sim = new Sim(net, Sim.fresh(net, seed));
+  const net = fromGeo(def), sim = new Sim(net, Sim.fresh(net, seed)), t0 = sim.g.t;
   full.clear();
   // car parks and bus links: when each filled (by game day), for the table
   const filled = sim.S.map(() => new Set());
@@ -107,8 +108,8 @@ export function play(seed, hoursToPlay = hours) {
     longestQuiet = Math.max(longestQuiet, h - quietSince);
     for (let i = 1; i < sim.S.length; i++) if (sim.g.owned[i]) mark('owns:' + sim.S[i].id, h);
   }
-  const g = sim.g, home = sim.svcs[0].route[0];
-  const measures = { 'cash at end': Math.round(g.cash), 'boarded': g.stats.boarded, 'lost': g.stats.lost, 'by cab': g.stats.cab, 'longest quiet hours': +longestQuiet.toFixed(1), 'longest daytime quiet': +longestDayQuiet.toFixed(2),
+  const g = sim.g, home = sim.svcs[0].route[0], days = (clockAt(g.t) - clockAt(t0)) / 86400;
+  const measures = { 'game days': +days.toFixed(2), 'earned a game day': Math.round(g.earned / days), 'lost a game day': Math.round(g.stats.lost / days), 'cash at end': Math.round(g.cash), 'boarded': g.stats.boarded, 'lost': g.stats.lost, 'by cab': g.stats.cab, 'longest quiet hours': +longestQuiet.toFixed(1), 'longest daytime quiet': +longestDayQuiet.toFixed(2),
     'lost beyond home %': g.stats.lost ? +(100 * (1 - g.st[home].lost / g.stats.lost)).toFixed(1) : 0,
     'failures': g.trouble.fails, 'signal failures': g.trouble.signals, 'by bus': g.trouble.bused, 'lost in trouble': troubleLost,
     'wet hours': +(g.weather.wet / 3600).toFixed(2),

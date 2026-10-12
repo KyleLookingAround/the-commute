@@ -11,14 +11,15 @@ import { join } from 'node:path';
 export default async function ({ ok, open, root }) {
   register();
   const { fromGeo } = await import('../../src/sim/network.ts');
-  const { Sim, TUNING } = await import('../../src/sim/sim.ts');
+  const { Sim } = await import('../../src/sim/sim.ts');
   const { spaces, parked } = await import('../../src/sim/access.ts');
+  const { simAtHour } = await import('../../src/sim/day.ts');
   const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.fresh(net, 1));
   sim.g.cash = 1e7;
   sim.buyUpgrade(0, 'crossing'); sim.buyUpgrade(0, 'platform2'); sim.buyLine('units');
   for (let i = 1; i < sim.S.length; i++) sim.buyStation(i);
   for (let i = 0; i < sim.S.length; i++) for (const id of ['crossing', 'platform2', 'building', 'carpark', 'carpark2', 'bus']) sim.buyUpgrade(i, id);
-  sim.advance(3.5 * 3600 / TUNING.dayRate);   // 06:30 to 10:00 by the clock
+  sim.advance(simAtHour(1, 10) - sim.g.t);   // 06:30 to 10:00 by the clock
   const want = sim.S.map((_, i) => spaces(sim, i) ? parked(sim.g.st[i]) / spaces(sim, i) : 0);
   const rich = JSON.stringify({ g: sim.g, selected: 0 });
   const shots = join(root, 'build/shots'); mkdirSync(shots, { recursive: true });

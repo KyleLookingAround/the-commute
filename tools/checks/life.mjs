@@ -5,9 +5,13 @@
 // page makes no sound when tapped). Then the figures: after a while at 10x some carry a suitcase or wheel a bike. And
 // the night: a save moved to 02:00 on a night the fast lines close (seed 1's second) has the engineering train out with
 // its beacons, no expresses, and the bought platforms' lamps throwing their light; at 13:00 the next day none of that.
+import { register } from 'tsx/esm/api';
+
 const SET_KEY = 'the-commute-prefs-v1';
 
 export default async function ({ ok, open, SAVE_KEY }) {
+  register();
+  const { simAtHour } = await import('../../src/sim/day.ts');
   for (const [w, h] of [[320, 568], [390, 844]]) {
     const { ctx, page, errs } = await open({ width: w, height: h }, { touch: true });
     await page.waitForTimeout(500);
@@ -57,7 +61,7 @@ export default async function ({ ok, open, SAVE_KEY }) {
   await ctx.close();
   for (const [hour, night] of [[26, true], [37, false]]) {
     const s = JSON.parse(save || '{}'); if (!s.g) { ok('life: a save to move to the night', false, 'no save written'); break; }
-    s.g.t = hour * 3600 / 6; s.g.day = Math.floor(hour / 24) + 1; s.at = Date.now();
+    s.g.day = Math.floor(hour / 24) + 1; s.g.t = simAtHour(s.g.day, hour % 24); s.at = Date.now();
     const p = await open({ width: 1280, height: 800 }, { save: JSON.stringify(s) });
     await p.page.waitForTimeout(800);
     const n = await p.page.evaluate(() => window.__view.life());

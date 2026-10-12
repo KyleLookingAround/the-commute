@@ -1,10 +1,11 @@
 // The Commute: station tycoon simulation. Pure TypeScript, tick-based in sim seconds, no rendering here, nothing from the DOM.
 // Trains move along a corridor by distance s (metres, increasing towards Manchester). Stations are at a known s.
 // A sim second is a real second on the page at 1x, so trains, people and dwells move at real speed. The clock and the
-// demand curve run TUNING.dayRate times faster than that: a game day is 24 / dayRate hours of sim time (four real hours),
-// so the peaks and the night still come round while you watch.
+// demand curve run faster than that, and fastest at night (src/sim/day.ts): a game day is about two hours of sim time,
+// so the peaks and the night still come round while you watch, and the night doesn't keep you waiting.
 
 import { rand, freshSeed } from './random.ts';
+import { BASE, DAY, clockAt, clockText, hourAt, simAtHour } from './day.ts';
 import { SAVE_VERSION } from './save.ts';
 import type { Network } from './network.ts';
 import { journeys, cycle, runTime, waitWeight, type Journey } from './journeys.ts';
@@ -45,7 +46,6 @@ export const LINE_UPGRADES: LineUpgrade[] = [
 ];
 
 export const TUNING = {
-  dayRate: 6,                                  // clock hours per sim hour: a game day is four hours of sim time
   fareBase: 1.5, farePerMile: 0.6, fareMult: 13.5,   // 6x the old 6x clock's fare, then 12 to 13.5 when homes and draw came from the census (Stockport draws less than guessed)
   seatsPerCar: 75, accel: 1.0, brake: 1.1, vmax: 33.5, vmaxFast: 40,
   // the timetable (docs/DESIGN.md, Timetable): a stop is planned at dwell and a turnaround at turnaround, but a train
@@ -157,6 +157,7 @@ export class Sim {
   private growth: Float64Array;
   /** Scratch for generate: trips an hour to each station, and how full each service runs each way. */
   private rates: Float64Array; private crowding: Float64Array; private trainsEachWay: Float64Array;
+  private hourT = NaN; private hourNow = 0;
   constructor(network: Network, state?: GameState) {
     this.net = network;
     this.S = network.stations;              // [{ id, name, s, miles, catchment, price, retail, index }]
@@ -180,12 +181,12 @@ export class Sim {
   }
   static fresh(network: Network, seed: number = freshSeed()): GameState {
     return {
-      v: SAVE_VERSION, seed, rngState: seed >>> 0, t: 6.5 * 3600 / TUNING.dayRate, day: 1, cash: 3000, earned: 0,
+      v: SAVE_VERSION, seed, rngState: seed >>> 0, t: simAtHour(1, 6.5), day: 1, cash: 3000, earned: 0,
       owned: network.stations.map((_, i) => i === 0),
       ups: network.stations.map(() => ({})),
       line: { units: 0, cars: 0, timetable: 0, spare: 0 },
       st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0, cab: 0, cabs: [], through: 0, car: 0, bus: 0, carAcc: 0, busAcc: 0, parked: [] })),
-      trains: [], ends: {}, trouble: freshTrouble(), weather: freshWeather(seed, 6.5 * 3600 / TUNING.dayRate),
+      trains: [], ends: {}, trouble: freshTrouble(), weather: freshWeather(seed, simAtHour(1, 6.5)),
       stats: { boarded: 0, lost: 0, cab: 0, through: 0, express: 0, car: 0, bus: 0 },
       homes: network.stations.map(s => s.catchment),
     };
@@ -205,9 +206,9 @@ export class Sim {
   /** The timetabled turnaround at the end of a run, recovery included. */
   turnaround(): number { return TUNING.turnaround + (this.g.line.timetable ? TUNING.recoveryFast : 0); }
   capacity(i: number): number { return this.ups(i).extend ? TUNING.platformCapExtended : TUNING.platformCap; }
-  /** The game clock's hour of the day, which runs dayRate times faster than the sim's seconds. */
-  hour(): number { return (this.g.t * TUNING.dayRate / 3600) % 24; }
-  clock(): string { const s = Math.floor((this.g.t * TUNING.dayRate) % 86400); return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}`; }
+  /** The game clock's hour of the day (src/sim/day.ts), worked out once a step. */
+  hour(): number { if (this.hourT !== this.g.t) { this.hourT = this.g.t; this.hourNow = hourAt(this.g.t); } return this.hourNow; }
+  clock(): string { return clockText(this.g.t); }
   /** A station passengers can travel to: one that's owned, or one always served. */
   reachable(i: number): boolean { return !!this.g.owned[i] || this.fixedEnds.has(i); }
   /** Which way station j lies from station i: 0 towards Manchester (further along the corridor), 1 away. */
@@ -521,7 +522,8 @@ export class Sim {
   ceiling(i: number): number { const s = this.station(i); return Math.max(s.catchment, s.ceiling ?? s.catchment); }
   /** How fast station i's homes are growing now, as a share of the most they could (0 to 1): the reach of its trip. */
   growthRate(i: number): number { if (this.jkey < 0) this.refreshJourneys(); return this.growth[i]!; }
-  /** dt seconds of growth: each owned station's homes close on its ceiling, the quicker the better its trip. */
+  /** dt seconds of growth (the peaks' sim seconds by the clock): each owned station's homes close on its ceiling, the
+   * quicker the better its trip. */
   grow(dt: number): void {
     const H = this.g.homes, k = TUNING.grow * dt / 3600;
     for (let i = 0; i < this.S.length; i++) {
@@ -563,8 +565,8 @@ export class Sim {
   }
 
   // ---- passengers ----
-  /** New passengers at a station for dt seconds, by the trips an hour to each place it reaches; a halt only has a
-   * platform one way, so nobody comes for the other. */
+  /** New passengers at a station for dt seconds (the peaks' sim seconds by the clock), by the trips an hour to each
+   * place it reaches; a halt only has a platform one way, so nobody comes for the other. */
   generate(i: number, dt: number): void {
     const S = this.state(i), rate = this.tripRates(i, this.hour());
     S.acc += rate * dt / 3600;
@@ -644,9 +646,12 @@ export class Sim {
   // ---- stepping ----
   step(dt: number): void {
     const g = this.g; this.ensureTrains();
-    const dayLen = 86400 / TUNING.dayRate, d0 = Math.floor(g.t / dayLen); g.t += dt; if (Math.floor(g.t / dayLen) > d0) g.day++;
-    stepWeather(g, dt); this.refreshJourneys(); this.measureCrowding(); this.grow(dt);
-    for (let i = 0; i < this.S.length; i++) { if (!g.owned[i]) continue; this.generate(i, dt); stepAccess(this, TUNING, i, dt); this.expire(i); }
+    const d0 = Math.floor(g.t / DAY), t0 = g.t; g.t += dt; if (Math.floor(g.t / DAY) > d0) g.day++;
+    // what the clock paces (demand, car parks and buses, homes growing) steps by the clock: dt in the peaks' sim seconds, more when the clock
+    // runs fast, so each clock hour carries what it did before the clock sped up
+    const dc = (clockAt(g.t) - clockAt(t0)) / BASE;
+    stepWeather(g, dt); this.refreshJourneys(); this.measureCrowding(); this.grow(dc);
+    for (let i = 0; i < this.S.length; i++) { if (!g.owned[i]) continue; this.generate(i, dc); stepAccess(this, TUNING, i, dc); this.expire(i); }
     stepTrouble(this, TUNING);
     for (const tr of g.trains) this.stepTrain(tr, dt);
   }

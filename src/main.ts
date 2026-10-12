@@ -29,6 +29,7 @@ import { HomesLayer } from './render/homes.ts';
 import { Sky } from './render/sky.ts';
 import { WeatherLayer, solarHour } from './render/weather.ts';
 import { yearAt } from './sim/weather.ts';
+import { simAtHour } from './sim/day.ts';
 import { Sound } from './render/sound.ts';
 import { Settings } from './ui/settings.ts';
 import { fullScreen } from './ui/fullscreen.ts';
@@ -76,7 +77,7 @@ const saved = store.load();
 // a page opened by a check sets window.__seed so a new game repeats; players get a fresh seed
 const seed = typeof window.__seed === 'number' ? window.__seed : undefined;
 let sim = new Sim(net, saved ? saved.g : Sim.fresh(net, seed));
-if (window.__day && !saved) { sim.g.t += (window.__day - 1) * 86400 / TUNING.dayRate; sim.g.day = window.__day; }
+if (window.__day && !saved) { sim.g.t = simAtHour(window.__day, 6.5); sim.g.day = window.__day; }
 if (window.__weather) Object.assign(sim.g.weather, { now: window.__weather, was: window.__weather, until: sim.g.t + 3600 });
 let speed = 1;
 // the hour the light is locked to for a look around, or null to follow the game's clock; a screenshot can preset it

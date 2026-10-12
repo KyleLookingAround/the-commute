@@ -9,6 +9,7 @@ import { MAT, PAL, box } from './scene.ts';
 import type { Network } from '../sim/network.ts';
 import type { Sim } from '../sim/sim.ts';
 import type { Bus, XZ } from '../sim/types.ts';
+import { groundAt } from './terrain.ts';
 
 /** The kit part: where a bus stands at (u, v), its length along `back` (a direction in (u, v), +u if not given), the
  * shelter and flag on the `kerb` side (+1 to the left looking along `back`), and the station's way out (`door`). */
@@ -82,12 +83,16 @@ export class BusLayer {
     this.glass = mk(GLASS, MAT.glass, MAX_BUSES); this.boards = mk(BOARD, board(), MAX_BUSES);
     this.walkers = mk(PERSON, lam(PAL.pax), MAX_WALKERS);
     this.body.castShadow = true;
-    // the roads themselves, as flat ribbons a little above the ground
+    // the roads themselves, as ribbons a little above the ground (src/render/terrain.ts), in pieces of 10 m or less
     const P: number[] = [];
     for (const r of net.def.roads ?? []) for (let i = 1; i < r.points.length; i++) {
-      const [ax, az] = r.points[i - 1]!, [bx, bz] = r.points[i]!, l = Math.hypot(bx - ax, bz - az) || 1;
-      const nx = -(bz - az) / l * ROAD_W / 2, nz = (bx - ax) / l * ROAD_W / 2, y = 0.08;
-      P.push(ax + nx, y, az + nz, bx + nx, y, bz + nz, bx - nx, y, bz - nz, ax + nx, y, az + nz, bx - nx, y, bz - nz, ax - nx, y, az - nz);
+      const [ax0, az0] = r.points[i - 1]!, [bx0, bz0] = r.points[i]!, l = Math.hypot(bx0 - ax0, bz0 - az0) || 1, k = Math.ceil(l / 10);
+      const nx = -(bz0 - az0) / l * ROAD_W / 2, nz = (bx0 - ax0) / l * ROAD_W / 2;
+      for (let j = 0; j < k; j++) {
+        const ax = ax0 + (bx0 - ax0) * j / k, az = az0 + (bz0 - az0) * j / k, bx = ax0 + (bx0 - ax0) * (j + 1) / k, bz = az0 + (bz0 - az0) * (j + 1) / k;
+        const ya = groundAt(ax, az) + 0.08, yb = groundAt(bx, bz) + 0.08;
+        P.push(ax + nx, ya, az + nz, bx + nx, yb, bz + nz, bx - nx, yb, bz - nz, ax + nx, ya, az + nz, bx - nx, yb, bz - nz, ax - nx, ya, az - nz);
+      }
     }
     if (P.length) {
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.computeVertexNormals();
@@ -130,7 +135,7 @@ export class BusLayer {
       const t = (g.t - bus.t0) / Math.max(1, bus.t1 - bus.t0);
       // standing at a stop it faces the way it'll leave; on the road, the way it's going
       const p = bus.leg === 'out' ? this.at(out, t) : bus.leg === 'back' ? this.at(back, t) : bus.leg === 'load' ? this.at(out, 0) : this.at(back, 0);
-      qt.setFromAxisAngle(up, Math.atan2(p.dx, p.dz)); pos.set(p.x - p.dx * LEN / 2, 0.1, p.z - p.dz * LEN / 2); m4.compose(pos, qt, one);
+      qt.setFromAxisAngle(up, Math.atan2(p.dx, p.dz)); pos.set(p.x - p.dx * LEN / 2, groundAt(p.x, p.z) + 0.1, p.z - p.dz * LEN / 2); m4.compose(pos, qt, one);
       for (const im of [this.body, this.band, this.glass, this.boards]) im.setMatrixAt(n, m4);
       n++;
       if (bus.leg === 'load' || bus.leg === 'drop') w = this.walk(bus, g.t, p.x - p.dx * LEN * 0.3, p.z - p.dz * LEN * 0.3, w);
@@ -147,7 +152,7 @@ export class BusLayer {
     for (let k = 0; k < 6 && w < MAX_WALKERS; k++) {
       const off = both && k % 2 === 1, f = ((el / 25 + k / 6) % 1), t = off ? f : 1 - f;
       const x = bx + (door[0] - bx) * t + (k - 2.5) * 0.5, z = bz + (door[1] - bz) * t + ((k * 7) % 5 - 2) * 0.4;
-      pos.set(x, 0.1, z); m4.compose(pos, qt, one); this.walkers.setMatrixAt(w++, m4);
+      pos.set(x, groundAt(x, z) + 0.1, z); m4.compose(pos, qt, one); this.walkers.setMatrixAt(w++, m4);
     }
     return w;
   }

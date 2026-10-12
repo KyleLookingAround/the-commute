@@ -1,5 +1,6 @@
 // Orbit camera with tweened focus. Drag to orbit, pinch or wheel to zoom.
 import * as THREE from 'three';
+import { groundAt } from './terrain.ts';
 
 /** Where the camera looks (tx, ty, tz), how far away it is (r) and from which angles (th around, ph down). */
 export interface Orbit { tx: number; ty: number; tz: number; r: number; th: number; ph: number }
@@ -38,7 +39,8 @@ export class OrbitRig {
     if (this.tween) { const tw = this.tween; tw.t = Math.min(1, tw.t + dt * 1.4); const e = tw.t * tw.t * (3 - 2 * tw.t); for (const k of ORBIT_KEYS) o[k] = tw.from[k] + (tw.to[k] - tw.from[k]) * e; if (tw.t >= 1) this.tween = null; }
     o.ph = Math.max(0.1, Math.min(1.5, o.ph)); o.r = Math.max(40, Math.min(9000, o.r));
     const x = o.tx + o.r * Math.sin(o.ph) * Math.sin(o.th), y = o.ty + o.r * Math.cos(o.ph), z = o.tz + o.r * Math.sin(o.ph) * Math.cos(o.th);
-    this.camera.position.set(x, Math.max(y, 4), z); this.camera.lookAt(o.tx, o.ty, o.tz);
+    // never lower than 4 m over the ground beneath it, so a view from the valley floor works and none from inside a hill
+    this.camera.position.set(x, y > 400 ? y : Math.max(y, groundAt(x, z) + 4), z); this.camera.lookAt(o.tx, o.ty, o.tz);
     this.camera.far = Math.max(3000, o.r * 3.5); this.camera.updateProjectionMatrix();
     const fog = this.scene.fog; if (fog instanceof THREE.Fog) { fog.near = Math.max(200, o.r * 0.9); fog.far = Math.max(1600, o.r * 3.4); }
   }

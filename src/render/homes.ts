@@ -63,7 +63,9 @@ export class HomesLayer {
         if (!clear(x, z, rad)) continue;
         // along the street: facing the station or across, give or take
         const yaw = Math.atan2(f.z - z, f.x - x) + (hash(seed, 8) < 0.5 ? 0 : Math.PI / 2) + (hash(seed, 9) - 0.5) * 0.2;
-        list.push({ x, y: world.groundY(x, z), z, yaw, w, d, h: floors * STOREY, flats, floors, rise: 1 });
+        // on the lowest of its corners, so no side stands off a slope (buildable keeps them level within 4 m)
+        const g = world.groundY, y = Math.min(g(x, z), g(x - rad, z), g(x + rad, z), g(x, z - rad), g(x, z + rad)) - 0.3;
+        list.push({ x, y, z, yaw, w, d, h: floors * STOREY, flats, floors, rise: 1 });
         taken.push(x, z, rad);
       }
       this.plots.push(list);

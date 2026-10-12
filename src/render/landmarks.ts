@@ -98,12 +98,18 @@ function viaduct(scene: THREE.Scene, net: Network, c: Corridor, via: Viaduct, gr
 
 // ---- the river and the M60 crossing the valley under the viaduct, across the map at their place on the line ----
 function crossing(scene: THREE.Scene, c: Corridor, s: number, groundY: (x: number, z: number) => number, kind: 'river' | 'm60'): void {
-  const f = c.at(s), SPAN = 1500, STEP = 20, n = Math.round(2 * SPAN / STEP);
-  // along the crossing is the corridor's normal; across it, the corridor's direction
-  const width = kind === 'river' ? 26 : 25, lift = 1;    // a metre up: the terrain's 60 m triangles cut the valley's curve
+  const f = c.at(s), STEP = 20, width = kind === 'river' ? 26 : 25, lift = 1;    // a metre up: the base terrain's triangles are 48 m
+  // along the crossing is the corridor's normal; across it, the corridor's direction. It runs out along the valley floor
+  // each way until the ground rises (a river) or climbs (a road) too far from its level under the viaduct: the real
+  // ones turn there, and the map doesn't follow them yet
+  const level = groundY(f.x, f.z), rise = kind === 'river' ? 4 : 9, reach = (way: number) => {
+    let o = 0; while (o < 1500 && Math.abs(groundY(f.x + f.nx * (o + STEP) * way, f.z + f.nz * (o + STEP) * way) - level) < rise) o += STEP;
+    return o;
+  };
+  const o0 = -reach(-1), SPAN = (reach(1) - o0) / 2, mid = o0 + SPAN, n = Math.max(1, Math.round(2 * SPAN / STEP));
   const pos: number[] = [], idx: number[] = [], heights: number[] = [];
   for (let i = 0; i <= n; i++) {
-    const o = -SPAN + i * STEP, x = f.x + f.nx * o, z = f.z + f.nz * o, y = groundY(x, z) + lift; heights.push(y);
+    const o = mid - SPAN + i * STEP, x = f.x + f.nx * o, z = f.z + f.nz * o, y = groundY(x, z) + lift; heights.push(y);
     pos.push(x - f.dx * width / 2, y, z - f.dz * width / 2, x + f.dx * width / 2, y, z + f.dz * width / 2);
     if (i < n) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
   }
@@ -111,14 +117,14 @@ function crossing(scene: THREE.Scene, c: Corridor, s: number, groundY: (x: numbe
   if (g.getAttribute('normal').getY(0) < 0) { idx.reverse(); g.setIndex(idx); g.computeVertexNormals(); }
   scene.add(new THREE.Mesh(g, kind === 'river' ? MAT.river : MAT.road));
   if (kind === 'river') return;
-  const heightAt = (o: number) => { const t = Math.max(0, Math.min(n - 0.001, (o + SPAN) / STEP)), i = Math.floor(t); return heights[i]! + (heights[i + 1]! - heights[i]!) * (t - i); };
+  const heightAt = (o: number) => { const t = Math.max(0, Math.min(n - 0.001, (o - mid + SPAN) / STEP)), i = Math.floor(t); return heights[i]! + (heights[i + 1]! - heights[i]!) * (t - i); };
   const yaw = yawFor({ dx: f.nx, dz: f.nz });
   // the central reserve's barrier, edge lines, and lamp columns down the middle
   const unit = new THREE.BoxGeometry(1, 1, 1), m4 = new THREE.Matrix4(), q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), v = new THREE.Vector3(), sc = new THREE.Vector3();
   const strips = new THREE.InstancedMesh(unit, MAT.concrete, n * 3), poles = new THREE.InstancedMesh(unit, MAT.steel, Math.ceil(n / 3)), heads = new THREE.InstancedMesh(unit, MAT.glow, Math.ceil(n / 3));
   let k = 0, p = 0;
   for (let i = 0; i < n; i++) {
-    const o = -SPAN + (i + 0.5) * STEP, y = heightAt(o);
+    const o = mid - SPAN + (i + 0.5) * STEP, y = heightAt(o);
     for (const [b, w, h] of [[0, 0.8, 0.9], [-11.6, 0.3, 0.06], [11.6, 0.3, 0.06]] as const) {
       v.set(f.x + f.nx * o + f.dx * b, y + h / 2, f.z + f.nz * o + f.dz * b); sc.set(STEP + 0.2, h, w); m4.compose(v, q, sc); strips.setMatrixAt(k++, m4);
     }
@@ -133,12 +139,12 @@ function crossing(scene: THREE.Scene, c: Corridor, s: number, groundY: (x: numbe
   const carCols = [PAL['car-1'], PAL['car-2'], PAL['car-3'], PAL['car-4'], PAL['car-5'], PAL['car-6']];
   const lane = (i: number) => (i % 2 ? 1 : -1) * (2.2 + (Math.floor(i / 2) % 3) * 3.4), base = (i: number) => seed(i, 7) * 2 * SPAN, speed = (i: number) => (i % 2 ? 1 : -1) * (24 + seed(i, 8) * 8);
   for (let i = 0; i < CARS; i++) cars.setColorAt(i, col.copy(carCols[i % carCols.length]!));
-  cars.boundingSphere = new THREE.Sphere(new THREE.Vector3(f.x, groundY(f.x, f.z), f.z), SPAN + 50);
+  cars.boundingSphere = new THREE.Sphere(new THREE.Vector3(f.x + f.nx * mid, level, f.z + f.nz * mid), SPAN + 50);
   const cq = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
   cars.onBeforeRender = () => {
     const t = performance.now() / 1000;   // cosmetic
     for (let i = 0; i < CARS; i++) {
-      const o = ((base(i) + speed(i) * t) % (2 * SPAN) + 2 * SPAN) % (2 * SPAN) - SPAN, b = lane(i), y = heightAt(o);
+      const o = mid + ((base(i) + speed(i) * t) % (2 * SPAN) + 2 * SPAN) % (2 * SPAN) - SPAN, b = lane(i), y = heightAt(o);
       v.set(f.x + f.nx * o + f.dx * b, y + 0.85, f.z + f.nz * o + f.dz * b); sc.set(4.4, 1.5, 1.9); m4.compose(v, cq, sc); cars.setMatrixAt(i, m4);
     }
     cars.instanceMatrix.needsUpdate = true;

@@ -26,7 +26,9 @@ export default async function ({ ok, root }) {
   const bad = [];
   for (const m of marks) {
     if (m.lat === undefined || m.kind === 'tower' || m.kind === 'town') continue;
-    const p = projectLatLon(m.lat, m.lon, def.origin), s = c.nearest(p.x, p.z), a = c.at(s), off = Math.abs((p.x - a.x) * a.nx + (p.z - a.z) * a.nz);
+    const p = projectLatLon(m.lat, m.lon, def.origin), a = c.at(c.nearest(p.x, p.z)), off = Math.abs((p.x - a.x) * a.nx + (p.z - a.z) * a.nz);
+    // Merseyway is drawn on the river as the map draws it, whatever its own along the line
+    const s = m.kind === 'precinct' && river !== null ? river : c.nearest(p.x, p.z);
     const r = m.kind === 'precinct' ? 25 : RADIUS[m.kind] ?? 30, len = m.kind === 'precinct' ? (m.w ?? 220) / 2 : 0;
     if (off - len < 34 + r) bad.push(`${m.id} on the railway's land (${Math.round(off)} m off the line)`);
     if (m.kind !== 'precinct' && river !== null && Math.abs(s - river) < 14 + r) bad.push(`${m.id} in the river`);

@@ -103,8 +103,10 @@ export class UI {
       panel.querySelector('#buyStation')?.addEventListener('click', () => { if (this.sim.buyStation(i)) { this.toast(`${s.name} is yours. Trains now call here.`); this.buildStrip(); this.buildPanel(); this.buildLinePanel(); this.on.changed(); } });
       return;
     }
-    panel.innerHTML = `<h2>${s.name} <small>${milesFrom(s.miles)} · catchment ${s.catchment.toLocaleString('en-GB')}/h at peak</small></h2>
-      <div class="stats"><div><small>Waiting</small><b id="pWait"></b></div><div><small>Boarded</small><b id="pBoard"></b></div><div><small>Arrived</small><b id="pOff"></b></div><div><small>Revenue</small><b id="pRev"></b></div><div><small>Gave up</small><b id="pLost"></b></div><div><small>Changed</small><b id="pChg"></b></div></div>
+    // homes are the census homes, grown (homes that grow); By cab only where there's a rank
+    const cab = this.sim.state(i).cabs.length ? '<div><small>By cab</small><b id="pCab"></b></div>' : '';
+    panel.innerHTML = `<h2>${s.name} <small>${milesFrom(s.miles)}</small></h2>
+      <div class="stats"><div><small>Homes</small><b id="pHomes"></b></div><div><small>Waiting</small><b id="pWait"></b></div><div><small>Boarded</small><b id="pBoard"></b></div><div><small>Arrived</small><b id="pOff"></b></div><div><small>Revenue</small><b id="pRev"></b></div><div><small>Gave up</small><b id="pLost"></b></div><div><small>Changed</small><b id="pChg"></b></div>${cab}</div>
       <div class="ups" id="ups"></div>`;
     // what can be built next, a card each, and what's built, in one line; the rest stays hidden until it's reachable
     const ups = panel.querySelector('#ups'), bought = this.sim.ups(i), sim = this.sim, done: [string, string][] = [];
@@ -158,6 +160,7 @@ export class UI {
     if (!g.owned[i]) { const b = panel.querySelector<HTMLButtonElement>('#buyStation'); if (b) b.disabled = !this.sim.canBuyStation(i); return; }
     const set = (id: string, v: string) => { const el = panel.querySelector('#' + id); if (el && el.textContent !== v) el.textContent = v; };
     set('pWait', String(S.waiting)); set('pBoard', S.boarded.toLocaleString('en-GB')); set('pOff', S.alighted.toLocaleString('en-GB')); set('pRev', fmt(S.revenue)); set('pLost', S.lost.toLocaleString('en-GB')); set('pChg', S.changed.toLocaleString('en-GB'));
+    set('pHomes', Math.round(this.sim.homes(i)).toLocaleString('en-GB')); set('pCab', S.cab.toLocaleString('en-GB'));
     // each card's Buy shows once the money is there; until then, how far there is to go
     panel.querySelectorAll<HTMLElement>('[data-card]').forEach(card => {
       const u = UPGRADES.find(u => u.id === card.dataset['card']); if (!u) return;
@@ -171,7 +174,7 @@ export class UI {
   buildLinePanel(): void {
     const g = this.g, lp = this.els.linePanel, sim = this.sim;
     const branch = sim.svcs.slice(1).filter(v => sim.unitsFor(v) > 0).length ? ' · Hazel Grove line open' : '';
-    lp.innerHTML = `<h2>The line <small>${sim.unitsInService()} unit${sim.unitsInService() === 1 ? '' : 's'} · ${sim.carsPerUnit()}-car · ${g.line.timetable ? '90' : '75'} mph${branch}</small></h2><div class="ups" id="lups"></div>`;
+    lp.innerHTML = `<h2>The line <small>${sim.unitsInService()} unit${sim.unitsInService() === 1 ? '' : 's'} · ${sim.carsPerUnit()}-car · ${g.line.timetable ? '90' : '75'} mph${branch}<span id="lBus"></span></small></h2><div class="ups" id="lups"></div>`;
     // the next step of each line upgrade as a card, like a station's; what's bought on one line under them
     const holder = lp.querySelector('#lups'), done: [string, string][] = [];
     const step = (u: (typeof LINE_UPGRADES)[number], lvl: number) => u.max > 1 ? `${u.name} ${lvl + 1} of ${u.max}` : u.name;
@@ -206,6 +209,9 @@ export class UI {
   }
   updateLinePanel(): void {
     const g = this.g;
+    // people the replacement buses have carried, once any have run (the buses serve the line, not one station)
+    const bus = this.els.linePanel.querySelector('#lBus'), bt = g.trouble.bused ? ` · ${Math.floor(g.trouble.bused).toLocaleString('en-GB')} by bus` : '';
+    if (bus && bus.textContent !== bt) bus.textContent = bt;
     this.els.linePanel.querySelectorAll<HTMLElement>('[data-lcard]').forEach(card => {
       const u = LINE_UPGRADES.find(u => u.id === card.dataset['lcard']); if (!u) return;
       const price = u.prices[g.line[u.id]] ?? 0, short = price - g.cash;

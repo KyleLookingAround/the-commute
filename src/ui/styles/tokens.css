@@ -32,6 +32,8 @@
   --map-house:#8a5f50; --map-coin:#f5c542; --map-coin-glow:#5a3f08; --map-win-empty:#9db8cc; --map-win-busy:#ffd27a; --map-late:#ff8a1c;
   /* who's travelling: commuters' work clothes, a cyclist's jacket and bike, a student's suitcase, and the clubs' colours on match days */
   --map-suit-1:#2c3a5c; --map-suit-2:#45474f; --map-suit-3:#b98a5a; --map-cyclist:#b5e32b; --map-bike:#d0402f; --map-case:#e86a9a; --map-case-2:#3fb6c4;
+  /* the night's engineering train: on-track machine yellow, dark trim, orange beacons */
+  --map-eng:#ffd21f; --map-eng-dark:#3a3a3e; --map-eng-beacon:#ff8a00;
   --map-kit-city:#7ec3ee; --map-kit-united:#d8262f; --map-kit-county:#1f55b5;
   /* the preview's ghost: blueprint cyan, apart from the passengers' amber, and clear of brick, grass and platform by day and at dusk */
   --map-signal:#1d2128; --map-signal-green:#3dff7a; --map-board:#f7f7f2; --map-board-ink:#14161a;

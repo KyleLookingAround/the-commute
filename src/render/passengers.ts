@@ -9,6 +9,8 @@
 // clothes at the peaks, students wheeling suitcases (more of them on platforms whose people are going to Piccadilly,
 // for the universities), cyclists with their bikes by day, and on a few match days a crowd in the club's colours
 // heading for the ground before kick-off and home after. Who someone is never changes how many there are.
+// After dark each bought platform's lamps throw a warm pool of light on it (the lamps of what's been built: a second
+// platform's once it's bought), so a quiet night platform reads as lamp-lit rather than gone.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { MAT, PAL } from './scene.ts';
@@ -38,6 +40,13 @@ const bikeGeo = (() => {
   const bar = (w: number, h: number, x: number, y: number) => new THREE.BoxGeometry(w, h, 0.09).translate(x, y, 0);
   return mergeGeometries([wheel(-0.78), wheel(0.78), bar(1.5, 0.09, 0, 0.9), bar(0.09, 0.55, -0.25, 0.7), bar(0.09, 0.5, 0.62, 1.1), bar(0.12, 0.09, 0.62, 1.36)]);
 })();
+// a pool of lamplight on the platform under each lamp: flat, brighter in the middle where a smaller disc overlaps it,
+// added to what's under it so it reads as light
+const poolGeo = mergeGeometries([new THREE.CircleGeometry(4.2, 20), new THREE.CircleGeometry(2.4, 16).translate(0, 0, 0.01)]).rotateX(-Math.PI / 2);
+const poolMat = new THREE.MeshBasicMaterial({ color: PAL.lamp, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+const POOL_Y = 1.04, MAX_POOLS = 96;
+/** A kit's lamp: where it stands and what has to be bought (and not yet bought) for it to stand. */
+interface Lamp { u: number; v: number; needs: string[]; until: string | undefined }
 const caseMat = new THREE.MeshLambertMaterial({ color: 0xffffff }), bikeMat = new THREE.MeshLambertMaterial({ color: PAL.bike });
 
 /** Who a figure is: a commuter in work clothes, a student with a suitcase, a cyclist wheeling a bike, a fan in the
@@ -87,6 +96,7 @@ interface FaceLayer { face: Face; trackV: number; agents: Agent[]; nextSpot: num
  * lost count already shown; balks: turned-away people still to show, a few at a time (balkDue the gap to the next).
  * revenue, rate: the station's takings last seen and their recent rate, for the coin. */
 interface Layer {
+  pools: THREE.InstancedMesh; lamps: Lamp[]; lit: string;
   im: THREE.InstancedMesh; heads: THREE.InstancedMesh; cases: THREE.InstancedMesh; bikes: THREE.InstancedMesh; faces: [FaceLayer, FaceLayer]; s: number; at: number; nextCoat: number; alighted: number; primed: boolean;
   lost: number; balks: number; balkDue: number; revenue: number; rate: number; coin: THREE.Mesh;
 }
@@ -98,12 +108,24 @@ function entranceOf(kit: Kit, face: Face): { u: number; v: number } {
   return { u: kit.entrance ?? (way && 'u' in way ? way.u : face.u0 - 8), v: face.v };
 }
 
+/** Every lamp in a kit's rows of lamps, with what it needs bought. */
+function lampsOf(kit: Kit): Lamp[] {
+  const out: Lamp[] = [];
+  for (const p of kit.parts) if (p.type === 'lamps' && !p.scenery) {
+    const needs = p.upgrade === undefined ? [] : Array.isArray(p.upgrade) ? p.upgrade : [p.upgrade];
+    for (let u = p.u0; u <= p.u1; u += p.every || 30) out.push({ u, v: p.v, needs, until: p.until });
+  }
+  return out;
+}
+
 export class PassengerLayer {
   max: number;
   layers: Layer[];
   private coats: THREE.Color[];
   /** Fewer figures, for older phones: a third of them drawn, none throwing a shadow. */
   private fewer = false;
+  /** How lit the platforms' lamps are, 0 by day to 1 at night. */
+  lamplight = 0;
   /** The station whose platforms students head for (Piccadilly, for the universities), by index; -1 for none. */
   private city: number;
   // this sync's hour, the club playing today (-1 for none) and its crowd
@@ -122,6 +144,7 @@ export class PassengerLayer {
       // the coin turns over the station's name, which floats over the kit's origin
       const cm = new THREE.Mesh(coin, coinMat); cm.position.copy(b.label.position).y = COIN_Y; cm.visible = false; b.group.add(cm);
       return {
+        pools: this.pools(b), lamps: lampsOf(b.kit), lit: '-',
         im, heads, cases, bikes, s: stations[i]?.s ?? 0, at: stations[i]?.at ?? 0, nextCoat: i * 7, alighted: -1, primed: false,
         lost: -1, balks: 0, balkDue: 0, revenue: -1, rate: 0, coin: cm,
         faces: [{ face: f.north, trackV: trackV[i]?.north ?? 0, agents: [], nextSpot: 0, entrance: entranceOf(b.kit, f.north), due: 0 },
@@ -154,6 +177,30 @@ export class PassengerLayer {
   private top = -1;
   private spin = 0;
 
+  /** The pools of lamplight for a station, none lit yet. */
+  private pools(b: BuiltStation): THREE.InstancedMesh {
+    const m = new THREE.InstancedMesh(poolGeo, poolMat, MAX_POOLS); m.count = 0; m.frustumCulled = false; m.renderOrder = 1; b.group.add(m); return m;
+  }
+  /** How lit the lamps are, from the daylight (0 night, 1 noon): on from dusk to dawn, as the scene's lamps are. */
+  setDaylight(daylight: number): void {
+    const lit = this.lamplight = 1 - Math.max(0, Math.min(1, (daylight - 0.04) / 0.2));
+    poolMat.opacity = 0.26 * lit; poolMat.visible = lit > 0.01;
+  }
+  /** Light the pools under the lamps a station has standing: owned, and each lamp's upgrades bought (and its `until`
+   * not). Redone only when what's bought changes. */
+  private light(L: Layer, g: GameState, i: number): void {
+    const ups = g.ups[i] ?? {}, owned = !!g.owned[i];
+    let key = owned ? 'o' : '';
+    if (owned) for (const k in ups) if (ups[k as keyof typeof ups]) key += k;
+    if (key === L.lit) return;
+    L.lit = key; let n = 0;
+    if (owned) for (const l of L.lamps) {
+      if (n >= MAX_POOLS || !l.needs.every(x => ups[x as keyof typeof ups]) || (l.until && ups[l.until as keyof typeof ups])) continue;
+      m4.makeTranslation(l.u, POOL_Y, l.v); L.pools.setMatrixAt(n++, m4);
+    }
+    L.pools.count = n; L.pools.instanceMatrix.needsUpdate = true;
+  }
+
   /** Figures for older phones: fewer drawn (a third), none throwing a shadow. */
   setFewer(on: boolean): void { this.fewer = on; for (const L of this.layers) L.im.castShadow = !on; }
 
@@ -176,6 +223,7 @@ export class PassengerLayer {
     this.hour = clock % 24; this.club = matchOn(g.seed, Math.floor(clock / 24)); this.crowd = crowdAt(this.hour);
     this.layers.forEach((L, i) => {
       const S = g.st[i];
+      this.light(L, g, i);
       if (!g.owned[i] || !S) { L.im.count = L.heads.count = L.cases.count = L.bikes.count = 0; L.primed = false; L.alighted = -1; L.lost = -1; L.balks = 0; L.faces.forEach(F => { F.agents.length = 0; F.due = 0; }); return; }
       // a train standing here, and which way it will leave: its face is the one that boards, and the one its arrivals step onto
       // (two can stand at once where two services turn round, Stockport's platforms 4 and 1); the one that came in last

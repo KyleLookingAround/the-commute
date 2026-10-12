@@ -19,6 +19,7 @@ const FALLBACK = {
   'cab': '#1f2126', 'cab-sign': '#ffc928', 'cab-bay': '#f2d23c',
   hazard: '#ffa21a', bus: '#2f7fd6', 'bus-band': '#ffd23f', 'bus-stop': '#d8322f',
   'suit-1': '#2c3a5c', 'suit-2': '#45474f', 'suit-3': '#b98a5a', cyclist: '#b5e32b', bike: '#d0402f', case: '#e86a9a', 'case-2': '#3fb6c4',
+  eng: '#ffd21f', 'eng-dark': '#3a3a3e', 'eng-beacon': '#ff8a00',
   'kit-city': '#7ec3ee', 'kit-united': '#d8262f', 'kit-county': '#1f55b5',
   'brick-new': '#b8664a', 'viaduct-lit': '#ffb877', 'pyramid-lit': '#5fb4ff', 'pyramid-frame': '#1d3f66', sandstone: '#b8664c', faience: '#efe6cf',
   'plaza-sign': '#c8322e', merseyway: '#ddd2bb', fascia: '#2f8f9d', skyline: '#5d6b84', 'air-light': '#ff3b30',

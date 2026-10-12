@@ -8,6 +8,9 @@
 // Things going wrong show too: a failed unit flashes its hazard lights at both ends until it's rescued, a stretch of
 // line at caution after a signal failure has flashing amber lamps on posts at each end, both sides, and the spare
 // unit, once bought, stands in Stockport's carriage sidings (out on the line while a failed train is being rescued).
+// On some nights, in the small hours, the fast lines close for engineering: the expresses stop and a yellow on-track
+// machine with flashing orange beacons crawls along them, one way one night and back the next. Cosmetic: it's the
+// view's own, from the seed and the night, and no passenger train meets it.
 import * as THREE from 'three';
 import { yawFor } from './world.ts';
 import { PAL } from './scene.ts';
@@ -73,6 +76,18 @@ const LATE = 60, LATE_FULL = 300, MAX_LAMPS = 16, lampGeo = new THREE.BoxGeometr
 // hazard lights: a lamp each side at each end of a failed unit, and caution lamps on posts by a signal failure, all
 // flashing about once a real second
 const hazardGeo = new THREE.BoxGeometry(0.9, 0.7, 0.9), postGeo = new THREE.BoxGeometry(0.25, 4, 0.25).translate(0, 2, 0), cautionGeo = new THREE.BoxGeometry(0.9, 0.9, 0.9).translate(0, 4.4, 0);
+// the engineering train: the clock hours the fast lines are closed on a night it runs, and how many nights in a hundred
+const ENG_FROM = 0.75, ENG_TO = 4.75, ENG_NIGHTS = 55, beaconGeo = new THREE.BoxGeometry(1.0, 0.8, 1.0);
+const engHash = (a: number, b: number) => { const s = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return s - Math.floor(s); };
+/** How far along the fast lines the engineering train is at sim time t for a seed (0 at the Stockport end, 1 at
+ * Piccadilly's), and which way it's going; null when it isn't out: outside the small hours, or on a night it doesn't run.
+ * A night belongs to the game day it starts after midnight on. */
+export function engineering(seed: number, t: number): { at: number; dir: 1 | -1 } | null {
+  const clock = t * TUNING.dayRate / 3600, hour = clock % 24, night = Math.floor(clock / 24);
+  if (hour < ENG_FROM || hour >= ENG_TO || engHash(seed % 9973, night * 1.37 + 11) * 100 >= ENG_NIGHTS) return null;
+  const k = (hour - ENG_FROM) / (ENG_TO - ENG_FROM), dir = night % 2 ? -1 : 1;
+  return { at: dir > 0 ? k : 1 - k, dir };
+}
 /** Where the spare unit stands: in Stockport's carriage sidings, in the kit's (u, v). */
 const SPARE_AT: [number, number] = [78, -33];
 
@@ -135,6 +150,10 @@ export class TrainLayer {
   private spareRise = 1;
   private spareHad: boolean | null = null;
   private last = 0;
+  /** The engineering train and its beacons: shown only while it's out. */
+  eng: THREE.Group;
+  private engCars: THREE.Mesh[];
+  beacons: THREE.InstancedMesh;
   constructor(scene: THREE.Scene, net: Network, services: ServiceDef[]) {
     this.scene = scene; this.net = net; this.mat = new THREE.MeshLambertMaterial({ vertexColors: true });
     this.meshes = []; this.units = [];
@@ -157,6 +176,12 @@ export class TrainLayer {
       m.rotation.y = yawFor(f); m.updateMatrix();
     });
     this.spare = spare.group; this.spareCars = spare.cars; this.spare.visible = false;
+    // the engineering train: two cars in yellow, orange-banded, beacons on its roof at both ends
+    const rgb = (c: THREE.Color): RGB => [c.r, c.g, c.b], y = rgb(PAL.eng), dk = rgb(PAL['eng-dark']);
+    const eng = this.unit(2, { body: y, roof: dk, band: rgb(PAL['eng-beacon']), door: dk, win: dk, nose: dk });
+    this.eng = eng.group; this.engCars = eng.cars; this.eng.visible = false;
+    this.beacons = new THREE.InstancedMesh(beaconGeo, new THREE.MeshBasicMaterial({ color: PAL['eng-beacon'] }), 4);
+    this.beacons.count = 0; this.beacons.frustumCulled = false; scene.add(this.beacons);
   }
   /** Ghost the spare unit while its card is chosen and it isn't bought; returns whether it's ghosted. */
   previewSpare(on: boolean): boolean {
@@ -262,8 +287,22 @@ export class TrainLayer {
     this.trouble(g, dtReal);
     this.riders.count = at.r; this.standing.count = at.s;
     for (const im of [this.riders, this.standing]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
+    // the engineering train, on the nights it runs; the expresses are off the fast lines while it's out
+    const works = engineering(g.seed, g.t), ex0 = this.express[0];
+    this.beacons.count = 0;
+    if (works && ex0) {
+      const [s0, s1] = ex0.range;
+      this.pose({ group: this.eng, cars: this.engCars, full: 0 }, ex0.svc, s0 + works.at * (s1 - s0), works.dir, null);
+      // two beacons on each car's roof, turning: each lit for part of a real second, out of step
+      const ms = performance.now();
+      this.engCars.forEach((m, c) => { for (const e of [-1, 1]) if ((ms / 1000 + c * 0.5 + (e > 0 ? 0.25 : 0)) % 1 < 0.45) {
+        m4.makeTranslation(e * (CAR / 2 - 1.5), 4.0 * 1.3 + 0.3, 0).premultiply(m.matrix); this.beacons.setMatrixAt(this.beacons.count++, m4);
+      } });
+    } else this.eng.visible = false;
+    this.beacons.instanceMatrix.needsUpdate = true;
     // an express runs up to the end of its run and stands there out the half period, then runs back and is gone
     for (const ex of this.express) {
+      if (works) { ex.t += dtGame; ex.unit.group.visible = false; continue; }
       ex.t += dtGame; const period = 900, run = (ex.t % period) * 45, [s0, s1] = ex.range, len = s1 - s0;
       ex.dir = Math.floor(ex.t / period) % 2 === 0 ? 1 : -1;
       if (ex.dir > 0) this.pose(ex.unit, ex.svc, s0 + Math.min(run, len), 1, null);

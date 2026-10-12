@@ -2,7 +2,9 @@
 // in it is a 44 px tap target on a phone (320 px wide too) and it fits the screen; Low turns shadows off, thins the
 // figures and draws at one pixel per CSS pixel, High brings them back; the settings are remembered on the device after a
 // reload and never go in the save; sound stays off until the first tap, starts on it, and a mute is remembered (a muted
-// page makes no sound when tapped). Then the figures: after a while at 10x some carry a suitcase or wheel a bike.
+// page makes no sound when tapped). Then the figures: after a while at 10x some carry a suitcase or wheel a bike. And
+// the night: a save moved to 02:00 on a night the fast lines close (seed 1's second) has the engineering train out with
+// its beacons, no expresses, and the bought platforms' lamps throwing their light; at 13:00 the next day none of that.
 const SET_KEY = 'the-commute-prefs-v1';
 
 export default async function ({ ok, open, SAVE_KEY }) {
@@ -48,5 +50,20 @@ export default async function ({ ok, open, SAVE_KEY }) {
   let seen = { cases: 0, bikes: 0, figures: 0 };
   for (let k = 0; k < 20 && seen.cases + seen.bikes === 0; k++) { await page.waitForTimeout(1000); seen = await page.evaluate(() => window.__view.life()); }
   ok('life: at 10x some of the figures on the platforms carry a suitcase or wheel a bike', seen.cases + seen.bikes > 0 && !errs.length, JSON.stringify({ cases: seen.cases, bikes: seen.bikes, figures: seen.figures, err: errs[0] }));
+  // the night: take this game's save and move it to the small hours of its second night, then to the next afternoon
+  // the page saves when it's hidden: say it is, rather than wait for its timer on a slow machine
+  await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')); });
+  const save = await page.evaluate(k => localStorage.getItem(k), SAVE_KEY);
   await ctx.close();
+  for (const [hour, night] of [[26, true], [37, false]]) {
+    const s = JSON.parse(save || '{}'); if (!s.g) { ok('life: a save to move to the night', false, 'no save written'); break; }
+    s.g.t = hour * 3600 / 6; s.g.day = Math.floor(hour / 24) + 1; s.at = Date.now();
+    const p = await open({ width: 1280, height: 800 }, { save: JSON.stringify(s) });
+    await p.page.waitForTimeout(800);
+    const n = await p.page.evaluate(() => window.__view.life());
+    const want = night ? n.works && n.beacons > 0 && n.expresses === 0 && n.pools > 0 && n.lamplight > 0.99 : !n.works && n.beacons === 0 && n.lamplight < 0.01;
+    ok(`life: at ${String(hour % 24).padStart(2, '0')}:00 ${night ? 'on a works night the engineering train is out with its beacons, the expresses are off and the platforms are lamp-lit' : 'the next afternoon there is no engineering train and no lamplight'}`,
+      want && !p.errs.length, JSON.stringify({ works: n.works, beacons: n.beacons, expresses: n.expresses, pools: n.pools, lamplight: n.lamplight, err: p.errs[0] }));
+    await p.ctx.close();
+  }
 }

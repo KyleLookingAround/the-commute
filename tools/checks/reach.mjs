@@ -26,7 +26,7 @@ export default async function ({ ok, open, root }) {
     await fresh.ctx.close();
 
     // the rich save, then the camera high over Stockport and the light at midday for the screenshots
-    const { ctx, page: p, errs } = await open({ width: w, height: h }, { touch, save: rich });
+    const { ctx, page: p, errs } = await open({ width: w, height: h }, { touch, save: rich, steady: 50 });
     await ctx.addInitScript(([x, z]) => { window.__orbit = { tx: x, ty: 0, tz: z, r: 2600, th: 5.5, ph: 0.55 }; window.__lockHour = 13; }, [f.x, f.z]);
     await p.reload(); await p.waitForSelector('html[data-sim="ready"]', { timeout: 15000 }).catch(() => {});
     await p.waitForTimeout(1500);
@@ -40,28 +40,45 @@ export default async function ({ ok, open, root }) {
     await tap('#vLine'); await p.waitForTimeout(1200); await keep(); await p.screenshot({ path: join(shots, `reach-before-${tag}.png`) });
     const card = await p.evaluate(() => ({ subway: document.querySelector('[data-card="crossing"] [data-saves]')?.textContent || '' }));
     const r1 = await p.evaluate(() => window.__view.reach());
-    await tap('[data-pick="crossing"]'); await p.waitForTimeout(300);
+    await tap('[data-pick="crossing"]');
+    await p.waitForFunction(() => window.__view.reach().ghosts > 0, null, { timeout: 15000 }).catch(() => {});
     const g1 = await p.evaluate(() => window.__view.reach().ghosts);
     await tap('#vLine'); await p.waitForTimeout(1200); await keep(); await p.screenshot({ path: join(shots, `reach-ghost-${tag}.png`) });
-    await tap('[data-up="crossing"]'); await p.waitForTimeout(120);
-    const mid = await p.evaluate(() => window.__view.reach());
-    await tap('#vLine'); await keep(); await p.screenshot({ path: join(shots, `reach-rising-${tag}.png`) });
-    await p.waitForTimeout(1200);
+    // buy it, then watch Stockport's glow frame by frame (each frame at most 50 ms of the page's time, so the ease takes
+    // the same frames on a slow machine): until it settles, or 60 s of real time
+    await tap('[data-up="crossing"]');
+    const ease = await p.evaluate(async () => {
+      const t0 = window.__frameT, out = { from: window.__view.reach().now[0], seen: [], took: null };
+      const frame = () => new Promise(r => requestAnimationFrame(r)), real = performance.now();
+      while (performance.now() - real < 60000) {
+        await frame(); const r = window.__view.reach(); out.target = r.target[0]; out.seen.push(r.now[0]);
+        if (r.target[0] > out.from + 20 && Math.abs(r.now[0] - r.target[0]) <= 2) { out.took = (window.__frameT - t0) / 1000; break; }
+      }
+      return out;
+    });
+    const between = ease.seen.filter(v => v > ease.from + 5 && v < ease.target - 5).length;
+    const steady = ease.seen.every((v, i) => i === 0 || v >= ease.seen[i - 1] - 0.5);
+    await tap('#vLine'); await keep(); await p.waitForTimeout(600);
     const end = await p.evaluate(() => window.__view.reach());
-    await keep(); await p.screenshot({ path: join(shots, `reach-after-${tag}.png`) });
+    await p.screenshot({ path: join(shots, `reach-after-${tag}.png`) });
     const bad1 = [!/^\d+ min less walk for about [\d,]+ homes$/.test(card.subway) && `the subway's card says "${card.subway}"`, g1 < 1 && 'no ghost ring',
-      !(mid.target[0] > r1.target[0] + 20) && `the reach didn't widen (${r1.target[0]} → ${mid.target[0]})`, !(mid.now[0] < mid.target[0] - 5) && 'the glow jumped rather than easing',
-      Math.abs(end.now[0] - end.target[0]) > 2 && 'the glow had not settled after 1.5 s', end.ghosts !== 0 && 'the ghost ring stayed', errs[0]].filter(Boolean);
+      !(ease.target > r1.target[0] + 20) && `the reach didn't widen (${r1.target[0]} → ${ease.target})`,
+      between < 3 && `the glow jumped rather than easing (${between} frames on the way)`, !steady && 'the glow went back on its way out',
+      ease.took === null ? 'the glow never settled' : !(ease.took > 0.4 && ease.took <= 2) && `the glow took ${ease.took.toFixed(2)} s to settle, not about a second`,
+      end.ghosts !== 0 && 'the ghost ring stayed', errs[0]].filter(Boolean);
     ok(`reach: at ${w}×${h} the subway's card says what it saves, its preview draws a ghost ring, and buying it widens the glow over about a second`, !bad1.length, bad1.join('; '));
     // the extra unit waits on platform 3; its card is there once that's built
-    await tap('[data-pick="platform2"]'); await tap('[data-up="platform2"]'); await p.waitForTimeout(200);
+    await tap('[data-pick="platform2"]'); await tap('[data-up="platform2"]');
+    await p.waitForFunction(() => /\d/.test(document.querySelector('[data-lcard="units"] [data-saves]')?.textContent || ''), null, { timeout: 15000 }).catch(() => {});
     const unit = await p.evaluate(() => document.querySelector('[data-lcard="units"] [data-saves]')?.textContent || '');
     ok(`reach: at ${w}×${h} the extra unit's card says it cuts the wait`, /^\d+ min less waiting for about [\d,]+ homes$/.test(unit), `"${unit}"`);
 
-    await tap('#vLine'); await keep(); await tap('#vMins'); await p.waitForTimeout(1200);
+    await tap('#vLine'); await keep(); await tap('#vMins');
+    await p.waitForFunction(() => window.__view.reach().minutes, null, { timeout: 15000 }).catch(() => {}); await p.waitForTimeout(600);
     const on = await p.evaluate(() => ({ m: window.__view.reach().minutes, key: !document.getElementById('minsKey')?.hidden, pressed: document.getElementById('vMins')?.getAttribute('aria-pressed') }));
     await keep(); await p.screenshot({ path: join(shots, `reach-minutes-${tag}.png`) });
-    await tap('#vMins'); await p.waitForTimeout(200);
+    await tap('#vMins');
+    await p.waitForFunction(() => !window.__view.reach().minutes, null, { timeout: 15000 }).catch(() => {});
     const off = await p.evaluate(() => ({ m: window.__view.reach().minutes, key: !document.getElementById('minsKey')?.hidden }));
     ok(`reach: at ${w}×${h} the Minutes control shades the ground with its key, and turns off again`, on.m && on.key && on.pressed === 'true' && !off.m && !off.key && !errs[0], `${JSON.stringify(on)} ${JSON.stringify(off)} ${errs[0] || ''}`);
     await ctx.close();

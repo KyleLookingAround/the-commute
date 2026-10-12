@@ -28,20 +28,22 @@ export default async function ({ ok, open, root }) {
     ok(`homes: at ${w}×${h} a new game has no new homes, and every station room for some`, !bad0.length, bad0.join('; ') + (h0 ? ` room ${h0.room}` : ''));
     await fresh.ctx.close();
 
-    const { ctx, page: p, errs } = await open({ width: w, height: h }, { touch, save: grown });
-    // frame by frame (a software-rendered page runs a couple a second): until Stockport's tenth stands, then until it settles
+    const { ctx, page: p, errs } = await open({ width: w, height: h }, { touch, save: grown, steady: 50 });
+    // frame by frame (each frame at most 50 ms of the page's time, so a rise takes the same frames on a slow machine):
+    // until Stockport's tenth stands, then until it settles, each with 60 s of real time to spare; settled is page time
     const seen = await p.evaluate(async () => {
       const frame = () => new Promise(r => requestAnimationFrame(r)), out = { first: window.__view.homes(), rose: 0 };
-      for (let k = 0; k < 200 && window.__view.homes().shown[0] < 10; k++) { await frame(); out.rose = Math.max(out.rose, window.__view.homes().rising); }
-      const t = performance.now();
-      while (window.__view.homes().rising && performance.now() - t < 3000) { out.rose = Math.max(out.rose, window.__view.homes().rising); await frame(); }
-      out.end = window.__view.homes(); out.settled = performance.now() - t; return out;
+      let real = performance.now();
+      while (window.__view.homes().shown[0] < 10 && performance.now() - real < 60000) { await frame(); out.rose = Math.max(out.rose, window.__view.homes().rising); }
+      const t = window.__frameT; real = performance.now();
+      while (window.__view.homes().rising && performance.now() - real < 60000) { out.rose = Math.max(out.rose, window.__view.homes().rising); await frame(); }
+      out.end = window.__view.homes(); out.settled = (window.__frameT - t) / 1000; return out;
     });
     const full = i => Math.min(seen.first.room[i], Math.floor((sim.ceiling(i) - net.stations[i].catchment) / HOMES_PER_PLOT));
     const bad1 = [[hc, lv].some(i => seen.first.shown[i] !== full(i)) && `grown stations show ${seen.first.shown[hc]}, ${seen.first.shown[lv]} not ${full(hc)}, ${full(lv)}`,
       seen.first.rising !== 0 && 'a loaded save raised its homes rather than showing them', errs[0]].filter(Boolean);
     ok(`homes: at ${w}×${h} a save with grown homes shows them at once`, !bad1.length, bad1.join('; '));
-    const bad2 = [seen.end.shown[sp] !== 10 && `Stockport shows ${seen.end.shown[sp]}, not 10`, !seen.rose && 'nothing rose', seen.end.rising !== 0 && 'still rising after 3 s'].filter(Boolean);
+    const bad2 = [seen.end.shown[sp] !== 10 && `Stockport shows ${seen.end.shown[sp]}, not 10`, !seen.rose && 'nothing rose', seen.end.rising !== 0 && 'still rising after a minute', seen.settled > 3 && `took ${seen.settled.toFixed(1)} s to settle, not under 3`].filter(Boolean);
     ok(`homes: at ${w}×${h} a building whose homes arrive while you watch rises into place`, !bad2.length, bad2.join('; '));
     // the camera over Levenshulme and the light at midday for the screenshot (the reload loads the page's own save)
     await ctx.addInitScript(([x, z]) => { window.__orbit = { tx: x, ty: 0, tz: z, r: 750, th: 5.5, ph: 0.75 }; window.__lockHour = 13; }, [b.x, b.z]);

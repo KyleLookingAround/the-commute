@@ -20,24 +20,24 @@ export default async function ({ ok, open, root, url }) {
   for (const [w, h, touch] of [[320, 640, true], [1280, 800, false]]) {
     const { ctx, page, errs } = await open({ width: w, height: h }, { touch });
     const away = []; page.on('request', r => { if (!r.url().startsWith(url) && !/^(blob|data):/.test(r.url()) && !/fonts\.(googleapis|gstatic)/.test(r.url())) away.push(r.url()); });
-    const tap = sel => touch ? page.locator(sel).tap() : page.locator(sel).click();
+    const tap = sel => touch ? page.locator(sel).tap({ timeout: 60000 }) : page.locator(sel).click({ timeout: 60000 });
     // sizes
     const boxes = await page.evaluate(() => ['saveFile', 'loadFile', 'reset'].map(id => { const r = document.getElementById(id).getBoundingClientRect(); return [id, r.width, r.height, r.right - innerWidth]; }));
     const small = boxes.filter(([, bw, bh, right]) => bw < 44 || bh < 44 || right > 0);
     ok(`saves: at ${w}×${h} the save buttons are tap-sized and fit`, !small.length, JSON.stringify(small.length ? small : boxes.map(b => b.slice(0, 3).map(x => typeof x === 'number' ? Math.round(x) : x))));
     // save to file
     await page.locator('#saveFile').scrollIntoViewIfNeeded();
-    const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }), tap('#saveFile')]);
+    const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), tap('#saveFile')]);
     const name = dl.suggestedFilename(), text = readFileSync(await dl.path(), 'utf8');
     let saved = null; try { saved = JSON.parse(text); } catch { /* reported below */ }
     ok(`saves: at ${w}×${h} Save to file downloads the game`, /^the-commute-day-\d+\.json$/.test(name) && saved?.g?.v === SAVE_VERSION && typeof saved?.at === 'number', `${name}, ${Math.round(text.length / 1000)} kB`);
     // a bad file and a newer one: a toast, and nothing changed
     const pick = async (body, label) => {
-      const [fc] = await Promise.all([page.waitForEvent('filechooser', { timeout: 20000 }), tap('#loadFile')]);
+      const [fc] = await Promise.all([page.waitForEvent('filechooser', { timeout: 60000 }), tap('#loadFile')]);
       await page.evaluate(() => { document.getElementById('toast').textContent = ''; });
       await fc.setFiles({ name: label, mimeType: 'application/json', buffer: Buffer.from(body) });
-      // the page is slow under software GL: wait for it to answer, in a toast or by asking
-      await page.waitForFunction(() => document.getElementById('toast')?.textContent || document.getElementById('loadFile')?.dataset.arm, null, { timeout: 20000 }).catch(() => {});
+      // the page is slow under software GL (a frame a second in some containers): wait up to a minute for it to answer, in a toast or by asking
+      await page.waitForFunction(() => document.getElementById('toast')?.textContent || document.getElementById('loadFile')?.dataset.arm, null, { timeout: 60000 }).catch(() => {});
     };
     await pick('not a save', 'notes.txt');
     const t1 = await toast(page);
@@ -52,8 +52,8 @@ export default async function ({ ok, open, root, url }) {
     // the second tap straight away: under software GL an emulated tap can take longer than the button waits
     await Promise.all([page.waitForEvent('load', { timeout: 30000 }), page.evaluate(() => document.getElementById('loadFile').click())]);
     await page.waitForSelector('html[data-sim="ready"]', { timeout: 15000 }).catch(() => {});
-    await page.waitForFunction(() => /While you were away/.test(document.getElementById('toast')?.textContent ?? ''), null, { timeout: 20000 }).catch(() => {});
-    await page.waitForFunction(() => /\d/.test(document.getElementById('cash')?.textContent ?? ''), null, { timeout: 20000 }).catch(() => {});
+    await page.waitForFunction(() => /While you were away/.test(document.getElementById('toast')?.textContent ?? ''), null, { timeout: 60000 }).catch(() => {});
+    await page.waitForFunction(() => /\d/.test(document.getElementById('cash')?.textContent ?? ''), null, { timeout: 60000 }).catch(() => {});
     const m = await money(page), welcome = await toast(page), kept = await page.evaluate(k => JSON.parse(localStorage.getItem(k) || 'null')?.g?.seed, 'the-commute-save-v1');
     ok(`saves: at ${w}×${h} a good file asks once, then loads and catches up`, /^Tap again to load day \d+$/.test(asking ?? '') && m > 123456 && /While you were away/.test(welcome) && kept === sim.g.seed, `${asking}; £${m}; ${welcome}`);
     ok(`saves: at ${w}×${h} nothing leaves the page, and no errors`, !away.length && !errs.length, [...away, ...errs][0]);

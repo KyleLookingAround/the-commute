@@ -36,11 +36,23 @@ let browser = null; const getBrowser = async () => browser || (browser = await c
 const results = []; const ok = (name, pass, info) => { results.push([name, !!pass]); console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${info ? '  ' + info : ''}`); };
 const ignorable = m => /fonts\.(googleapis|gstatic)|ERR_TUNNEL|ERR_NAME_NOT_RESOLVED|net::|WebGL|GPU stall/.test(m);
 
-// open the built page at a viewport. seed: the game's seed; save: a save's JSON text put in localStorage first; touch: a phone
-async function open(vp = { width: 1280, height: 800 }, { save = null, touch = false, seed = 1, dsf = touch ? 2 : 1 } = {}) {
+// open the built page at a viewport. seed: the game's seed; save: a save's JSON text put in localStorage first; touch: a phone;
+// steady: the most milliseconds one frame may count for. A software-rendered page under load can take over a second a
+// frame, and the view eases by the real time between frames, so one slow frame finishes an ease that a check wants to
+// watch. With steady, each frame's time (requestAnimationFrame's argument, also window.__frameT) moves on by at most that
+// much, so an ease takes the same number of frames however slow the machine; the page simply runs slower. Wait on what a
+// check needs with page.waitForFunction rather than a fixed delay.
+async function open(vp = { width: 1280, height: 800 }, { save = null, touch = false, seed = 1, dsf = touch ? 2 : 1, steady = 0 } = {}) {
   const b = await getBrowser();
   const ctx = await b.newContext({ viewport: vp, deviceScaleFactor: dsf, hasTouch: touch, isMobile: touch });
   await ctx.addInitScript(seed => { window.__seed = seed; }, seed);
+  if (steady) await ctx.addInitScript(step => {
+    const raf = window.requestAnimationFrame.bind(window); let last = -1;
+    window.requestAnimationFrame = cb => raf(now => {
+      if (last !== now) { window.__frameT = last < 0 ? now : Math.min(now, window.__frameT + step); last = now; }
+      cb(window.__frameT);
+    });
+  }, steady);
   if (save) await ctx.addInitScript(([k, s]) => { if (!sessionStorage.getItem('seeded')) { localStorage.setItem(k, s); sessionStorage.setItem('seeded', '1'); } }, [SAVE_KEY, save]);
   const page = await ctx.newPage(); const errs = [];
   page.on('pageerror', e => errs.push(e.message)); page.on('console', c => { if (c.type() === 'error' && !ignorable(c.text())) errs.push(c.text()); });

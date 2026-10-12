@@ -103,6 +103,9 @@ export function engineering(seed: number, t: number): { at: number; dir: 1 | -1 
 /** Where the spare unit stands: in Stockport's carriage sidings, in the kit's (u, v); and the unit a contract's perk
  * stables there from the start, on the next siding. */
 const SPARE_AT: [number, number] = [78, -33], STABLED_AT: [number, number] = [78, -38.3];
+/** The sidings' other roads (the kit's v), where units that finished at Stockport stand overnight, centred on u = 0
+ * (the roads beside the spare's and the perk's unit's). */
+const SIDINGS = [-43.3, -49, -53.9, -59.3, -65];
 
 /** A rescue the spare unit is out on, or coming back from: the failure's from and until (sim seconds), where the
  * spare's middle starts (in the sidings) and ends (buffered up to the failed unit), the line it runs out along and the
@@ -351,6 +354,15 @@ export class TrainLayer {
       m.position.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2); m.rotation.y = Math.atan2(-dz, dx); m.updateMatrix();
     });
   }
+  /** A unit standing overnight in Stockport's sidings, on the kth of their other roads. */
+  private stable(u: Unit, k: number): void {
+    const f = this.net.stationFrame(this.net.stations[0]?.id ?? 'stockport'), v = SIDINGS[k % SIDINGS.length]!, n = u.cars.length;
+    u.cars.forEach((m, c) => {
+      const along = (c - (n - 1) / 2) * PITCH; m.position.set(f.x + along * f.dx + v * f.nx, 0, f.z + along * f.dz + v * f.nz);
+      m.rotation.y = yawFor(f); m.updateMatrix();
+    });
+    u.group.visible = true;
+  }
   /** The spare back in the sidings, where it was placed. */
   private spareHome(): void {
     this.spareOut = false;
@@ -420,11 +432,14 @@ export class TrainLayer {
     const g = sim.g;
     while (this.units.length < g.trains.length) { const u = this.unit(2, NORTHERN); this.units.push(u); this.meshes.push(u.group); }
     const at = this.counts; at.r = 0; at.s = 0; this.lamps.count = 0;
+    let yard = 0;
     g.trains.forEach((tr, i) => {
       const u = this.units[i], svc = this.services[tr.svc]; if (!u || !svc) return;
       // an express off the map isn't drawn
       if (tr.state === 'away') { u.group.visible = false; return; }
       if (u.cars.length !== tr.cars || u.livery !== svc.operator) { this.unit(tr.cars, liveryFor(svc.operator), u); u.livery = svc.operator; }
+      // overnight, a unit that finished its run at Stockport stands in the sidings (the sim keeps it at its platform)
+      if (tr.pfAt === 0 && sim.stabled(tr)) { this.stable(u, yard++); this.windows(u, 0); return; }
       this.pose(u, svc, tr.s, tr.dir, berthsOf(sim, tr, this.berths));
       const full = Math.min(1, tr.onboard / (tr.cars * TUNING.seatsPerCar));
       this.windows(u, full); this.ridersIn(u, tr, full, at); this.lateLamp(u, tr);

@@ -71,6 +71,9 @@ export interface ServiceDef {
   /** The platforms it uses at each station, preferred first; a station not listed: whichever face is its way. A `turn`
    * list is shared out by unit (the first unit the first platform, the second the next), so each one built is used. */
   platforms?: Record<string, ServicePlatforms | undefined>;
+  /** The first and last trains by the clock (hours): no unit leaves the end of its run after the last until the first
+   * next morning, and it stands there overnight (a service with a home runs out from there to stand at its far end). */
+  hours?: { first: number; last: number };
   /** A long-distance train running through from beyond the map: it comes in where its tracks begin, calls at its
    * route's stations where it has a platform, turns at the last, and goes back off the map to `south`: by the clock,
    * the first at clock hour `first`, then one every `every` clock hours to `last`. */

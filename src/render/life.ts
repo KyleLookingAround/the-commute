@@ -179,7 +179,7 @@ export function departures(sim: Sim, i: number, out: Dep[]): Dep[] {
       }
       const end = nx === first || nx === last;
       t += runTime(Math.abs(s(nx) - s(stop)), sim.vmax(), TUNING.accel, TUNING.brake) + (end ? sim.turnaround() : TUNING.dwell);
-      if (end) dir = -dir;
+      if (end) { dir = -dir; t = sim.leaves(tr.svc, t); }   // after the last train, the first next morning
       stop = nx;
     }
   }

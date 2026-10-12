@@ -346,11 +346,31 @@ export class Sim {
    * starts on time from here. At the end of its run it also keeps the gap behind the unit that last left this end, so
    * the units spread out evenly round the line. */
   timetable(tr: Train, i: number, end: boolean): void {
-    const g = this.g;
+    const g = this.g, v = this.svc(tr.svc);
     if (tr.due < 0) tr.due = g.t + (end ? this.turnaround() : TUNING.dwell);
     if (!end) return;
-    const ends = g.ends[tr.svc] ??= [-1e9, -1e9], e = i === this.span(this.svc(tr.svc))[0] ? 0 : 1;
-    tr.due = Math.max(tr.due, ends[e]! + this.headway(tr.svc)); ends[e] = tr.due;
+    const ends = g.ends[tr.svc] ??= [-1e9, -1e9], e = i === this.span(v)[0] ? 0 : 1, h = this.headway(tr.svc);
+    tr.due = Math.max(tr.due, ends[e]! + h);
+    // due away after the last train, it stands here overnight (a service with a home runs out to its far end first);
+    // the first to stand at an end leaves with the first train, the rest the headway apart, so nothing bunches at dawn
+    const dawn = i === v.home ? null : this.dawn(v, tr.due);
+    if (dawn !== null) tr.due = ends[e]! >= dawn ? ends[e]! + h : dawn;
+    ends[e] = tr.due;
+  }
+  /** If sim time t is after a service's last train or before its first (`hours`), when its first train next leaves,
+   * as sim time; otherwise null. */
+  dawn(v: Svc, t: number): number | null {
+    const hrs = v.def.hours; if (!hrs) return null;
+    const c = clockAt(t), day = Math.floor(c / 86400), h = c / 3600 - day * 24;
+    return h >= hrs.last ? simAtHour(day + 2, hrs.first) : h < hrs.first ? simAtHour(day + 1, hrs.first) : null;
+  }
+  /** When a train planned to leave the end of its run at t leaves: then, or with the first train if t is overnight. */
+  leaves(svc: string, t: number): number { return this.dawn(this.svc(svc), t) ?? t; }
+  /** Whether the main line's last train of the day has gone (until midnight; demand is nil from then until 04:00). */
+  lastGone(): boolean { const hrs = this.svcs[0]!.def.hours; return !!hrs && this.hour() >= hrs.last; }
+  /** Whether a unit is standing overnight at the end of its run, waiting for the first train. */
+  stabled(tr: Train): boolean {
+    return tr.state === 'dwell' && tr.pfAt >= 0 && this.isEnd(tr, tr.pfAt) && this.dawn(this.svc(tr.svc), this.g.t) !== null && tr.due > this.g.t;
   }
   /** Board a dwelling train for dt seconds: its doors take boardPerDoor passengers a second each, from the front of the
    * queue for its direction, until it's full; anyone who reaches the platform while it stands gets on too. A busy stop
@@ -593,10 +613,10 @@ export class Sim {
     this.enqueue(i, 0, nN); this.enqueue(i, 1, nS);
   }
   /** count passengers join the platform for one way, each group bound for a station chosen by the trips to it (from
-   * the last `tripRates`); a full platform turns the rest away. */
+   * the last `tripRates`); a full platform turns the rest away, and so does the night once the last train has gone. */
   enqueue(i: number, dirIdx: 0 | 1, count: number): void {
     if (count <= 0) return;
-    const g = this.g, S = this.state(i), cap = this.capacity(i);
+    const g = this.g, S = this.state(i), cap = this.lastGone() ? 0 : this.capacity(i);
     const room = Math.max(0, cap - S.waiting), take = Math.min(room, count);
     let tot = 0; for (let j = 0; j < this.S.length; j++) if (this.dirIdx(i, j) === dirIdx) tot += this.rates[j]!;
     // those turned away only need somewhere to go if there's a cab to take them there

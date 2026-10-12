@@ -121,7 +121,7 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
   };
   let lostWas = sim.g.st.map(S => S.lost), cabWas = sim.g.st.map(S => S.cab);
   // what things going wrong cost: who gave up while something was wrong or in the quarter hour after
-  let troubleLost = 0, troubleEnd = -Infinity;
+  let troubleLost = 0, troubleEnd = -Infinity, nightLost = 0;
   const mark = (k, h) => { if (reached[k] === undefined) reached[k] = +h.toFixed(2); };
   for (let step = 0; step < hoursToPlay * 60; step++) {          // one decision a game minute
     sim.advance(60);
@@ -130,6 +130,7 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
     sim.g.st.forEach((S, i) => { const d = S.cab - cabWas[i]; if (k && d > 0) { const c = peak(k).cab; c[sim.S[i].id] = (c[sim.S[i].id] ?? 0) + d; } });
     const tb = sim.g.trouble; if (tb.fail || tb.caution) troubleEnd = sim.g.t;
     if (sim.g.t - troubleEnd < 900) sim.g.st.forEach((S, i) => { troubleLost += Math.max(0, S.lost - lostWas[i]); });
+    if (sim.lastGone()) sim.g.st.forEach((S, i) => { nightLost += Math.max(0, S.lost - lostWas[i]); });
     lostWas = sim.g.st.map(S => S.lost); cabWas = sim.g.st.map(S => S.cab);
     // daytime quiet: hours between 06:00 and 22:00 with nothing bought (the night is quiet by design)
     const clock = sim.hour(); dayQuiet = clock >= 6 && clock < 22 ? dayQuiet + 1 / 60 : 0;
@@ -144,7 +145,7 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
   const g = sim.g, home = sim.svcs[0].route[0], days = (clockAt(g.t) - clockAt(t0)) / 86400;
   const measures = { 'game days': +days.toFixed(2), 'earned a game day': Math.round(g.earned / days), 'lost a game day': Math.round(g.stats.lost / days), 'cash a game day': Math.round((g.cash - cash0) / days), 'cash at end': Math.round(g.cash), 'boarded': g.stats.boarded, 'lost': g.stats.lost, 'by cab': g.stats.cab, 'longest quiet hours': +longestQuiet.toFixed(1), 'longest daytime quiet': +longestDayQuiet.toFixed(2),
     'lost beyond home %': g.stats.lost ? +(100 * (1 - g.st[home].lost / g.stats.lost)).toFixed(1) : 0,
-    'failures': g.trouble.fails, 'signal failures': g.trouble.signals, 'by bus': g.trouble.bused, 'lost in trouble': troubleLost,
+    'failures': g.trouble.fails, 'signal failures': g.trouble.signals, 'by bus': g.trouble.bused, 'lost in trouble': troubleLost, 'lost after the last train': nightLost,
     'wet hours': +(g.weather.wet / 3600).toFixed(2),
     'express £': Math.round(g.stats.express), 'express £ a game day': Math.round(g.stats.express / days), 'express calls a game day': +(expressCalls / days).toFixed(1), 'through': g.stats.through, 'by car': g.stats.car, 'by bus link': g.stats.bus,
     'homes grown': Math.round(g.homes.reduce((a, h, i) => a + h - sim.S[i].catchment, 0)),

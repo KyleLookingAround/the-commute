@@ -7,7 +7,7 @@ import { fromGeo } from '../src/sim/network.ts';
 import { Sim, demandCurve, TUNING } from '../src/sim/sim.ts';
 import { migrate, SAVE_VERSION, SaveError } from '../src/sim/save.ts';
 import type { NetworkGeoDef, Train } from '../src/sim/types.ts';
-import { BASE, clockAt, simAtHour, clockText } from '../src/sim/day.ts';
+import { BASE, clockAt, simAtHour, clockText, hourAt } from '../src/sim/day.ts';
 
 const def = JSON.parse(readFileSync(new URL('../src/data/network.json', import.meta.url), 'utf8')) as NetworkGeoDef;
 const net = () => fromGeo(def);
@@ -499,6 +499,28 @@ test('expresses: they run through Stockport until its platform 3 is built, then 
   assert.equal(before.paid, 0);
   assert.ok(after.n >= 10 && after.at3 === after.n, `they call at platform 3 (${after.n} calls)`);
   assert.ok(after.paid > after.n * TUNING.accessCharge - 1 && after.through > 0, 'and pay the access charge and a share of through fares');
+});
+
+test('last and first trains: nothing leaves the end of its run from 23:30 to 05:30, the units stand there, and the morning keeps its gaps', () => {
+  const sim = new Sim(net(), Sim.fresh(net(), 2)); sim.g.cash = 1e7; sim.buyUpgrade(0, 'crossing'); sim.buyUpgrade(0, 'platform2'); sim.buyUpgrade(0, 'platforms');
+  sim.buyLine('units'); sim.buyLine('units'); sim.ensureTrains();
+  const deps: { t: number; end: number }[] = [];
+  sim.onDepart = (tr, i) => { if (tr.svc === 'stopper' && sim.isEnd(tr, i)) deps.push({ t: sim.g.t, end: i }); };
+  sim.advance(simAtHour(2, 3) - sim.g.t);
+  const stopper = sim.svc('stopper'), units = sim.g.trains.filter(t => t.svc === 'stopper');
+  // the night passes in fewer sim seconds than a run along the line, so the last trains are still finishing theirs
+  assert.ok(units.length >= 3 && units.some(t => sim.stabled(t)), 'at 03:00 the units that have reached an end stand there');
+  assert.ok(units.every(t => t.state !== 'dwell' || !sim.isEnd(t, t.pfAt) || sim.stabled(t)), 'none stands at an end to leave before the first train');
+  assert.equal(sim.g.st.reduce((a, S) => a + S.waiting, 0), 0, 'and nobody waits on a platform');
+  sim.advance(simAtHour(2, 9) - sim.g.t);
+  const h = (t: number) => hourAt(t), night = deps.filter(d => h(d.t) >= 23.5 + 1 / 60 || h(d.t) < 5.5 - 1 / 60);
+  assert.equal(night.length, 0, `no departures overnight: ${night.map(d => clockText(d.t))}`);
+  const morning = deps.filter(d => d.t > simAtHour(2, 5));
+  assert.ok(morning.some(d => clockText(d.t) === '05:30'), `the first at 05:30: ${morning.map(d => clockText(d.t))}`);
+  for (const end of new Set(morning.map(d => d.end))) {
+    const ts = morning.filter(d => d.end === end).map(d => d.t);
+    for (let k = 1; k < ts.length; k++) assert.ok(ts[k]! - ts[k - 1]! >= sim.headway(stopper.id) * 0.9, `${sim.S[end]!.id}: departures the headway apart`);
+  }
 });
 
 test('expresses: they come on by the clock, one of each every two hours through the day and none through the night', () => {

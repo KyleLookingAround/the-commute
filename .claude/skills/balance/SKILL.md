@@ -62,6 +62,7 @@ Make the change and run the same three seeds into `build/after.log`.
 | Main-line departures within 5 min | 90–100% | 97, 99, 99 |
 | Worst late | 0–12 min | 9.4, 8.2, 7.4 (held behind a failed train or crawling past a signal failure) |
 | Failures, signal failures | 0–4, 0–3 | 1 and 1, 3 and 1, 3 and 1 |
+| Lost after the last train | 0–40 | 11, 8, 10 (who came after 23:30, when the last train has gone; real last and first trains, 12 October 2026) |
 | Lost in trouble | 0–550 | 113, 194, 498 (gave up while something was wrong or in the quarter hour after) |
 | Homes grown | 180–340 | 262, 259, 264 (homes over the census catchments) |
 | Wet hours | 0–2.5 | 1.47, 1.19, 0.76 (sim hours of rain or snow; the first game day stays dry; `--fair` plays the same weather unfelt, to measure what it costs) |

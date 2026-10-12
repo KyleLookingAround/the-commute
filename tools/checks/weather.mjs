@@ -47,8 +47,10 @@ export default async function ({ ok, open, SAVE_KEY }) {
   const snow = await at('snow', 7, 12);
   await snow.page.click('#sp10');
   let s = await look(snow.page);
-  for (let k = 0; k < 15 && s.settle < 0.1; k++) { await snow.page.waitForTimeout(800); s = await look(snow.page); }
-  ok('weather: snow in winter falls and settles', s.season === 3 && s.snow > 0.99 && s.falling && s.settle >= 0.1 && !snow.errs.length, JSON.stringify({ season: s.season, snow: s.snow, falling: s.falling, settle: s.settle, err: snow.errs[0] }));
+  // settling goes by game time a frame, so a slow machine settles less in the same wait: look for it lying and deepening
+  for (let k = 0; k < 15 && s.settle < 0.03; k++) { await snow.page.waitForTimeout(800); s = await look(snow.page); }
+  const lay = s.settle; await snow.page.waitForTimeout(2000); s = await look(snow.page);
+  ok('weather: snow in winter falls and settles', s.season === 3 && s.snow > 0.99 && s.falling && lay >= 0.03 && s.settle > lay && !snow.errs.length, JSON.stringify({ season: s.season, snow: s.snow, falling: s.falling, settle: [lay, s.settle], err: snow.errs[0] }));
   await snow.ctx.close();
 
   // fog closes the view

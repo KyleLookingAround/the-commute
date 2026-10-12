@@ -51,6 +51,9 @@ export type Part =
    * across the line (+1, the default, is +v): each an opening h high to its springing under a round head, with brick
    * piers between. Stands at street level (with `street`), at the wall's foot. */
   | (Gated & Span & { type: 'recesses'; v: number; n: number; h: number; facing?: 1 | -1 })
+  /** A hipped roof over a building's footprint: eaves at y0 all round, sloping up on all four sides to a ridge `rise`
+   * above them along the longer side (a point over a square). */
+  | (Gated & Footprint & { type: 'hipped'; y0: number; rise: number; mat?: string })
   /** A footbridge's stair tower on its own, for a platform built after the bridge. */
   | (Gated & { type: 'stairs'; u: number; v: number })
   | (Gated & { type: 'lifts'; u: number; towers: number[] })
@@ -293,6 +296,19 @@ const partBuilders: Builders = {
     }
     const first = p.points[0];
     if (p.buffer && first) box(gp, 0.8, 1.2, 3, MAT.brickDark, first[0], 0.6, first[1]);
+  },
+  hipped(gp, p) {
+    // the ridge runs along the longer side, the hips coming in by half the shorter at each end
+    const along = p.u1 - p.u0 >= p.v1 - p.v0, cu = (p.u0 + p.u1) / 2, cv = (p.v0 + p.v1) / 2, inset = Math.min(p.u1 - p.u0, p.v1 - p.v0) / 2;
+    const y = p.y0 + 0.25, top = y + p.rise;
+    const A = [p.u0, y, p.v0], B = [p.u1, y, p.v0], C = [p.u1, y, p.v1], D = [p.u0, y, p.v1];
+    const R0 = along ? [p.u0 + inset, top, cv] : [cu, top, p.v0 + inset], R1 = along ? [p.u1 - inset, top, cv] : [cu, top, p.v1 - inset];
+    // each face as triangles, wound to face outwards and up
+    const tris = along ? [A, R0, B, B, R0, R1, B, R1, C, C, R1, D, D, R1, R0, D, R0, A] : [A, R0, B, B, R0, C, C, R0, R1, C, R1, D, D, R1, A, A, R1, R0];
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(tris.flat(), 3)); geo.computeVertexNormals();
+    const mat = matFor(p.mat, MAT.roof); gp.add(new THREE.Mesh(geo, mat));
+    // the eaves: a thin slab under the slopes
+    box(gp, p.u1 - p.u0, 0.25, p.v1 - p.v0, mat, cu, p.y0 + 0.125, cv);
   },
   recesses(gp, p) {
     // each opening as a flat shape just proud of the wall: a dark brick ring, and the shadowed recess inside it, both

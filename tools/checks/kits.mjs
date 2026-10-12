@@ -1,6 +1,6 @@
 // Everything bought shows on the map: at every station, each upgrade it offers has a kit part gated on it (alone, or with
 // others it needs), and every platform has a departure board (one at least for the halt, one with the second platform
-// where it's offered). No browser.
+// where it's offered); and the hipped roofs on Davenport's, Hazel Grove's and Heaton Chapel's booking offices. No browser.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';
@@ -20,4 +20,12 @@ export default async function ({ ok, root }) {
     const bad = [!boards.some(g => !g.length) && 'no board on the halt', st.grow?.platform2 && !boards.some(g => g.includes('platform2')) && 'no board on the second platform'].filter(Boolean);
     ok(`kits: ${st.name} has departure boards on its platforms`, !bad.length, bad.join('; '));
   }
+  // the hipped roofs the photos show, on the buildings they're over, rather than flat ones
+  const flat = [];
+  for (const id of ['davenport', 'hazel-grove', 'heaton-chapel']) {
+    const kit = JSON.parse(readFileSync(join(root, 'src/data/kits', net.station(id).kit + '.json'), 'utf8'));
+    const roofs = kit.parts.filter(p => p.type === 'hipped' && p.rise > 0), over = roofs.filter(r => kit.parts.some(b => b.type === 'footprint' && b.y1 === r.y0));
+    if (!over.length) flat.push(id);
+  }
+  ok('kits: the booking offices at Davenport, Hazel Grove and Heaton Chapel have hipped roofs', !flat.length, flat.join(', '));
 }

@@ -64,7 +64,9 @@ jobs:
   # the browser checks, after the deploy; at the first release make `build` need this job
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # the whole suite takes about 15 minutes on a runner now; past the limit the run is cancelled, which opens no
+    # "main is red" issue, so keep it well clear
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -2,7 +2,9 @@
 // began, with a signal failure added: the failed unit flashes its hazard lights, the stretch at caution has its lamp
 // posts, a bus stands or runs between the stations either side (window.__view.trouble counts what's drawn), and the page
 // has no errors; a screenshot of the bus goes to build/shots/trouble-bus.png. Then the same save with the line clear
-// and the spare unit bought: it stands in Stockport's sidings. One phone page (390 px, touch) and one desktop page.
+// and the spare unit bought: it stands in Stockport's sidings. With no browser, the departure boards on the failing
+// save: Bus replacement from the station behind it, Cancelled for the failed unit, and calling points in order. One
+// phone page (390 px, touch) and one desktop page.
 import { register } from 'tsx/esm/api';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -19,6 +21,25 @@ export default async function ({ ok, open, root }) {
   const f = sim.g.trouble.fail;
   if (!f) { ok('trouble: a train fails on seed 1', false, 'none in 40 sim hours'); return; }
   sim.advance(TUNING.busAfter + 20);
+  // the boards, on a line where every station so far is open both ways: from the station behind the failure its way,
+  // Bus replacement; the failed unit's own trains Cancelled; and every departure lists where it calls, in order along
+  // its way, ending at its destination; no express on a board where it doesn't call
+  {
+    const { departures } = await import('../../src/render/life.ts');
+    const b = new Sim(net, Sim.fresh(net, 2)); b.g.cash = 1e6;
+    for (const id of ['crossing', 'platform2', 'building', 'platforms']) b.buyUpgrade(0, id);
+    for (const i of [1, 2]) { b.buyStation(i); b.buyUpgrade(i, 'crossing'); b.buyUpgrade(i, 'platform2'); }
+    b.buyLine('units');
+    for (let k = 0; k < 40 * 360 && !b.g.trouble.fail; k++) b.advance(10);
+    const bf = b.g.trouble.fail; b.advance(TUNING.busAfter + 20);
+    const deps = departures(b, bf.a, []), mine = deps.filter(d => d.train === bf.train && d.t < bf.until), way = deps.filter(d => d.d === bf.d && d.train !== bf.train && d.t < bf.until);
+    const all = net.stations.map((_, i) => departures(b, i, []));
+    const ordered = all.flat().every(d => d.via.every((j, k) => k === 0 || (net.stations[j].s - net.stations[d.via[k - 1]].s) * (d.d === 0 ? 1 : -1) > 0));
+    const calls = all[0].some(d => d.d === 0 && d.via.length > 0), expresses = all[1].filter(d => b.svc(b.g.trains.find(t => t.id === d.train).svc).express).length;
+    ok('trouble: the boards say Bus replacement from the station behind a failed train, Cancelled for its own trains, and list each train\'s calling points in order',
+      way.length > 0 && way.every(d => d.note === 'Bus replacement') && mine.every(d => d.note === 'Cancelled') && ordered && calls && !expresses,
+      JSON.stringify({ fail: bf && [bf.a, bf.b, bf.d], way: way.map(d => d.note), mine: mine.map(d => d.note), ordered, calls, expresses }));
+  }
   const c = net.stations[1].s, d = net.stations[2].s;
   sim.g.trouble.caution = { s0: c + 300, s1: d - 300, from: sim.g.t, until: sim.g.t + 3600 };
   const save = g => JSON.stringify({ g, selected: f.a });

@@ -1,5 +1,6 @@
 // Station life: what makes a bought station look busy rather than placed. Departure boards listing the next trains off
-// the timetable (late ones in amber), shops lit inside and open by day, shuttered at night, with a queue at the counter
+// the timetable with where each calls (late ones in amber, and Cancelled, Bus replacement or Delayed while a failed
+// train blocks the line), shops lit inside and open by day, shuttered at night, with a queue at the counter
 // when the station's busy, car parks with the sim's parked cars (filling through the morning, emptying in the evening),
 // cycle racks with bikes coming and going. The kit parts (board, carpark, cycles, and the shop in retail) are built here and noted in each
 // station's Live; StationLife reads the sim on a timer, never every frame, and only ever reads it. Cars, bikes, bay
@@ -118,8 +119,11 @@ export function buildShop(gp: THREE.Group, p: { u: number; v: number; y?: number
 
 // ---- the departure boards' timetable ----
 /** A departure: when, how late, where to (a station, or an express's destination off the map by name), which way,
- * and from which platform (its number on the boards). */
-interface Dep { t: number; late: number; dest: number; to: string | null; d: 0 | 1; plat: string }
+ * from which platform (its number on the boards), the stations it calls at on the way (on the map), which unit, and
+ * what the trouble does to it, if anything: the failed unit's own trains are Cancelled, those that would run over the
+ * blocked line are Delayed, and from the station behind it Bus replacement once the buses run. */
+export interface Dep { t: number; late: number; dest: number; to: string | null; d: 0 | 1; plat: string; via: number[]; train: number; note: Note }
+export type Note = '' | 'Cancelled' | 'Bus replacement' | 'Delayed';
 const ROWS = 2;
 /** The platform a train leaves station i from: the one it stands at or has claimed, or the one it would try first. */
 function platOf(sim: Sim, tr: Train, i: number, kind: 'north' | 'south' | 'turn'): string {
@@ -130,9 +134,15 @@ function platOf(sim: Sim, tr: Train, i: number, kind: 'north' | 'south' | 'turn'
  * the call it makes there next if it has a platform there its way. */
 function expressDeps(sim: Sim, tr: Train, i: number, out: Dep[]): void {
   const v = sim.svc(tr.svc), last = v.route[v.route.length - 1]!, s = (k: number) => sim.station(k).s;
+  if (!v.route.includes(i)) return;
   const to = (d: 0 | 1) => d === 0 ? { dest: last, to: null } : { dest: -1, to: v.express!.south };
   const run = (a: number, b: number) => runTime(Math.abs(b - a), TUNING.expressSpeed, TUNING.accel, TUNING.brake);
-  const at = (t: number, d: 0 | 1, kind: 'north' | 'south' | 'turn') => out.push({ t, late: tr.late, ...to(d), d, plat: platOf(sim, tr, i, kind) });
+  // the stations on the map it calls at after this one: those along its route its way with a platform its way
+  const via = (d: 0 | 1) => {
+    const r = d === 0 ? v.route : [...v.route].reverse(), k = r.indexOf(i);
+    return r.slice(k + 1).filter(j => j !== last && sim.platsFor(tr, j, d === 0 ? 'north' : 'south').length > 0);
+  };
+  const at = (t: number, d: 0 | 1, kind: 'north' | 'south' | 'turn') => out.push({ t, late: tr.late, ...to(d), d, plat: platOf(sim, tr, i, kind), via: via(d), train: tr.id, note: '' });
   const calls = (d: 0 | 1) => i === last || sim.platsFor(tr, i, d === 0 ? 'north' : 'south').length > 0;
   if (tr.state === 'dwell' && tr.pfAt === i) { at(tr.due, tr.dir > 0 ? 0 : 1, sim.kindAt(tr, i)); return; }
   if (tr.state === 'run' && tr.next === i) { const d: 0 | 1 = i === last ? 1 : tr.dir > 0 ? 0 : 1; at(tr.due, d, sim.kindAt(tr, i)); return; }
@@ -146,15 +156,21 @@ export function departures(sim: Sim, i: number, out: Dep[]): Dep[] {
   out.length = 0;
   for (const tr of sim.g.trains) {
     if (sim.svc(tr.svc).express) { if (tr.due >= 0) expressDeps(sim, tr, i, out); continue; }
-    let stop = tr.state === 'dwell' ? (tr.calling ?? tr.next) : tr.next;
-    if (stop === null || tr.due < 0) continue;
+    // the departure whose calling points are still being gathered, until the end of its run
+    const from = tr.state === 'dwell' ? (tr.calling ?? tr.next) : tr.next;
+    if (from === null || tr.due < 0) continue;
+    let stop: number = from;
     const sp = sim.span(sim.svc(tr.svc)); if (sp.length < 2) continue;
     const first = sp[0]!, last = sp[sp.length - 1]!, s = (k: number) => sim.station(k).s;
     // a running train turns round at the end of its run before it leaves there; a standing one already has
-    let dir = tr.state === 'run' && (stop === first || stop === last) ? -tr.dir : tr.dir, t = tr.due, found = 0;
-    for (let hop = 0; hop < sp.length * 4 && found < 4; hop++) {
+    let dir = tr.state === 'run' && (stop === first || stop === last) ? -tr.dir : tr.dir, t = tr.due, found = 0, open: Dep | null = null;
+    for (let hop = 0; hop < sp.length * 4 && (found < 4 || open); hop++) {
       const d: 0 | 1 = dir > 0 ? 0 : 1;
-      if (stop === i) { out.push({ t, late: tr.late, dest: d === 0 ? last : first, to: null, d, plat: platOf(sim, tr, i, stop === first || stop === last ? 'turn' : d === 0 ? 'north' : 'south') }); found++; }
+      if (open && (stop === first || stop === last)) open = null; else if (open) open.via.push(stop);
+      if (stop === i && found < 4) {
+        const dep: Dep = { t, late: tr.late, dest: d === 0 ? last : first, to: null, d, plat: platOf(sim, tr, i, stop === first || stop === last ? 'turn' : d === 0 ? 'north' : 'south'), via: [], train: tr.id, note: '' };
+        out.push(dep); found++; open = dep;
+      }
       // the next stop it calls at that way: the end of its run, or an owned station with a platform its way
       let nx = d === 0 ? last : first;
       for (let k = 0; k < sp.length; k++) {
@@ -167,48 +183,90 @@ export function departures(sim: Sim, i: number, out: Dep[]): Dep[] {
       stop = nx;
     }
   }
+  troubleNotes(sim, i, out);
   return out.sort((a, b) => a.t - b.t);
+}
+/** What a failed train does to station i's departures (docs/DESIGN.md, Things going wrong): the failed unit's own are
+ * Cancelled until it's rescued; those its way that would run over the blocked line between the stations either side
+ * of it are Delayed, or Bus replacement from the station behind it once the buses have started there. */
+function troubleNotes(sim: Sim, i: number, out: Dep[]): void {
+  const f = sim.g.trouble.fail; if (!f) return;
+  const s = (k: number) => sim.station(k).s, way = f.d === 0 ? 1 : -1;
+  const bus = sim.g.trouble.buses.some(b => b.a === f.a && b.b === f.b);
+  for (const dep of out) {
+    if (dep.t > f.until + 600) continue;
+    if (dep.train === f.train) { dep.note = 'Cancelled'; continue; }
+    // its way, from at or behind the station behind the failure to at or beyond the one ahead (off the map is beyond)
+    const beyond = dep.dest < 0 || (s(dep.dest) - s(f.b)) * way >= 0;
+    if (dep.d === f.d && (s(f.a) - s(i)) * way >= 0 && beyond) dep.note = i === f.a && bus ? 'Bus replacement' : 'Delayed';
+  }
 }
 /** A sim time as the game's clock reads it. */
 const clock = clockText;
 /** How late a train is, in the game clock's minutes, once its cab lamp shows (a minute or more). */
 const lateMins = (late: number, t: number) => late >= 60 ? Math.round((clockAt(t) - clockAt(t - late)) / 60) : 0;
 
-/** One board face, drawn on a canvas: the next two trains, each its time and destination over its platform and On
- * time or how late. */
+/** One board face, drawn on a canvas: the next two trains, each its time, destination and On time (or how late, or
+ * what the trouble does to it) over its platform and where it calls, a page of the calling points at a time as a real
+ * board scrolls them. */
 class Face {
   readonly tex: THREE.CanvasTexture; readonly mat: THREE.MeshBasicMaterial;
-  private readonly cv = document.createElement('canvas'); private text = '';
+  private readonly cv = document.createElement('canvas'); private text = ''; private shown = '';
+  /** Each row's calling points as pages that fit the board, worked out when the rows change. */
+  private pages: string[][] = [];
   constructor() {
     this.cv.width = 512; this.cv.height = 192;
     this.tex = new THREE.CanvasTexture(this.cv); this.tex.colorSpace = THREE.SRGBColorSpace; this.tex.anisotropy = 4;
     this.mat = new THREE.MeshBasicMaterial({ map: this.tex });
-    this.draw([], []);
+    this.draw([], [], 0);
   }
-  draw(rows: Dep[], names: string[]): void {
-    const text = rows.map(r => `${r.t}|${r.dest}|${r.to}|${r.plat}|${lateMins(r.late, r.t)}`).join(',') || 'none';
-    if (text === this.text) return;
-    this.text = text;
-    const x = this.cv.getContext('2d'); if (!x) return;
+  /** page: how many pages of calling points have gone by. */
+  draw(rows: Dep[], names: string[], page: number): void {
+    const x = this.cv.getContext('2d');
+    const text = rows.map(r => `${r.t}|${r.dest}|${r.to}|${r.plat}|${lateMins(r.late, r.t)}|${r.note}|${r.via.join('.')}`).join(',') || 'none';
+    if (text !== this.text) { this.text = text; this.pages = x ? rows.map(r => callingPages(x, r, names)) : []; }
+    const shown = text + this.pages.map(p => page % p.length).join('.');
+    if (shown === this.shown || !x) return;
+    this.shown = shown;
     x.fillStyle = INK; x.fillRect(0, 0, 512, 192);
     x.textBaseline = 'middle'; x.textAlign = 'left'; x.fillStyle = LED;
-    if (!rows.length) { x.font = '600 40px Arial, Helvetica, sans-serif'; x.textAlign = 'center'; x.fillText('No trains', 256, 96); }
+    if (!rows.length) { x.font = FONT(40); x.textAlign = 'center'; x.fillText('No trains', 256, 96); }
     rows.forEach((r, k) => {
-      const y = 30 + k * 96, m = lateMins(r.late, r.t);
-      x.font = '600 40px Arial, Helvetica, sans-serif'; x.fillStyle = LED;
-      x.fillText(clock(r.t), 12, y); x.fillText(r.to ?? names[r.dest] ?? '', 138, y, 362);
-      x.font = '600 34px Arial, Helvetica, sans-serif';
-      if (r.plat) x.fillText(`Plat ${r.plat}`, 12, y + 42, 120);
-      x.fillStyle = m ? LATE : LED;
-      x.fillText(m ? `${m} min late` : 'On time', 138, y + 42);
+      const y = 26 + k * 96, m = lateMins(r.late, r.t), status = r.note || (m ? `${m} min late` : 'On time');
+      x.font = FONT(30); const sw = x.measureText(status).width;
+      x.fillStyle = r.note || m ? LATE : LED; x.textAlign = 'right'; x.fillText(status, 500, y); x.textAlign = 'left';
+      x.font = FONT(38); x.fillStyle = LED;
+      x.fillText(clock(r.t), 12, y, 100); x.fillText(r.to ?? names[r.dest] ?? '', 122, y, Math.max(80, 500 - 122 - sw - 14));
+      x.font = FONT(28);
+      if (r.plat) x.fillText(`Plat ${r.plat}`, 12, y + 38, 100);
+      const pages = this.pages[k] ?? [];
+      x.font = FONT(25); x.fillText(pages[page % Math.max(1, pages.length)] ?? '', 122, y + 38, 380);
     });
     this.tex.needsUpdate = true;
   }
+}
+const FONT = (px: number) => `600 ${px}px Arial, Helvetica, sans-serif`;
+const CALLING_W = 380;
+/** A departure's calling points as pages that each fit the board's line: "Calling at" and the stations on the map it
+ * stops at, then its destination, a few to a page. */
+function callingPages(x: CanvasRenderingContext2D, r: Dep, names: string[]): string[] {
+  const all = [...r.via.map(j => names[j] ?? ''), r.to ?? names[r.dest] ?? ''];
+  x.font = FONT(25);
+  const pages: string[] = []; let line = 'Calling at';
+  all.forEach((n, k) => {
+    const word = (k === 0 ? ' ' : k === all.length - 1 ? ' and ' : ', ') + n;
+    const last = k === all.length - 1;
+    if (line !== 'Calling at' && x.measureText(line + word).width > CALLING_W) { pages.push(line + (last ? '' : ',')); line = (last ? 'and ' : '') + n; }
+    else line += word;
+  });
+  pages.push(line);
+  return pages;
 }
 
 // ---- how busy each station is, and the day's shape ----
 const TICK = 0.5;              // real seconds between looks at the sim
 const BOARD_TICK = 1;          // ...and between board redraws
+const PAGE_TICKS = 3;          // board redraws a page of calling points shows for
 const REF = 0.25;              // people a sim second boarding and leaving that counts as busy (Stockport's morning peak)
 const FAST = 300, SLOW = 3600; // sim seconds: busyness rises over five minutes and falls over an hour
 /** How full a cycle rack is through the day: empty at dawn, filling to mid-morning, full through the day, emptying in
@@ -226,7 +284,7 @@ export class StationLife {
   private readonly deps: Dep[] = []; private readonly rows: Dep[] = [];
   private readonly names: string[];
   private readonly busy: { last: number; t: number; now: number; held: number }[];
-  private acc = TICK; private boardAcc = BOARD_TICK; private fresh = true;
+  private acc = TICK; private boardAcc = BOARD_TICK; private fresh = true; private ticks = 0; private page = 0;
 
   constructor(built: { live: Live }[], sim: Sim) {
     this.built = built;
@@ -243,7 +301,7 @@ export class StationLife {
   sync(sim: Sim, hour: number, dt: number): void {
     this.acc += dt; this.boardAcc += dt;
     if (this.acc >= TICK) { this.acc = 0; this.life(sim, hour); }
-    if (this.boardAcc >= BOARD_TICK) { this.boardAcc = 0; this.boards(sim); }
+    if (this.boardAcc >= BOARD_TICK) { this.boardAcc = 0; this.ticks++; this.page = Math.floor(this.ticks / PAGE_TICKS); this.boards(sim); }
   }
 
   private life(sim: Sim, hour: number): void {
@@ -279,7 +337,7 @@ export class StationLife {
         const f = this.faces.get(`${i}:${serves}`); if (!f) continue;
         this.rows.length = 0;
         for (const d of deps) if (this.rows.length < ROWS && (serves === 'both' || d.d === (serves === 'north' ? 0 : 1))) this.rows.push(d);
-        f.draw(this.rows, this.names);
+        f.draw(this.rows, this.names, this.page);
       }
     });
   }

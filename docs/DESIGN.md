@@ -93,6 +93,8 @@ The weather and the year are the sim's (`src/sim/weather.ts`, its numbers in `WE
 - **Sound and settings**: rain hisses (filtered noise from the sound's bed) and patters on the canopies near where the camera looks; birds go quiet in rain and snow, and snow hushes the town. Fair weather in the settings draws every spell as a sunny or cloudy one, but only the look changes: the game's weather and what people feel are the same either way, so the same seed is the same game on every device (the option that changes the game less).
 - **What it costs**: on seeds 1-3 over 8 sim hours it rains 0.5 to 1 sim hour (none on the first day) and the milestones hold; over 32 sim hours (a whole year) it's wet about a fifth of the time, and cash at the end is about 6% under the same seeds with the weather unfelt, passengers about 4%.
 
+To look at a spell: `node tools/shots.mjs [hour ...] --weather <sun|cloud|rain|fog|snow>` (or with `--stations`) settles it over the map before each shot (`window.__weather`), and `--day <n>` starts a new game on that game day for its season (`window.__day`; snow wants a winter one); the files' names end `-<spell>`.
+
 ## Contract renewal
 
 Running the line is an operating contract (`src/sim/contract.ts`), the first layer of the owner's prestige idea; eras and challenges (phase 11) build on the same shape later.

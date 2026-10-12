@@ -8,6 +8,9 @@
 // A view given as name=du,dv,r,turn,tilt after the ids (instead of the usual two) takes a desktop shot looking at (du, dv) in the station's
 // frame from r m away, turned that many radians from looking along the line and tilted from straight down:
 // node tools/shots.mjs --stations heaton-chapel bridge=-77,0,45,1.6,1.3 writes station-heaton-chapel-bridge-desktop.png.
+// --weather <sun|cloud|rain|fog|snow> (with either kind) settles that spell over the map first (window.__weather), and
+// --day <n> starts a new game on that game day (window.__day: snow wants a winter one, day 60 or so); each file's name
+// then ends -<spell>: node tools/shots.mjs 13 --weather rain writes build/shots/phone-13-rain.png and the rest.
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
@@ -16,7 +19,14 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..'), dist = join(root, 'dist'), out = join(root, 'build/shots');
 mkdirSync(out, { recursive: true });
-const argv = process.argv.slice(2), stations = argv[0] === '--stations';
+// --weather and --day take a value each, and come out of the rest
+const all = process.argv.slice(2), opt = name => { const k = all.indexOf(name); if (k < 0) return null; const v = all[k + 1]; all.splice(k, 2); return v ?? null; };
+const SKIES = ['sun', 'cloud', 'rain', 'fog', 'snow'], weather = opt('--weather'), day = opt('--day');
+if (weather !== null && !SKIES.includes(weather)) { console.log(`--weather is one of ${SKIES.join(', ')}`); process.exit(1); }
+const tag = weather ? `-${weather}` : '';
+/** What every page gets before it loads: the seed, and the weather and day asked for. */
+const setUp = ctx => ctx.addInitScript(([w, d]) => { if (w) window.__weather = w; if (d) window.__day = d; }, [weather, day === null ? null : Number(day)]);
+const argv = all, stations = argv[0] === '--stations';
 const hours = stations ? [] : argv.map(Number).filter(n => !Number.isNaN(n));
 if (!hours.length && !stations) hours.push(8, 13, 18.5, 23);
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
@@ -30,11 +40,11 @@ const browser = await chromium.launch({ ...(exe ? { executablePath: exe } : {}),
 const SIZES = [['phone', 390, 844, true], ['phone-landscape', 844, 390, true], ['tablet', 768, 1024, true], ['desktop', 1440, 900, false]];
 for (const [name, w, h, touch] of SIZES) for (const hour of hours) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: touch ? 2 : 1, hasTouch: touch, isMobile: touch });
-  await ctx.addInitScript(hr => { window.__seed = 1; window.__lockHour = hr; }, hour);
+  await ctx.addInitScript(hr => { window.__seed = 1; window.__lockHour = hr; }, hour); await setUp(ctx);
   const page = await ctx.newPage(); await page.goto(url);
   await page.waitForSelector('html[data-sim="ready"]', { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(1500);
-  await page.screenshot({ path: join(out, `${name}-${String(hour).replace('.', '-')}.png`) });
+  await page.screenshot({ path: join(out, `${name}-${String(hour).replace('.', '-')}${tag}.png`) });
   await ctx.close();
 }
 if (stations) await stationShots(argv.slice(1).filter(a => !a.includes('=')), argv.slice(1).filter(a => a.includes('=')).map(a => a.split('=')));
@@ -73,11 +83,11 @@ async function stationShots(only, extra) {
     for (const [size, w, h, touch] of [['phone', 390, 844, true], ['desktop', 1440, 900, false]]) for (const [view, orbit] of Object.entries(views)) {
       if (extra.length && size === 'phone') continue;
       const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: touch ? 2 : 1, hasTouch: touch, isMobile: touch });
-      await ctx.addInitScript(([o, sv]) => { window.__seed = 1; window.__lockHour = 13; window.__orbit = o; localStorage.setItem('the-commute-save-v1', sv); }, [orbit, save]);
+      await ctx.addInitScript(([o, sv]) => { window.__seed = 1; window.__lockHour = 13; window.__orbit = o; localStorage.setItem('the-commute-save-v1', sv); }, [orbit, save]); await setUp(ctx);
       const page = await ctx.newPage(); await page.goto(url);
       await page.waitForSelector('html[data-sim="ready"]', { timeout: 15000 }).catch(() => {});
       await page.waitForTimeout(1500);
-      await page.screenshot({ path: join(out, `station-${st.id}-${view}-${size}.png`) });
+      await page.screenshot({ path: join(out, `station-${st.id}-${view}-${size}${tag}.png`) });
       await ctx.close();
     }
   }

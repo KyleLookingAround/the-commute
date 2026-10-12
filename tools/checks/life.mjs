@@ -5,13 +5,19 @@
 // page makes no sound when tapped). Then the figures: after a while at 10x some carry a suitcase or wheel a bike. And
 // the night: a save moved to 02:00 on a night the fast lines close (seed 1's second) has the engineering train out with
 // its beacons, no expresses, and the bought platforms' lamps throwing their light; at 13:00 the next day none of that.
+// Boarding, with no browser: people waiting for the stopper at Stockport's platform 4 walk by the subway to platform 3
+// when the stopper stands there, and board from its edge; at Piccadilly they walk along the concourse to the bay it
+// turns in; and those getting off a train at platform 3 step out onto platform 3.
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { register } from 'tsx/esm/api';
 
 const SET_KEY = 'the-commute-prefs-v1';
 
-export default async function ({ ok, open, SAVE_KEY }) {
+export default async function ({ ok, open, root, SAVE_KEY }) {
   register();
   const { simAtHour } = await import('../../src/sim/day.ts');
+  await boarding(ok, root, simAtHour);
   for (const [w, h] of [[320, 568], [390, 844]]) {
     const { ctx, page, errs } = await open({ width: w, height: h }, { touch: true });
     await page.waitForTimeout(500);
@@ -69,5 +75,36 @@ export default async function ({ ok, open, SAVE_KEY }) {
     ok(`life: at ${String(hour % 24).padStart(2, '0')}:00 ${night ? 'on a works night the engineering train is out with its beacons, the expresses are off and the platforms are lamp-lit' : 'the next afternoon there is no engineering train and no lamplight'}`,
       want && !p.errs.length, JSON.stringify({ works: n.works, beacons: n.beacons, expresses: n.expresses, pools: n.pools, lamplight: n.lamplight, err: p.errs[0] }));
     await p.ctx.close();
+  }
+}
+
+/** People walk to the platform their train stands at (src/render/passengers.ts), driven headless with a made-up state. */
+async function boarding(ok, root, simAtHour) {
+  const THREE = await import('three');
+  const { fromGeo } = await import('../../src/sim/network.ts');
+  const { PassengerLayer } = await import('../../src/render/passengers.ts');
+  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')));
+  for (const [id, pid, svc] of [['stockport', '3', 'stopper'], ['piccadilly', '11', 'stopper']]) {
+    const st = net.station(id), i = st.index, pf = st.platforms.findIndex(p => p.id === pid);
+    const kit = JSON.parse(readFileSync(join(root, 'src/data/kits', st.kit + '.json'), 'utf8'));
+    const built = net.stations.map(() => ({ group: new THREE.Group(), label: new THREE.Object3D(), kit }));
+    const layer = new PassengerLayer(built, net.stations, net.stations.map(() => ({ north: 0, south: 0 })));
+    const L = layer.layers[i], want = L.stands[pf];
+    const S = { q: [[{ t: 0, dest: 0, n: 8 }], []], alighted: 0, changed: 0, lost: 0, revenue: 0 };
+    const g = { t: simAtHour(1, 12), seed: 1, owned: net.stations.map((_, k) => k === i), ups: net.stations.map(() => ({})), st: net.stations.map((_, k) => k === i ? S : null), trains: [] };
+    layer.sync(g, 0.1);
+    const waited = L.faces[0].agents.map(a => a.v);
+    // the stopper stands at the platform, those for it board, and two get off
+    g.trains = [{ id: 0, svc, dir: 1, s: st.s, state: 'dwell', dwell: 30, pf, pfAt: i, cars: 4 }];
+    S.q[0] = []; S.alighted = 2;
+    let most = 0, off = [];
+    for (let k = 0; k < 1200; k++) {
+      layer.sync(g, 0.25);
+      if (k === 0) off = L.faces[0].agents.filter(a => a.mode === 'leave').map(a => a.v);
+      most = Math.max(most, L.faces[0].agents.filter(a => a.mode === 'board' && Math.abs(a.v - want) < 0.01).length);
+    }
+    ok(`life: at ${st.name} people waiting on the face walk to platform ${pid}, where the stopper stands, and board from its edge; those getting off step onto it`,
+      want !== null && waited.length === 8 && waited.every(v => Math.abs(v - want) > 3) && most > 0 && L.faces[0].agents.length === 0 && off.length === 2 && off.every(v => Math.abs(v - want) < 0.01),
+      JSON.stringify({ want, waited: waited.length, most, left: L.faces[0].agents.length, off }));
   }
 }

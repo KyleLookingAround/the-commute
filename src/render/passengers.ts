@@ -1,6 +1,8 @@
 // Passengers as figures that move: they come in through the station's entrance, walk to a spot on their platform face,
-// and when a train stands at that face they walk to its nearest door and board; the ones the sim gives up on walk back
-// out. All of it is cosmetic and runs in game time: the sim only says how many are waiting on each face, and the
+// and when a train stands their way they walk to its nearest door and board; the ones the sim gives up on walk back
+// out. The train may stand at another platform than the face they wait on (Stockport's stoppers use 3 and 4 by turns,
+// Piccadilly's turn in the bays): then they go by the stairs (or along a terminus's concourse) to that platform, and
+// those getting off step out onto it and leave the same way. All of it is cosmetic and runs in game time: the sim only says how many are waiting on each face, and the
 // figures catch up with that number. Figures are about 1.4 times life size so a queue reads from the stock zoom.
 // The sim's lost count shows too: someone who gives up shrugs before walking out, and when a full platform turns people
 // away a few come in at the stairs, see the crowd, shrug and go back. The station earning most has a gold coin turning
@@ -17,13 +19,15 @@ import { MAT, PAL } from './scene.ts';
 import type { BuiltStation, Face, Kit } from './stations.ts';
 import { TUNING } from '../sim/sim.ts';
 import { clockAt } from '../sim/day.ts';
-import type { GameState, Train } from '../sim/types.ts';
+import type { GameState, PlatformDef, Train } from '../sim/types.ts';
+import network from '../data/network.json';
 
 const geo = new THREE.CylinderGeometry(0.34, 0.42, 2.0, 7); geo.translate(0, 1.0, 0);
 const head = new THREE.SphereGeometry(0.36, 7, 6); head.translate(0, 2.3, 0);
 const m4 = new THREE.Matrix4(), col = new THREE.Color();
 const WALK = 1.6;             // metres a game second
 const AMBLE = 0.6;            // the pace of a waiting figure shuffling to a new spot
+const HURRY = 1.4;            // someone going for a train that's in walks faster
 /** A fixed hash in [0, 1): the scatter is cosmetic, so it never touches the game's rng. */
 const hash = (a: number, b: number) => { const s = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return s - Math.floor(s); };
 const CAR_LEN = 23, CAR_GAP = 0.6;
@@ -87,7 +91,9 @@ export function kindOf(hour: number, toCity: number, fans: number, h: number): K
 type Mode = 'in' | 'wait' | 'board' | 'leave' | 'balk';
 /** pace: this figure's walking speed as a share of WALK, so a group strings out as it comes down the stairs. shrug:
  * game seconds left of a shrug, standing still, before it walks on. */
-interface Agent { u: number; v: number; tu: number; tv: number; mode: Mode; spot: number; coat: number; idle: number; pace: number; shrug: number; kind: Kind; few: boolean }
+/** hop: on the way to a train at another platform, 1 while walking to the stairs, 2 along a concourse to the platform,
+ * 0 once on it; bu, bv: the door it's going to. */
+interface Agent { u: number; v: number; tu: number; tv: number; mode: Mode; spot: number; coat: number; idle: number; pace: number; shrug: number; kind: Kind; few: boolean; hop?: number; bu?: number; bv?: number }
 /** What a new figure is dressed as, and whether it's one of the third still drawn when figures are set to fewer. */
 interface Dress { coat: number; kind: Kind; few: boolean }
 /** entrance: where this face's passengers come and go: the stairs of the subway or footbridge, on the platform itself.
@@ -100,6 +106,9 @@ interface FaceLayer { face: Face; trackV: number; agents: Agent[]; nextSpot: num
  * lost count already shown; balks: turned-away people still to show, a few at a time (balkDue the gap to the next).
  * revenue, rate: the station's takings last seen and their recent rate, for the coin. */
 interface Layer {
+  /** Where people stand to board at each of the sim's platforms here (null: the face its way); concourse: the
+   * entrance is a terminus's concourse, walked across rather than taken by stairs. */
+  stands: (number | null)[]; concourse: boolean;
   pools: THREE.InstancedMesh; lamps: Lamp[]; lit: string;
   im: THREE.InstancedMesh; heads: THREE.InstancedMesh; cases: THREE.InstancedMesh; bikes: THREE.InstancedMesh; brollies: THREE.InstancedMesh; faces: [FaceLayer, FaceLayer]; s: number; at: number; nextCoat: number; alighted: number; primed: boolean;
   lost: number; balks: number; balkDue: number; revenue: number; rate: number; coin: THREE.Mesh;
@@ -110,6 +119,24 @@ interface Layer {
 function entranceOf(kit: Kit, face: Face): { u: number; v: number } {
   const way = kit.parts.find(p => p.type === 'subway' || p.type === 'footbridge');
   return { u: kit.entrance ?? (way && 'u' in way ? way.u : face.u0 - 8), v: face.v };
+}
+
+/** The services that carry nobody from the line's stations (the expresses): nobody walks to board them. */
+const EXPRESS = new Set((network.services as { id: string; through?: unknown }[]).filter(v => v.through).map(v => v.id));
+const EDGE = 2.1, STAND = 2.6;   // a platform's edge from its track's centreline, and where people stand to board
+/** Where people stand to board a train at each platform: STAND from its track towards whichever of the kit's platforms
+ * has its edge there; null for a platform without a place across the line (the halt's and the second platform's at a
+ * through station, which are the faces). */
+export function standsOf(kit: Kit, platforms: PlatformDef[] | undefined): (number | null)[] {
+  return (platforms ?? []).map(d => {
+    if (d.v === undefined) return null;
+    let side = 0;
+    for (const p of kit.parts) if (p.type === 'platform') {
+      if (Math.abs(p.v0 - (d.v + EDGE)) < 0.3) side = 1; else if (Math.abs(p.v1 - (d.v - EDGE)) < 0.3) side = -1;
+      if (side) break;
+    }
+    return side ? d.v + side * STAND : null;
+  });
 }
 
 /** Every lamp in a kit's rows of lamps, with what it needs bought. */
@@ -136,7 +163,7 @@ export class PassengerLayer {
   private hour = 12; private club = -1; private crowd = { share: 0, going: true };
   /** stations: where each one's trains stop and its kit stands along the corridor; trackV: where the stopping service's
    * tracks run across each station, by direction. */
-  constructor(builtStations: BuiltStation[], stations: { s: number; at: number }[], trackV: { north: number; south: number }[], city = -1, max = 320) {
+  constructor(builtStations: BuiltStation[], stations: { s: number; at: number; platforms?: PlatformDef[] }[], trackV: { north: number; south: number }[], city = -1, max = 320) {
     this.max = max; this.city = city;
     // anyone's coats first (0-3), then work clothes (4-6), a cyclist's jacket (7) and the clubs' colours (8-10)
     this.coats = [PAL.pax, PAL['pax-2'], PAL['pax-3'], PAL['pax-4'], PAL['suit-1'], PAL['suit-2'], PAL['suit-3'], PAL.cyclist, PAL['kit-city'], PAL['kit-united'], PAL['kit-county']];
@@ -149,6 +176,7 @@ export class PassengerLayer {
       // the coin turns over the station's name, which floats over the kit's origin
       const cm = new THREE.Mesh(coin, coinMat); cm.position.copy(b.label.position).y = COIN_Y; cm.visible = false; b.group.add(cm);
       return {
+        stands: standsOf(b.kit, stations[i]?.platforms), concourse: b.kit.entrance !== undefined,
         pools: this.pools(b), lamps: lampsOf(b.kit), lit: '-',
         im, heads, cases, bikes, brollies, s: stations[i]?.s ?? 0, at: stations[i]?.at ?? 0, nextCoat: i * 7, alighted: -1, primed: false,
         lost: -1, balks: 0, balkDue: 0, revenue: -1, rate: 0, coin: cm,
@@ -239,7 +267,7 @@ export class PassengerLayer {
       // (two can stand at once where two services turn round, Stockport's platforms 4 and 1); the one that came in last
       // is the one whose passengers are getting off now
       let standing: Train | null = null, standingAt: [Train | null, Train | null] = [null, null];
-      for (const t of g.trains) if (t.state === 'dwell' && Math.abs(t.s - L.s) < 3) {
+      for (const t of g.trains) if (t.state === 'dwell' && t.pfAt === i && !EXPRESS.has(t.svc)) {
         standingAt[t.dir > 0 ? 0 : 1] = t; if (!standing || t.dwell > standing.dwell) standing = t;
       }
       // arrivals: the sim's count of who got off here rose, so that many step out of the doors and walk to the way out;
@@ -249,10 +277,12 @@ export class PassengerLayer {
       if (L.alighted < 0) L.alighted = off;
       else if (off > L.alighted) {
         const F = L.faces[standing && standing.dir < 0 ? 1 : 0], n = Math.min(off - L.alighted, 60);
+        // they step out onto the platform the train stands at, and leave by its end of the stairs or concourse
+        const at = standing ? L.stands[standing.pf] ?? null : null;
         for (let j = 0; j < n && F.agents.length < this.max / 2; j++) {
           const door = standing ? this.nearestDoor(standing, L.at, F.face.u0 + ((j * 37) % (F.face.u1 - F.face.u0))) : (F.face.u0 + F.face.u1) / 2;
-          const edge = F.face.v + Math.sign(F.trackV - F.face.v) * (Math.abs(F.trackV - F.face.v) - 2.6);
-          F.agents.push({ u: door + (j % 3 - 1) * 0.8, v: edge, tu: F.entrance.u, tv: F.entrance.v, mode: 'leave', spot: -1, idle: 0, pace: 0.85 + hash(j, 8) * 0.3, shrug: 0, ...this.dress(L, i, standing && standing.dir < 0 ? 1 : 0, i === this.city ? 1 : 0.3, true) });
+          const edge = at ?? F.face.v + Math.sign(F.trackV - F.face.v) * (Math.abs(F.trackV - F.face.v) - STAND);
+          F.agents.push({ u: door + (j % 3 - 1) * 0.8, v: edge, tu: F.entrance.u, tv: at ?? F.entrance.v, mode: 'leave', spot: -1, idle: 0, pace: 0.85 + hash(j, 8) * 0.3, shrug: 0, ...this.dress(L, i, standing && standing.dir < 0 ? 1 : 0, i === this.city ? 1 : 0.3, true) });
         }
         L.alighted = off;
       }
@@ -288,7 +318,13 @@ export class PassengerLayer {
         const boarding = standingAt[fi as 0 | 1], boards = boarding !== null;
         for (let n = present.length; n > want; n--) {
           const leaver = present.find(p => p.mode === 'wait') ?? present[present.length - 1]; if (!leaver) break;
-          if (boards && boarding) { leaver.mode = 'board'; leaver.tu = this.nearestDoor(boarding, L.at, leaver.u); leaver.tv = F.face.v + Math.sign(F.trackV - F.face.v) * (Math.abs(F.trackV - F.face.v) - 2.6); }
+          if (boards && boarding) {
+            leaver.mode = 'board'; leaver.tu = this.nearestDoor(boarding, L.at, leaver.u);
+            const at = L.stands[boarding.pf] ?? null;
+            leaver.tv = at ?? F.face.v + Math.sign(F.trackV - F.face.v) * (Math.abs(F.trackV - F.face.v) - STAND);
+            // another platform than the face: by the stairs first, the door kept for after
+            if (at !== null && Math.abs(at - F.face.v) > (F.face.depth ?? 4) + 1) { leaver.hop = 1; leaver.bu = leaver.tu; leaver.bv = at; leaver.tu = F.entrance.u; leaver.tv = F.entrance.v; }
+          }
           else { leaver.mode = 'leave'; leaver.tu = F.entrance.u; leaver.tv = F.entrance.v; if (shrugged < lostNow) { leaver.shrug = SHRUG * leaver.pace; shrugged++; } }
           present.splice(present.indexOf(leaver), 1);
         }
@@ -301,10 +337,13 @@ export class PassengerLayer {
           let lift = 0;
           if (a.shrug > 0) { a.shrug -= dt; lift = Math.sin(Math.max(0, a.shrug) / (SHRUG * a.pace) * Math.PI); }
           else {
-            const du = a.tu - a.u, dv = a.tv - a.v, d = Math.hypot(du, dv), step = (a.mode === 'wait' ? AMBLE : WALK * a.pace) * dt;
+            const du = a.tu - a.u, dv = a.tv - a.v, d = Math.hypot(du, dv), step = (a.mode === 'wait' ? AMBLE : WALK * a.pace * (a.mode === 'board' ? HURRY : 1)) * dt;
             if (d <= step) {
               a.u = a.tu; a.v = a.tv;
               if (a.mode === 'in') a.mode = 'wait';
+              // at the stairs on the way to another platform: across the concourse to it, or down and up onto it
+              else if (a.hop === 1) { a.hop = 2; a.tv = a.bv!; if (!L.concourse) { a.v = a.bv!; a.tu = a.bu!; a.hop = 0; } }
+              else if (a.hop === 2) { a.hop = 0; a.tu = a.bu!; }
               else if (a.mode === 'balk') { a.mode = 'leave'; a.shrug = SHRUG * a.pace; a.tu = F.entrance.u; a.tv = F.entrance.v; }
               else if (a.mode !== 'wait') { F.agents.splice(j, 1); continue; }
             } else { a.u += du / d * step; a.v += dv / d * step; }

@@ -1,5 +1,5 @@
 // The landmarks that make the line recognisable at a glance: Stockport Viaduct over the Mersey valley with the river and
-// the M60 beneath it, the Pyramid, the Plaza, Merseyway and the town round them, and the city's towers on the horizon.
+// the M60 beneath it (each along its real course through the valley), the Pyramid, the Plaza, Merseyway and the town round them, and the city's towers on the horizon.
 // Positions come from the network's `landmarks` (src/data/network.json), each with a `note` saying where it came from.
 // Nothing here changes the game; the lit-at-dusk materials follow the clock in src/render/scene.ts.
 import * as THREE from 'three';
@@ -12,7 +12,28 @@ import { kitFiles } from './terrain.ts';
 
 /** A landmark as the data gives it, with the fields only the renderer reads: a footprint (w along x, d along z, metres),
  * a turn (degrees anticlockwise from east), a shape for the towers, and where its position and look came from. */
-type Mark = LandmarkDef & { note?: string; w?: number; d?: number; yaw?: number; shape?: string };
+type Mark = LandmarkDef & { note?: string; w?: number; d?: number; yaw?: number; shape?: string; course?: [number, number][] };
+
+type XZ = [number, number];
+/** A landmark's real course (the Mersey's, the M60's) in the world, from its [lat, lon] points; null without one. */
+function courseOf(def: NetworkGeoDef, id: string): XZ[] | null {
+  const m = (def.landmarks ?? []).find(l => l.id === id) as Mark | undefined;
+  return m?.course?.length ? m.course.map(([lat, lon]) => xz(def, { lat, lon })) : null;
+}
+/** How far a point is from a course. */
+function fromCourse(pts: XZ[], x: number, z: number): number {
+  let best = Infinity;
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, az] = pts[i - 1]!, [bx, bz] = pts[i]!, dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)); best = Math.min(best, Math.hypot(x - ax - dx * t, z - az - dz * t));
+  }
+  return best;
+}
+/** Whether something r across at (x, z) would stand in the river or on the M60 (or their banks), where their courses run. */
+export function onCourses(def: NetworkGeoDef): (x: number, z: number, r: number) => boolean {
+  const river = courseOf(def, 'mersey'), m60 = courseOf(def, 'm60');
+  return (x, z, r) => (!!river && fromCourse(river, x, z) < 22 + r) || (!!m60 && fromCourse(m60, x, z) < 26 + r);
+}
 
 const seed = (a: number, b: number) => { const s = Math.sin(a * 157.3 + b * 271.9) * 41758.5453; return s - Math.floor(s); };
 const yawFor = (p: { dx: number; dz: number }): number => Math.atan2(-p.dz, p.dx);
@@ -26,6 +47,17 @@ export function viaductOf(c: Corridor, def: NetworkGeoDef): Viaduct | null {
   return { from: c.nearest(...xz(def, via.from)), to: c.nearest(...xz(def, via.to)), height: via.height, arches: via.arches };
 }
 
+/** Every stretch of the line on arches, as [from, to] along the main corridor: the viaduct, and the arches into
+ * Piccadilly. The terrain draws the real ground under them rather than an embankment. */
+export function bridgesOf(c: Corridor, def: NetworkGeoDef): [number, number][] {
+  const out: [number, number][] = [], via = viaductOf(c, def);
+  if (via) out.push([Math.min(via.from, via.to), Math.max(via.from, via.to)]);
+  for (const m of def.landmarks ?? []) if (m.kind === 'arches' && m.from && m.to) {
+    const a = c.nearest(...xz(def, m.from)), b = c.nearest(...xz(def, m.to)); out.push([Math.min(a, b), Math.max(a, b)]);
+  }
+  return out;
+}
+
 export function buildLandmarks(scene: THREE.Scene, net: Network, def: NetworkGeoDef, groundY: (x: number, z: number) => number): void {
   const c = net.corridor('main');
   const marks = (def.landmarks ?? []) as Mark[], byId = (id: string) => marks.find(m => m.id === id);
@@ -33,8 +65,9 @@ export function buildLandmarks(scene: THREE.Scene, net: Network, def: NetworkGeo
   const river = along(byId('mersey')), m60 = along(byId('m60'));
   const via = viaductOf(c, def);
   if (via) viaduct(scene, net, c, via, groundY);
-  if (river !== null) crossing(scene, c, river, groundY, 'river');
-  if (m60 !== null) crossing(scene, c, m60, groundY, 'm60');
+  for (const m of marks) if (m.kind === 'arches' && m.from && m.to) arcade(scene, net, c, c.nearest(...xz(def, m.from)), c.nearest(...xz(def, m.to)), groundY);
+  if (river !== null) crossing(scene, c, river, groundY, 'river', courseOf(def, 'mersey'));
+  if (m60 !== null) crossing(scene, c, m60, groundY, 'm60', courseOf(def, 'm60'));
   const pyramid = byId('pyramid'); if (pyramid) buildPyramid(scene, def, pyramid, groundY);
   town(scene, net, c, def, marks, groundY, { river, m60 });
   skyline(scene, def, marks.filter(m => m.kind === 'tower'));
@@ -97,56 +130,111 @@ function viaduct(scene: THREE.Scene, net: Network, c: Corridor, via: Viaduct, gr
   for (const off of [w0 + 0.4, w1 - 0.4]) { box(gp, len, 1.6, 0.8, MAT.brickDark, 0, 0.4, off); box(gp, len, 0.18, 1, MAT.concrete, 0, 1.29, off); }
 }
 
-// ---- the river and the M60 crossing the valley under the viaduct, across the map at their place on the line ----
-function crossing(scene: THREE.Scene, c: Corridor, s: number, groundY: (x: number, z: number) => number, kind: 'river' | 'm60'): void {
-  const f = c.at(s), STEP = 20, width = kind === 'river' ? 26 : 25, lift = 1;    // a metre up: the base terrain's triangles are 48 m
-  // along the crossing is the corridor's normal; across it, the corridor's direction. It runs out along the valley floor
-  // each way until the ground rises (a river) or climbs (a road) too far from its level under the viaduct: the real
-  // ones turn there, and the map doesn't follow them yet
-  const level = groundY(f.x, f.z), rise = kind === 'river' ? 4 : 9, reach = (way: number) => {
-    let o = 0; while (o < 1500 && Math.abs(groundY(f.x + f.nx * (o + STEP) * way, f.z + f.nz * (o + STEP) * way) - level) < rise) o += STEP;
-    return o;
+// ---- the arches into Piccadilly: a brick railway viaduct following the line's curve, each span an arch on its piers ----
+function arcade(scene: THREE.Scene, net: Network, c: Corridor, a: number, b: number, groundY: (x: number, z: number) => number): void {
+  const s0 = Math.min(a, b), len = Math.abs(b - a), n = Math.max(1, Math.round(len / 10)), span = len / n;
+  const pw = 1.8, r = (span - pw) / 2, top = -0.4, spring = -(r + 1.4);
+  // the spandrel over one span, one metre thick across the line, scaled out to the deck's width
+  const shape = new THREE.Shape(), hs = span / 2;
+  shape.moveTo(-hs, spring); shape.lineTo(-hs, top); shape.lineTo(hs, top); shape.lineTo(hs, spring); shape.lineTo(r, spring);
+  shape.absarc(0, spring, r, 0, Math.PI, false); shape.lineTo(-hs, spring);
+  const spandrel = new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false, curveSegments: 10 }); spandrel.translate(0, 0, -0.5);
+  const unit = new THREE.BoxGeometry(1, 1, 1), pier = unit.clone().translate(0, -0.5, 0);
+  const spans = new THREE.InstancedMesh(spandrel, MAT.viaduct, n), piers = new THREE.InstancedMesh(pier, MAT.viaduct, n + 1), deck = new THREE.InstancedMesh(unit, MAT.brickDark, n * 3);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), yAxis = new THREE.Vector3(0, 1, 0), v = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color(), f = newFrame();
+  // across the line: every track there, with a few metres each side
+  const width = (s: number) => { let lo = Infinity, hi = -Infinity; for (const t of net.tracks) { const o = net.offsetAt(t.id, s); lo = Math.min(lo, o); hi = Math.max(hi, o); } return [lo - 4, hi + 4] as const; };
+  const put = (im: THREE.InstancedMesh, i: number, s: number, along: number, y: number, o: number, sx: number, sy: number, sz: number, k?: THREE.Color) => {
+    c.at(s, 0, f); q.setFromAxisAngle(yAxis, yawFor(f));
+    v.set(f.x + f.dx * along + f.nx * o, y, f.z + f.dz * along + f.nz * o); sc.set(sx, sy, sz); m4.compose(v, q, sc); im.setMatrixAt(i, m4); if (k) im.setColorAt(i, k);
   };
-  const o0 = -reach(-1), SPAN = (reach(1) - o0) / 2, mid = o0 + SPAN, n = Math.max(1, Math.round(2 * SPAN / STEP));
-  const pos: number[] = [], idx: number[] = [], heights: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const s = s0 + span * (i + 0.5), [w0, w1] = width(s), zm = (w0 + w1) / 2;
+    put(spans, i, s, 0, 0, zm, 1.002, 1, w1 - w0, col.copy(PAL.brick).multiplyScalar(0.9 + seed(i, 3) * 0.12));
+    // the deck's string course and its parapets
+    put(deck, i * 3, s, 0, -0.6, zm, span + 0.02, 1.2, w1 - w0 + 0.6);
+    for (const [k, o] of [[1, w0 + 0.4], [2, w1 - 0.4]] as const) put(deck, i * 3 + k, s, 0, 0.6, o, span + 0.02, 1.2, 0.7);
+  }
+  for (let j = 0; j <= n; j++) {
+    const s = s0 + span * j, [w0, w1] = width(s), zm = (w0 + w1) / 2; c.at(s, 0, f);
+    const foot = Math.min(groundY(f.x + f.nx * w0, f.z + f.nz * w0), groundY(f.x + f.nx * w1, f.z + f.nz * w1)) - 2;
+    put(piers, j, s, 0, spring, zm, j === 0 || j === n ? pw * 2 : pw, Math.max(0.01, spring - foot), w1 - w0 + 0.6, col.copy(PAL.brick).multiplyScalar(0.85 + seed(j, 4) * 0.1));
+  }
+  for (const im of [spans, piers, deck]) { im.castShadow = true; im.receiveShadow = true; scene.add(im); }
+}
+
+// ---- the river and the M60 through the valley under the viaduct, along their real courses (the landmarks' `course`) ----
+function crossing(scene: THREE.Scene, c: Corridor, s: number, groundY: (x: number, z: number) => number, kind: 'river' | 'm60', course: XZ[] | null): void {
+  const f = c.at(s), STEP = 20, width = kind === 'river' ? 26 : 25, lift = 1;    // a metre up: the base terrain's triangles are 48 m
+  // its course, every STEP metres: the data's real one, or (without one) straight out along the corridor's normal each
+  // way along the valley floor until the ground rises (a river) or climbs (a road) too far from its level here
+  let raw = course;
+  if (!raw) {
+    const level = groundY(f.x, f.z), rise = kind === 'river' ? 4 : 9, reach = (way: number) => {
+      let o = 0; while (o < 1500 && Math.abs(groundY(f.x + f.nx * (o + STEP) * way, f.z + f.nz * (o + STEP) * way) - level) < rise) o += STEP;
+      return o;
+    };
+    const a = -reach(-1), b = reach(1); raw = [[f.x + f.nx * a, f.z + f.nz * a], [f.x + f.nx * b, f.z + f.nz * b]];
+  }
+  const P: XZ[] = [raw[0]!];
+  for (let k = 1; k < raw.length; k++) {
+    const [ax, az] = raw[k - 1]!, [bx, bz] = raw[k]!, n = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / STEP));
+    for (let j = 1; j <= n; j++) P.push([ax + (bx - ax) * j / n, az + (bz - az) * j / n]);
+  }
+  const n = P.length - 1, D = [0], T: XZ[] = [];
+  for (let i = 1; i <= n; i++) D.push(D[i - 1]! + Math.hypot(P[i]![0] - P[i - 1]![0], P[i]![1] - P[i - 1]![1]));
+  // the way along at each point (from its neighbours), and the height: the ground's, eased along a road so it runs level
+  for (let i = 0; i <= n; i++) { const a = P[Math.max(0, i - 1)]!, b = P[Math.min(n, i + 1)]!, l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; T.push([(b[0] - a[0]) / l, (b[1] - a[1]) / l]); }
+  const ground = P.map(([x, z]) => groundY(x, z)), ease = kind === 'river' ? 0 : 3;
+  const heights = ground.map((_, i) => { let t = 0, w = 0; for (let k = Math.max(0, i - ease); k <= Math.min(n, i + ease); k++) { t += ground[k]!; w++; } return t / w + lift; });
+  const pos: number[] = [], idx: number[] = [];
   for (let i = 0; i <= n; i++) {
-    const o = mid - SPAN + i * STEP, x = f.x + f.nx * o, z = f.z + f.nz * o, y = groundY(x, z) + lift; heights.push(y);
-    pos.push(x - f.dx * width / 2, y, z - f.dz * width / 2, x + f.dx * width / 2, y, z + f.dz * width / 2);
+    const [x, z] = P[i]!, [tx, tz] = T[i]!, y = heights[i]!;
+    pos.push(x + tz * width / 2, y, z - tx * width / 2, x - tz * width / 2, y, z + tx * width / 2);
     if (i < n) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
   }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
   if (g.getAttribute('normal').getY(0) < 0) { idx.reverse(); g.setIndex(idx); g.computeVertexNormals(); }
   scene.add(new THREE.Mesh(g, kind === 'river' ? MAT.river : MAT.road));
   if (kind === 'river') return;
-  const heightAt = (o: number) => { const t = Math.max(0, Math.min(n - 0.001, (o - mid + SPAN) / STEP)), i = Math.floor(t); return heights[i]! + (heights[i + 1]! - heights[i]!) * (t - i); };
-  const yaw = yawFor({ dx: f.nx, dz: f.nz });
+  const len = D[n]!;
+  /** Where d along the road is (x, z, its height, and the way along), into `at`. */
+  const at = { x: 0, z: 0, y: 0, tx: 1, tz: 0 };
+  const along = (d: number) => {
+    let i = 1; while (i < n && D[i]! < d) i++;
+    const k = Math.max(0, Math.min(1, (d - D[i - 1]!) / ((D[i]! - D[i - 1]!) || 1))), [ax, az] = P[i - 1]!, [bx, bz] = P[i]!;
+    at.x = ax + (bx - ax) * k; at.z = az + (bz - az) * k; at.y = heights[i - 1]! + (heights[i]! - heights[i - 1]!) * k;
+    at.tx = T[i - 1]![0] + (T[i]![0] - T[i - 1]![0]) * k; at.tz = T[i - 1]![1] + (T[i]![1] - T[i - 1]![1]) * k;
+    return at;
+  };
   // the central reserve's barrier, edge lines, and lamp columns down the middle
-  const unit = new THREE.BoxGeometry(1, 1, 1), m4 = new THREE.Matrix4(), q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), v = new THREE.Vector3(), sc = new THREE.Vector3();
+  const unit = new THREE.BoxGeometry(1, 1, 1), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), yAxis = new THREE.Vector3(0, 1, 0), v = new THREE.Vector3(), sc = new THREE.Vector3();
   const strips = new THREE.InstancedMesh(unit, MAT.concrete, n * 3), poles = new THREE.InstancedMesh(unit, MAT.steel, Math.ceil(n / 3)), heads = new THREE.InstancedMesh(unit, MAT.glow, Math.ceil(n / 3));
   let k = 0, p = 0;
   for (let i = 0; i < n; i++) {
-    const o = mid - SPAN + (i + 0.5) * STEP, y = heightAt(o);
+    const r = along((D[i]! + D[i + 1]!) / 2), seg = D[i + 1]! - D[i]!;
+    q.setFromAxisAngle(yAxis, yawFor({ dx: r.tx, dz: r.tz }));
     for (const [b, w, h] of [[0, 0.8, 0.9], [-11.6, 0.3, 0.06], [11.6, 0.3, 0.06]] as const) {
-      v.set(f.x + f.nx * o + f.dx * b, y + h / 2, f.z + f.nz * o + f.dz * b); sc.set(STEP + 0.2, h, w); m4.compose(v, q, sc); strips.setMatrixAt(k++, m4);
+      v.set(r.x - r.tz * b, r.y + h / 2, r.z + r.tx * b); sc.set(seg + 0.2, h, w); m4.compose(v, q, sc); strips.setMatrixAt(k++, m4);
     }
     if (i % 3 === 0) {
-      v.set(f.x + f.nx * o, y + 6, f.z + f.nz * o); sc.set(0.3, 12, 0.3); m4.compose(v, q, sc); poles.setMatrixAt(p, m4);
-      v.y = y + 12; sc.set(0.8, 0.35, 7); m4.compose(v, q, sc); heads.setMatrixAt(p++, m4);
+      v.set(r.x, r.y + 6, r.z); sc.set(0.3, 12, 0.3); m4.compose(v, q, sc); poles.setMatrixAt(p, m4);
+      v.y = r.y + 12; sc.set(0.8, 0.35, 7); m4.compose(v, q, sc); heads.setMatrixAt(p++, m4);
     }
   }
   strips.count = k; poles.count = heads.count = p; scene.add(strips, poles, heads);
   // traffic both ways in three lanes, moving whenever the motorway is on screen (cosmetic: real time, not the game's)
   const CARS = 54, cars = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial({ color: 0xffffff }), CARS), col = new THREE.Color();
   const carCols = [PAL['car-1'], PAL['car-2'], PAL['car-3'], PAL['car-4'], PAL['car-5'], PAL['car-6']];
-  const lane = (i: number) => (i % 2 ? 1 : -1) * (2.2 + (Math.floor(i / 2) % 3) * 3.4), base = (i: number) => seed(i, 7) * 2 * SPAN, speed = (i: number) => (i % 2 ? 1 : -1) * (24 + seed(i, 8) * 8);
+  const lane = (i: number) => (i % 2 ? 1 : -1) * (2.2 + (Math.floor(i / 2) % 3) * 3.4), base = (i: number) => seed(i, 7) * len, speed = (i: number) => (i % 2 ? 1 : -1) * (24 + seed(i, 8) * 8);
   for (let i = 0; i < CARS; i++) cars.setColorAt(i, col.copy(carCols[i % carCols.length]!));
-  cars.boundingSphere = new THREE.Sphere(new THREE.Vector3(f.x + f.nx * mid, level, f.z + f.nz * mid), SPAN + 50);
-  const cq = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+  const mid = along(len / 2); cars.boundingSphere = new THREE.Sphere(new THREE.Vector3(mid.x, mid.y, mid.z), len / 2 + 50);
   cars.onBeforeRender = () => {
     const t = performance.now() / 1000;   // cosmetic
     for (let i = 0; i < CARS; i++) {
-      const o = mid + ((base(i) + speed(i) * t) % (2 * SPAN) + 2 * SPAN) % (2 * SPAN) - SPAN, b = lane(i), y = heightAt(o);
-      v.set(f.x + f.nx * o + f.dx * b, y + 0.85, f.z + f.nz * o + f.dz * b); sc.set(4.4, 1.5, 1.9); m4.compose(v, cq, sc); cars.setMatrixAt(i, m4);
+      const r = along(((base(i) + speed(i) * t) % len + len) % len), b = lane(i);
+      q.setFromAxisAngle(yAxis, yawFor({ dx: r.tx, dz: r.tz }));
+      v.set(r.x - r.tz * b, r.y + 0.85, r.z + r.tx * b); sc.set(4.4, 1.5, 1.9); m4.compose(v, q, sc); cars.setMatrixAt(i, m4);
     }
     cars.instanceMatrix.needsUpdate = true;
   };
@@ -176,6 +264,7 @@ function buildPyramid(scene: THREE.Scene, def: NetworkGeoDef, m: Mark, groundY: 
 // shops and offices round them between the viaduct and the A6 ----
 function town(scene: THREE.Scene, net: Network, c: Corridor, def: NetworkGeoDef, marks: Mark[], groundY: (x: number, z: number) => number, bands: { river: number | null; m60: number | null }): void {
   const taken: [number, number, number][] = [];   // footprints already standing: x, z, radius
+  const onCourse = onCourses(def);
   // a station's buildings down at street level (Stockport Interchange's hall), from the kits
   const kits = kitFiles();
   for (const st of net.stations) for (const p of kits[st.kit]?.parts ?? []) {
@@ -194,10 +283,21 @@ function town(scene: THREE.Scene, net: Network, c: Corridor, def: NetworkGeoDef,
     else if (m.kind === 'market') { market(g); taken.push([p.x, p.z, 24]); }
     else if (m.kind === 'depot') { depot(g); taken.push([p.x, p.z, 40]); }
     else if (m.kind === 'precinct' && bands.river !== null) {
-      // Merseyway stands on its deck over the river: put it on the river as drawn, along it, at its distance across the line
-      const len = m.w ?? 220, f = c.at(bands.river), o = (p.x - f.x) * f.nx + (p.z - f.z) * f.nz;
-      p = { x: f.x + f.nx * o, z: f.z + f.nz * o }; g.rotation.y = yawFor({ dx: f.nx, dz: f.nz }); merseyway(g, len);
-      for (let a = -len / 2 + 25; a <= len / 2 - 25; a += 30) taken.push([p.x + f.nx * a, p.z + f.nz * a, 32]);
+      // Merseyway stands on its deck over the river: put it on the river as drawn, along it (the course's nearest
+      // stretch, or straight across the line without one)
+      const len = m.w ?? 220, f = c.at(bands.river), course = courseOf(def, 'mersey');
+      let ax = f.nx, az = f.nz;
+      if (course) {
+        let bd = Infinity, best: [number, number, number, number] = [p.x, p.z, ax, az];
+        for (let i = 1; i < course.length; i++) {
+          const [x0, z0] = course[i - 1]!, [x1, z1] = course[i]!, dx = x1 - x0, dz = z1 - z0, l = Math.hypot(dx, dz) || 1;
+          const t = Math.max(0, Math.min(1, ((p.x - x0) * dx + (p.z - z0) * dz) / (l * l))), x = x0 + dx * t, z = z0 + dz * t, d = Math.hypot(p.x - x, p.z - z);
+          if (d < bd) { bd = d; best = [x, z, dx / l, dz / l]; }
+        }
+        p = { x: best[0], z: best[1] }; ax = best[2]; az = best[3];
+      } else { const o = (p.x - f.x) * f.nx + (p.z - f.z) * f.nz; p = { x: f.x + f.nx * o, z: f.z + f.nz * o }; }
+      g.rotation.y = yawFor({ dx: ax, dz: az }); merseyway(g, len);
+      for (let a = -len / 2 + 25; a <= len / 2 - 25; a += 30) taken.push([p.x + ax * a, p.z + az * a, 32]);
     }
     else continue;
     g.position.set(p.x, footY(p.x, p.z, 12), p.z); root.add(g);
@@ -226,8 +326,7 @@ function town(scene: THREE.Scene, net: Network, c: Corridor, def: NetworkGeoDef,
     const a = o0 + i * PLOT, b = b0 + j * PLOT, x = f.x + f.nx * a + f.dx * b, z = f.z + f.nz * a + f.dz * b;
     const s = c.nearest(x, z); c.at(s, 0, fr); const off = Math.abs((x - fr.x) * fr.nx + (z - fr.z) * fr.nz);
     if (off < 34 + rad) continue;                                              // the viaduct and the railway's land
-    if (bands.river !== null && Math.abs(s - bands.river) < 16 + rad) continue;
-    if (bands.m60 !== null && Math.abs(s - bands.m60) < 22 + rad) continue;
+    if (onCourse(x, z, rad)) continue;
     if (nearRoad(x, z, rad)) continue;
     if (taken.some(([tx, tz, tr]) => Math.hypot(x - tx, z - tz) < tr + rad + 2)) continue;
     const y = footY(x, z, rad);

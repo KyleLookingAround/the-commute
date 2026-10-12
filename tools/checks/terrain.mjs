@@ -18,7 +18,7 @@ register();
 globalThis.document ??= { createElement: () => ({ getContext: () => null }) };
 const { fromGeo } = await import('../../src/sim/network.ts');
 const { Terrain, TerrainLayer, partBoxes } = await import('../../src/render/terrain.ts');
-const { viaductOf } = await import('../../src/render/landmarks.ts');
+const { viaductOf, bridgesOf } = await import('../../src/render/landmarks.ts');
 
 const HALF = 1.93 + 0.5, Y0 = 0.65;   // a body's half width as drawn (the geometry check's), and its underframe
 const BUDGET = 2 * 1024 * 1024;
@@ -27,7 +27,7 @@ export default async function ({ ok, root }) {
   const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def), c = net.corridor('main');
   const kits = Object.fromEntries(net.stations.map(st => [st.kit, JSON.parse(readFileSync(join(root, 'src/data/kits', st.kit + '.json'), 'utf8'))]));
   const via = viaductOf(c, def), spans = via ? [[Math.min(via.from, via.to), Math.max(via.from, via.to)]] : [];
-  const t = new Terrain(net, kits, spans);
+  const t = new Terrain(net, kits, bridgesOf(c, def));
   const fineDir = join(root, 'src/data/terrain/fine'), fine = readdirSync(fineDir);
   for (const f of fine) t.addFine(f.replace('.txt', ''), readFileSync(join(fineDir, f), 'utf8'));
   const layer = new TerrainLayer(t, { city: { x: 0, z: 0, r: 0 } }, {});

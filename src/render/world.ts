@@ -1,11 +1,11 @@
 // Ground, towns, roads, permanent way and landmarks, all laid out along the network's corridors.
 import * as THREE from 'three';
 import { MAT, PAL } from './scene.ts';
-import { buildLandmarks, viaductOf } from './landmarks.ts';
+import { bridgesOf, buildLandmarks, onCourses, viaductOf } from './landmarks.ts';
 import { Terrain, TerrainLayer, fineFiles, kitFiles, setTerrain } from './terrain.ts';
-import { newFrame, projectLatLon } from '../sim/network.ts';
+import { newFrame } from '../sim/network.ts';
 import type { Network } from '../sim/network.ts';
-import type { LandmarkDef, LatLon, NetworkGeoDef } from '../sim/types.ts';
+import type { NetworkGeoDef } from '../sim/types.ts';
 
 const seed = (a: number, b: number) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
 
@@ -20,19 +20,17 @@ export interface World { groundY: (x: number, z: number) => number; yawFor: type
 
 export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef): World {
   const c = net.corridor('main');
-  const landmarks: Record<string, LandmarkDef | undefined> = Object.fromEntries((def.landmarks || []).map(l => [l.id, l]));
   // the viaduct's valley: the town centre fills it, so no suburb houses or new homes stand there
   const viaduct = viaductOf(c, def);
   const valley = viaduct ? { s0: Math.min(viaduct.from, viaduct.to) - 20, s1: Math.max(viaduct.from, viaduct.to) + 60 } : null;
 
   // ---- the ground, from survey: the railway's land level with the line, the real lie of the land round it ----
-  const terrain = new Terrain(net, kitFiles(), viaduct ? [[Math.min(viaduct.from, viaduct.to), Math.max(viaduct.from, viaduct.to)]] : []); setTerrain(terrain);
+  const terrain = new Terrain(net, kitFiles(), bridgesOf(c, def)); setTerrain(terrain);
   const end = c.at(c.length - 700);
   const layer = new TerrainLayer(terrain, { city: { x: end.x, z: end.z, r: 1700 } }, fineFiles());
   scene.add(layer.group);
   const ground = layer.material;
   const groundY = (x: number, z: number): number => terrain.groundY(x, z);
-  const along = (l: LandmarkDef | undefined): number | null => l && l.at ? c.nearest(...xz(def, l.at)) : null;
 
   // ---- the far ground: one flat field out to the horizon at the level the terrain eases to, so it never shows an edge ----
   // drawn first (after the sky) and without depth: one quad this big loses depth tests to the terrain above it from some
@@ -144,7 +142,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   buildLandmarks(scene, net, def, groundY);
 
   const roadSegs = (net.def.roads ?? []).flatMap(r => r.points.slice(1).map((b, i) => [r.points[i]!, b] as const));
-  const riverS = along(landmarks['mersey']), m60S = along(landmarks['m60']);
+  const onCourse = onCourses(def);
   const buildable = (x: number, z: number, r: number): boolean => {
     const s = c.nearest(x, z), a = c.at(s), off = Math.hypot(x - a.x, z - a.z);
     if (off < 36 + r) return false;
@@ -152,8 +150,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     // level enough to build on: no more than 4 m from one side to the other
     const ys = [groundY(x, z), groundY(x - r, z), groundY(x + r, z), groundY(x, z - r), groundY(x, z + r)];
     if (Math.max(...ys) - Math.min(...ys) > 4) return false;
-    if (riverS !== null && Math.abs(s - riverS) < 30 + r) return false;
-    if (m60S !== null && Math.abs(s - m60S) < 40 + r) return false;
+    if (onCourse(x, z, r)) return false;
     for (const [[ax, az], [bx, bz]] of roadSegs) {
       const dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
       if (Math.hypot(x - ax - dx * t, z - az - dz * t) < r + 7) return false;
@@ -169,4 +166,3 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   return { groundY, yawFor, ground, buildable, terrain: layer };
 }
 
-function xz(def: NetworkGeoDef, ll: LatLon): [number, number] { const p = projectLatLon(ll.lat, ll.lon, def.origin); return [p.x, p.z]; }

@@ -16,12 +16,22 @@ Go through these in order, and write down what you see before deciding what to c
 - **The map.** Does what you bought show on it? Do trains, passengers and the time of day read at a glance? Is it colourful and alive, not bleak?
 - **Panels.** Is anything crowded, repeated or hard to find? Does each panel lead with what matters most now?
 - **Feedback.** Does every tap answer at once? Is anything flickering, jumping or refreshing under the finger?
-- **Reach.** Can thumbs reach the controls? Is every target at least 44 px on touch?
+- **Reach.** Can thumbs reach the controls? Is every target at least 44 px on touch? On a phone, is everything tapped often in the bottom half, and does a card's preview land on map you can still see?
 - **Text.** Concise, UK English, no jargon; real station and place names.
-- **Access.** Contrast, reduced motion, keyboard.
+- **Access.** Contrast (4.5:1 for text, 3:1 for borders and controls, measured from the tokens), no type under 12 px, reduced motion, keyboard.
 - **Consistency.** Do cards, chips, buttons and spacing behave the same way everywhere?
 
 Respect the owner's preferences in the project notes.
+
+## Known findings
+
+From the redesign's directions (12 October 2026, `docs/design/redesign.md`); stage 2 of the redesign fixes them, so a review before then needn't raise them again:
+
+- On a phone the panels sit below the map: buying scrolls the map away, and a card's ghost appears off screen.
+- The title and ticker take about 180 px of a 390 phone; the map's views sit top right, the hardest reach; the light slider holds the bottom left, the easiest.
+- Save, Load and Start over live at the foot of the page under a paragraph of rules.
+- Locked text is 3.6:1 and borders 1.4:1 against their surfaces; captions are 10 px.
+- The station panel leads with seven stats (Homes first) before any card.
 
 ## 3. Change
 

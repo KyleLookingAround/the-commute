@@ -15,7 +15,8 @@ function offline(): Plugin {
       const files = (dir: string): string[] => readdirSync(dir).flatMap(f => statSync(join(dir, f)).isDirectory() ? files(join(dir, f)) : [join(dir, f)]);
       const all = files(out).map(p => relative(out, p).split('\\').join('/')).sort();
       const tiles = all.filter(f => /^assets\/.*\.txt$/.test(f));
-      const keep = all.filter(f => f !== 'sw.js' && !tiles.includes(f));
+      // the redesign's directions page (public/design/) is for looking at online, not part of the game
+      const keep = all.filter(f => f !== 'sw.js' && !tiles.includes(f) && !f.startsWith('design/'));
       const hash = createHash('sha256'); for (const f of [...keep, ...tiles]) hash.update(f).update(readFileSync(join(out, f)));
       const list = (a: string[]) => JSON.stringify(a.map(f => f === 'index.html' ? './' : f));
       const sw = join(out, 'sw.js');

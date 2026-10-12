@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Commute · redesign directions</title>
+<meta name="description" content="Three directions for The Commute's interface, phones first, side by side with the game as it is.">
+<meta name="theme-color" content="#0c1020">
+<meta name="robots" content="noindex">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@500;700;800&family=Overpass+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="design.css">
+</head>
+<body>
+<header class="page-head">
+  <p class="kicker">Redesign · stage 1 · 12 October 2026</p>
+  <h1>The <span>Commute</span>: three directions</h1>
+  <p class="lede">Static mockups of the whole interface, phones first. Nothing here is the game: the map behind each mockup is a screenshot of it, and the prices and names are the game's own. Pick a direction, a screen and a size below. <a href="../">Back to the game</a>.</p>
+  <section class="rec" aria-labelledby="recTitle">
+    <h2 id="recTitle"><span>Recommended</span> A · Platform sheet</h2>
+    <p>One sheet that rises over the map from the bottom on phones and docks to the side on wider screens. Build this one.</p>
+    <ul>
+      <li><b>The map stays the star.</b> At rest the sheet is a 142 px peek, so a phone shows about four fifths map. Picking a card sinks the sheet back to that peek so its ghost is in plain view: today it sits off screen below the panel.</li>
+      <li><b>One thumb does everything.</b> Station, cards, Buy and speed all sit in the bottom half. Only settings and cash sit up top, and settings is rare.</li>
+      <li><b>One component, every size.</b> The same sheet is a bottom sheet in portrait and a side panel in landscape, on tablets and desktop, so stage 2 builds one thing and checks it at five sizes.</li>
+      <li><b>Leaves the map's gestures alone.</b> Only the sheet's handle and header drag. Everything else on screen belongs to the map, as moving around the map needs.</li>
+      <li><b>Cheapest of the three.</b> It reuses today's cards, strip and settings: medium, about $30 to build.</li>
+    </ul>
+  </section>
+</header>
+
+<nav class="pick" aria-label="What to show">
+  <div class="pick-row" role="group" aria-label="Direction">
+    <span class="pick-lbl">Direction</span>
+    <button data-dir="A" aria-pressed="true">A · Sheet</button>
+    <button data-dir="B" aria-pressed="false">B · Tab bar</button>
+    <button data-dir="C" aria-pressed="false">C · Rail</button>
+    <button data-dir="today" aria-pressed="false">Today</button>
+    <button data-dir="all" aria-pressed="false" class="wide-only">Side by side</button>
+  </div>
+  <div class="pick-row" role="group" aria-label="Screen">
+    <span class="pick-lbl">Screen</span>
+    <button data-screen="stage" aria-pressed="true">Stage</button>
+    <button data-screen="strip" aria-pressed="false">Strip</button>
+    <button data-screen="station" aria-pressed="false">Station</button>
+    <button data-screen="line" aria-pressed="false">Line</button>
+    <button data-screen="settings" aria-pressed="false">Settings</button>
+    <button data-screen="contract" aria-pressed="false">Contract</button>
+    <button data-screen="first5" aria-pressed="false">First five minutes</button>
+  </div>
+  <div class="pick-row" role="group" aria-label="Size">
+    <span class="pick-lbl">Size</span>
+    <button data-size="p320" aria-pressed="false">320</button>
+    <button data-size="p390" aria-pressed="true">390</button>
+    <button data-size="land" aria-pressed="false">Landscape</button>
+    <button data-size="tab" aria-pressed="false">Tablet</button>
+    <button data-size="desk" aria-pressed="false">Desktop</button>
+    <button data-size="all" aria-pressed="false">All five</button>
+    <label class="zones"><input type="checkbox" id="zones"> Thumb zones</label>
+  </div>
+</nav>
+
+<main id="out" aria-live="polite"></main>
+
+<footer class="page-foot">
+  <p>The write-up, with what stage 2 must build: <a href="https://github.com/kylelookingaround/the-commute/blob/main/docs/design/redesign.md">docs/design/redesign.md</a>. Mockups are static HTML and CSS at each device's real size, scaled to fit, so a 44 px button here is a 44 px button there. Contract renewal is still being built: its sheet is mocked from its brief, and its numbers are placeholders.</p>
+</footer>
+<script src="design.js"></script>
+</body>
+</html>

@@ -44,14 +44,14 @@ Make the change and run the same three seeds into `build/after.log`.
 
 `tools/baseline.json` holds the ranges. They are **proposed**, not yet agreed: its note says when and why each was set, and the owner agrees ranges when the pacing is settled. Hours are sim hours.
 
-| Milestone or measure | Range | Seeds 1, 2, 3 (11 October 2026, halts) |
+| Milestone or measure | Range | Seeds 1, 2, 3 (12 October 2026, door-to-door journeys) |
 | --- | --- | --- |
 | Second unit | hour 0.25–0.6 | 0.4, 0.4, 0.4 |
-| Heaton Chapel bought | hour 0.5–1.0 | 0.72, 0.72, 0.72 |
-| Levenshulme bought | hour 1.6–2.8 | 2.3, 2.32, 2.28 |
-| Ardwick bought | hour 4.5–6.5 | 5.55, 5.55, 5.55 |
-| Piccadilly bought | hour 8–20 | not in 8 h (10.1 on seed 1 over 30 h) |
-| Cash at 8 h | £25,000–50,000 | £36,713, £36,671, £37,406 |
-| Boarded | 3,500–5,200 | 4,529, 4,529, 4,529 |
-| Lost | 100–320 | 205, 205, 205 |
-| Longest quiet | 1.6–2.7 h (the night) | 2.0, 2.0, 2.0 |
+| Heaton Chapel bought | hour 0.5–1.0 | 0.65, 0.65, 0.65 |
+| Levenshulme bought | hour 1.6–2.8 | 2.02, 2.02, 2.02 |
+| Ardwick bought | hour 4.5–6.5 | 5.18, 5.2, 5.2 |
+| Piccadilly bought | hour 8–20 | not in 8 h |
+| Cash at 8 h | £25,000–50,000 | £46,782, £50,962, £46,397 |
+| Boarded | 3,500–5,200 | 4,463, 4,546, 4,444 |
+| Lost | 150–450 | 365, 302, 385 (about a third at Heaton Chapel and Levenshulme) |
+| Longest quiet | 1.6–2.7 h (the night) | 2.1, 2.1, 2.1 |

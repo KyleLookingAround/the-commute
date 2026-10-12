@@ -2,7 +2,22 @@
 
 ## The loop
 
-Passengers are the resource. Each owned station generates them from its catchment by the demand curve (`demandCurve` in `src/sim/sim.ts`: morning peak to Manchester, evening peak home, nothing at night). They join a queue on the platform for their direction with a destination chosen among reachable stations (owned ones, plus Stockport and Piccadilly which always exist as destinations). They board the train for their direction while it stands (changing at Stockport if their journey runs between the main line and the Hazel Grove branch), through its doors at a set rate, and pay a distance-based fare as they get on; whoever the doors can't take in the stop waits for the next, and are counted off at their destination (`alighted`, shown as Arrived). A full platform turns new arrivals away; waiting longer than their patience sends them home. Both count as lost.
+Passengers are the resource. Each owned station generates trips to every station a train takes them to, by how long the journey takes door to door (Journeys, below) and the demand curve (`demandCurve` in `src/sim/sim.ts`: morning peak, evening peak, nothing at night). They join a queue on the platform for their direction, a group at a time, each with its destination and the time it gives up. They board the train for their direction while it stands (changing at Stockport if their journey runs between the main line and the Hazel Grove branch), through its doors at a set rate, and pay a distance-based fare as they get on; whoever the doors can't take in the stop waits for the next, and are counted off at their destination (`alighted`, shown as Arrived). A full platform turns new arrivals away; waiting past their patience sends them home. Both count as lost.
+
+## Journeys
+
+People travel when the whole journey fits their time budget: about an hour a day, half an hour each way (Marchetti's constant), and further when transport gets faster. `src/sim/journeys.ts` works out every station to every other, door to door, whenever something it depends on changes (a purchase, units in service), in sim seconds, which are real ones:
+
+- **Walk** at each end: 8 minutes for the near side; the far side (half the catchment) walks 8 more round to a crossing until the station has a way across, then 3 more over the stairs, and none with lifts, which also take a minute off everyone's.
+- **Wait**: half the gap between trains that way (the service's round trip over its units).
+- **Ride**: each stretch between calls from a stand to a stand at line speed, plus a dwell at each stop between.
+- **Change** at Stockport between the branch and the main line: the second wait, and five felt minutes more.
+
+People feel walking and waiting at twice riding (UK appraisal practice), waiting at 1.5 under a canopy, and a crowded train's ride up to 1.6 times as long (rising from 60% full). Trips from station i to station j an hour (`tripRates`) are `demand × curve(hour) × reach × (out × catchment_i × draw_j + (1 − out) × draw_i × catchment_j) / draw of Piccadilly`: homes at one end and what draws people at the other (`draw` in the network data, from memory, Piccadilly most), with `out` the share leaving home (0.8 before noon, 0.35 after). Reach falls smoothly around the budget, `1 / (1 + e^((felt − 60 min) / 12 min))`: half of people's budgets are over an hour felt (about half an hour actual), fewer travel further, and nobody is cut off.
+
+Patience is the budget left. Each group draws its own budget from the people who'd make that journey at all (the reach curve is how budgets spread), and gives up once its wait has used what's left after the walks, the ride and any change, plus six felt minutes' grace for having walked there, never sooner than three minutes. So people whose trip only just fits give up first, and long waits bite at halts with long walks and one train each way. Someone changing trains doesn't turn back.
+
+Upgrades save minutes where that's what they do: the way across and lifts cut the walk, a canopy makes the wait feel shorter, more units cut the wait, the faster timetable cuts the ride and the round trip. The rest of Stockport and of Piccadilly still adds 20% to the catchment.
 
 Money buys station upgrades (per station), line upgrades (more units, longer trains, faster timetable) and the next station up the line. Stations must be bought in order, and a station can wait on something elsewhere (`needs` in the network data: Davenport waits on Stockport's platforms 0, 1 and 2, where the Hazel Grove line turns round).
 
@@ -14,11 +29,11 @@ Every station starts as a halt, Stockport included: one platform on one line, so
 - Fare: `(1.5 + 0.6 × miles) × fareMult`. `fareMult` (12) is the single knob for overall pacing; it is six times what it was when the clock ran at 6×, so a sixth of the trains earn the same money a real minute.
 - Seats: 75 per car, 2 cars to start. Boarding: 2 doors a car, 0.7 passengers a second through each, all through the stop, so a 2-car unit takes about 125 in a 45 s stop and longer trains board faster as well as holding more. Passengers get off the moment the train arrives.
 - Speeds are real (33.5 m/s = 75 mph) on a true-scale line. Stockport to Piccadilly takes about ten real minutes plus stops; dwell 45 s, turnaround at the termini 120 s.
-- Patience 25 min, 45 with a canopy. Platform cap 150, 320 extended.
+- Journeys and patience: see Journeys above (`walk`, `walkRound`, `walkStairs`, `liftsSave`, the weights, `budget`, `budgetSoft`, `grace`, `demand`). Platform cap 150, 320 extended.
 - 82% of fares collected at a halt, 90% with a booking office, all with barriers.
-- Catchment: +15% with a way across the line, +25% with lifts, +20% for the rest of a big station.
+- Catchment: +20% for the rest of a big station; the way across and lifts save minutes instead.
 
-The bot (`tools/bot.mjs`) measures pacing on seeds 1–3 against `tools/baseline.json`; the `balance` playbook has the table. Current pacing at 1×: an extra unit in about 10 real minutes, Heaton Chapel in about 25 (the bot's run; a player buying nothing first takes longer), Levenshulme at two hours, Ardwick at five; Piccadilly needs a long session or 10×. Peaks lose fewer passengers than they did with the 6× clock, because a peak now lasts a sixth of the sim seconds while patience and platform caps are in sim seconds; the owner tunes that when the pacing is settled. `test/sim.test.ts` pins the Heaton Chapel pacing so tuning changes are deliberate.
+The bot (`tools/bot.mjs`) measures pacing on seeds 1–3 against `tools/baseline.json`; the `balance` playbook has the table. Current pacing at 1×: an extra unit in about 25 real minutes, Heaton Chapel in about 40 (the bot's run; a player buying nothing first takes longer), Levenshulme at two hours, Ardwick at five; Piccadilly needs a long session or 10×. Since journeys came in (12 October 2026) the peaks press on the bought stations too: about a third of the bot's lost passengers give up waiting at Heaton Chapel and Levenshulme in the second morning, when trains leave Stockport full. `test/sim.test.ts` pins the Heaton Chapel pacing so tuning changes are deliberate.
 
 ## Station kits
 
@@ -40,7 +55,7 @@ The view shows the sim's pressure instead of text (`src/render/passengers.ts`, `
 
 ## Save
 
-`localStorage` key `the-commute-save-v1` (`src/app/storage.ts`): the whole sim state, `SAVE_VERSION` (2: stations count who alighted, so the view can show them leaving), the seed and the random state, plus a timestamp. On load the sim advances by the time away at 1×, capped at 8 game hours (`src/app/clock.ts`). A save that can't be read is kept under a `-broken` key. Versioning: `docs/decisions/ADR-2026-10-08-no-save-compatibility-before-release.md`.
+`localStorage` key `the-commute-save-v1` (`src/app/storage.ts`): the whole sim state, `SAVE_VERSION` (6: each waiting group carries the time it gives up), the seed and the random state, plus a timestamp. On load the sim advances by the time away at 1×, capped at 8 game hours (`src/app/clock.ts`). A save that can't be read is kept under a `-broken` key. Versioning: `docs/decisions/ADR-2026-10-08-no-save-compatibility-before-release.md`.
 
 ## Randomness
 

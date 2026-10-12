@@ -24,6 +24,11 @@ export interface LayoutDef {
 export interface StationGeoDef {
   id: string; name: string; corridor: string; lat: number; lon: number;
   miles: number; catchment: number; price: number; kit: string; retail: string;
+  /** What draws people to the station's area (jobs, shops, schools), on the same scale as `catchment` (homes): where
+   * the morning goes, and where the evening comes home from. */
+  draw: number;
+  /** Where a number came from when it's from memory rather than survey. */
+  note?: string;
   /** Where trains stop, in metres along the line from the station's own point (its kit's origin); 0 if not given. */
   stop?: number;
   /** The stages this station grows through after it's a halt, by upgrade: what each is called here, and a description
@@ -65,9 +70,10 @@ export interface Frame { x: number; z: number; heading: number; dx: number; dz: 
 export type StageId = 'crossing' | 'platform2' | 'building' | 'platforms';
 export type UpgradeId = StageId | 'kiosk' | 'barriers' | 'canopy' | 'lifts' | 'extend' | 'retail';
 export type LineUpgradeId = 'units' | 'cars' | 'timetable';
-/** A group of passengers who joined a platform queue together: when (game seconds), where to, how many, and whether
- * they've paid (they're changing trains, so their fare was taken where they first got on). */
-export interface Queued { t: number; dest: number; n: number; paid?: boolean }
+/** A group of passengers who joined a platform queue together: when (game seconds), where to, how many, whether
+ * they've paid (they're changing trains, so their fare was taken where they first got on), and when they give up and
+ * go home (none for someone changing trains). */
+export interface Queued { t: number; dest: number; n: number; paid?: boolean; give?: number }
 /** alighted: passengers who got off here at the end of their journey, so the view can show them leaving; changed:
  * passengers who got off here to catch another train. */
 export interface StationState { acc: number; q: [Queued[], Queued[]]; waiting: number; boarded: number; alighted: number; changed: number; revenue: number; lost: number }

@@ -7,6 +7,7 @@
 import { rand, freshSeed } from './random.ts';
 import { SAVE_VERSION } from './save.ts';
 import type { Network } from './network.ts';
+import { journeys, type Journey } from './journeys.ts';
 import type { GameState, LineUpgradeId, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
 /** A station upgrade. name null: the station names it (its retail, or its stage in `grow`). requires: upgrades at the
@@ -17,21 +18,21 @@ export interface LineUpgrade { id: LineUpgradeId; name: string; prices: number[]
 
 // in the order a station grows: a bought station is a halt (one platform, one line) and these build it up
 export const UPGRADES: Upgrade[] = [
-  { id: 'crossing', name: null, price: 2000, desc: '+15% catchment: the other side of the line can walk in', stage: true },
+  { id: 'crossing', name: null, price: 2000, desc: 'The far side walks across, not round: 5 min off their walk', stage: true },
   { id: 'platform2', name: null, price: 3500, desc: 'Trains call both ways, so the crowd going home too', requires: ['crossing'], stage: true },
   { id: 'building', name: null, price: 3000, desc: '90% of fares collected (82% at a halt)', stage: true },
   { id: 'kiosk', name: 'Kiosk', price: 1500, desc: '+£0.35 per boarding passenger' },
-  { id: 'canopy', name: 'Canopy', price: 2500, desc: 'Passengers wait 45 min instead of 25' },
+  { id: 'canopy', name: 'Canopy', price: 2500, desc: 'Waiting in the dry feels a quarter shorter' },
   { id: 'barriers', name: 'Ticket barriers', price: 4000, desc: 'Collect every fare', requires: ['building'] },
   { id: 'extend', name: 'Platform extension', price: 5000, desc: 'Platform holds 320 instead of 150' },
-  { id: 'lifts', name: 'Lifts', price: 6000, desc: '+25% catchment', requires: ['crossing'] },
+  { id: 'lifts', name: 'Lifts', price: 6000, desc: 'Step-free: 3 min off the far side’s walk, 1 off everyone’s', requires: ['crossing'] },
   { id: 'retail', name: null, price: 9000, desc: '+£0.80 per boarding passenger', requires: ['building'] },
   { id: 'platforms', name: null, price: 30000, desc: '+20% catchment', requires: ['platform2', 'building'], stage: true },
 ];
 export const LINE_UPGRADES: LineUpgrade[] = [
-  { id: 'units', name: 'Extra unit', prices: [6000, 20000, 50000], desc: 'One more train in service', max: 3 },
+  { id: 'units', name: 'Extra unit', prices: [6000, 20000, 50000], desc: 'One more train in service: shorter waits, more passengers', max: 3 },
   { id: 'cars', name: 'Longer trains', prices: [12000, 40000], desc: '+2 cars per unit', max: 2 },
-  { id: 'timetable', name: 'Faster timetable', prices: [20000], desc: 'Line speed 75 → 90 mph', max: 1 },
+  { id: 'timetable', name: 'Faster timetable', prices: [20000], desc: 'Line speed 75 → 90 mph: quicker rides, shorter waits', max: 1 },
 ];
 
 export const TUNING = {
@@ -40,9 +41,20 @@ export const TUNING = {
   seatsPerCar: 75, accel: 1.0, brake: 1.1, vmax: 33.5, vmaxFast: 40,
   dwell: 45, turnaround: 120,
   doorsPerCar: 2, boardPerDoor: 0.7,           // passengers a second through each door: a 2-car unit boards about 125 in a 45 s stop
-  patience: 25 * 60, patienceCanopy: 45 * 60, platformCap: 150, platformCapExtended: 320,
-  collectNoBarriers: 0.82, collectBooking: 0.9, liftsBonus: 1.25, crossingBonus: 1.15, platformsBonus: 1.2, kioskPerPax: 0.35, retailPerPax: 0.8,
+  platformCap: 150, platformCapExtended: 320,
+  collectNoBarriers: 0.82, collectBooking: 0.9, platformsBonus: 1.2, kioskPerPax: 0.35, retailPerPax: 0.8,
+  // door to door (src/sim/journeys.ts), in sim seconds, which are real ones: people travel when the whole journey fits
+  // about half an hour each way (Marchetti's constant), and walking and waiting weigh twice riding (UK appraisal practice)
+  walk: 8 * 60, walkRound: 8 * 60, walkStairs: 3 * 60, liftsSave: 60,   // the walk each end; the far side's extra, round or over the stairs
+  walkWeight: 2, waitWeight: 2, waitCanopy: 1.5, change: 5 * 60,          // felt time: a change at Stockport costs five minutes on top of its wait
+  crowd: 0.6,                                  // a full train's ride feels 1.6 times as long, rising from 60% full
+  budget: 60 * 60, budgetSoft: 12 * 60,         // felt seconds each way: half of people travel at the budget, fewer beyond, more within
+  grace: 6 * 60, patienceMin: 3 * 60,          // someone gives up once their wait has used what's left of their own budget and this
+                                               // (they've walked there already), never sooner than patienceMin
+  demand: 1.9,                                 // trips an hour for a station's catchment, at peak, with the city on its doorstep
+  amOut: 0.8, pmOut: 0.35,                     // the share of trips from home rather than going home, before and after noon
 };
+export type Tuning = typeof TUNING;
 
 export function demandCurve(h: number): number {
   // share of catchment per hour by hour of day: morning peak to Manchester, evening peak home, quiet nights
@@ -65,6 +77,10 @@ export class Sim {
   /** Stations always served whether owned or not: the ends of the services that run their whole route (Stockport and
    * Piccadilly), so there's somewhere to go from the start. */
   fixedEnds: Set<number>;
+  /** Door-to-door journeys between stations, and what they were worked out for (see `journeyKey`). */
+  private jt: (Journey | null)[][] = []; private jkey = -1;
+  /** Scratch for generate: trips an hour to each station, and how full each service runs each way. */
+  private rates: Float64Array; private crowding: Float64Array; private trainsEachWay: Float64Array;
   constructor(network: Network, state?: GameState) {
     this.net = network;
     this.S = network.stations;              // [{ id, name, s, miles, catchment, price, retail, index }]
@@ -72,6 +88,7 @@ export class Sim {
     this.svcs = network.services().map(s => ({ id: s.def.id, route: s.route, home: s.home }));
     if (!this.svcs.length) throw new Error('network.json names no passenger service');
     this.fixedEnds = new Set(this.svcs.filter(v => v.home === null).flatMap(v => [v.route[0]!, v.route[v.route.length - 1]!]));
+    this.rates = new Float64Array(this.S.length); this.crowding = new Float64Array(this.svcs.length * 2); this.trainsEachWay = new Float64Array(this.svcs.length * 2);
   }
   static fresh(network: Network, seed: number = freshSeed()): GameState {
     return {
@@ -96,7 +113,6 @@ export class Sim {
   unitsInService(): number { return 1 + this.g.line.units; }
   carsPerUnit(): number { return 2 + 2 * this.g.line.cars; }
   vmax(): number { return this.g.line.timetable ? TUNING.vmaxFast : TUNING.vmax; }
-  patience(i: number): number { return this.ups(i).canopy ? TUNING.patienceCanopy : TUNING.patience; }
   capacity(i: number): number { return this.ups(i).extend ? TUNING.platformCapExtended : TUNING.platformCap; }
   /** The game clock's hour of the day, which runs dayRate times faster than the sim's seconds. */
   hour(): number { return (this.g.t * TUNING.dayRate / 3600) % 24; }
@@ -225,49 +241,102 @@ export class Sim {
     } else tr.s += tr.dir * step;
   }
 
+  // ---- journeys ----
+  /** A number that changes whenever something journeys depend on does: what's owned, the upgrades that change walks,
+   * waits and platforms, and the line's units and speed. */
+  journeyKey(): number {
+    const g = this.g; let h = g.line.units * 7 + g.line.timetable;
+    for (let i = 0; i < this.S.length; i++) {
+      const u = g.ups[i] ?? {};
+      h = (Math.imul(h, 31) + (g.owned[i] ? 1 : 0) + (u.crossing ? 2 : 0) + (u.lifts ? 4 : 0) + (u.canopy ? 8 : 0) + (u.platform2 ? 16 : 0) + (u.platforms ? 32 : 0)) | 0;
+    }
+    return h >>> 0;
+  }
+  /** The door-to-door journey from station i to station j as the line stands, or null if no train goes that way. */
+  journey(i: number, j: number): Journey | null { if (this.jkey < 0) this.refreshJourneys(); return this.jt[i]?.[j] ?? null; }
+  /** Work the journeys out again if anything they depend on has changed: once a step, and after every purchase. */
+  refreshJourneys(): void {
+    const k = this.journeyKey(); if (k === this.jkey) return;
+    this.jt = journeys(this, TUNING); this.jkey = k;
+  }
+  /** How a journey feels, in seconds: its felt time, and the ride longer on a crowded train. */
+  felt(J: Journey): number {
+    let f = J.felt;
+    for (const l of J.legs) f += l.ride * TUNING.crowd * Math.min(1, Math.max(0, (this.crowding[l.svc * 2 + l.d]! - 0.6) / 0.4));
+    return f;
+  }
+  /** How full each service's trains run each way just now, as a share of their seats. */
+  measureCrowding(): void {
+    const n = this.trainsEachWay; this.crowding.fill(0); n.fill(0);
+    for (const tr of this.g.trains) {
+      let v = 0; while (v < this.svcs.length - 1 && this.svcs[v]!.id !== tr.svc) v++;
+      const k = v * 2 + (tr.dir > 0 ? 0 : 1);
+      this.crowding[k]! += tr.onboard / (tr.cars * TUNING.seatsPerCar); n[k]! += 1;
+    }
+    for (let k = 0; k < n.length; k++) if (n[k]) this.crowding[k]! /= n[k]!;
+  }
+  /** Trips an hour at hour h from station i to each other station, into `rates`: from the homes at one end to what
+   * draws people at the other (and in the evening home again), times the hour's demand, falling away smoothly as the
+   * door-to-door journey passes the time budget. Returns the total. */
+  tripRates(i: number, h: number): number {
+    const a = this.station(i), ups = this.ups(i), out = h < 12 ? TUNING.amOut : TUNING.pmOut, ref = this.net.station('piccadilly').draw;
+    const scale = demandCurve(h) * TUNING.demand * (ups.platforms ? TUNING.platformsBonus : 1) / ref;
+    let tot = 0;
+    for (let j = 0; j < this.S.length; j++) {
+      const J = j === i ? null : this.journey(i, j);
+      if (!J) { this.rates[j] = 0; continue; }
+      const b = this.station(j), reach = 1 / (1 + Math.exp((this.felt(J) - TUNING.budget) / TUNING.budgetSoft));
+      tot += this.rates[j] = scale * reach * (out * a.catchment * b.draw + (1 - out) * a.draw * b.catchment);
+    }
+    return tot;
+  }
+
   // ---- passengers ----
+  /** New passengers at a station for dt seconds, by the trips an hour to each place it reaches; a halt only has a
+   * platform one way, so nobody comes for the other. */
   generate(i: number, dt: number): void {
-    const st = this.station(i), S = this.state(i), h = this.hour();
-    const ups = this.ups(i), bonus = (ups.crossing ? TUNING.crossingBonus : 1) * (ups.lifts ? TUNING.liftsBonus : 1) * (ups.platforms ? TUNING.platformsBonus : 1);
-    const rate = st.catchment * demandCurve(h) * bonus / 3600;
-    S.acc += rate * dt;
+    const S = this.state(i), rate = this.tripRates(i, this.hour());
+    S.acc += rate * dt / 3600;
     const n = Math.floor(S.acc); if (n <= 0) return;
     S.acc -= n;
-    const toMcr = this.northShare(i, h);
-    // a halt only has a platform one way: the share heading the other way doesn't come
-    const nN = Math.round(n * toMcr), nS = n - nN;
-    if (this.serves(i, 0)) this.enqueue(i, 0, nN); if (this.serves(i, 1)) this.enqueue(i, 1, nS);
+    let north = 0; for (let j = 0; j < this.S.length; j++) if (this.dirIdx(i, j) === 0) north += this.rates[j]!;
+    const nN = Math.round(n * north / rate), nS = n - nN;
+    this.enqueue(i, 0, nN); this.enqueue(i, 1, nS);
   }
-  /** The share of a station's new passengers heading towards Manchester at hour h: all of them where there's nowhere
-   * else to go, none where there's nowhere further; most in the morning and fewer in the evening where one train serves
-   * both ways; and where different services go each way (Stockport, once the branch is open), by how many people live
-   * each way too, so a short branch doesn't take half of Stockport. */
-  northShare(i: number, h: number): number {
-    const north: number[] = [], south: number[] = [];
-    for (let j = 0; j < this.S.length; j++) if (j !== i && this.arrivable(j, this.dirIdx(i, j))) (this.dirIdx(i, j) === 0 ? north : south).push(j);
-    if (!south.length) return 1; if (!north.length) return 0;
-    const base = h < 12 ? 0.8 : 0.35, st = this.station(i).id;
-    if (this.net.boardingService(st, 'north') === this.net.boardingService(st, 'south')) return base;
-    const cat = (js: number[]) => js.reduce((a, j) => a + this.station(j).catchment, 0), wN = base * cat(north), wS = (1 - base) * cat(south);
-    return wN / (wN + wS);
-  }
+  /** count passengers join the platform for one way, each group bound for a station chosen by the trips to it (from
+   * the last `tripRates`); a full platform turns the rest away. */
   enqueue(i: number, dirIdx: 0 | 1, count: number): void {
     if (count <= 0) return;
     const g = this.g, S = this.state(i), cap = this.capacity(i);
     const room = Math.max(0, cap - S.waiting), take = Math.min(room, count);
     S.lost += count - take; g.stats.lost += count - take;
     if (take <= 0) return;
-    const cands: number[] = [];
-    for (let j = 0; j < this.S.length; j++) if (j !== i && this.dirIdx(i, j) === dirIdx && this.arrivable(j, dirIdx)) cands.push(j);
-    if (!cands.length) return;
-    const w = cands.map(j => this.station(j).catchment + 50), tot = w.reduce((a, b) => a + b, 0);
-    let r = this.rand() * tot, dest = cands[0]!;
-    for (let k = 0; k < cands.length; k++) { r -= w[k]!; if (r <= 0) { dest = cands[k]!; break; } }
-    S.q[dirIdx].push({ t: g.t, dest, n: take }); S.waiting += take;
+    let tot = 0; for (let j = 0; j < this.S.length; j++) if (this.dirIdx(i, j) === dirIdx) tot += this.rates[j]!;
+    if (tot <= 0) return;
+    let r = this.rand() * tot, dest = -1;
+    for (let j = 0; j < this.S.length; j++) { if (this.dirIdx(i, j) !== dirIdx || !this.rates[j]) continue; dest = j; r -= this.rates[j]!; if (r <= 0) break; }
+    S.q[dirIdx].push({ t: g.t, dest, n: take, give: g.t + this.patience(i, dest) }); S.waiting += take;
   }
+  /** How long a group setting out from station i for station j will wait. Their own time budget is drawn from the
+   * people who'd make this journey at all (the fall-off in tripRates is how budgets spread: half of people's exceed
+   * TUNING.budget), and they wait until what's left of it after the walks, the ride and any change is used up. So
+   * those for whom the trip only just fits give up first, and a long wait bites hardest where journeys are longest. */
+  patience(i: number, j: number): number {
+    const J = this.journey(i, j); if (!J) return TUNING.patienceMin;
+    const felt = this.felt(J), B = TUNING.budget, s = TUNING.budgetSoft;
+    const least = 1 / (1 + Math.exp(-(felt - B) / s)), u = Math.min(1 - 1e-9, least + (1 - least) * this.rand());
+    const budget = B + s * Math.log(u / (1 - u)), ww = this.ups(i).canopy ? TUNING.waitCanopy : TUNING.waitWeight;
+    return Math.max(TUNING.patienceMin, (budget + TUNING.grace - (felt - J.firstWait)) / ww);
+  }
+  /** Whoever has waited past their patience goes home; each group has its own, so the whole queue is looked at. Someone
+   * changing trains has come too far to turn back. */
   expire(i: number): void {
-    const g = this.g, S = this.state(i), p = this.patience(i);
-    for (const q of S.q) { let c: typeof q[number] | undefined; while ((c = q[0]) && g.t - c.t > p) { q.shift(); S.waiting -= c.n; S.lost += c.n; g.stats.lost += c.n; } }
+    const g = this.g, S = this.state(i);
+    for (const q of S.q) {
+      let k = 0;
+      for (const c of q) { if (c.give !== undefined && g.t > c.give) { S.waiting -= c.n; S.lost += c.n; g.stats.lost += c.n; } else q[k++] = c; }
+      q.length = k;
+    }
   }
   rand(): number { return rand(this.g); }
 
@@ -275,6 +344,7 @@ export class Sim {
   step(dt: number): void {
     const g = this.g; this.ensureTrains();
     const dayLen = 86400 / TUNING.dayRate, d0 = Math.floor(g.t / dayLen); g.t += dt; if (Math.floor(g.t / dayLen) > d0) g.day++;
+    this.refreshJourneys(); this.measureCrowding();
     for (let i = 0; i < this.S.length; i++) { if (!g.owned[i]) continue; this.generate(i, dt); this.expire(i); }
     for (const tr of g.trains) this.stepTrain(tr, dt);
   }
@@ -288,7 +358,7 @@ export class Sim {
     return u && !this.ups(st.index)[u.id] ? { station: st, name: this.upgradeName(st.index, u) } : null;
   }
   canBuyStation(i: number): boolean { const g = this.g, s = this.S[i]; return !!s && !g.owned[i] && g.cash >= s.price && (i === 0 || !!g.owned[i - 1]) && !this.stationNeeds(i); }
-  buyStation(i: number): boolean { if (!this.canBuyStation(i)) return false; this.g.cash -= this.station(i).price; this.g.owned[i] = true; return true; }
+  buyStation(i: number): boolean { if (!this.canBuyStation(i)) return false; this.g.cash -= this.station(i).price; this.g.owned[i] = true; this.refreshJourneys(); return true; }
   canBuyUpgrade(i: number, id: string): boolean {
     const u = UPGRADES.find(u => u.id === id), g = this.g, ups = g.ups[i];
     return !!u && !!ups && !!g.owned[i] && !ups[u.id] && this.offered(i, u) && this.ready(i, u) && g.cash >= this.upgradePrice(i, u);
@@ -296,7 +366,7 @@ export class Sim {
   buyUpgrade(i: number, id: string): boolean {
     const u = UPGRADES.find(u => u.id === id), ups = this.g.ups[i];
     if (!u || !ups || !this.canBuyUpgrade(i, id)) return false;
-    this.g.cash -= this.upgradePrice(i, u); ups[u.id] = true; return true;
+    this.g.cash -= this.upgradePrice(i, u); ups[u.id] = true; this.refreshJourneys(); return true;
   }
   /** Whether a line upgrade can be seen yet: extra units need room for a second train to turn at the line's home
    * terminus (Stockport's platform 3). */
@@ -305,6 +375,6 @@ export class Sim {
     const u = LINE_UPGRADES.find(u => u.id === id), g = this.g; if (!u) return false;
     const lvl = g.line[u.id], price = u.prices[lvl];
     if (lvl >= u.max || price === undefined || g.cash < price || !this.lineReady(u.id)) return false;
-    g.cash -= price; g.line[u.id]++; this.ensureTrains(); return true;
+    g.cash -= price; g.line[u.id]++; this.ensureTrains(); this.refreshJourneys(); return true;
   }
 }

@@ -119,8 +119,42 @@ test('sim: stations must be bought in order and cost what they say', () => {
 
 test('sim: one unit cannot cope with Stockport at peak, so passengers are lost', () => {
   const sim = new Sim(net());
+  sim.buyUpgrade(0, 'crossing');  // the subway brings the far side in
   sim.advance(4 * 3600 / 6);     // 06:30 to 10:30 on the clock, through the morning peak
   assert.ok(sim.g.stats.lost > 50, `expected lost passengers under pressure, got ${sim.g.stats.lost}`);
+});
+
+test('journeys: door to door, upgrades save minutes and minutes bring passengers', () => {
+  const sim = new Sim(net()); sim.g.cash = 1e7;
+  const J = () => { const j = sim.journey(0, 4); if (!j) throw new Error('no journey Stockport to Piccadilly'); return j; };
+  const trips = () => sim.tripRates(0, 8);
+  const start = J(), t0 = trips();
+  // the whole trip at the start is about Marchetti's half hour each way
+  const actual = (start.walk + start.wait + start.ride) / 60;
+  assert.ok(actual > 25 && actual < 45, `Stockport to Piccadilly door to door takes ${actual.toFixed(1)} min`);
+  assert.equal(sim.journey(0, 1), null, 'nowhere to go that is not served');
+  assert.ok(sim.buyUpgrade(0, 'crossing'));
+  assert.ok(J().walk < start.walk, 'a way across cuts the walk');
+  const t1 = trips(); assert.ok(t1 > t0, 'and brings more people');
+  assert.ok(sim.buyUpgrade(0, 'platform2') && sim.buyLine('units'));
+  assert.ok(Math.abs(J().wait - start.wait / 2) < 1, 'a second unit halves the wait');
+  const t2 = trips(); assert.ok(t2 > t1, 'and brings more people');
+  assert.ok(sim.buyLine('timetable'));
+  assert.ok(J().ride < start.ride && J().wait < start.wait / 2, 'the faster timetable shortens the ride and the wait');
+  assert.ok(trips() > t2, 'and brings more people');
+});
+
+test('journeys: patience is the budget left, so a canopy or a shorter walk keeps people waiting', () => {
+  const n = net(), sim = new Sim(n, Sim.fresh(n, 1)); sim.g.cash = 1e7;
+  for (let i = 1; i <= 2; i++) assert.ok(sim.buyStation(i));
+  // each group draws its own budget, so compare the means of many
+  const mean = (i: number, j: number) => { let t = 0; for (let k = 0; k < 5000; k++) t += sim.patience(i, j); return t / 5000; };
+  const bare = mean(2, 4);
+  assert.ok(sim.buyUpgrade(2, 'canopy'));
+  assert.ok(mean(2, 4) > bare, 'a canopy makes the wait feel shorter');
+  const walkRound = mean(1, 4);
+  assert.ok(sim.buyUpgrade(1, 'crossing'));
+  assert.ok(mean(1, 4) > walkRound, "Heaton Chapel's footbridge leaves the far side more of their budget to wait with");
 });
 
 test('sim: a train boards through its stop, a door at a time, and a longer train boards more', () => {

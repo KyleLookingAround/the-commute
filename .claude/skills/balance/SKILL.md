@@ -44,23 +44,23 @@ Make the change and run the same three seeds into `build/after.log`.
 
 `tools/baseline.json` holds the ranges. They are **proposed**, not yet agreed: its note says when and why each was set, and the owner agrees ranges when the pacing is settled. Hours are sim hours.
 
-| Milestone or measure | Range | Seeds 1, 2, 3 (12 October 2026, things going wrong) |
+| Milestone or measure | Range | Seeds 1, 2, 3 (12 October 2026, trouble kept out of the peaks' busiest hours) |
 | --- | --- | --- |
 | Second unit | hour 0.25–0.6 | 0.4, 0.4, 0.4 |
 | Heaton Chapel bought | hour 0.5–1.0 | 0.75, 0.75, 0.75 |
 | Levenshulme bought | hour 1.6–2.8 | 2.33, 2.37, 2.33 |
-| Ardwick bought | hour 4.5–6.5 | 4.93, 5.57, 4.98 |
+| Ardwick bought | hour 4.5–6.5 | 4.93, 5.18, 4.93 |
 | Piccadilly bought | hour 8–20 | not in 8 h |
-| Cash at 8 h | £25,000–55,000 | £51,006, £29,657, £40,254 |
-| Boarded | 3,500–5,200 | 4,808, 4,627, 4,770 |
-| Lost | 120–300 | 148, 300, 187 (seed 2's two failed trains and seed 3's one land in the second morning's peak) |
-| By cab | 15–60 | 45, 48, 46 (taken by a taxi rank instead of lost) |
-| Lost beyond home % | 15–100 | 29, 23, 18 (Heaton Chapel and Levenshulme; trouble's losses are mostly Stockport's) |
-| Longest quiet | 1.6–2.7 h (the night) | 2.0, 2.0, 1.7 |
-| Longest daytime quiet | 0.3–1.0 h | 0.52, 0.82, 0.57 |
-| Main-line departures within 5 min | 90–100% | 100, 97.6, 98.5 |
-| Worst late | 0–8 min | 2.2, 8.1, 7.5 (held behind a failed train or crawling past a signal failure) |
-| Failures, signal failures | 0–3 each | 0 and 1, 2 and 0, 1 and 1 |
-| Lost in trouble | 0–200 | 1, 162, 81 (gave up while something was wrong or in the quarter hour after); by bus 0, 50, 9 |
+| Cash at 8 h | £25,000–55,000 | £51,006, £43,877, £51,010 |
+| Boarded | 3,500–5,200 | 4,808, 4,820, 4,823 |
+| Lost | 120–300 | 148, 156, 147 |
+| By cab | 15–60 | 45, 35, 31 (taken by a taxi rank instead of lost) |
+| Lost beyond home % | 15–100 | 29, 26, 33 (Heaton Chapel and Levenshulme; trouble's losses are mostly Stockport's) |
+| Longest quiet | 1.6–2.7 h (the night) | 2.0, 1.8, 2.0 |
+| Longest daytime quiet | 0.3–1.0 h | 0.52, 0.67, 0.52 |
+| Main-line departures within 5 min | 90–100% | 100, 100, 100 |
+| Worst late | 0–8 min | 2.2, 2.0, 0.8 (held behind a failed train or crawling past a signal failure) |
+| Failures, signal failures | 0–3 each | 0 and 1, 1 and 1, 0 and 1 |
+| Lost in trouble | 0–150 | 1, 42, 33 (gave up while something was wrong or in the quarter hour after; nothing starts in a peak's busiest hour) |
 
 The bot also prints PEAKS: at each morning (06:00–10:00) and evening (16:00–19:30) peak, who gave up at each station, how many took a cab, and how late main-line trains left their stops, with a table of the seeds' mean. Read it for where pressure lands, not just how much.

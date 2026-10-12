@@ -33,6 +33,8 @@ function start(sim: Sim, T: Tuning): void {
   if (tb.fail || tb.caution || g.t < tb.next) return;
   // nothing at night, when nobody would see it or be hurt by it: try again later
   if (h < T.troubleDayFrom || h >= T.troubleDayTo) { tb.next = g.t + after(sim, T) / 2; return; }
+  // nor where it would still be going in a peak's busiest hour, so bad luck stays a hiccup, not a wrecked morning
+  if (T.troubleCalm.some(([a, b]) => h >= a && h < b)) { tb.next = g.t + 120; return; }
   if (sim.rand() < T.failShare) {
     const ok = g.trains.filter(tr => stationsEither(sim, tr, T.failMargin));
     if (!ok.length) { tb.next = g.t + 120; return; }

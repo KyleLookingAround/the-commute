@@ -79,8 +79,10 @@ export const TUNING = {
   // never within troubleGap of the last ending, and only by the game's daylight hours. A share failShare are failed
   // trains, more than failMargin from a station, rescued in about `rescue` (rescueSpare with a spare unit standing by);
   // the rest signal failures, a stretch between two stations at caution for about signalFor, which the faster
-  // timetable's new signals stop with chance resignalHolds
+  // timetable's new signals stop with chance resignalHolds. Nothing starts in troubleCalm (clock hours), where it would
+  // still be going in a peak's busiest hour (07:30-08:30, 17:00-18:00): a failure lasts about an hour by the clock
   troubleFrom: 3600, troubleEvery: 2.5 * 3600, troubleGap: 40 * 60, troubleDayFrom: 6, troubleDayTo: 21,
+  troubleCalm: [[6.5, 8.5], [16, 18]] as [number, number][],
   failShare: 0.5, failMargin: 300, rescue: 9 * 60, rescueSpare: 4 * 60,
   signalFor: 12 * 60, caution: 9, resignalHolds: 0.6,
   // rail replacement buses: from busAfter into a failure, one every busGap up to busFleet, busSeats each, loading for

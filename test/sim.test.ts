@@ -396,6 +396,17 @@ test('trouble: nothing goes wrong in the first sim hour, and the same seed bring
   for (const seed of [1, 2, 3, 4]) { const r = run(seed); assert.ok(r.first > TUNING.troubleFrom, `seed ${seed}: first trouble at ${r.first} s`); assert.equal(run(seed).at, r.at); }
 });
 
+test("trouble: nothing starts where it would still be going in a peak's busiest hour", () => {
+  for (const seed of [1, 2, 3, 4, 5, 6]) {
+    const n = net(), sim = new Sim(n, Sim.fresh(n, seed)); let was = false;
+    for (let k = 0; k < 16 * 360; k++) {
+      sim.advance(10); const now = !!(sim.g.trouble.fail || sim.g.trouble.caution), h = sim.hour();
+      if (now && !was) assert.ok(!TUNING.troubleCalm.some(([a, b]) => h > a + 0.02 && h < b), `seed ${seed}: trouble began at ${h.toFixed(2)}`);
+      was = now;
+    }
+  }
+});
+
 test('trouble: a failed train stands with its line blocked, the one behind waits, buses carry people, and it runs again', () => {
   const sim = troubled('fail'), f = sim.g.trouble.fail!, tr = sim.g.trains.find(t => t.id === f.train)!, s0 = tr.s;
   assert.ok(f.until - f.from <= TUNING.rescue * 1.25 && f.a !== f.b, 'rescued within a few minutes, between two stations');

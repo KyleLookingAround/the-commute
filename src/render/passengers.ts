@@ -5,9 +5,15 @@
 // The sim's lost count shows too: someone who gives up shrugs before walking out, and when a full platform turns people
 // away a few come in at the stairs, see the crowd, shrug and go back. The station earning most has a gold coin turning
 // slowly over its name.
+// Who's travelling shows too, from what the sim says about the hour and where people are going: commuters in work
+// clothes at the peaks, students wheeling suitcases (more of them on platforms whose people are going to Piccadilly,
+// for the universities), cyclists with their bikes by day, and on a few match days a crowd in the club's colours
+// heading for the ground before kick-off and home after. Who someone is never changes how many there are.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { MAT, PAL } from './scene.ts';
 import type { BuiltStation, Face, Kit } from './stations.ts';
+import { TUNING } from '../sim/sim.ts';
 import type { GameState, Train } from '../sim/types.ts';
 
 const geo = new THREE.CylinderGeometry(0.34, 0.42, 2.0, 7); geo.translate(0, 1.0, 0);
@@ -24,12 +30,53 @@ const coin = new THREE.CylinderGeometry(4, 4, 0.8, 24); coin.rotateX(Math.PI / 2
 const coinMat = new THREE.MeshLambertMaterial({ color: PAL.coin, emissive: PAL['coin-glow'] });
 const COIN_Y = 36;   // clear above the station's name (which floats at 14 m) from the stock zoom, and over the tallest roof
 const q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3();
+// a suitcase on its wheels beside a student, and a bike wheeled beside a cyclist (along the platform), both 1.4 times
+// life like the figures
+const caseGeo = new THREE.BoxGeometry(0.7, 1.0, 0.42); caseGeo.translate(0, 0.55, 0);
+const bikeGeo = (() => {
+  const wheel = (x: number) => new THREE.CylinderGeometry(0.48, 0.48, 0.08, 12).rotateX(Math.PI / 2).translate(x, 0.48, 0);
+  const bar = (w: number, h: number, x: number, y: number) => new THREE.BoxGeometry(w, h, 0.09).translate(x, y, 0);
+  return mergeGeometries([wheel(-0.78), wheel(0.78), bar(1.5, 0.09, 0, 0.9), bar(0.09, 0.55, -0.25, 0.7), bar(0.09, 0.5, 0.62, 1.1), bar(0.12, 0.09, 0.62, 1.36)]);
+})();
+const caseMat = new THREE.MeshLambertMaterial({ color: 0xffffff }), bikeMat = new THREE.MeshLambertMaterial({ color: PAL.bike });
+
+/** Who a figure is: a commuter in work clothes, a student with a suitcase, a cyclist wheeling a bike, a fan in the
+ * club's colours, or anyone else. */
+export type Kind = 'commuter' | 'student' | 'cyclist' | 'fan' | 'other';
+/** The clubs whose crowds ride the line on a match day: where their ground is (towards Manchester or at Stockport,
+ * Edgeley Park) and the coat their fans wear (an index into the layer's coats). */
+export const CLUBS = [{ name: 'City', ground: 'north', coat: 8 }, { name: 'United', ground: 'north', coat: 9 }, { name: 'County', ground: 'south', coat: 10 }] as const;
+/** The club playing at home on a game day, by its place in CLUBS, or -1: about one day in six, the same every time for
+ * a seed. Cosmetic: it changes nobody's journey. */
+export function matchOn(seed: number, day: number): number {
+  if (hash(seed % 9973, day * 3.17) >= 0.17) return -1;
+  const h = hash(day, seed % 9973 + 5); return h < 0.45 ? 0 : h < 0.8 ? 1 : 2;
+}
+/** How much of a match day's crowd is about at an hour: going to the ground before a three o'clock kick-off, coming
+ * home after the final whistle; 0 outside those. */
+export function crowdAt(hour: number): { share: number; going: boolean } {
+  if (hour >= 12 && hour < 15) return { share: 0.45, going: true };
+  if (hour >= 16.8 && hour < 19) return { share: 0.45, going: false };
+  return { share: 0, going: true };
+}
+/** Who someone joining a platform at an hour is: fans (a share of everyone, on a match day's platform towards or from
+ * the ground), commuters mostly at the peaks, students more where people are going to the city (toCity, 0 to 1) and by
+ * day, cyclists by day, then anyone. h: a cosmetic number in [0, 1). */
+export function kindOf(hour: number, toCity: number, fans: number, h: number): Kind {
+  if (h < fans) return 'fan';
+  const x = fans < 1 ? (h - fans) / (1 - fans) : 0;
+  const day = hour >= 6 && hour < 21, peak = (hour >= 6.5 && hour < 9.5) || (hour >= 16 && hour < 19);
+  const commuter = peak ? 0.55 : day ? 0.2 : 0.3, student = (day ? 0.08 : 0.03) + 0.22 * Math.min(1, Math.max(0, toCity)), cyclist = day ? 0.07 : 0.03;
+  return x < commuter ? 'commuter' : x < commuter + student ? 'student' : x < commuter + student + cyclist ? 'cyclist' : 'other';
+}
 
 /** balk: turned away by a full platform, walking in far enough to see it before shrugging and going back. */
 type Mode = 'in' | 'wait' | 'board' | 'leave' | 'balk';
 /** pace: this figure's walking speed as a share of WALK, so a group strings out as it comes down the stairs. shrug:
  * game seconds left of a shrug, standing still, before it walks on. */
-interface Agent { u: number; v: number; tu: number; tv: number; mode: Mode; spot: number; coat: number; idle: number; pace: number; shrug: number }
+interface Agent { u: number; v: number; tu: number; tv: number; mode: Mode; spot: number; coat: number; idle: number; pace: number; shrug: number; kind: Kind; few: boolean }
+/** What a new figure is dressed as, and whether it's one of the third still drawn when figures are set to fewer. */
+interface Dress { coat: number; kind: Kind; few: boolean }
 /** entrance: where this face's passengers come and go: the stairs of the subway or footbridge, on the platform itself.
  * due: game seconds until the next group comes in; the sim's count rises a little every step, and letting a figure
  * in each time made a steady drip, so arrivals are held back and released a few at a time at uneven gaps. */
@@ -40,7 +87,7 @@ interface FaceLayer { face: Face; trackV: number; agents: Agent[]; nextSpot: num
  * lost count already shown; balks: turned-away people still to show, a few at a time (balkDue the gap to the next).
  * revenue, rate: the station's takings last seen and their recent rate, for the coin. */
 interface Layer {
-  im: THREE.InstancedMesh; heads: THREE.InstancedMesh; faces: [FaceLayer, FaceLayer]; s: number; at: number; nextCoat: number; alighted: number; primed: boolean;
+  im: THREE.InstancedMesh; heads: THREE.InstancedMesh; cases: THREE.InstancedMesh; bikes: THREE.InstancedMesh; faces: [FaceLayer, FaceLayer]; s: number; at: number; nextCoat: number; alighted: number; primed: boolean;
   lost: number; balks: number; balkDue: number; revenue: number; rate: number; coin: THREE.Mesh;
 }
 
@@ -55,19 +102,27 @@ export class PassengerLayer {
   max: number;
   layers: Layer[];
   private coats: THREE.Color[];
+  /** Fewer figures, for older phones: a third of them drawn, none throwing a shadow. */
+  private fewer = false;
+  /** The station whose platforms students head for (Piccadilly, for the universities), by index; -1 for none. */
+  private city: number;
+  // this sync's hour, the club playing today (-1 for none) and its crowd
+  private hour = 12; private club = -1; private crowd = { share: 0, going: true };
   /** stations: where each one's trains stop and its kit stands along the corridor; trackV: where the stopping service's
    * tracks run across each station, by direction. */
-  constructor(builtStations: BuiltStation[], stations: { s: number; at: number }[], trackV: { north: number; south: number }[], max = 320) {
-    this.max = max;
-    this.coats = [PAL.pax, PAL['pax-2'], PAL['pax-3'], PAL['pax-4']];
+  constructor(builtStations: BuiltStation[], stations: { s: number; at: number }[], trackV: { north: number; south: number }[], city = -1, max = 320) {
+    this.max = max; this.city = city;
+    // anyone's coats first (0-3), then work clothes (4-6), a cyclist's jacket (7) and the clubs' colours (8-10)
+    this.coats = [PAL.pax, PAL['pax-2'], PAL['pax-3'], PAL['pax-4'], PAL['suit-1'], PAL['suit-2'], PAL['suit-3'], PAL.cyclist, PAL['kit-city'], PAL['kit-united'], PAL['kit-county']];
     this.layers = builtStations.map((b, i) => {
       const im = new THREE.InstancedMesh(geo, MAT.paxCoat, max), heads = new THREE.InstancedMesh(head, MAT.paxHead, max);
-      im.count = heads.count = 0; im.castShadow = true; b.group.add(im); b.group.add(heads);
+      const cases = new THREE.InstancedMesh(caseGeo, caseMat, max / 4), bikes = new THREE.InstancedMesh(bikeGeo, bikeMat, max / 4);
+      im.count = heads.count = cases.count = bikes.count = 0; im.castShadow = true; cases.frustumCulled = bikes.frustumCulled = false; for (const m of [im, heads, cases, bikes]) b.group.add(m);
       const f = b.kit.faces;
       // the coin turns over the station's name, which floats over the kit's origin
       const cm = new THREE.Mesh(coin, coinMat); cm.position.copy(b.label.position).y = COIN_Y; cm.visible = false; b.group.add(cm);
       return {
-        im, heads, s: stations[i]?.s ?? 0, at: stations[i]?.at ?? 0, nextCoat: i * 7, alighted: -1, primed: false,
+        im, heads, cases, bikes, s: stations[i]?.s ?? 0, at: stations[i]?.at ?? 0, nextCoat: i * 7, alighted: -1, primed: false,
         lost: -1, balks: 0, balkDue: 0, revenue: -1, rate: 0, coin: cm,
         faces: [{ face: f.north, trackV: trackV[i]?.north ?? 0, agents: [], nextSpot: 0, entrance: entranceOf(b.kit, f.north), due: 0 },
           { face: f.south, trackV: trackV[i]?.south ?? 0, agents: [], nextSpot: 0, entrance: entranceOf(b.kit, f.south), due: 0 }],
@@ -99,11 +154,29 @@ export class PassengerLayer {
   private top = -1;
   private spin = 0;
 
+  /** Figures for older phones: fewer drawn (a third), none throwing a shadow. */
+  setFewer(on: boolean): void { this.fewer = on; for (const L of this.layers) L.im.castShadow = !on; }
+
+  /** Dress someone joining a face (fi, 0 towards Manchester) of station i: toCity is the share of its people going to
+   * the city; arriving, they've just got off a train. Fans are on the face towards the ground before kick-off, the face
+   * away from it after, and getting off at the ground's own station before. */
+  private dress(L: Layer, i: number, fi: number, toCity: number, arriving: boolean): Dress {
+    const n = L.nextCoat++, h = hash(n, 17 + i), h2 = hash(n, 19);
+    const club = CLUBS[this.club], ground = club?.ground === 'north' ? 0 : 1;
+    const fans = !club ? 0 : arriving ? (this.crowd.going ? (i === (ground === 0 ? this.city : 0) ? this.crowd.share : 0) : this.crowd.share * 0.5)
+      : (fi === ground) === this.crowd.going ? this.crowd.share : 0;
+    const kind = kindOf(this.hour, toCity, fans, h);
+    const coat = kind === 'fan' && club ? club.coat : kind === 'commuter' ? 4 + Math.floor(h2 * 3) : kind === 'cyclist' ? 7 : Math.floor(h2 * 4);
+    return { coat, kind, few: hash(n, 23) < 0.34 };
+  }
+
   sync(g: GameState, dt: number): void {
     this.earners(g, dt);
+    const clock = g.t * TUNING.dayRate / 3600;
+    this.hour = clock % 24; this.club = matchOn(g.seed, Math.floor(clock / 24)); this.crowd = crowdAt(this.hour);
     this.layers.forEach((L, i) => {
       const S = g.st[i];
-      if (!g.owned[i] || !S) { L.im.count = L.heads.count = 0; L.primed = false; L.alighted = -1; L.lost = -1; L.balks = 0; L.faces.forEach(F => { F.agents.length = 0; F.due = 0; }); return; }
+      if (!g.owned[i] || !S) { L.im.count = L.heads.count = L.cases.count = L.bikes.count = 0; L.primed = false; L.alighted = -1; L.lost = -1; L.balks = 0; L.faces.forEach(F => { F.agents.length = 0; F.due = 0; }); return; }
       // a train standing here, and which way it will leave: its face is the one that boards, and the one its arrivals step onto
       // (two can stand at once where two services turn round, Stockport's platforms 4 and 1); the one that came in last
       // is the one whose passengers are getting off now
@@ -121,7 +194,7 @@ export class PassengerLayer {
         for (let j = 0; j < n && F.agents.length < this.max / 2; j++) {
           const door = standing ? this.nearestDoor(standing, L.at, F.face.u0 + ((j * 37) % (F.face.u1 - F.face.u0))) : (F.face.u0 + F.face.u1) / 2;
           const edge = F.face.v + Math.sign(F.trackV - F.face.v) * (Math.abs(F.trackV - F.face.v) - 2.6);
-          F.agents.push({ u: door + (j % 3 - 1) * 0.8, v: edge, tu: F.entrance.u, tv: F.entrance.v, mode: 'leave', spot: -1, coat: L.nextCoat++ % this.coats.length, idle: 0, pace: 0.85 + hash(j, 8) * 0.3, shrug: 0 });
+          F.agents.push({ u: door + (j % 3 - 1) * 0.8, v: edge, tu: F.entrance.u, tv: F.entrance.v, mode: 'leave', spot: -1, idle: 0, pace: 0.85 + hash(j, 8) * 0.3, shrug: 0, ...this.dress(L, i, standing && standing.dir < 0 ? 1 : 0, i === this.city ? 1 : 0.3, true) });
         }
         L.alighted = off;
       }
@@ -130,9 +203,11 @@ export class PassengerLayer {
       if (L.lost < 0) L.lost = S.lost;
       const lostNow = S.lost - L.lost; L.lost = S.lost;
       let shrugged = 0;
-      let k = 0;
+      let k = 0, nc = 0, nb = 0;
       L.faces.forEach((F, fi) => {
         const want = (S.q[fi] ?? []).reduce((a, c) => a + c.n, 0);
+        // the share of this face's people going to the city, for who the newcomers are
+        const toCity = want > 0 ? (S.q[fi] ?? []).reduce((a, c) => a + (c.dest === this.city ? c.n : 0), 0) / want : 0;
         const present = F.agents.filter(a => a.mode === 'in' || a.mode === 'wait');
         // more waiting than figures: the first count stands ready (a loaded save or a station just bought shouldn't
         // start with a stampede); after that the shortfall comes in through the entrance a group at a time, when the
@@ -143,11 +218,11 @@ export class PassengerLayer {
         if (short > 0 && (!L.primed || F.due <= 0)) {
           const sp0 = F.nextSpot, group = L.primed ? Math.min(short, 1 + Math.floor(hash(sp0, 6) * 4) + Math.floor(short / 8)) : short;
           for (let j = 0; j < group; j++) {
-            const sp = F.nextSpot++; const [tu, tv] = this.spot(F, sp), coat = L.nextCoat++ % this.coats.length, idle = 10 + hash(sp, 5) * 30, pace = 0.85 + hash(sp, 8) * 0.3;
+            const sp = F.nextSpot++; const [tu, tv] = this.spot(F, sp), idle = 10 + hash(sp, 5) * 30, pace = 0.85 + hash(sp, 8) * 0.3, dress = this.dress(L, i, fi, toCity, false);
             F.agents.push(L.primed
               // the group starts strung out behind the stairs' foot, so they come down one after another
-              ? { u: F.entrance.u + (j - group / 2) * 0.9, v: F.entrance.v + into * hash(sp, 9) * 1.2, tu, tv, mode: 'in', spot: sp, coat, idle, pace, shrug: 0 }
-              : { u: tu, v: tv, tu, tv, mode: 'wait', spot: sp, coat, idle, pace, shrug: 0 });
+              ? { u: F.entrance.u + (j - group / 2) * 0.9, v: F.entrance.v + into * hash(sp, 9) * 1.2, tu, tv, mode: 'in', spot: sp, idle, pace, shrug: 0, ...dress }
+              : { u: tu, v: tv, tu, tv, mode: 'wait', spot: sp, idle, pace, shrug: 0, ...dress });
           }
           F.due = (3 + hash(sp0, 7) * 17) * (short > 20 ? 0.3 : 1);
         }
@@ -176,7 +251,10 @@ export class PassengerLayer {
               else if (a.mode !== 'wait') { F.agents.splice(j, 1); continue; }
             } else { a.u += du / d * step; a.v += dv / d * step; }
           }
-          if (k < this.max) {
+          if (k < this.max && (a.few || !this.fewer)) {
+            // a student's case at their side, a cyclist's bike beside them along the platform
+            if (a.kind === 'student' && nc < this.max / 4) { m4.makeTranslation(a.u + 0.75, 1, a.v); L.cases.setMatrixAt(nc, m4); L.cases.setColorAt(nc, a.coat % 2 ? PAL.case : PAL['case-2']); nc++; }
+            else if (a.kind === 'cyclist' && nb < this.max / 4) { m4.makeTranslation(a.u, 1, a.v + 0.85); L.bikes.setMatrixAt(nb++, m4); }
             if (lift > 0) {
               // a little hop with the shoulders up and the head to one side: readable from the stock zoom, and a shrug
               const y = 1 + 0.5 * lift;
@@ -195,13 +273,15 @@ export class PassengerLayer {
         for (let j = 0; j < n; j++) {
           const h = hash(L.nextCoat, 12 + j), toward = Math.sign((fuller.face.u0 + fuller.face.u1) / 2 - fuller.entrance.u) || 1;
           fuller.agents.push({ u: fuller.entrance.u - toward * j * 0.9, v: fuller.entrance.v, tu: fuller.entrance.u + toward * (3 + h * 4), tv: fuller.entrance.v + into2 * (0.5 + h * 1.5),
-            mode: 'balk', spot: -1, coat: L.nextCoat++ % this.coats.length, idle: 0, pace: 0.85 + h * 0.3, shrug: 0 });
+            mode: 'balk', spot: -1, idle: 0, pace: 0.85 + h * 0.3, shrug: 0, ...this.dress(L, i, fuller === L.faces[0] ? 0 : 1, 0, false) });
         }
         L.balks -= n; L.balkDue = 2 + hash(L.nextCoat, 13) * 5;
       }
       L.primed = true;
       L.im.count = L.heads.count = k; L.im.instanceMatrix.needsUpdate = true; L.heads.instanceMatrix.needsUpdate = true;
       if (L.im.instanceColor) L.im.instanceColor.needsUpdate = true;
+      L.cases.count = nc; L.bikes.count = nb; L.cases.instanceMatrix.needsUpdate = true; L.bikes.instanceMatrix.needsUpdate = true;
+      if (L.cases.instanceColor) L.cases.instanceColor.needsUpdate = true;
     });
   }
 

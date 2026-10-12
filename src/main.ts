@@ -86,7 +86,7 @@ const buses = new BusLayer(scene, net, built);
 // line northbound, the Hazel Grove line southbound), so passengers stand back from the right edge
 const faceTrack = (st: (typeof net.stations)[number], dir: 'north' | 'south') => { const svc = net.boardingService(st.id, dir); return svc ? net.offsetAt(svc.tracks[dir], st.s) : 0; };
 const trackV = net.stations.map(st => ({ north: faceTrack(st, 'north'), south: faceTrack(st, 'south') }));
-const pax = new PassengerLayer(built, net.stations, trackV);
+const pax = new PassengerLayer(built, net.stations, trackV, net.stations.findIndex(st => st.id === 'piccadilly'));
 const rig = new OrbitRig(camera, canvas, scene);
 { const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches; setReducedMotion(reduced); reach.setReducedMotion(reduced); }
 const view = {

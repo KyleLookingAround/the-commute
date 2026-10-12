@@ -1,6 +1,6 @@
 {
   "id": "stockport",
-  "note": "From the OpenStreetMap export (tools/osm-to-kit.mjs and the corridor's tracks, 8 October 2026), 1.25 times real across the line like the tracks: island 3/4 between platform 4 (the stopper to Manchester, turning round) and platform 3, with bay 3a cut into its north end; island 1/2 beyond the fast lines, with platform 1 on its far side where the Hazel Grove line turns round, so passengers changing between the two walk through the subway; the platform 0 bay outside it; the carriage sidings and the Edgeley lines to the west; No.1 signal box on the end of island 3/4 and No.2 between the lines at the north end. Positive v is east (Station Road, Grand Central). The island buildings are set back from platform 4's edge to leave room to wait, from memory. Photos: platform 4's long canopy on slim red columns, the glass entrance with a curved roof on Station Road, a long brick retaining wall along the Station Road approach, and the Network Rail depot south of the station. It starts as a halt: a strip of island 3/4 along platform 4 with a shelter and lamps. The subway, then platform 3 (the rest of the island, and room for a second train to turn), the booking hall (the island's buildings and the Station Road building), and platforms 0, 1 and 2 build it up; the sidings, signal boxes, depot, walls and car park are scenery. Departure boards on platforms 4, 3 and 1 and over the Station Road entrance; cars on the roof deck of the multi-storey car park, and Sheffield stands by the Station Road entrance (from memory) with the booking hall.",
+  "note": "From the OpenStreetMap export (tools/osm-to-kit.mjs and the corridor's tracks, 8 October 2026), 1.25 times real across the line like the tracks: island 3/4 between platform 4 (the stopper to Manchester, turning round) and platform 3, with bay 3a cut into its north end; island 1/2 beyond the fast lines, with platform 1 on its far side where the Hazel Grove line turns round, so passengers changing between the two walk through the subway; the platform 0 bay outside it; the carriage sidings and the Edgeley lines to the west; No.1 signal box on the end of island 3/4 and No.2 between the lines at the north end. Positive v is east (Station Road, Grand Central). The island buildings are set back from platform 4's edge to leave room to wait, from memory. Photos: platform 4's long canopy on slim columns (red until about 2020, navy with white bands since: geograph 5195033 David Dixon 2016 against 8388762 and 8414073 DS Pugh 2026, 7798745 JThomas 2024), a long brick retaining wall along the Station Road approach, and the Network Rail depot south of the station. The Station Road entrance (geograph 8196049 Stephen Craven 2025, 8414067 DS Pugh 2026, 6148242 HelenK 2019, 5113253 2016) is a glass drum, round towards the plaza, about 25 m across and 7.5 m high under a thin flat roof slab that overhangs and follows the curve, set against the brick building (the `drum` part); its depth the photos can't show, so it's drawn 9 m out. There is no footbridge: the subway is the way across. It starts as a halt: a strip of island 3/4 along platform 4 with a shelter and lamps. The subway, then platform 3 (the rest of the island, and room for a second train to turn), the booking hall (the island's buildings and the Station Road building), and platforms 0, 1 and 2 build it up; the sidings, signal boxes, depot, walls and car park are scenery. Departure boards on platforms 4, 3 and 1 and over the Station Road entrance; cars on the roof deck of the multi-storey car park, and Sheffield stands by the Station Road entrance (from memory) with the booking hall.",
   "platformLength": 290,
   "faces": { "north": { "v": 3.85, "u0": -150, "u1": 125, "depth": 4 }, "south": { "v": 74.8, "u0": -120, "u1": 130, "depth": 5 } },
   "parts": [
@@ -25,9 +25,8 @@
     { "type": "footprint", "outline": [[1, 89], [47, 89], [47, 110], [1, 110]], "y0": 0, "y1": 9.5, "mat": "brick", "upgrade": "building" },
     { "type": "box", "u0": 0, "u1": 48, "v0": 88.5, "v1": 110.5, "y0": 9.5, "y1": 10.6, "mat": "roof", "upgrade": "building" },
     { "type": "windows", "u0": 5, "u1": 43, "v": 88.9, "ys": [3, 7], "every": 8, "upgrade": "building" },
-    { "type": "box", "u0": 8, "u1": 40, "v0": 110, "v1": 116, "y0": 0, "y1": 5, "mat": "glass", "upgrade": "building" },
-    { "type": "box", "u0": 7, "u1": 41, "v0": 109.5, "v1": 116.5, "y0": 5, "y1": 5.4, "mat": "roof", "upgrade": "building" },
-    { "type": "barriers", "u0": 10, "u1": 38, "v": 117.5, "upgrade": "barriers" },
+    { "type": "drum", "u": 24, "v": 110, "w": 30, "d": 9, "y1": 7.5, "facing": 1, "upgrade": "building" },
+    { "type": "barriers", "u0": 16, "u1": 32, "v": 112.5, "upgrade": "barriers" },
     { "type": "platform", "u0": -132, "u1": 147, "v0": 47.7, "v1": 75.8, "upgrade": "platforms" },
     { "type": "platform", "u0": -41, "u1": 119, "v0": 84.2, "v1": 88, "upgrade": "platforms" },
     { "type": "platform", "u0": -182, "u1": -132, "v0": 47.7, "v1": 75.8, "upgrade": ["extend", "platforms"] },
@@ -58,13 +57,13 @@
     { "type": "board", "u": 55, "v": 5.35, "serves": "north" },
     { "type": "board", "u": 60, "v": 12, "serves": "north", "upgrade": "platform2" },
     { "type": "board", "u": 45, "v": 61.75, "serves": "south", "upgrade": "platforms" },
-    { "type": "board", "u": 24, "v": 116.4, "serves": "both", "y": 5.4, "wall": true, "upgrade": "building" },
+    { "type": "board", "u": 24, "v": 119.3, "serves": "both", "y": 4.8, "wall": true, "upgrade": "building" },
     { "type": "lamps", "u0": -200, "u1": -170, "v": 5.5, "every": 30, "upgrade": "extend" },
     { "type": "lamps", "u0": -200, "u1": -170, "v": 26, "every": 30, "upgrade": ["extend", "platform2"] },
     { "type": "lamps", "u0": -175, "u1": -145, "v": 61.75, "every": 30, "upgrade": ["extend", "platforms"] },
     { "type": "carpark", "u0": -113, "u1": -23, "v0": 136, "v1": 177, "y": 9, "deck": true },
     { "type": "cycles", "u": 46, "v": 120, "n": 8, "upgrade": "building" },
-    { "type": "taxi", "u": 64, "v": 124, "back": [1, 0], "kerb": -1, "n": 6, "door": [24, 118], "upgrade": "taxi", "note": "The rank on Station Road outside the entrance, from memory, placed by eye" },
-    { "type": "busstop", "u": -12, "v": 127, "back": [1, 0], "kerb": 1, "door": [24, 118], "note": "Outside the Station Road entrance, past the taxi rank and the cycle stands; replacement buses stand on Station Road, from memory" }
+    { "type": "taxi", "u": 64, "v": 124, "back": [1, 0], "kerb": -1, "n": 6, "door": [24, 120], "upgrade": "taxi", "note": "The rank on Station Road outside the entrance, from memory, placed by eye" },
+    { "type": "busstop", "u": -12, "v": 127, "back": [1, 0], "kerb": 1, "door": [24, 120], "note": "Outside the Station Road entrance, past the taxi rank and the cycle stands; replacement buses stand on Station Road, from memory" }
   ]
 }

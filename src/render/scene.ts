@@ -17,6 +17,11 @@ export const MAT = {
   paxCoat: lam(new THREE.Color(0xffffff)),   // white: each figure's coat colour comes from its instance
   column: lam(PAL.column), rust: lam(PAL.rust), shelter: lam(PAL.shelter),
   pyramid: lam(PAL.pyramid, { transparent: true, opacity: 0.8, emissive: PAL['pyramid-glow'] }), river: lam(PAL.river, { emissive: 0x0b1a2e }),
+  // the landmarks (src/render/landmarks.ts): white where each instance brings its own colour; floodlit and lit from dusk
+  viaduct: lam(new THREE.Color(0xffffff)), town: lam(new THREE.Color(0xffffff)), sandstone: lam(PAL.sandstone), faience: lam(PAL.faience),
+  merseyway: lam(PAL.merseyway), fascia: lam(PAL.fascia),
+  skyline: lam(PAL.skyline, { fog: false }), airLight: new THREE.MeshBasicMaterial({ color: PAL['air-light'], fog: false }),
+  skyWindows: new THREE.MeshBasicMaterial({ color: PAL['win-busy'], transparent: true, opacity: 0, depthWrite: false, fog: false }),
 };
 export type MatName = keyof typeof MAT;
 /** The material a kit part names, or the fallback when it names none or one that doesn't exist. */
@@ -69,6 +74,10 @@ export function createScene(canvas: HTMLCanvasElement): SceneParts {
     // lamps, windows and the lit signs: off and glassy by day, on from dusk
     const lit = 1 - Math.max(0, Math.min(1, (el - 0.04) / 0.2));
     MAT.glow.color.copy(PAL['lamp-off']).lerp(PAL.lamp, lit); MAT.warm.color.copy(PAL.road).lerp(PAL.warm, lit);
+    // the landmarks: the viaduct floodlit, the Pyramid glowing, the town's and the city's windows lit, the towers' red lamps on
+    MAT.viaduct.emissive.copy(PAL['viaduct-lit']).multiplyScalar(lit * 0.32); MAT.town.emissive.copy(PAL['win-busy']).multiplyScalar(lit * 0.035);
+    MAT.pyramid.emissive.copy(PAL['pyramid-glow']).lerp(PAL['pyramid-lit'], lit * 0.7);
+    MAT.skyWindows.opacity = lit; MAT.airLight.visible = MAT.skyWindows.visible = lit > 0.02;
     hemi.color.copy(c).lerp(tmpWhite, 0.3);
     light.daylight = el; return light;
   }

@@ -10,6 +10,10 @@
 - Prototype phase: work on your session's branch and push straight to `main` (pull first; a sim session is working at the same time). Before a push, `npm run rules` and `npm test`; `npm run check` since this touches the page.
 - Files it may touch: `src/data/kits/*.json`, `src/render/stations.ts`, `src/render/world.ts` (only where a station's surroundings need it), `src/render/palette.ts` and `src/ui/styles/tokens.css`, `tools/checks/`, `tools/shots.mjs`, and the docs below. Not `src/sim/` or the network data's numbers.
 
+## The station's surroundings (the owner, 12 October 2026)
+
+- Not all in this step. Stations grow into their surroundings gradually through the phases (bridges, car parks, forecourts, bus stations such as the Stockport Interchange), each when a phase gives it a reason; see "Throughout" in `docs/ROADMAP.md`. Finish what this brief asks; draw a surrounding only where a station's own parts need it.
+
 ## Read first
 
 - The project notes (`CLAUDE.md`), `docs/DESIGN.md` (the kit format), phase 4 of `docs/ROADMAP.md`, each kit's `note`.

@@ -37,8 +37,12 @@ export type Part =
   /** A brick bridge over the line from u0 to u1 (its width along the line), its face from v0 to v1 up to y1, with
    * segmental arches cut through it: each span [va, vb, spring, crown]. Piers stand between the spans to the ground. */
   | (Gated & Span & { type: 'arches'; v0: number; v1: number; y1: number; spans: [number, number, number, number][]; mat?: string })
-  /** A ramp along the line at v, w wide, from (u0, y0) to (u1, y1), with a handrail each side. */
-  | (Gated & Span & { type: 'ramp'; v: number; w: number; y0: number; y1: number })
+  /** A glass entrance round in plan (Stockport's on Station Road): half an ellipse w along the line and d out from its
+   * flat back at (u, v) towards `facing` across the line, glazed to y1 under a flat roof slab that overhangs it. */
+  | (Gated & { type: 'drum'; u: number; v: number; w: number; d: number; y1: number; facing: 1 | -1 })
+  /** A ramp along the line at v, w wide, from (u0, y0) to (u1, y1), with a handrail each side; `steps` makes it a flight
+   * of solid steps instead. */
+  | (Gated & Span & { type: 'ramp'; v: number; w: number; y0: number; y1: number; steps?: boolean })
   /** A footbridge's stair tower on its own, for a platform built after the bridge. */
   | (Gated & { type: 'stairs'; u: number; v: number })
   | (Gated & { type: 'lifts'; u: number; towers: number[] })
@@ -46,8 +50,9 @@ export type Part =
   | (Gated & Span & { type: 'barriers'; v: number; y?: number })
   | (Gated & { type: 'signalbox'; u: number; v: number })
   | (Gated & Span & { type: 'shed'; v: number; radius: number })
-  /** A building from its real outline: (u, v) corners in order, extruded from y0 to y1. */
-  | (Gated & { type: 'footprint'; outline: [number, number][]; y0: number; y1: number; mat?: string })
+  /** A building from its real outline: (u, v) corners in order, extruded from y0 to y1. floors: that many storeys, each
+   * a band of the material under a band of glass (an office block's ribbon windows, Gateway House's). */
+  | (Gated & { type: 'footprint'; outline: [number, number][]; y0: number; y1: number; mat?: string; floors?: number })
   /** A passage under the line at u: a stair head on each platform it serves (their v extents), with a lit doorway. */
   | (Gated & { type: 'subway'; u: number; platforms: [number, number][] })
   /** A track no service runs on (a siding, a bay, a goods line), ballast and rails through (u, v) points in order;
@@ -201,9 +206,29 @@ const partBuilders: Builders = {
     }
     if (p.v1 > v) boxUV(gp, { u0: p.u0, u1: p.u1, v0: v, v1: p.v1, y0: 0, y1: p.y1 }, mat);
   },
+  drum(gp, p) {
+    // a half cylinder of glass (its curve from +u round to -u through `facing`), squashed to d across, mullions round
+    // it, and a thin slab on top that follows the curve
+    const half = (r: number, h: number, mat: THREE.Material, y: number, open: boolean) => {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 24, 1, open, Math.PI / 2, Math.PI), mat);
+      m.scale.z = -p.facing * (p.d + r - p.w / 2) / r; m.position.set(p.u, y, p.v); gp.add(m);
+    };
+    half(p.w / 2, p.y1, MAT.glass, p.y1 / 2, true);
+    half(p.w / 2 + 1.2, 0.5, MAT.steel, p.y1 + 0.25, false);
+    for (let k = 1; k < 8; k++) {
+      const t = Math.PI * k / 8; box(gp, 0.25, p.y1, 0.25, MAT.steel, p.u + Math.cos(t) * p.w / 2, p.y1 / 2, p.v + p.facing * Math.sin(t) * p.d);
+    }
+    for (const y of [p.y1 / 3, (2 * p.y1) / 3]) {
+      const band = new THREE.Mesh(new THREE.TorusGeometry(p.w / 2, 0.12, 4, 24, Math.PI), MAT.steel);
+      band.rotation.x = -Math.PI / 2; band.scale.y = -p.facing * p.d / (p.w / 2); band.position.set(p.u, y, p.v); gp.add(band);
+    }
+  },
   ramp(gp, p) {
     const du = p.u1 - p.u0, dy = p.y1 - p.y0, len = Math.hypot(du, dy), tilt = Math.atan2(dy, du), cu = (p.u0 + p.u1) / 2, cy = (p.y0 + p.y1) / 2;
-    box(gp, len, 0.3, p.w, MAT.concrete, cu, cy - 0.15, p.v).rotation.z = tilt;
+    if (p.steps) {
+      const n = Math.max(2, Math.ceil(Math.abs(dy) / 0.4));
+      for (let k = 0; k < n; k++) { const top = p.y0 + dy * (k + 0.5) / n; box(gp, Math.abs(du) / n + 0.02, top, p.w, MAT.concrete, p.u0 + du * (k + 0.5) / n, top / 2, p.v); }
+    } else box(gp, len, 0.3, p.w, MAT.concrete, cu, cy - 0.15, p.v).rotation.z = tilt;
     for (const s of [-1, 1]) box(gp, len, 0.08, 0.08, MAT.tactile, cu, cy + 1, p.v + s * (p.w / 2 - 0.1)).rotation.z = tilt;
   },
   stairs(gp, p) { box(gp, 10, 5, 4.5, MAT.concrete, p.u, 3.5, p.v); },
@@ -227,9 +252,19 @@ const partBuilders: Builders = {
   footprint(gp, p) {
     // the shape is drawn in (u, -v) and extruded along +z; turning it face up puts the extrusion on y and -v back on +z
     const shape = new THREE.Shape(p.outline.map(([u, v]) => new THREE.Vector2(u, -v)));
+    const mat = matFor(p.mat, MAT.brick);
+    if (p.floors) {
+      // one shape a metre high, scaled into each storey's solid band and the glass band above it
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false }); geo.rotateX(-Math.PI / 2);
+      const h = (p.y1 - p.y0) / p.floors;
+      for (let k = 0; k < p.floors; k++) for (const [m, y, dy] of [[mat, 0, 0.35], [MAT.glass, 0.35, 0.65]] as const) {
+        const band = new THREE.Mesh(geo, m); band.scale.y = h * dy; band.position.y = p.y0 + h * (k + y); gp.add(band);
+      }
+      return;
+    }
     const geo = new THREE.ExtrudeGeometry(shape, { depth: p.y1 - p.y0, bevelEnabled: false });
     geo.rotateX(-Math.PI / 2); geo.translate(0, p.y0, 0);
-    const m = new THREE.Mesh(geo, matFor(p.mat, MAT.brick)); gp.add(m);
+    const m = new THREE.Mesh(geo, mat); gp.add(m);
   },
   subway(gp, p) {
     for (const [v0, v1] of p.platforms) {

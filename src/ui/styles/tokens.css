@@ -26,14 +26,21 @@
   --map-brick:#a85a3e; --map-brick-dark:#7a4030; --map-concrete:#c2bdb0; --map-platform:#d2cdbe; --map-tactile:#e8cf5c;
   --map-ballast:#7a7068; --map-rail:#e4e7ec; --map-canopy:#4f6a8c; --map-steel:#8a94a3; --map-glass:#b8dcef; --map-glass-glow:#27405a;
   --map-roof:#4a4046; --map-timber:#e3d6b6; --map-road:#6c7078; --map-shed:#a6b2c2; --map-lamp:#fff1c9; --map-warm:#ffd88a;
-  --map-locked:#6e7894; --map-pax:#f2b63a; --map-pax-glow:#6a4a10; --map-pax-head:#f3d9b8; --map-pax-2:#3f6fd8; --map-pax-3:#d84a3f; --map-pax-4:#5e6168; --map-column:#9c2b2b; --map-rust:#8a4a2c; --map-shelter:#25449a; --map-pyramid:#3f8fd8; --map-pyramid-glow:#0d2a4a;
+  --map-locked:#6e7894; --map-pax:#f2b63a; --map-pax-glow:#6a4a10; --map-pax-head:#f3d9b8; --map-pax-2:#3f6fd8; --map-pax-3:#d84a3f; --map-pax-4:#5e6168; --map-column:#2b5d7a; --map-rust:#8a4a2c; --map-shelter:#25449a; --map-pyramid:#3f8fd8; --map-pyramid-glow:#0d2a4a;
   --map-house:#8a5f50; --map-coin:#f5c542; --map-coin-glow:#5a3f08; --map-win-empty:#9db8cc; --map-win-busy:#ffd27a; --map-late:#ff8a1c;
+  /* who's travelling: commuters' work clothes, a cyclist's jacket and bike, a student's suitcase, and the clubs' colours on match days */
+  --map-suit-1:#2c3a5c; --map-suit-2:#45474f; --map-suit-3:#b98a5a; --map-cyclist:#b5e32b; --map-bike:#d0402f; --map-case:#e86a9a; --map-case-2:#3fb6c4;
+  --map-kit-city:#7ec3ee; --map-kit-united:#d8262f; --map-kit-county:#1f55b5;
   /* the preview's ghost: blueprint cyan, apart from the passengers' amber, and clear of brick, grass and platform by day and at dusk */
   --map-signal:#1d2128; --map-signal-green:#3dff7a; --map-board:#f7f7f2; --map-board-ink:#14161a;
   --map-board-led:#ffb52e; --map-shop-lit:#ffe2a6; --map-shutter:#9aa3ad; --map-bay-line:#eeeeea;
   --map-cab:#1f2126; --map-cab-sign:#ffc928; --map-cab-bay:#f2d23c;
   /* things going wrong: hazard and caution lamps, the rail replacement buses and their stop */
   --map-hazard:#ffa21a; --map-bus:#2f7fd6; --map-bus-band:#ffd23f; --map-bus-stop:#d8322f;
+  /* the landmarks: the viaduct's 1880s widening a shade redder than the 1840 brick, its floodlights, the Pyramid lit, the
+     Plaza's faience and sign, Merseyway's render and fascias, the city's towers on the horizon and their red lamps */
+  --map-brick-new:#b8664a; --map-viaduct-lit:#ffb877; --map-pyramid-lit:#5fb4ff; --map-pyramid-frame:#1d3f66; --map-sandstone:#b8664c; --map-faience:#efe6cf;
+  --map-plaza-sign:#c8322e; --map-merseyway:#ddd2bb; --map-fascia:#2f8f9d; --map-skyline:#5d6b84; --map-air-light:#ff3b30;
   --map-car-1:#c8283a; --map-car-2:#2a5cb0; --map-car-3:#c9ccd1; --map-car-4:#f4f4f0; --map-car-5:#2b2e35; --map-car-6:#3a8a55;
   /* the reach: a warm daylight glow over the homes within the time budget, and the minutes view's bands, nearest first */
   --map-reach:#ffcf5c; --map-mins-1:#ffe066; --map-mins-2:#ffad5a; --map-mins-3:#f07fa0; --map-mins-4:#a58be0;

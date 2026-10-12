@@ -50,7 +50,7 @@
     { "type": "rails", "points": [[100, -59.3], [-160, -59.3], [-225, -11.1]], "buffer": true, "scenery": true },
     { "type": "rails", "points": [[95, -65], [-170, -65], [-230, -11.1]], "buffer": true, "scenery": true },
     { "type": "signalbox", "u": -138, "v": 12, "scenery": true },
-    { "type": "signalbox", "u": 171, "v": 38.8, "scenery": true },
+    { "type": "signalbox", "u": 171, "v": 38.2, "scenery": true },
     { "type": "box", "u0": -220, "u1": -10, "v0": 116.5, "v1": 118.5, "y0": 0, "y1": 7, "mat": "brickDark", "scenery": true },
     { "type": "footprint", "outline": [[-115, 134], [-21, 134], [-21, 179], [-115, 179]], "y0": 0, "y1": 9, "mat": "concrete", "scenery": true },
     { "type": "box", "u0": -330, "u1": -240, "v0": -128, "v1": -104, "y0": 0, "y1": 8, "mat": "steel", "scenery": true },

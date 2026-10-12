@@ -1,13 +1,19 @@
 // Rail replacement buses: the stop outside each station (the kit part `busstop`), the roads between neighbouring
 // stations (`roads` in the network data) and the buses on them. When the sim runs buses round a failed train, each is
 // drawn where its leg has got to: standing at a stop with people walking out to it and off it, or driving the road
-// between, a "Rail Replacement" board on its front and sides. BusLayer reads the sim every frame (the buses are few and
-// their legs are worked out from times, so nothing is saved up), only ever reads it, and draws with instancing.
+// between, a "Rail Replacement" board on its front and sides. Each bus drives in from the nearer bus depot (the
+// network data's `depot` landmarks: Stagecoach's at Daw Bank in Stockport and on Hyde Road in Ardwick) along the
+// roads, timed to pull in at the stop when the sim has it start, and drives back there when the sim is done with it.
+// A road never drops off a station's pad: it comes down the wall as a ramp, no steeper than 1 in 10. BusLayer reads the
+// sim every frame (the buses are few and their legs are worked out from times), only ever reads it, and draws with
+// instancing; the only thing it keeps is which buses it has seen, so one the sim has finished with can drive away.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { MAT, PAL, box } from './scene.ts';
 import type { Network } from '../sim/network.ts';
 import type { Sim } from '../sim/sim.ts';
+import { TUNING } from '../sim/sim.ts';
+import { projectLatLon } from '../sim/network.ts';
 import type { Bus, XZ } from '../sim/types.ts';
 import { groundAt } from './terrain.ts';
 
@@ -18,6 +24,9 @@ export interface BusStopPart { u: number; v: number; back?: [number, number]; ke
 const LEN = 12;            // a single-deck bus, metres
 const MAX_BUSES = 8, MAX_WALKERS = 48;
 const ROAD_W = 7;          // the road's width on the map
+const GRADE = 0.1;         // the steepest a road comes down off a station's pad
+const STEP = 4;            // metres between a road's heights
+const DEPOT_SPEED = 14;    // m/s an empty bus runs to and from the depot, quicker than in service
 
 const lam = (c: THREE.Color) => new THREE.MeshLambertMaterial({ color: c });
 const B = (w: number, h: number, d: number, x: number, y: number, z: number) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
@@ -63,17 +72,42 @@ export function buildBusStop(gp: THREE.Group, p: BusStopPart, owner: object): vo
   stops.set(owner, { gp, p, at: null, door: null });
 }
 
-/** A road on the map between two stations' stops: its points and the distance along it to each. */
-interface Path { pts: XZ[]; d: number[]; len: number }
+/** A way on the map a bus drives: its points every STEP metres or less, the distance along it to each, and the road's
+ * height there (the ground, or a ramp down off a station's pad). */
+interface Path { pts: XZ[]; d: number[]; y: number[]; len: number }
+/** A way through points, its heights the ground's under it, except that off a station's pad standing above the ground
+ * it comes down as a ramp no steeper than GRADE (into a cutting it still meets the wall: the ground there is higher). */
+function pathThrough(raw: XZ[]): Path {
+  const pts: XZ[] = [raw[0]!];
+  for (let k = 1; k < raw.length; k++) {
+    const [ax, az] = raw[k - 1]!, [bx, bz] = raw[k]!, n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / STEP));
+    for (let j = 1; j <= n; j++) pts.push([ax + (bx - ax) * j / n, az + (bz - az) * j / n]);
+  }
+  // the railway's land (a pad) is level at 0; from it the road falls no faster than GRADE until it meets the ground
+  const d = [0], ground = pts.map(([x, z]) => groundAt(x, z)), y = ground.map(g => g === 0 ? 0 : -Infinity);
+  for (let k = 1; k < pts.length; k++) d.push(d[k - 1]! + Math.hypot(pts[k]![0] - pts[k - 1]![0], pts[k]![1] - pts[k - 1]![1]));
+  for (let k = 1; k < y.length; k++) y[k] = Math.max(y[k]!, y[k - 1]! - GRADE * (d[k]! - d[k - 1]!));
+  for (let k = y.length - 2; k >= 0; k--) y[k] = Math.max(y[k]!, y[k + 1]! - GRADE * (d[k + 1]! - d[k]!));
+  for (let k = 0; k < y.length; k++) y[k] = Math.max(y[k]!, ground[k]!);
+  return { pts, d, y, len: d[d.length - 1]! };
+}
+const reversed = (p: Path): Path => ({ pts: [...p.pts].reverse(), d: p.d.map(x => p.len - x).reverse(), y: [...p.y].reverse(), len: p.len });
+/** A bus the sim has finished with, driving back to the depot from station `at` since sim time t. */
+interface Leaving { id: number; at: number; t: number }
 
 const m4 = new THREE.Matrix4(), qt = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), pos = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), v3 = new THREE.Vector3();
-const where = { x: 0, z: 0, dx: 0, dz: 1 };
+const where = { x: 0, z: 0, y: 0, dx: 0, dz: 1 };
 
 export class BusLayer {
   /** How many buses are drawn. */
   count = 0;
   private readonly stops: (Stop | null)[];
   private readonly paths = new Map<string, Path>();
+  /** The depots in the world, and each station's way to its nearer one (null where it has no stop). */
+  private readonly depots: XZ[];
+  private readonly toDepot = new Map<number, Path | null>();
+  /** The buses seen last frame, by id, with where they'd stop if the sim finished with them now; and those leaving. */
+  private readonly seen = new Map<number, number>(); private readonly leaving: Leaving[] = []; private lastT = -1;
   private readonly body: THREE.InstancedMesh; private readonly band: THREE.InstancedMesh;
   private readonly glass: THREE.InstancedMesh; private readonly boards: THREE.InstancedMesh; private readonly walkers: THREE.InstancedMesh;
   constructor(scene: THREE.Scene, private readonly net: Network, built: { live: object; group: THREE.Group }[]) {
@@ -83,21 +117,53 @@ export class BusLayer {
     this.glass = mk(GLASS, MAT.glass, MAX_BUSES); this.boards = mk(BOARD, board(), MAX_BUSES);
     this.walkers = mk(PERSON, lam(PAL.pax), MAX_WALKERS);
     this.body.castShadow = true;
-    // the roads themselves, as ribbons a little above the ground (src/render/terrain.ts), in pieces of 10 m or less
+    // the depots, from the network data's landmarks
+    this.depots = (net.def.landmarks ?? []).filter(l => l.kind === 'depot' && l.lat !== undefined && l.lon !== undefined)
+      .map(l => { const p = projectLatLon(l.lat!, l.lon!, net.def.origin); return [p.x, p.z] as XZ; });
+    // the roads themselves, as ribbons a little above the ground or the ramp: each road from stop to stop, and from each
+    // depot to the stop of the station nearest it
+    const ways: Path[] = [];
+    for (const r of net.def.roads ?? []) {
+      const a = net.station(r.from).index, b = net.station(r.to).index, p = this.path(a, b) ?? pathThrough(r.points);
+      ways.push(p);
+    }
+    for (const dp of this.depots) { const k = this.nearestStop(dp); const at = k >= 0 ? this.stop(k)?.at : null; if (at) ways.push(pathThrough([dp, at])); }
     const P: number[] = [];
-    for (const r of net.def.roads ?? []) for (let i = 1; i < r.points.length; i++) {
-      const [ax0, az0] = r.points[i - 1]!, [bx0, bz0] = r.points[i]!, l = Math.hypot(bx0 - ax0, bz0 - az0) || 1, k = Math.ceil(l / 10);
-      const nx = -(bz0 - az0) / l * ROAD_W / 2, nz = (bx0 - ax0) / l * ROAD_W / 2;
-      for (let j = 0; j < k; j++) {
-        const ax = ax0 + (bx0 - ax0) * j / k, az = az0 + (bz0 - az0) * j / k, bx = ax0 + (bx0 - ax0) * (j + 1) / k, bz = az0 + (bz0 - az0) * (j + 1) / k;
-        const ya = groundAt(ax, az) + 0.08, yb = groundAt(bx, bz) + 0.08;
-        P.push(ax + nx, ya, az + nz, bx + nx, yb, bz + nz, bx - nx, yb, bz - nz, ax + nx, ya, az + nz, bx - nx, yb, bz - nz, ax - nx, ya, az - nz);
-      }
+    for (const w of ways) for (let i = 1; i < w.pts.length; i++) {
+      const [ax, az] = w.pts[i - 1]!, [bx, bz] = w.pts[i]!, l = Math.hypot(bx - ax, bz - az) || 1;
+      const nx = -(bz - az) / l * ROAD_W / 2, nz = (bx - ax) / l * ROAD_W / 2, ya = w.y[i - 1]! + 0.08, yb = w.y[i]! + 0.08;
+      P.push(ax + nx, ya, az + nz, bx + nx, yb, bz + nz, bx - nx, yb, bz - nz, ax + nx, ya, az + nz, bx - nx, yb, bz - nz, ax - nx, ya, az - nz);
     }
     if (P.length) {
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.computeVertexNormals();
       const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: PAL.road, side: THREE.DoubleSide })); m.receiveShadow = true; scene.add(m);
     }
+  }
+  /** The station whose stop is nearest a point, or -1. */
+  private nearestStop(p: XZ): number {
+    let best = -1, bd = Infinity;
+    this.stops.forEach((_, i) => { const at = this.stop(i)?.at; if (at) { const d = Math.hypot(at[0] - p[0], at[1] - p[1]); if (d < bd) { bd = d; best = i; } } });
+    return best;
+  }
+  /** The way from the nearer depot to station i's stop, along the roads from the depot's station; null without one. */
+  depotPath(i: number): Path | null {
+    if (this.toDepot.has(i)) return this.toDepot.get(i)!;
+    const at = this.stop(i)?.at; let way: Path | null = null;
+    if (at && this.depots.length) {
+      // the depot whose station is nearest along the line, then the roads station by station to this one
+      const S = this.net.stations, byS = (k: number) => S[k]!.s;
+      let dp = this.depots[0]!, k = this.nearestStop(dp);
+      for (const d of this.depots) { const j = this.nearestStop(d); if (j >= 0 && Math.abs(byS(j) - byS(i)) < Math.abs(byS(k) - byS(i))) { dp = d; k = j; } }
+      const order = S.map((_, j) => j).sort((a, b) => byS(a) - byS(b)), from = order.indexOf(k), to = order.indexOf(i), step = to >= from ? 1 : -1;
+      const pts: XZ[] = [dp];
+      for (let o = from; ; o += step) {
+        const j = order[o]!, here = this.stop(j)?.at; if (here) pts.push(here);
+        if (o === to) break;
+        const r = this.net.road(S[j]!.id, S[order[o + step]!]!.id); if (r) pts.push(...(r.reversed ? [...r.road.points].reverse() : r.road.points));
+      }
+      way = pathThrough(pts);
+    }
+    this.toDepot.set(i, way); return way;
   }
   /** A stop's place in the world, and its station's way out. */
   private stop(i: number): Stop | null {
@@ -115,9 +181,8 @@ export class BusLayer {
     const A = this.stop(a)?.at, Bt = this.stop(b)?.at, sa = this.net.stations[a], sb = this.net.stations[b];
     if (!A || !Bt || !sa || !sb) return null;
     const r = this.net.road(sa.id, sb.id), mid = r ? (r.reversed ? [...r.road.points].reverse() : r.road.points) : [];
-    const pts: XZ[] = [A, ...mid, Bt], d = [0];
-    for (let k = 1; k < pts.length; k++) d.push(d[k - 1]! + Math.hypot(pts[k]![0] - pts[k - 1]![0], pts[k]![1] - pts[k - 1]![1]));
-    const p = { pts, d, len: d[d.length - 1]! }; this.paths.set(key, p); return p;
+    const back = this.paths.get(`${b}>${a}`), p = back ? reversed(back) : pathThrough([A, ...mid, Bt]);
+    this.paths.set(key, p); return p;
   }
   /** Where along a path a share t of the way is, and which way it's heading. */
   private at(p: Path, t: number): typeof where {
@@ -125,24 +190,49 @@ export class BusLayer {
     while (k < p.d.length - 1 && p.d[k]! < s) k++;
     const [ax, az] = p.pts[k - 1]!, [bx, bz] = p.pts[k]!, seg = p.d[k]! - p.d[k - 1]! || 1, f = (s - p.d[k - 1]!) / seg;
     where.x = ax + (bx - ax) * f; where.z = az + (bz - az) * f; where.dx = (bx - ax) / seg; where.dz = (bz - az) / seg;
+    where.y = p.y[k - 1]! + (p.y[k]! - p.y[k - 1]!) * f;
     return where;
   }
   sync(sim: Sim): void {
-    const g = sim.g; let n = 0, w = 0;
-    for (const bus of g.trouble.buses) {
+    const g = sim.g, tb = g.trouble, f = tb.fail; let n = 0, w = 0;
+    if (g.t < this.lastT) { this.seen.clear(); this.leaving.length = 0; }   // a loaded save, a new game
+    this.lastT = g.t;
+    for (const bus of tb.buses) {
       if (n >= MAX_BUSES) break;
       const out = this.path(bus.a, bus.b), back = this.path(bus.b, bus.a); if (!out || !back) continue;
       const t = (g.t - bus.t0) / Math.max(1, bus.t1 - bus.t0);
       // standing at a stop it faces the way it'll leave; on the road, the way it's going
       const p = bus.leg === 'out' ? this.at(out, t) : bus.leg === 'back' ? this.at(back, t) : bus.leg === 'load' ? this.at(out, 0) : this.at(back, 0);
-      qt.setFromAxisAngle(up, Math.atan2(p.dx, p.dz)); pos.set(p.x - p.dx * LEN / 2, groundAt(p.x, p.z) + 0.1, p.z - p.dz * LEN / 2); m4.compose(pos, qt, one);
-      for (const im of [this.body, this.band, this.glass, this.boards]) im.setMatrixAt(n, m4);
-      n++;
+      this.place(n++, p);
       if (bus.leg === 'load' || bus.leg === 'drop') w = this.walk(bus, g.t, p.x - p.dx * LEN * 0.3, p.z - p.dz * LEN * 0.3, w);
+    }
+    // buses on their way from the depot, to pull in when the sim starts each one (busAfter, then every busGap)
+    if (f) {
+      let have = 0; for (const b of tb.buses) if (b.a === f.a && b.b === f.b) have++;
+      const way = this.depotPath(f.a);
+      for (let k = have; way && k < TUNING.busFleet && n < MAX_BUSES; k++) {
+        const due = f.from + TUNING.busAfter + k * TUNING.busGap; if (due >= f.until) break;
+        const v = Math.max(DEPOT_SPEED, way.len / Math.max(1, TUNING.busAfter - 5)), share = 1 - (due - g.t) * v / way.len;
+        if (share >= 0 && share < 1) this.place(n++, this.at(way, share));
+      }
+    }
+    // buses the sim has finished with drive back to the depot from the stop they stood at last
+    for (const [id, at] of this.seen) if (!tb.buses.some(b => b.id === id)) { this.leaving.push({ id, at, t: g.t }); this.seen.delete(id); }
+    for (const b of tb.buses) this.seen.set(b.id, b.leg === 'load' || b.leg === 'back' ? b.a : b.b);
+    for (let k = this.leaving.length - 1; k >= 0; k--) {
+      const L = this.leaving[k]!, way = this.depotPath(L.at), share = way ? (g.t - L.t) * DEPOT_SPEED / way.len : 1;
+      if (!way || share >= 1) { this.leaving.splice(k, 1); continue; }
+      if (n < MAX_BUSES) this.place(n++, this.at(way, 1 - share), true);
     }
     for (const im of [this.body, this.band, this.glass, this.boards]) { im.count = n; im.instanceMatrix.needsUpdate = true; }
     this.count = n;
     this.walkers.count = w; this.walkers.instanceMatrix.needsUpdate = true;
+  }
+  /** Bus n at a point on a way, heading along it (or back along it, `against`). */
+  private place(n: number, p: typeof where, against = false): void {
+    const s = against ? -1 : 1, dx = p.dx * s, dz = p.dz * s;
+    qt.setFromAxisAngle(up, Math.atan2(dx, dz)); pos.set(p.x - dx * LEN / 2, p.y + 0.1, p.z - dz * LEN / 2); m4.compose(pos, qt, one);
+    for (const im of [this.body, this.band, this.glass, this.boards]) im.setMatrixAt(n, m4);
   }
   /** People walking between a standing bus's door and the station's way out: out to it while it loads, and both ways
    * where it sets down and loads for the trip back. */

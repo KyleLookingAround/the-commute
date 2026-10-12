@@ -3,14 +3,17 @@
 // posts, a bus stands or runs between the stations either side (window.__view.trouble counts what's drawn), and the page
 // has no errors; a screenshot of the bus goes to build/shots/trouble-bus.png. Then the same save with the line clear
 // and the spare unit bought: it stands in Stockport's sidings. With no browser, the departure boards on the failing
-// save: Bus replacement from the station behind it, Cancelled for the failed unit, and calling points in order. One
-// phone page (390 px, touch) and one desktop page.
+// save: Bus replacement from the station behind it, Cancelled for the failed unit, and calling points in order; and
+// the spare unit's run out of the sidings to buffer up to the failed unit and back; and the buses driving in from the
+// depot and back. One phone page (390 px, touch) and one desktop page.
 import { register } from 'tsx/esm/api';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 export default async function ({ ok, open, root }) {
   register();
+  // the parts that paint a canvas get one that paints nothing here: only where things are is measured
+  globalThis.document ??= { createElement: () => ({ getContext: () => null }) };
   const { fromGeo } = await import('../../src/sim/network.ts');
   const { Sim, TUNING } = await import('../../src/sim/sim.ts');
   const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.fresh(net, 1));
@@ -39,6 +42,34 @@ export default async function ({ ok, open, root }) {
     ok('trouble: the boards say Bus replacement from the station behind a failed train, Cancelled for its own trains, and list each train\'s calling points in order',
       way.length > 0 && way.every(d => d.note === 'Bus replacement') && mine.every(d => d.note === 'Cancelled') && ordered && calls && !expresses,
       JSON.stringify({ fail: bf && [bf.a, bf.b, bf.d], way: way.map(d => d.note), mine: mine.map(d => d.note), ordered, calls, expresses }));
+    // the spare unit's run: from the sidings, out along the line beside the blocked one, buffered up to the failed unit's
+    // Stockport end by the time it's rescued (its end 0.6 m from the failed unit's), and back in the sidings after
+    const { rescueFor, rescueAt, rescueOffset } = await import('../../src/render/trains.ts');
+    const r = rescueFor(net, JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')).services, b.g), ft = b.g.trains.find(t => t.id === bf.train);
+    const gap = Math.abs(rescueAt(r, r.until) - ft.s) - (ft.cars * 23.6 - 0.6) / 2 - (2 * 23.6 - 0.6) / 2;
+    const mid = (r.s0 + r.s1) / 2, onLine = Math.abs(rescueOffset(net, r, mid) - net.offsetAt(r.along, mid)) < 0.05 && r.along !== r.onto;
+    const there = Math.abs(rescueOffset(net, r, r.s1) - net.offsetAt(r.onto, r.s1)) < 0.05;
+    const run = rescueAt(r, r.from) === r.s0 && Math.abs(gap - 0.6) < 0.05 && rescueAt(r, r.until + r.back + 1) === null;
+    ok('trouble: the spare unit drives out of the sidings beside the blocked line, buffers up to the failed unit by the time it\'s rescued, and goes back',
+      run && onLine && there, JSON.stringify({ gap, onLine, there, along: r.along, onto: r.onto }));
+    // the buses: one is on its way from the depot before the sim starts the first, and they drive off after it's done
+    const THREE = await import('three');
+    const { buildStations } = await import('../../src/render/stations.ts');
+    const { BusLayer } = await import('../../src/render/buses.ts');
+    const kits = Object.fromEntries(net.stations.map(st => [st.kit, JSON.parse(readFileSync(join(root, 'src/data/kits', st.kit + '.json'), 'utf8'))]));
+    const scene = new THREE.Scene(), layer = new BusLayer(scene, net, buildStations(scene, net, kits));
+    const c = new Sim(net, Sim.fresh(net, 2)); c.g.cash = 1e6;
+    for (const id of ['crossing', 'platform2', 'building', 'platforms']) c.buyUpgrade(0, id);
+    for (const i of [1, 2]) { c.buyStation(i); c.buyUpgrade(i, 'crossing'); c.buyUpgrade(i, 'platform2'); }
+    c.buyLine('units');
+    for (let k = 0; k < 40 * 360 && !c.g.trouble.fail; k++) c.advance(10);
+    let before = 0, after = 0, had = false;
+    for (let k = 0; k < 900; k++) {
+      c.advance(5); layer.sync(c);
+      const n = c.g.trouble.buses.length; had ||= n > 0;
+      if (!had) before = Math.max(before, layer.count); else if (!n) after = Math.max(after, layer.count);
+    }
+    ok('trouble: the replacement buses drive in from the depot before they start, and back to it after', before > 0 && after > 0 && had, JSON.stringify({ before, after, had }));
   }
   const c = net.stations[1].s, d = net.stations[2].s;
   sim.g.trouble.caution = { s0: c + 300, s1: d - 300, from: sim.g.t, until: sim.g.t + 3600 };

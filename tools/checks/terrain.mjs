@@ -5,6 +5,8 @@
 // - Platforms: no ground stands over any platform a kit draws (bought or not).
 // - The datum: the ground at every track's centreline is the rail's level, 0, off the viaduct; under the viaduct the
 //   valley floor is well below it.
+// - Roads: the replacement buses' roads come down off a station's pad as a ramp no steeper than 1 in 10, and never
+//   run under the ground.
 // - Size: what's committed of the terrain stays within its budget (2 MB).
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -78,4 +80,21 @@ export default async function ({ ok, root }) {
 
   const size = statSync(join(root, 'src/data/terrain/base.json')).size + fine.reduce((n, f) => n + statSync(join(fineDir, f)).size, 0);
   ok(`terrain: the tiles are within their budget (${(size / 1048576).toFixed(2)} of ${BUDGET / 1048576} MB)`, size <= BUDGET);
+
+  // the replacement buses' roads, stop to stop and to the depots: never below the ground, and off a station's pad
+  // (the railway's land, level at 0) they come down no steeper than 1 in 10 rather than dropping off it
+  const THREE = await import('three');
+  const { setTerrain } = await import('../../src/render/terrain.ts');
+  const { buildStations } = await import('../../src/render/stations.ts');
+  const { BusLayer } = await import('../../src/render/buses.ts');
+  setTerrain(t);
+  const scene = new THREE.Scene(), buses = new BusLayer(scene, net, buildStations(scene, net, kits));
+  const ways = [...buses.paths.values(), ...net.stations.map((_, i) => buses.depotPath(i)).filter(Boolean)], steep = [];
+  for (const w of ways) for (let k = 1; k < w.pts.length; k++) {
+    const [x, z] = w.pts[k], hi = Math.max(w.y[k], w.y[k - 1]), lo = Math.min(w.y[k], w.y[k - 1]), ds = w.d[k] - w.d[k - 1];
+    if (w.y[k] < t.groundY(x, z) - 0.01 || (hi === 0 && hi - lo > 0.1 * ds + 0.05)) steep.push(`${x.toFixed(0)},${z.toFixed(0)} ${lo.toFixed(1)}→${hi.toFixed(1)}`);
+  }
+  const ramps = ways.reduce((n, w) => n + w.pts.filter(([x, z], k) => w.y[k] > t.groundY(x, z) + 0.5).length, 0);
+  setTerrain(null);
+  ok('terrain: the replacement buses\' roads come down off a station\'s pad as a ramp, never dropping off it or under the ground', ways.length > 8 && !steep.length, `${ways.length} ways, ${ramps} points on a ramp; ` + steep.slice(0, 4).join(', '));
 }

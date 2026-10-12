@@ -192,6 +192,7 @@ function town(scene: THREE.Scene, net: Network, c: Corridor, def: NetworkGeoDef,
     if (m.kind === 'cinema') { plaza(g); taken.push([p.x, p.z, 26]); }
     else if (m.kind === 'church') { church(g); taken.push([p.x, p.z, 28]); }
     else if (m.kind === 'market') { market(g); taken.push([p.x, p.z, 24]); }
+    else if (m.kind === 'depot') { depot(g); taken.push([p.x, p.z, 40]); }
     else if (m.kind === 'precinct' && bands.river !== null) {
       // Merseyway stands on its deck over the river: put it on the river as drawn, along it, at its distance across the line
       const len = m.w ?? 220, f = c.at(bands.river), o = (p.x - f.x) * f.nx + (p.z - f.z) * f.nz;
@@ -289,6 +290,17 @@ function church(g: THREE.Group): void {
 function market(g: THREE.Group): void {
   box(g, 36, 6, 22, MAT.steel, 0, 3, 0);
   prism(g, 36, 22, 6, MAT.glass, 0, 6, 0);
+}
+
+/** A bus garage, where the rail replacement buses come from (src/render/buses.ts): a brick shed under a shallow
+ * pitched roof with its doors open on the yard, and a few buses parked out front. */
+function depot(g: THREE.Group): void {
+  box(g, 64, 0.6, 46, MAT.road, 0, 0.3, 0);
+  box(g, 48, 8, 26, MAT.brickDark, 0, 4.6, -8);
+  prism(g, 48, 27, 3, MAT.steel, 0, 8.6, -8);
+  for (const x of [-15, 0, 15]) box(g, 10, 5.5, 0.3, MAT.roof, x, 3.35, 5.1);
+  const bus = new THREE.MeshLambertMaterial({ color: PAL.bus });
+  for (const x of [-24, -18, 18, 24]) box(g, 3.1, 3, 12, bus, x, 2.1, 14);
 }
 
 /** A pitched roof along local x: len long, width across its eaves at y, its ridge height above them. */

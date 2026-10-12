@@ -10,7 +10,10 @@
 // leading cab, from a minute late, growing until it's five minutes late; on time it looks as it always has.
 // Things going wrong show too: a failed unit flashes its hazard lights at both ends until it's rescued, a stretch of
 // line at caution after a signal failure has flashing amber lamps on posts at each end, both sides, and the spare
-// unit, once bought, stands in Stockport's carriage sidings (out on the line while a failed train is being rescued).
+// unit, once bought, stands in Stockport's carriage sidings and drives out to a failed train while it's rescued: out of
+// the sidings, along the line beside the blocked one (the fast line where the stoppers fail, the branch's own track on
+// the Hazel Grove line, where nothing else runs), across onto the blocked line to buffer up to the failed unit's
+// Stockport end, and back to the sidings once it's moving again. The view's own, timed from the sim's failure.
 // On some nights, in the small hours, the fast lines close for engineering: the expresses stop and a yellow on-track
 // machine with flashing orange beacons crawls along them, one way one night and back the next. Cosmetic: it's the
 // view's own, from the seed and the night, and no passenger train meets it.
@@ -98,6 +101,41 @@ export function engineering(seed: number, t: number): { at: number; dir: 1 | -1 
 }
 /** Where the spare unit stands: in Stockport's carriage sidings, in the kit's (u, v). */
 const SPARE_AT: [number, number] = [78, -33];
+
+/** A rescue the spare unit is out on, or coming back from: the failure's from and until (sim seconds), where the
+ * spare's middle starts (in the sidings) and ends (buffered up to the failed unit), the line it runs out along and the
+ * blocked one it crosses onto, and how long it takes coming back. */
+export interface Rescue { from: number; until: number; s0: number; s1: number; along: string; onto: string; back: number }
+const SIDING_CLEAR = 220, EASE_OUT = 300, CROSS_IN = 150;   // metres: past the platforms, onto the line, onto the blocked line
+/** The rescue for a failure, worked out from the failed train where it stands. */
+export function rescueFor(net: Network, svcs: ServiceDef[], g: GameState): Rescue | null {
+  const f = g.trouble.fail, tr = f && g.trains.find(t => t.id === f.train), svc = tr && svcs.find(v => v.id === tr.svc);
+  if (!f || !tr || !svc) return null;
+  const way = tr.dir > 0 ? 'north' : 'south', onto = svc.tracks[way], fast = svcs.find(v => v.through);
+  // the stoppers' line has the fast line beside it; anything else (the branch) has only its own
+  const along = fast && svc === svcs[0] ? fast.tracks[way] : onto;
+  const st = net.stations[0]!, sg = Math.sign(tr.s - st.s) || 1;
+  const s1 = tr.s - sg * ((tr.cars * PITCH - 0.6) / 2 + (2 * PITCH - 0.6) / 2 + 0.6);
+  return { from: f.from, until: f.until, s0: st.at + SPARE_AT[0], s1, along, onto, back: 0.65 * (f.until - f.from) };
+}
+/** Where the spare unit's middle is at sim time t on a rescue (along the corridor), or null once it's back. It waits a
+ * tenth of the rescue for its crew, drives out to arrive three quarters through, and stands buffered up until the line
+ * is clear; then it drives back. */
+export function rescueAt(r: Rescue, t: number): number | null {
+  const k = (t - r.from) / (r.until - r.from);
+  if (t <= r.until) return r.s0 + (r.s1 - r.s0) * smooth(Math.max(0, Math.min(1, (k - 0.1) / 0.65)));
+  const b = (t - r.until) / r.back;
+  return b >= 1 ? null : r.s1 + (r.s0 - r.s1) * smooth(b);
+}
+/** The spare's offset across the line at x on a rescue: the sidings' until it's past the station's platforms, easing
+ * onto the line it runs along, then across onto the blocked line for its last CROSS_IN metres. */
+export function rescueOffset(net: Network, r: Rescue, x: number): number {
+  const sg = Math.sign(r.s1 - r.s0) || 1, st = net.stations[0]!, d = (x - st.at) * sg;
+  const clamp = (v: number) => Math.max(0, Math.min(1, v));
+  let o = SPARE_AT[1];
+  o += (net.offsetAt(r.along, x) - o) * smooth(clamp((d - SIDING_CLEAR) / EASE_OUT));
+  return o + (net.offsetAt(r.onto, x) - o) * smooth(clamp(((x - r.s1) * sg + CROSS_IN) / CROSS_IN));
+}
 
 /** Where a car stands: its middle on the ground, the way it points (a unit vector), how long it is, and how far its
  * bogies are either side of its middle. */
@@ -221,6 +259,9 @@ export class TrainLayer {
   private spareGhost = false;
   private spareRise = 1;
   private spareHad: boolean | null = null;
+  /** The rescue the spare is out on or coming back from, kept once the failure's over for the drive back. */
+  rescue: Rescue | null = null;
+  private svcList: ServiceDef[];
   private last = 0;
   /** The engineering train and its beacons: shown only while it's out. */
   eng: THREE.Group;
@@ -229,7 +270,7 @@ export class TrainLayer {
   constructor(scene: THREE.Scene, net: Network, services: ServiceDef[]) {
     this.scene = scene; this.net = net; this.mat = new THREE.MeshLambertMaterial({ vertexColors: true });
     this.meshes = []; this.units = [];
-    this.services = Object.fromEntries(services.map(s => [s.id, s]));
+    this.services = Object.fromEntries(services.map(s => [s.id, s])); this.svcList = services;
     const ex = services.find(s => s.through || s.scenery);
     this.fast = ex ? { svc: ex, range: serviceRange(net, ex) } : null;
     this.riders = new THREE.InstancedMesh(riderGeo, riderMat, MAX_RIDERS); this.standing = new THREE.InstancedMesh(standGeo, riderMat, MAX_STANDING);
@@ -242,12 +283,8 @@ export class TrainLayer {
     this.cautions = new THREE.InstancedMesh(cautionGeo, flash, 4);
     for (const im of [this.hazards, this.posts, this.cautions]) { im.count = 0; im.frustumCulled = false; scene.add(im); }
     // the spare unit: placed once in Stockport's frame, along its siding
-    const spare = this.unit(2, NORTHERN), f = net.stationFrame(net.stations[0]?.id ?? 'stockport'), [u, v] = SPARE_AT;
-    spare.cars.forEach((m, c) => {
-      const along = u + (c - 0.5) * PITCH; m.position.set(f.x + along * f.dx + v * f.nx, 0, f.z + along * f.dz + v * f.nz);
-      m.rotation.y = yawFor(f); m.updateMatrix();
-    });
-    this.spare = spare.group; this.spareCars = spare.cars; this.spare.visible = false;
+    const spare = this.unit(2, NORTHERN);
+    this.spare = spare.group; this.spareCars = spare.cars; this.spare.visible = false; this.spareHome();
     // the engineering train: two cars in yellow, orange-banded, beacons on its roof at both ends
     const rgb = (c: THREE.Color): RGB => [c.r, c.g, c.b], y = rgb(PAL.eng), dk = rgb(PAL['eng-dark']);
     const eng = this.unit(2, { body: y, roof: dk, band: rgb(PAL['eng-beacon']), door: dk, win: dk, nose: dk });
@@ -268,8 +305,12 @@ export class TrainLayer {
     if (this.spareHad === false && has) this.spareRise = 0;   // just bought: it rises into place
     this.spareHad = has;
     if (this.spareRise < 1) { this.spareRise = Math.min(1, this.spareRise + dtReal); this.spare.scale.y = Math.max(0.01, this.spareRise); }
-    // out on the line while a failed train is being rescued
-    this.spare.visible = this.spareGhost || (has && !tb.fail);
+    // out on the line while a failed train is being rescued, and back again after
+    if (tb.fail && has) { if (!this.rescue || this.rescue.from !== tb.fail.from) this.rescue = rescueFor(this.net, this.svcList, g); }
+    const x = this.rescue && has ? rescueAt(this.rescue, g.t) : null;
+    if (x === null) { if (this.rescue && !tb.fail) this.rescue = null; if (this.spareOut) this.spareHome(); }
+    else this.spareOn(this.rescue!, x);
+    this.spare.visible = this.spareGhost || has;
     let h = 0;
     const tr = tb.fail ? g.trains.find(t => t.id === tb.fail!.train) : undefined, u = tr ? this.units[g.trains.indexOf(tr)] : undefined;
     const ends = u ? [[u.cars[0], -1], [u.cars[u.cars.length - 1], 1]] as const : [];
@@ -287,6 +328,26 @@ export class TrainLayer {
     }
     this.posts.count = c; this.cautions.count = on ? c : 0;
     this.posts.instanceMatrix.needsUpdate = true; this.cautions.instanceMatrix.needsUpdate = true;
+  }
+  private spareOut = false;
+  /** The spare's cars at x along a rescue's path, each on its bogies like any unit's. */
+  private spareOn(r: Rescue, x: number): void {
+    this.spareOut = true;
+    this.spareCars.forEach((m, c) => {
+      const xc = x + (c - 0.5) * PITCH;
+      const a = this.net.place('main', xc - BOGIE, rescueOffset(this.net, r, xc - BOGIE), fa), b = this.net.place('main', xc + BOGIE, rescueOffset(this.net, r, xc + BOGIE), fb);
+      const dx = b.x - a.x, dz = b.z - a.z;
+      m.position.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2); m.rotation.y = Math.atan2(-dz, dx); m.updateMatrix();
+    });
+  }
+  /** The spare back in the sidings, where it was placed. */
+  private spareHome(): void {
+    this.spareOut = false;
+    const f = this.net.stationFrame(this.net.stations[0]?.id ?? 'stockport'), [u, v] = SPARE_AT;
+    this.spareCars.forEach((m, c) => {
+      const along = u + (c - 0.5) * PITCH; m.position.set(f.x + along * f.dx + v * f.nx, 0, f.z + along * f.dz + v * f.nz);
+      m.rotation.y = yawFor(f); m.updateMatrix();
+    });
   }
   /** A unit of n cars in a livery, cabs at both ends, in the scene. */
   private unit(n: number, liv: Livery, into?: Unit): Unit {

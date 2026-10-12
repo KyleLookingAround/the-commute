@@ -9,7 +9,7 @@ import { register } from 'tsx/esm/api';
 register();
 const { fromGeo, projectLatLon } = await import('../../src/sim/network.ts');
 
-const RADIUS = { building: 42, cinema: 26, church: 28, market: 24 };   // each kind's footprint, as drawn
+const RADIUS = { building: 42, cinema: 26, church: 28, market: 24, depot: 40 };   // each kind's footprint, as drawn
 
 export default async function ({ ok, root }) {
   const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def), c = net.corridor('main');
@@ -33,7 +33,7 @@ export default async function ({ ok, root }) {
     if (off - len < 34 + r) bad.push(`${m.id} on the railway's land (${Math.round(off)} m off the line)`);
     if (m.kind !== 'precinct' && river !== null && Math.abs(s - river) < 14 + r) bad.push(`${m.id} in the river`);
     if (m60 !== null && Math.abs(s - m60) < 18 + r) bad.push(`${m.id} on the M60`);
-    if (m.kind !== 'precinct' && roads.length && roadGap(p.x, p.z) < r + 8) bad.push(`${m.id} on a road`);
+    if (m.kind !== 'precinct' && m.kind !== 'depot' && roads.length && roadGap(p.x, p.z) < r + 8) bad.push(`${m.id} on a road`);
   }
   ok('landmarks: the town stands clear of the line, the river, the M60 and the roads', !bad.length, bad.join('; '));
   const via = byId('viaduct'), span = via && via.from && via.to ? Math.abs(sOf(via.to) - sOf(via.from)) : 0;

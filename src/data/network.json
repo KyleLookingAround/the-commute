@@ -251,6 +251,8 @@
       "note": "Red sandstone parish church on the Market Place, its tower at the west end (Commons: Category:St Mary's Church, Stockport gives 53.411234, -2.155514). At the real spot, across the A6 from Merseyway; size from memory." },
     { "id": "market-hall", "name": "Stockport Market Hall", "lat": 53.411, "lon": -2.1563, "kind": "market",
       "note": "The glass-roofed iron market hall of 1861 beside St Mary's, from memory (moved with the church to the real Market Place)." },
+    { "id": "daw-bank", "name": "Stagecoach Stockport depot", "lat": 53.4084, "lon": -2.1612, "kind": "depot", "note": "The bus garage on Daw Bank (SK3 0DU), the former Stockport Corporation depot opened in 1970, by the bus station under the viaduct; Stagecoach's job listings and Showbus give the street, the position on it is from memory. Where the rail replacement buses south of Levenshulme come from." },
+    { "id": "hyde-road", "name": "Stagecoach Hyde Road depot", "lat": 53.4668, "lon": -2.2112, "kind": "depot", "note": "Stagecoach Manchester's Hyde Road garage in Ardwick, east of the station, from memory. Where the rail replacement buses towards the city come from." },
     { "id": "town", "name": "Stockport town centre", "lat": 53.4103, "lon": -2.1605, "kind": "town", "w": 320,
       "note": "Streets of shops and offices in the valley between the viaduct and the A6, drawn as blocks: two to five storeys, with a few 1960s and 70s office blocks; not survey." },
     { "id": "beetham", "name": "Beetham Tower", "lat": 53.475278, "lon": -2.250278, "kind": "tower", "shape": "beetham", "height": 169, "w": 20, "d": 56,

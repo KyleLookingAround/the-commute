@@ -28,6 +28,7 @@ import { HomesLayer } from './render/homes.ts';
 import { Sky } from './render/sky.ts';
 import { UI, fmt } from './ui/panel.ts';
 import type { Els } from './ui/panel.ts';
+import { wireSaves } from './ui/saves.ts';
 import * as store from './app/storage.ts';
 import { GAME_PER_REAL, awaySeconds } from './app/clock.ts';
 
@@ -189,7 +190,26 @@ const ui = new UI(sim, els, {
 // the minutes view: the ground shaded by minutes to Manchester, with its key; off by default
 const vMins = el<HTMLButtonElement>('vMins'), minsKey = el('minsKey');
 vMins.addEventListener('click', () => { const on = !reach.minutesOn; reach.showMinutes(on); vMins.setAttribute('aria-pressed', String(on)); minsKey.hidden = !on; labelTop = on ? minsKey.offsetTop + minsKey.offsetHeight + 8 : 64; });
-function persist(): void { store.save({ g: sim.g, selected: ui.selected }); }
+// a game loaded from a file is on the device and the page is reloading into it: nothing may write over it
+let replaced = false;
+function persist(): void { if (!replaced) store.save({ g: sim.g, selected: ui.selected }); }
+// saves you can carry: the game to a file and back, through the device's own save so a load is a normal load
+const WHY: Record<store.FileProblem, string> = {
+  bad: "That file isn't a save from The Commute. Nothing changed.",
+  newer: 'That save is from a newer version of the game. Reload to update, then try again. Nothing changed.',
+  older: "That save is from an older version and can't be loaded. Nothing changed.",
+};
+wireSaves(el('saveFile'), el('loadFile'), el('loadPick'), {
+  file: () => { persist(); return { name: store.fileName(sim.g), text: store.toFile({ g: sim.g, selected: ui.selected }) }; },
+  read: text => { const r = store.fromFile(text); return r.ok ? { ok: true, what: `day ${r.saved.g.day}` } : { ok: false, why: WHY[r.why] }; },
+  load: text => {
+    const r = store.fromFile(text);
+    if (!r.ok) { ui.toast(WHY[r.why]); return; }
+    if (!store.put(r.saved)) { ui.toast("This device won't keep the save. Nothing changed."); return; }
+    replaced = true; location.reload();
+  },
+  toast: msg => ui.toast(msg),
+});
 
 // ---- welcome back ----
 if (saved && saved.at) {

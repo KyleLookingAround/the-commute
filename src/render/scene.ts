@@ -15,7 +15,7 @@ export const MAT = {
   glow: new THREE.MeshBasicMaterial({ color: PAL.lamp }), warm: new THREE.MeshBasicMaterial({ color: PAL.warm }),
   locked: lam(PAL.locked, { transparent: true, opacity: 0.55 }), pax: lam(PAL.pax, { emissive: PAL['pax-glow'] }), paxHead: lam(PAL['pax-head']),
   paxCoat: lam(new THREE.Color(0xffffff)),   // white: each figure's coat colour comes from its instance
-  column: lam(PAL.column), rust: lam(PAL.rust),
+  column: lam(PAL.column), rust: lam(PAL.rust), shelter: lam(PAL.shelter),
   pyramid: lam(PAL.pyramid, { transparent: true, opacity: 0.8, emissive: PAL['pyramid-glow'] }), river: lam(PAL.river, { emissive: 0x0b1a2e }),
 };
 export type MatName = keyof typeof MAT;

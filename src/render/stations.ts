@@ -24,8 +24,9 @@ export type Part =
   | (Gated & Span & { type: 'lamps'; v: number; every?: number })
   | (Gated & Footprint & { type: 'box'; y0: number; y1: number; mat?: string })
   | (Gated & Span & { type: 'windows'; v: number; ys: number[]; every?: number })
-  /** back: which side the glass back is on, away from the track (+1 is +v, the default). */
-  | (Gated & { type: 'shelter'; u: number; v: number; back?: 1 | -1 })
+  /** back: which side the glass back is on, away from the track (+1 is +v, the default). vault: a barrel roof over
+   * Northern-blue lower panels (Levenshulme's) instead of the flat roof. */
+  | (Gated & { type: 'shelter'; u: number; v: number; back?: 1 | -1; vault?: boolean })
   | (Gated & { type: 'footbridge'; u: number; v0: number; v1: number; towers: number[] })
   /** An open footbridge of riveted plate girders with lattice parapets (Ardwick's), its deck at u from v0 to v1 on
    * lattice trestles (their v; each platform's `flights` brings its own). */
@@ -131,6 +132,15 @@ const partBuilders: Builders = {
   shelter(gp, p) {
     // a glazed bus-stop shelter, 1.25 times real like the platforms it stands on: the glass back at +v
     const b = p.back ?? 1;
+    if (p.vault) {
+      // a half-cylinder roof along the line on a solid blue dado, glazed above
+      const r = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 8, 12, 1, false, 0, Math.PI), MAT.shed);
+      r.rotation.z = Math.PI / 2; r.position.set(p.u, 3.4, p.v); gp.add(r);
+      box(gp, 8, 1, 0.2, MAT.shelter, p.u, 1.5, p.v + b * 1.4); box(gp, 8, 1.4, 0.2, MAT.glass, p.u, 2.7, p.v + b * 1.4);
+      for (const du of [-3.9, 3.9]) { box(gp, 0.2, 1, 3, MAT.shelter, p.u + du, 1.5, p.v); box(gp, 0.2, 1.4, 3, MAT.glass, p.u + du, 2.7, p.v); }
+      for (const du of [-3.9, 0, 3.9]) box(gp, 0.18, 2.4, 0.18, MAT.shelter, p.u + du, 2.2, p.v - b * 1.5);
+      return;
+    }
     box(gp, 8, 0.25, 3.2, MAT.canopy, p.u, 3.5, p.v); box(gp, 8, 2.4, 0.2, MAT.glass, p.u, 2.2, p.v + b * 1.4);
     for (const du of [-3.8, 3.8]) { box(gp, 0.2, 2.4, 3, MAT.glass, p.u + du, 2.2, p.v); const c = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.4, 6), MAT.steel); c.position.set(p.u + du, 2.2, p.v - b * 1.4); gp.add(c); }
   },

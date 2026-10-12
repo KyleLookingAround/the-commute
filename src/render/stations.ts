@@ -40,8 +40,9 @@ export type Part =
   /** A glass entrance round in plan (Stockport's on Station Road): half an ellipse w along the line and d out from its
    * flat back at (u, v) towards `facing` across the line, glazed to y1 under a flat roof slab that overhangs it. */
   | (Gated & { type: 'drum'; u: number; v: number; w: number; d: number; y1: number; facing: 1 | -1 })
-  /** A ramp along the line at v, w wide, from (u0, y0) to (u1, y1), with a handrail each side. */
-  | (Gated & Span & { type: 'ramp'; v: number; w: number; y0: number; y1: number })
+  /** A ramp along the line at v, w wide, from (u0, y0) to (u1, y1), with a handrail each side; `steps` makes it a flight
+   * of solid steps instead. */
+  | (Gated & Span & { type: 'ramp'; v: number; w: number; y0: number; y1: number; steps?: boolean })
   /** A footbridge's stair tower on its own, for a platform built after the bridge. */
   | (Gated & { type: 'stairs'; u: number; v: number })
   | (Gated & { type: 'lifts'; u: number; towers: number[] })
@@ -223,7 +224,10 @@ const partBuilders: Builders = {
   },
   ramp(gp, p) {
     const du = p.u1 - p.u0, dy = p.y1 - p.y0, len = Math.hypot(du, dy), tilt = Math.atan2(dy, du), cu = (p.u0 + p.u1) / 2, cy = (p.y0 + p.y1) / 2;
-    box(gp, len, 0.3, p.w, MAT.concrete, cu, cy - 0.15, p.v).rotation.z = tilt;
+    if (p.steps) {
+      const n = Math.max(2, Math.ceil(Math.abs(dy) / 0.4));
+      for (let k = 0; k < n; k++) { const top = p.y0 + dy * (k + 0.5) / n; box(gp, Math.abs(du) / n + 0.02, top, p.w, MAT.concrete, p.u0 + du * (k + 0.5) / n, top / 2, p.v); }
+    } else box(gp, len, 0.3, p.w, MAT.concrete, cu, cy - 0.15, p.v).rotation.z = tilt;
     for (const s of [-1, 1]) box(gp, len, 0.08, 0.08, MAT.tactile, cu, cy + 1, p.v + s * (p.w / 2 - 0.1)).rotation.z = tilt;
   },
   stairs(gp, p) { box(gp, 10, 5, 4.5, MAT.concrete, p.u, 3.5, p.v); },

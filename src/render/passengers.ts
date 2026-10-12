@@ -47,6 +47,9 @@ const poolMat = new THREE.MeshBasicMaterial({ color: PAL.lamp, transparent: true
 const POOL_Y = 1.04, MAX_POOLS = 96;
 /** A kit's lamp: where it stands and what has to be bought (and not yet bought) for it to stand. */
 interface Lamp { u: number; v: number; needs: string[]; until: string | undefined }
+// an umbrella: a shallow canopy over the head, bright, its colour from the instance
+const brollyGeo = new THREE.ConeGeometry(1.0, 0.42, 8, 1, true); brollyGeo.translate(0, 2.98, 0);
+const brollyMat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
 const caseMat = new THREE.MeshLambertMaterial({ color: 0xffffff }), bikeMat = new THREE.MeshLambertMaterial({ color: PAL.bike });
 
 /** Who a figure is: a commuter in work clothes, a student with a suitcase, a cyclist wheeling a bike, a fan in the
@@ -97,7 +100,7 @@ interface FaceLayer { face: Face; trackV: number; agents: Agent[]; nextSpot: num
  * revenue, rate: the station's takings last seen and their recent rate, for the coin. */
 interface Layer {
   pools: THREE.InstancedMesh; lamps: Lamp[]; lit: string;
-  im: THREE.InstancedMesh; heads: THREE.InstancedMesh; cases: THREE.InstancedMesh; bikes: THREE.InstancedMesh; faces: [FaceLayer, FaceLayer]; s: number; at: number; nextCoat: number; alighted: number; primed: boolean;
+  im: THREE.InstancedMesh; heads: THREE.InstancedMesh; cases: THREE.InstancedMesh; bikes: THREE.InstancedMesh; brollies: THREE.InstancedMesh; faces: [FaceLayer, FaceLayer]; s: number; at: number; nextCoat: number; alighted: number; primed: boolean;
   lost: number; balks: number; balkDue: number; revenue: number; rate: number; coin: THREE.Mesh;
 }
 
@@ -139,13 +142,14 @@ export class PassengerLayer {
     this.layers = builtStations.map((b, i) => {
       const im = new THREE.InstancedMesh(geo, MAT.paxCoat, max), heads = new THREE.InstancedMesh(head, MAT.paxHead, max);
       const cases = new THREE.InstancedMesh(caseGeo, caseMat, max / 4), bikes = new THREE.InstancedMesh(bikeGeo, bikeMat, max / 4);
-      im.count = heads.count = cases.count = bikes.count = 0; im.castShadow = true; cases.frustumCulled = bikes.frustumCulled = false; for (const m of [im, heads, cases, bikes]) b.group.add(m);
+      const brollies = new THREE.InstancedMesh(brollyGeo, brollyMat, max / 2);
+      im.count = heads.count = cases.count = bikes.count = brollies.count = 0; im.castShadow = true; cases.frustumCulled = bikes.frustumCulled = brollies.frustumCulled = false; for (const m of [im, heads, cases, bikes, brollies]) b.group.add(m);
       const f = b.kit.faces;
       // the coin turns over the station's name, which floats over the kit's origin
       const cm = new THREE.Mesh(coin, coinMat); cm.position.copy(b.label.position).y = COIN_Y; cm.visible = false; b.group.add(cm);
       return {
         pools: this.pools(b), lamps: lampsOf(b.kit), lit: '-',
-        im, heads, cases, bikes, s: stations[i]?.s ?? 0, at: stations[i]?.at ?? 0, nextCoat: i * 7, alighted: -1, primed: false,
+        im, heads, cases, bikes, brollies, s: stations[i]?.s ?? 0, at: stations[i]?.at ?? 0, nextCoat: i * 7, alighted: -1, primed: false,
         lost: -1, balks: 0, balkDue: 0, revenue: -1, rate: 0, coin: cm,
         faces: [{ face: f.north, trackV: trackV[i]?.north ?? 0, agents: [], nextSpot: 0, entrance: entranceOf(b.kit, f.north), due: 0 },
           { face: f.south, trackV: trackV[i]?.south ?? 0, agents: [], nextSpot: 0, entrance: entranceOf(b.kit, f.south), due: 0 }],
@@ -201,6 +205,11 @@ export class PassengerLayer {
     L.pools.count = n; L.pools.instanceMatrix.needsUpdate = true;
   }
 
+  /** The share of people with an umbrella up (0 to 1): most of them in the rain, a few in the snow. */
+  setRain(share: number): void { this.brollyShare = share; }
+  private brollyShare = 0;
+  private brollies: THREE.Color[] = [PAL['brolly-1'], PAL['brolly-2'], PAL['brolly-3'], PAL['brolly-4'], PAL['brolly-5'], PAL['suit-2']];
+
   /** Figures for older phones: fewer drawn (a third), none throwing a shadow. */
   setFewer(on: boolean): void { this.fewer = on; for (const L of this.layers) L.im.castShadow = !on; }
 
@@ -224,7 +233,7 @@ export class PassengerLayer {
     this.layers.forEach((L, i) => {
       const S = g.st[i];
       this.light(L, g, i);
-      if (!g.owned[i] || !S) { L.im.count = L.heads.count = L.cases.count = L.bikes.count = 0; L.primed = false; L.alighted = -1; L.lost = -1; L.balks = 0; L.faces.forEach(F => { F.agents.length = 0; F.due = 0; }); return; }
+      if (!g.owned[i] || !S) { L.im.count = L.heads.count = L.cases.count = L.bikes.count = L.brollies.count = 0; L.primed = false; L.alighted = -1; L.lost = -1; L.balks = 0; L.faces.forEach(F => { F.agents.length = 0; F.due = 0; }); return; }
       // a train standing here, and which way it will leave: its face is the one that boards, and the one its arrivals step onto
       // (two can stand at once where two services turn round, Stockport's platforms 4 and 1); the one that came in last
       // is the one whose passengers are getting off now
@@ -251,7 +260,7 @@ export class PassengerLayer {
       if (L.lost < 0) L.lost = S.lost;
       const lostNow = S.lost - L.lost; L.lost = S.lost;
       let shrugged = 0;
-      let k = 0, nc = 0, nb = 0;
+      let k = 0, nc = 0, nb = 0, nu = 0;
       L.faces.forEach((F, fi) => {
         const want = (S.q[fi] ?? []).reduce((a, c) => a + c.n, 0);
         // the share of this face's people going to the city, for who the newcomers are
@@ -310,6 +319,12 @@ export class PassengerLayer {
               m4.makeTranslation(a.u + 0.3 * lift, y - 0.15 * lift, a.v); L.heads.setMatrixAt(k, m4);
             } else { m4.makeTranslation(a.u, 1, a.v); L.im.setMatrixAt(k, m4); L.heads.setMatrixAt(k, m4); }
             L.im.setColorAt(k, this.coats[a.coat] ?? col); k++;
+            // an umbrella up in the rain, over most heads; never on a cyclist wheeling a bike
+            const own = (a.pace * 97.13) % 1;
+            if (own < this.brollyShare && a.kind !== 'cyclist' && nu < this.max / 2) {
+              m4.makeTranslation(a.u, 1 + 0.5 * lift, a.v); L.brollies.setMatrixAt(nu, m4);
+              L.brollies.setColorAt(nu, this.brollies[Math.floor(own * 61) % this.brollies.length]!); nu++;
+            }
           }
         }
       });
@@ -328,6 +343,7 @@ export class PassengerLayer {
       L.primed = true;
       L.im.count = L.heads.count = k; L.im.instanceMatrix.needsUpdate = true; L.heads.instanceMatrix.needsUpdate = true;
       if (L.im.instanceColor) L.im.instanceColor.needsUpdate = true;
+      L.brollies.count = nu; L.brollies.instanceMatrix.needsUpdate = true; if (L.brollies.instanceColor) L.brollies.instanceColor.needsUpdate = true;
       L.cases.count = nc; L.bikes.count = nb; L.cases.instanceMatrix.needsUpdate = true; L.bikes.instanceMatrix.needsUpdate = true;
       if (L.cases.instanceColor) L.cases.instanceColor.needsUpdate = true;
     });

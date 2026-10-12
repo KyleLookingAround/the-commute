@@ -24,6 +24,10 @@ const FALLBACK = {
   'brick-new': '#b8664a', 'viaduct-lit': '#ffb877', 'pyramid-lit': '#5fb4ff', 'pyramid-frame': '#1d3f66', sandstone: '#b8664c', faience: '#efe6cf',
   'plaza-sign': '#c8322e', merseyway: '#ddd2bb', fascia: '#2f8f9d', skyline: '#5d6b84', 'air-light': '#ff3b30',
   'car-1': '#c8283a', 'car-2': '#2a5cb0', 'car-3': '#c9ccd1', 'car-4': '#f4f4f0', 'car-5': '#2b2e35', 'car-6': '#3a8a55',
+  'sky-grey': '#aab6c2', 'zenith-grey': '#7d8ea3', 'cloud-grey': '#c9d0d8', rain: '#dbe7f5', snow: '#f7f9fc', fog: '#c6ccd2',
+  'brolly-1': '#ff4f6d', 'brolly-2': '#ffc93c', 'brolly-3': '#2fb6a8', 'brolly-4': '#5a6cff', 'brolly-5': '#ff8a3d',
+  'leaf-spring': '#7cc35a', 'leaf-summer': '#3f8f3a', 'leaf-autumn': '#e09a2c', 'leaf-autumn-2': '#c8552a', blossom: '#f6c3d6',
+  trunk: '#6a5040', wet: '#8fa6bd',
 };
 const NUMBERS = { 'house-sat': 0.45, 'tower-sat': 0.15, 'house-light': 0.42, 'tower-light': 0.5 };
 

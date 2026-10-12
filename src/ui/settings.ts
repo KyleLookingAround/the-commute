@@ -1,10 +1,10 @@
-// The settings sheet: sound on or off and its volume, and graphics for older phones (High, Low, or shadows, fewer
-// figures and sharpness one by one). Opened from the stage's settings button; it changes nothing in the game, and the
+// The settings sheet: sound on or off and its volume, graphics for older phones (High, Low, or shadows, fewer
+// figures and sharpness one by one), and the weather shown or kept fair (only the look: the game is the same). Opened from the stage's settings button; it changes nothing in the game, and the
 // settings are kept on this device apart from the save (src/app/prefs.ts, through main.ts).
 import './styles/settings.css';
 import { DEFAULT_PREFS, LOW, type Prefs } from '../app/prefs.ts';
 
-type Toggle = 'sound' | 'shadows' | 'fewer' | 'sharp';
+type Toggle = 'sound' | 'shadows' | 'fewer' | 'sharp' | 'weather';
 
 export class Settings {
   readonly sheet: HTMLDialogElement;
@@ -23,7 +23,9 @@ export class Settings {
       <label class="set-vol">Volume<input type="range" min="0" max="1" step="0.05" aria-label="Volume"></label></div></section>
       <section><h3>Graphics</h3><div class="set-row set-seg"><button data-q="high" aria-pressed="false">High</button><button data-q="low" aria-pressed="false">Low</button></div>
       <div class="set-row"><button data-t="shadows" aria-pressed="false">Shadows</button><button data-t="fewer" aria-pressed="false">Fewer people</button><button data-t="sharp" aria-pressed="false">Sharp</button></div>
-      <p class="set-note">Low is lighter on older phones. Settings stay on this device.</p></section>`;
+      <p class="set-note">Low is lighter on older phones.</p></section>
+      <section><h3>Weather</h3><div class="set-row"><button data-t="weather" aria-pressed="false">Weather</button></div>
+      <p class="set-note">Fair weather keeps rain, fog and snow off the map. The game plays the same. Settings stay on this device.</p></section>`;
     document.body.appendChild(d);
     const q = <T extends Element>(sel: string) => d.querySelector<T & Element>(sel)!;
     for (const b of d.querySelectorAll<HTMLButtonElement>('[data-t]')) {
@@ -50,6 +52,7 @@ export class Settings {
     const p = this.prefs;
     for (const [t, b] of this.toggles) b.setAttribute('aria-pressed', String(p[t]));
     const sb = this.toggles.get('sound'); if (sb) sb.textContent = p.sound ? 'Sound on' : 'Sound off';
+    const wb = this.toggles.get('weather'); if (wb) wb.textContent = p.weather ? 'Rain and shine' : 'Fair weather';
     this.volume.value = String(p.volume); this.volume.disabled = !p.sound;
     const isLow = p.shadows === LOW.shadows && p.fewer === LOW.fewer && p.sharp === LOW.sharp;
     const isHigh = p.shadows === DEFAULT_PREFS.shadows && p.fewer === DEFAULT_PREFS.fewer && p.sharp === DEFAULT_PREFS.sharp;

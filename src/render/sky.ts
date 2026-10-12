@@ -34,6 +34,8 @@ export class Sky {
   private uniforms: { zenith: { value: THREE.Color }; horizon: { value: THREE.Color } };
   private tmp = new THREE.Vector3();
   private drift = 0;
+  /** How much of the sky the weather covers (0 to 1), how thick the fog, and the daylight at the last update. */
+  private cover = 0; private fog = 0; private daylight = 1;
   /** Each puff's resting place and size; the drift is added each frame and wrapped, so a cloud leaving one edge returns at the other. */
   private puffs: { x: number; y: number; z: number; w: number; d: number }[] = [];
   private m4 = new THREE.Matrix4(); private q = new THREE.Quaternion(); private p = new THREE.Vector3(); private s = new THREE.Vector3();
@@ -74,11 +76,30 @@ export class Sky {
     this.placeClouds();
   }
 
+  /** The weather's cover (0 clear to 1 overcast) and fog (0 to 1), after update: the clouds swell, darken and drift
+   * faster, the dome greys, and the sun's disc goes in behind a thick sky. */
+  setCover(cover: number, fog: number): void {
+    this.cover = cover; this.fog = fog;
+    const grey = Math.max(0, cover - 0.3) / 0.7;
+    this.tmpC.copy(PAL['zenith-night']).lerp(PAL['zenith-grey'], this.daylight);
+    this.zenith.lerp(this.tmpC, 0.85 * grey);
+    this.tmpC.copy(PAL['zenith-night']).lerp(PAL['cloud-grey'], 0.03 + 0.97 * this.daylight);
+    this.cloudMat.color.lerp(this.tmpC, grey);
+    this.cloudMat.opacity = 0.9 + 0.1 * grey;
+    this.sunDisc.visible &&= cover < 0.75 && fog < 0.4;
+  }
+  /** The horizon takes the fog's colour, so the dome meets the ground's haze without a seam. */
+  setFogColour(c: THREE.Color, fog: number): void { this.horizon.copy(c); this.zenith.lerp(c, 0.6 * fog); }
+
+  private tmpC = new THREE.Color();
+
   private placeClouds(): void {
     const half = CLOUD_SPREAD / 2;
     this.puffs.forEach((pf, i) => {
       let x = pf.x + this.drift; if (x > half) x -= CLOUD_SPREAD;
-      this.p.set(this.centre.x + x, pf.y, this.centre.z + pf.z); this.s.set(pf.w, 1, pf.d);
+      // under cover the puffs swell and lower until they meet in a grey deck
+      const k = 1 + 1.6 * this.cover;
+      this.p.set(this.centre.x + x, pf.y - 140 * this.cover, this.centre.z + pf.z); this.s.set(pf.w * k, 1, pf.d * k);
       this.m4.compose(this.p, this.q, this.s); this.clouds.setMatrixAt(i, this.m4);
     });
     this.clouds.instanceMatrix.needsUpdate = true;
@@ -97,7 +118,8 @@ export class Sky {
     // clouds: white by day, nearly the night sky's colour after dark (the lerp is in linear light, so a little goes far);
     // drifting east a few metres a second, in world space, so they stay put when the camera pans
     this.cloudMat.color.copy(PAL['zenith-night']).lerp(PAL.cloud, 0.03 + 0.97 * daylight);
-    this.drift = (this.drift + dt * 4) % CLOUD_SPREAD;
+    this.drift = (this.drift + dt * (4 + 8 * this.cover)) % CLOUD_SPREAD;
+    this.daylight = daylight;
     this.placeClouds();
   }
 }

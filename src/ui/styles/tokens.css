@@ -46,6 +46,12 @@
   --map-brick-new:#b8664a; --map-viaduct-lit:#ffb877; --map-pyramid-lit:#5fb4ff; --map-pyramid-frame:#1d3f66; --map-sandstone:#b8664c; --map-faience:#efe6cf;
   --map-plaza-sign:#c8322e; --map-merseyway:#ddd2bb; --map-fascia:#2f8f9d; --map-skyline:#5d6b84; --map-air-light:#ff3b30;
   --map-car-1:#c8283a; --map-car-2:#2a5cb0; --map-car-3:#c9ccd1; --map-car-4:#f4f4f0; --map-car-5:#2b2e35; --map-car-6:#3a8a55;
+  /* weather and seasons (src/render/weather.ts): an overcast sky and its clouds, rain, snow and fog; bright umbrellas;
+     the lineside trees through the year (spring blossom, summer green, autumn gold, winter bare), a wet platform's sheen */
+  --map-sky-grey:#aab6c2; --map-zenith-grey:#7d8ea3; --map-cloud-grey:#c9d0d8; --map-rain:#dbe7f5; --map-snow:#f7f9fc; --map-fog:#c6ccd2;
+  --map-brolly-1:#ff4f6d; --map-brolly-2:#ffc93c; --map-brolly-3:#2fb6a8; --map-brolly-4:#5a6cff; --map-brolly-5:#ff8a3d;
+  --map-leaf-spring:#7cc35a; --map-leaf-summer:#3f8f3a; --map-leaf-autumn:#e09a2c; --map-leaf-autumn-2:#c8552a; --map-blossom:#f6c3d6;
+  --map-trunk:#6a5040; --map-wet:#8fa6bd;
   /* the reach: a warm daylight glow over the homes within the time budget, and the minutes view's bands, nearest first */
   --map-reach:#ffcf5c; --map-mins-1:#ffe066; --map-mins-2:#ffad5a; --map-mins-3:#f07fa0; --map-mins-4:#a58be0;
   /* homes that grow: new terraces and flats round the stations whose trips get quicker; walls, roofs and windows */

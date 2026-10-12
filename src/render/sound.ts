@@ -1,6 +1,7 @@
 // Sound, made in the browser with the Web Audio API (no recordings to license): trains rumbling past, braking into a
 // platform and pulling out, their doors, a chime and a murmur from the speakers when a train is due at the station
-// you're looking at, birds by day and quiet at night, over a soft bed of distant town. It follows the camera: close to
+// you're looking at, birds by day and quiet at night, rain hissing and pattering in a shower (snow hushes it all),
+// over a soft bed of distant town. It follows the camera: close to
 // the line you hear what's near where you're looking, and at whole-line zoom only the bed. Nothing waits for it and it
 // changes nothing: it reads the sim and the drawn trains on a timer, never every frame. The browser allows sound only
 // after the player has tapped, so it starts then; muted, it makes nothing at all.
@@ -24,6 +25,9 @@ export class Sound {
   private bed: GainNode | null = null;
   private rumble: GainNode | null = null;
   private rumbleTone: BiquadFilterNode | null = null;
+  private rain: GainNode | null = null;
+  /** The weather as drawn (src/render/weather.ts): rain and snow, 0 to 1. */
+  private wet = { rain: 0, snow: 0 };
   private noise: AudioBuffer | null = null;
   private on: boolean;
   private volume: number;
@@ -34,7 +38,7 @@ export class Sound {
   private birdDue = 0;
   private clock = 0;
   /** What the checks read: whether it's running, and how many of each sound it has started. */
-  readonly heard = { running: false, brakes: 0, departs: 0, calls: 0, birds: 0 };
+  readonly heard = { running: false, brakes: 0, departs: 0, calls: 0, birds: 0, patter: 0 };
 
   constructor(on: boolean, volume: number) { this.on = on; this.volume = volume; }
 
@@ -51,6 +55,8 @@ export class Sound {
     this.level();
     if (!on && this.ctx) void this.ctx.suspend();
   }
+  /** The weather as drawn: how hard it's raining and snowing, 0 to 1. */
+  setWeather(rain: number, snow: number): void { this.wet.rain = rain; this.wet.snow = snow; }
   setVolume(v: number): void { this.volume = Math.max(0, Math.min(1, v)); this.level(); }
 
   private level(): void {
@@ -76,6 +82,9 @@ export class Sound {
     // the rumble of trains running near: lower and duller far off, brighter close by
     const rb = this.loop(); this.rumbleTone = ctx.createBiquadFilter(); this.rumbleTone.type = 'lowpass'; this.rumbleTone.frequency.value = 160; this.rumbleTone.Q.value = 0.8;
     this.rumble = ctx.createGain(); this.rumble.gain.value = 0; rb.connect(this.rumbleTone).connect(this.rumble).connect(this.master);
+    // the rain: a steady hiss, high and soft, its level set by how hard it's raining
+    const rn = this.loop(), rh = ctx.createBiquadFilter(), rl = ctx.createBiquadFilter(); rh.type = 'highpass'; rh.frequency.value = 900; rl.type = 'lowpass'; rl.frequency.value = 6500;
+    this.rain = ctx.createGain(); this.rain.gain.value = 0; rn.connect(rh).connect(rl).connect(this.rain).connect(this.master);
     this.level(); this.heard.running = true;
     if (ctx.state !== 'running') void ctx.resume();
   }
@@ -111,7 +120,10 @@ export class Sound {
     if (!ctx || !this.on || !this.bed || !this.rumble || !this.rumbleTone) return;
     const t = ctx.currentTime;
     // the bed: always there, softer at night; the rumble: the trains near, by how fast they go
-    this.bed.gain.setTargetAtTime(0.05 + 0.05 * daylight, t, 0.5);
+    this.bed.gain.setTargetAtTime((0.05 + 0.05 * daylight) * (1 - 0.4 * this.wet.snow), t, 0.5);
+    // rain: the hiss everywhere, louder close in; and drops pattering on the canopies near where the camera looks
+    if (this.rain) this.rain.gain.setTargetAtTime(0.1 * this.wet.rain * (0.45 + 0.55 * zoom), t, 1.2);
+    if (this.wet.rain > 0.2 && zoom > 0.3) for (let n = 0; n < 3; n++) if (Math.random() < this.wet.rain * 0.8) { this.drop(zoom * this.wet.rain); this.heard.patter++; } // cosmetic
     this.rumble.gain.setTargetAtTime(Math.min(0.9, rumble * 0.7), t, 0.25);
     this.rumbleTone.frequency.setTargetAtTime(120 + 260 * Math.min(1, rumble), t, 0.3);
     this.announce(sim, focus, stations, zoom);
@@ -119,7 +131,7 @@ export class Sound {
     this.birdDue -= step;
     if (this.birdDue <= 0) {
       this.birdDue = 0.6 + Math.random() * 3.2; // cosmetic
-      const k = Math.max(0, (daylight - 0.25) / 0.75) * zoom;
+      const k = Math.max(0, (daylight - 0.25) / 0.75) * zoom * (1 - Math.max(this.wet.rain, this.wet.snow));
       if (k > 0.05) { this.bird(k); this.heard.birds++; }
     }
   }
@@ -196,6 +208,11 @@ export class Sound {
       at += len + gap;
     }
     o.start(v0); o.stop(at + 0.1);
+  }
+  /** A raindrop on a canopy: a tick of high noise at a random moment in the next tenth of a second. */
+  private drop(k: number): void {
+    const at = this.ctx!.currentTime + Math.random() * TICK, f = 2500 + Math.random() * 3500; // cosmetic
+    this.burst('bandpass', f, f * 0.7, 3, 0.05 * k, at, 0.002, 0.005, 0.04);
   }
   /** A bird: a short trill of quick rising and falling chirps, high up. */
   private bird(k: number): void {

@@ -10,7 +10,7 @@ import kitDavenport from './data/kits/davenport.json';
 import kitWoodsmoor from './data/kits/woodsmoor.json';
 import kitHazelGrove from './data/kits/hazel-grove.json';
 import { fromGeo } from './sim/network.ts';
-import { Sim } from './sim/sim.ts';
+import { Sim, TUNING } from './sim/sim.ts';
 import type { NetworkGeoDef } from './sim/types.ts';
 import { createScene } from './render/scene.ts';
 import { buildWorld } from './render/world.ts';
@@ -26,6 +26,8 @@ import { OrbitRig } from './render/camera.ts';
 import { ReachLayer, withBought, savingText } from './render/reach.ts';
 import { HomesLayer } from './render/homes.ts';
 import { Sky } from './render/sky.ts';
+import { WeatherLayer, solarHour } from './render/weather.ts';
+import { yearAt } from './sim/weather.ts';
 import { Sound } from './render/sound.ts';
 import { Settings } from './ui/settings.ts';
 import { fullScreen } from './ui/fullscreen.ts';
@@ -40,13 +42,18 @@ declare global {
   interface Window {
     /** Set by a check or a screenshot before the page loads, so a new game repeats. */
     __seed?: number;
+    /** Set by a check or a screenshot before the page loads: the weather to start in (it changes the game; only for them). */
+    __weather?: import('./sim/types.ts').Sky;
+    /** Set by a check or a screenshot before the page loads: the game day a new game starts on, for its season. */
+    __day?: number;
     /** Set by tools/shots.mjs: the hour to lock the lighting to. */
     __lockHour?: number;
     /** Set by a screenshot before the page loads: where the camera starts (any of tx, ty, tz, r, th, ph). */
     __orbit?: Partial<import('./render/camera.ts').Orbit>;
     /** For the checks: how many groups of parts the preview shows, how many are still rising into place, and how many
      * times the camera has framed something (a card's parts, a Built chip's, a train). */
-    __view?: { reach?: () => { now: number[]; target: number[]; ghosts: number; minutes: boolean }; homes?: () => { shown: number[]; room: number[]; rising: number }; preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean }; life?: () => { cases: number; bikes: number; figures: number; shadows: boolean; ratio: number; heard: { running: boolean; brakes: number; departs: number; calls: number; birds: number }; pools: number; lamplight: number; works: [number, number] | null; beacons: number; expresses: number } };
+    __view?: { reach?: () => { now: number[]; target: number[]; ghosts: number; minutes: boolean }; homes?: () => { shown: number[]; room: number[]; rising: number }; preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean }; life?: () => { cases: number; bikes: number; figures: number; shadows: boolean; ratio: number; heard: { running: boolean; brakes: number; departs: number; calls: number; birds: number }; pools: number; lamplight: number; works: [number, number] | null; beacons: number; expresses: number };
+      weather?: () => { now: string; rain: number; snow: number; fog: number; cover: number; wet: number; settle: number; season: number; falling: boolean; brollies: number; trees: number; fogFar: number; patter: number } };
   }
 }
 
@@ -67,6 +74,8 @@ const saved = store.load();
 // a page opened by a check sets window.__seed so a new game repeats; players get a fresh seed
 const seed = typeof window.__seed === 'number' ? window.__seed : undefined;
 let sim = new Sim(net, saved ? saved.g : Sim.fresh(net, seed));
+if (window.__day && !saved) { sim.g.t += (window.__day - 1) * 86400 / TUNING.dayRate; sim.g.day = window.__day; }
+if (window.__weather) Object.assign(sim.g.weather, { now: window.__weather, was: window.__weather, until: sim.g.t + 3600 });
 let speed = 1;
 // the hour the light is locked to for a look around, or null to follow the game's clock; a screenshot can preset it
 let lockHour: number | null = window.__lockHour ?? null;
@@ -106,6 +115,9 @@ const view = {
     pools: pax.layers.reduce((n, L) => n + L.pools.count, 0), lamplight: pax.lamplight, works: trains.eng.visible ? [trains.eng.children[0]!.position.x, trains.eng.children[0]!.position.z] as [number, number] : null, beacons: trains.beacons.count, expresses: sim.g.trains.filter(t => t.state !== 'away' && sim.svc(t.svc).express).length }),
 };
 window.__view = view;
+// the weather as drawn: the spell and its shares, what's falling, umbrellas up, the trees, how far the fog lets you see
+Object.assign(view, { weather: () => ({ now: sim.g.weather.now, ...weather.look, season: Math.floor(weather.look.year * 4) % 4, falling: weather.falling(), brollies: pax.layers.reduce((n, L) => n + L.brollies.count, 0),
+  trees: weather.trees.count, fogFar: scene.fog instanceof THREE.Fog ? scene.fog.far : 0, patter: sound.heard.patter }) });
 const partBox = new THREE.Box3();
 /** Preview an upgrade at a station on the map (or stop), and put the camera on what it adds. */
 function preview(i: number | null, id: string | null): void {
@@ -146,6 +158,8 @@ function showLine(id: string | null, bought = false): void {
   const m = trains.meshes[k]; if (m) frameBox(trainBox.setFromObject(m));
 }
 const sky = new Sky(scene, sun, lineMiddle());
+const weather = new WeatherLayer(scene, net, world);
+if (window.__weather) weather.settled(window.__weather);
 
 // ---- settings: sound, and graphics for older phones (kept on the device, never in the save) ----
 let prefs = loadPrefs();
@@ -158,7 +172,7 @@ function graphics(p: Prefs, was: Prefs | null): void {
     renderer.shadowMap.enabled = p.shadows;
     if (was) scene.traverse(o => { if (o instanceof THREE.Mesh) for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.needsUpdate = true; });
   }
-  pax.setFewer(p.fewer);
+  pax.setFewer(p.fewer); weather.setLow(p.fewer); weather.setFair(!p.weather);
   renderer.setPixelRatio(p.sharp ? Math.min(2, window.devicePixelRatio || 1) : 1);
 }
 graphics(prefs, null);
@@ -258,8 +272,11 @@ function frame(now: number): void {
   const dtGame = dt * GAME_PER_REAL * speed;
   sim.advance(dtGame);
   resize(); rig.update(dt);
-  const light = lighting(lockHour ?? sim.hour(), rig.o);
+  // the light follows the season: a long summer day, an early winter dusk
+  const light = lighting(solarHour(lockHour ?? sim.hour(), yearAt(sim.g.t)), rig.o);
   sky.update(light.horizon, light.daylight, camera, dt);
+  weather.update(sim.g, sky, sun, scene.fog instanceof THREE.Fog ? scene.fog : null, rig.o, dt, dtGame);
+  pax.setRain(0.8 * weather.look.rain + 0.3 * weather.look.snow); sound.setWeather(weather.look.rain, weather.look.snow);
   sound.update(sim, rig.o, light.daylight, stationsXZ, trains.meshes, realDt); pax.setDaylight(light.daylight);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
   syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt); trains.sync(sim, dtGame); pax.sync(sim.g, dtGame); labels();

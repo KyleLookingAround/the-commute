@@ -12,6 +12,8 @@ const FALLBACK = {
   locked: '#6e7894', pax: '#f2b63a', 'pax-glow': '#6a4a10', 'pax-head': '#f3d9b8', 'pax-2': '#3f6fd8', 'pax-3': '#d84a3f', 'pax-4': '#5e6168', column: '#9c2b2b', pyramid: '#3f8fd8', 'pyramid-glow': '#0d2a4a', house: '#8a5f50',
   coin: '#f5c542', 'coin-glow': '#5a3f08', 'win-empty': '#9db8cc', 'win-busy': '#ffd27a', late: '#ff8a1c', ghost: '#4fdcff',
   signal: '#1d2128', 'signal-green': '#3dff7a', board: '#f7f7f2', 'board-ink': '#14161a',
+  'board-led': '#ffb52e', 'shop-lit': '#ffe2a6', shutter: '#9aa3ad', 'bay-line': '#eeeeea',
+  'car-1': '#c8283a', 'car-2': '#2a5cb0', 'car-3': '#c9ccd1', 'car-4': '#f4f4f0', 'car-5': '#2b2e35', 'car-6': '#3a8a55',
 };
 const NUMBERS = { 'house-sat': 0.45, 'tower-sat': 0.15, 'house-light': 0.42, 'tower-light': 0.5 };
 

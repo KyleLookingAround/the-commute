@@ -1,6 +1,6 @@
 {
   "id": "davenport",
-  "note": "From the OpenStreetMap export (11 October 2026), 1.25 times real across the line like the tracks: two side platforms on the Hazel Grove line, 2.1 m outside its two tracks, the footbridge and steps at the north end, Bramhall Lane over the line just beyond it, and the booking office up at street level beside the bridge on the east side. Positive v is east. The cutting walls are low because the ground here isn't cut away. Shelters, canopy and lamps are from memory.",
+  "note": "From the OpenStreetMap export (11 October 2026), 1.25 times real across the line like the tracks: two side platforms on the Hazel Grove line, 2.1 m outside its two tracks, the footbridge and steps at the north end, Bramhall Lane over the line just beyond it, and the booking office up at street level beside the bridge on the east side. Positive v is east. The cutting walls are low because the ground here isn't cut away. Shelters, canopy and lamps are from memory. Departure boards on each platform and by the steps to the booking office; Sheffield stands on the platform by the footbridge with it (from memory).",
   "platformLength": 150,
   "faces": { "north": { "v": -3.1, "u0": -95, "u1": 50 }, "south": { "v": 7.5, "u0": -95, "u1": 48 } },
   "parts": [
@@ -29,6 +29,12 @@
     { "type": "footprint", "outline": [[56.6, 13.5], [62.5, 13.5], [62.5, 18.3], [56.6, 18.3]], "y0": 0, "y1": 9.5, "mat": "brick", "upgrade": "building" },
     { "type": "box", "u0": 56, "u1": 63, "v0": 13, "v1": 18.8, "y0": 9.5, "y1": 10.3, "mat": "roof", "upgrade": "building" },
     { "type": "box", "u0": -150, "u1": 54, "v0": -9, "v1": -7.5, "y0": 0, "y1": 2.6, "mat": "brickDark", "scenery": true },
-    { "type": "box", "u0": -150, "u1": 54, "v0": 12, "v1": 13.5, "y0": 0, "y1": 2.6, "mat": "brickDark", "scenery": true }
+    { "type": "box", "u0": -150, "u1": 54, "v0": 12, "v1": 13.5, "y0": 0, "y1": 2.6, "mat": "brickDark", "scenery": true },
+    { "type": "board", "u": 0, "v": -4.6, "serves": "north" },
+    { "type": "board", "u": -30, "v": 9, "serves": "south", "upgrade": "platform2" },
+    { "type": "board", "u": 36, "v": -4.6, "serves": "both", "upgrade": "building" },
+    { "type": "lamps", "u0": -135, "u1": -110, "v": -4.6, "every": 25, "upgrade": "extend" },
+    { "type": "lamps", "u0": -135, "u1": -110, "v": 9, "every": 25, "upgrade": ["extend", "platform2"] },
+    { "type": "cycles", "u": 26, "v": -6.4, "n": 4, "y": 1, "upgrade": "crossing" }
   ]
 }

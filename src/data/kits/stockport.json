@@ -1,6 +1,6 @@
 {
   "id": "stockport",
-  "note": "From the OpenStreetMap export (tools/osm-to-kit.mjs and the corridor's tracks, 8 October 2026), 1.25 times real across the line like the tracks: island 3/4 between platform 4 (the stopper to Manchester, turning round) and platform 3, with bay 3a cut into its north end; island 1/2 beyond the fast lines, with platform 1 on its far side where the Hazel Grove line turns round, so passengers changing between the two walk through the subway; the platform 0 bay outside it; the carriage sidings and the Edgeley lines to the west; No.1 signal box on the end of island 3/4 and No.2 between the lines at the north end. Positive v is east (Station Road, Grand Central). The island buildings are set back from platform 4's edge to leave room to wait, from memory. Photos: platform 4's long canopy on slim red columns, the glass entrance with a curved roof on Station Road, a long brick retaining wall along the Station Road approach, and the Network Rail depot south of the station. It starts as a halt: a strip of island 3/4 along platform 4 with a shelter and lamps. The subway, then platform 3 (the rest of the island, and room for a second train to turn), the booking hall (the island's buildings and the Station Road building), and platforms 0, 1 and 2 build it up; the sidings, signal boxes, depot, walls and car park are scenery.",
+  "note": "From the OpenStreetMap export (tools/osm-to-kit.mjs and the corridor's tracks, 8 October 2026), 1.25 times real across the line like the tracks: island 3/4 between platform 4 (the stopper to Manchester, turning round) and platform 3, with bay 3a cut into its north end; island 1/2 beyond the fast lines, with platform 1 on its far side where the Hazel Grove line turns round, so passengers changing between the two walk through the subway; the platform 0 bay outside it; the carriage sidings and the Edgeley lines to the west; No.1 signal box on the end of island 3/4 and No.2 between the lines at the north end. Positive v is east (Station Road, Grand Central). The island buildings are set back from platform 4's edge to leave room to wait, from memory. Photos: platform 4's long canopy on slim red columns, the glass entrance with a curved roof on Station Road, a long brick retaining wall along the Station Road approach, and the Network Rail depot south of the station. It starts as a halt: a strip of island 3/4 along platform 4 with a shelter and lamps. The subway, then platform 3 (the rest of the island, and room for a second train to turn), the booking hall (the island's buildings and the Station Road building), and platforms 0, 1 and 2 build it up; the sidings, signal boxes, depot, walls and car park are scenery. Departure boards on platforms 4, 3 and 1 and over the Station Road entrance; cars on the roof deck of the multi-storey car park, and Sheffield stands by the Station Road entrance (from memory) with the booking hall.",
   "platformLength": 290,
   "faces": { "north": { "v": 3.85, "u0": -150, "u1": 125, "depth": 4 }, "south": { "v": 74.8, "u0": -120, "u1": 130, "depth": 5 } },
   "parts": [
@@ -54,6 +54,15 @@
     { "type": "box", "u0": -220, "u1": -10, "v0": 116.5, "v1": 118.5, "y0": 0, "y1": 7, "mat": "brickDark", "scenery": true },
     { "type": "footprint", "outline": [[-115, 134], [-21, 134], [-21, 179], [-115, 179]], "y0": 0, "y1": 9, "mat": "concrete", "scenery": true },
     { "type": "box", "u0": -330, "u1": -240, "v0": -128, "v1": -104, "y0": 0, "y1": 8, "mat": "steel", "scenery": true },
-    { "type": "box", "u0": -332, "u1": -238, "v0": -130, "v1": -102, "y0": 8, "y1": 9, "mat": "roof", "scenery": true }
+    { "type": "box", "u0": -332, "u1": -238, "v0": -130, "v1": -102, "y0": 8, "y1": 9, "mat": "roof", "scenery": true },
+    { "type": "board", "u": 55, "v": 5.35, "serves": "north" },
+    { "type": "board", "u": 60, "v": 12, "serves": "north", "upgrade": "platform2" },
+    { "type": "board", "u": 45, "v": 61.75, "serves": "south", "upgrade": "platforms" },
+    { "type": "board", "u": 24, "v": 116.4, "serves": "both", "y": 5.4, "wall": true, "upgrade": "building" },
+    { "type": "lamps", "u0": -200, "u1": -170, "v": 5.5, "every": 30, "upgrade": "extend" },
+    { "type": "lamps", "u0": -200, "u1": -170, "v": 26, "every": 30, "upgrade": ["extend", "platform2"] },
+    { "type": "lamps", "u0": -175, "u1": -145, "v": 61.75, "every": 30, "upgrade": ["extend", "platforms"] },
+    { "type": "carpark", "u0": -113, "u1": -23, "v0": 136, "v1": 177, "y": 9, "deck": true },
+    { "type": "cycles", "u": 46, "v": 120, "n": 8, "upgrade": "building" }
   ]
 }

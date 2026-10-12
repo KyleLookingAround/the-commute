@@ -1,6 +1,6 @@
 {
   "id": "heaton-chapel",
-  "note": "From an OpenStreetMap export (tools/osm-to-kit.mjs, 8 October 2026): the platform lengths, the Heaton Moor Road bridge over the line at the south end that the entrances hang off, and the Station Store beside it. Side platforms stand 2.1 m outside the slow lines, the real tracks 1.25 times real across; the cutting walls are low because the ground here isn't cut away. Positive v is east. Photos: the station sits in a deep brick cutting with retaining walls both sides, a Victorian red-brick two-storey building with arched windows on the Manchester-bound platform by the bridge, and blue glazed shelters.",
+  "note": "From an OpenStreetMap export (tools/osm-to-kit.mjs, 8 October 2026): the platform lengths, the Heaton Moor Road bridge over the line at the south end that the entrances hang off, and the Station Store beside it. Side platforms stand 2.1 m outside the slow lines, the real tracks 1.25 times real across; the cutting walls are low because the ground here isn't cut away. Positive v is east. Photos: the station sits in a deep brick cutting with retaining walls both sides, a Victorian red-brick two-storey building with arched windows on the Manchester-bound platform by the bridge, and blue glazed shelters. Departure boards on each platform and by the booking office; Sheffield stands near the footbridge with it (from memory).",
   "platformLength": 160,
   "faces": { "north": { "v": -7.7, "u0": -65, "u1": 85 }, "south": { "v": 12.9, "u0": -50, "u1": 80 } },
   "parts": [
@@ -31,6 +31,12 @@
     { "type": "box", "u0": -120, "u1": 150, "v0": 26.8, "v1": 28.8, "y0": 0, "y1": 2.6, "mat": "brickDark", "scenery": true },
     { "type": "footprint", "outline": [[-52, 17.9], [-30, 17.9], [-30, 26.4], [-52, 26.4]], "y0": 1, "y1": 9, "mat": "brick", "upgrade": "building" },
     { "type": "box", "u0": -53, "u1": -29, "v0": 17.23, "v1": 27.4, "y0": 9, "y1": 10.2, "mat": "roof", "upgrade": "building" },
-    { "type": "windows", "u0": -49, "u1": -33, "v": 17.83, "ys": [3, 6.6], "every": 4, "upgrade": "building" }
+    { "type": "windows", "u0": -49, "u1": -33, "v": 17.83, "ys": [3, 6.6], "every": 4, "upgrade": "building" },
+    { "type": "board", "u": -30, "v": -9.7, "serves": "north" },
+    { "type": "board", "u": -25, "v": 14.9, "serves": "south", "upgrade": "platform2" },
+    { "type": "board", "u": -50, "v": -9.7, "serves": "both", "upgrade": "building" },
+    { "type": "lamps", "u0": 100, "u1": 125, "v": -9.7, "every": 25, "upgrade": "extend" },
+    { "type": "lamps", "u0": 95, "u1": 120, "v": 14.9, "every": 25, "upgrade": ["extend", "platform2"] },
+    { "type": "cycles", "u": -45, "v": -11.9, "n": 4, "y": 1, "upgrade": "crossing" }
   ]
 }

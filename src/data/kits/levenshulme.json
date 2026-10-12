@@ -1,6 +1,6 @@
 {
   "id": "levenshulme",
-  "note": "From an OpenStreetMap export (tools/osm-to-kit.mjs, 8 October 2026): the platform lengths, the subway at the south end with steps up to each platform, and the station building at the south end on the west side (moved out from between the tracks, where the export puts it, to behind the platform). Side platforms stand 2.1 m outside the slow lines, the real tracks 1.25 times real across. Positive v is east. Photos: the line is on an embankment over the A6 with brick parapets along both platforms, a long flat-roofed brick building and a curved blue glazed shelter at platform level, and the ticket office at street level under the bridge with steps up.",
+  "note": "From an OpenStreetMap export (tools/osm-to-kit.mjs, 8 October 2026): the platform lengths, the subway at the south end with steps up to each platform, and the station building at the south end on the west side (moved out from between the tracks, where the export puts it, to behind the platform). Side platforms stand 2.1 m outside the slow lines, the real tracks 1.25 times real across. Positive v is east. Photos: the line is on an embankment over the A6 with brick parapets along both platforms, a long flat-roofed brick building and a curved blue glazed shelter at platform level, and the ticket office at street level under the bridge with steps up. Departure boards on each platform and by the booking office; Sheffield stands at street level by the building, with the subway (from memory).",
   "platformLength": 150,
   "faces": { "north": { "v": -7.7, "u0": -70, "u1": 65 }, "south": { "v": 12.9, "u0": -70, "u1": 70 } },
   "parts": [
@@ -27,6 +27,12 @@
     { "type": "box", "u0": -90, "u1": -41, "v0": 18.4, "v1": 19.9, "y0": 0, "y1": 2.4, "mat": "brick", "scenery": true },
     { "type": "box", "u0": -5, "u1": 120, "v0": 18.4, "v1": 19.9, "y0": 0, "y1": 2.4, "mat": "brick", "scenery": true },
     { "type": "footprint", "outline": [[-40, 17.9], [-6, 17.9], [-6, 23.4], [-40, 23.4]], "y0": 1, "y1": 5, "mat": "brick", "upgrade": "building" },
-    { "type": "box", "u0": -41, "u1": -5, "v0": 17.57, "v1": 23.9, "y0": 5, "y1": 5.6, "mat": "roof", "upgrade": "building" }
+    { "type": "box", "u0": -41, "u1": -5, "v0": 17.57, "v1": 23.9, "y0": 5, "y1": 5.6, "mat": "roof", "upgrade": "building" },
+    { "type": "board", "u": 0, "v": -9.7, "serves": "north" },
+    { "type": "board", "u": -30, "v": 14.9, "serves": "south", "upgrade": "platform2" },
+    { "type": "board", "u": -42, "v": -9.7, "serves": "both", "upgrade": "building" },
+    { "type": "lamps", "u0": 75, "u1": 100, "v": -9.7, "every": 25, "upgrade": "extend" },
+    { "type": "lamps", "u0": 82, "u1": 110, "v": 14.9, "every": 25, "upgrade": ["extend", "platform2"] },
+    { "type": "cycles", "u": -56, "v": -20, "n": 4, "upgrade": "crossing" }
   ]
 }

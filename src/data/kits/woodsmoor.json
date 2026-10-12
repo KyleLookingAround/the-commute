@@ -1,6 +1,6 @@
 {
   "id": "woodsmoor",
-  "note": "From the OpenStreetMap export (11 October 2026), 1.25 times real across the line like the tracks: two short side platforms on the Hazel Grove line (about 80 m, so a longer train stands off the ends), 2.1 m outside its two tracks, with steps up to Moorland Road over the line at the north end, which is where passengers come and go; the Brethren's meeting room stands to the west. Positive v is east. Shelters, canopy and lamps are from memory.",
+  "note": "From the OpenStreetMap export (11 October 2026), 1.25 times real across the line like the tracks: two short side platforms on the Hazel Grove line (about 80 m, so a longer train stands off the ends), 2.1 m outside its two tracks, with steps up to Moorland Road over the line at the north end, which is where passengers come and go; the Brethren's meeting room stands to the west. Positive v is east. Shelters, canopy and lamps are from memory. The steps climb in flights to Moorland Road, so the way across shows from further out. A departure board on each platform.",
   "platformLength": 80,
   "entrance": 34,
   "faces": { "north": { "v": -3.1, "u0": -45, "u1": 30 }, "south": { "v": 7.5, "u0": -45, "u1": 30 } },
@@ -29,6 +29,20 @@
     { "type": "box", "u0": 69, "u1": 80, "v0": 8, "v1": 26, "y0": 0, "y1": 6.4, "mat": "brickDark", "scenery": true },
     { "type": "footprint", "outline": [[-12.3, -27.8], [-4.6, -27.6], [-4.9, -13.9], [-12.1, -14.1]], "y0": 0, "y1": 6, "mat": "brick", "scenery": true },
     { "type": "box", "u0": -130, "u1": 68, "v0": -9, "v1": -7.5, "y0": 0, "y1": 2.6, "mat": "brickDark", "scenery": true },
-    { "type": "box", "u0": -130, "u1": 68, "v0": 12, "v1": 13.5, "y0": 0, "y1": 2.6, "mat": "brickDark", "scenery": true }
+    { "type": "box", "u0": -130, "u1": 68, "v0": 12, "v1": 13.5, "y0": 0, "y1": 2.6, "mat": "brickDark", "scenery": true },
+    { "type": "board", "u": 18, "v": -4.6, "serves": "north" },
+    { "type": "board", "u": -20, "v": 9, "serves": "south", "upgrade": "platform2" },
+    { "type": "lamps", "u0": -80, "u1": -55, "v": -4.6, "every": 25, "upgrade": "extend" },
+    { "type": "lamps", "u0": -80, "u1": -55, "v": 9, "every": 25, "upgrade": ["extend", "platform2"] },
+    { "type": "box", "u0": 38, "u1": 44, "v0": -7.1, "v1": -4.6, "y0": 0, "y1": 2.3, "mat": "concrete", "upgrade": "crossing" },
+    { "type": "box", "u0": 44, "u1": 50, "v0": -7.1, "v1": -4.6, "y0": 0, "y1": 3.4, "mat": "concrete", "upgrade": "crossing" },
+    { "type": "box", "u0": 50, "u1": 56, "v0": -7.1, "v1": -4.6, "y0": 0, "y1": 4.5, "mat": "concrete", "upgrade": "crossing" },
+    { "type": "box", "u0": 56, "u1": 62, "v0": -7.1, "v1": -4.6, "y0": 0, "y1": 5.6, "mat": "concrete", "upgrade": "crossing" },
+    { "type": "box", "u0": 62, "u1": 68, "v0": -7.1, "v1": -4.6, "y0": 0, "y1": 6.7, "mat": "concrete", "upgrade": "crossing" },
+    { "type": "box", "u0": 39, "u1": 45, "v0": 9, "v1": 11.5, "y0": 0, "y1": 2.3, "mat": "concrete", "upgrade": ["crossing", "platform2"] },
+    { "type": "box", "u0": 45, "u1": 51, "v0": 9, "v1": 11.5, "y0": 0, "y1": 3.4, "mat": "concrete", "upgrade": ["crossing", "platform2"] },
+    { "type": "box", "u0": 51, "u1": 57, "v0": 9, "v1": 11.5, "y0": 0, "y1": 4.5, "mat": "concrete", "upgrade": ["crossing", "platform2"] },
+    { "type": "box", "u0": 57, "u1": 63, "v0": 9, "v1": 11.5, "y0": 0, "y1": 5.6, "mat": "concrete", "upgrade": ["crossing", "platform2"] },
+    { "type": "box", "u0": 63, "u1": 69, "v0": 9, "v1": 11.5, "y0": 0, "y1": 6.7, "mat": "concrete", "upgrade": ["crossing", "platform2"] }
   ]
 }

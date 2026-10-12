@@ -1,6 +1,6 @@
 {
   "id": "hazel-grove",
-  "note": "From the OpenStreetMap export (11 October 2026), 1.25 times real across the line like the tracks: two side platforms running 160 m north from the station's point (trains stop 70 m along to stand at them), 2.1 m outside the Hazel Grove line's tracks, the footbridge between them, a second footbridge at the north end, the signal box and the station building on the east side (set behind its platform, from memory), and the Chester Road bridge over the line to the south. Positive v is east. Shelters, canopy and lamps are from memory.",
+  "note": "From the OpenStreetMap export (11 October 2026), 1.25 times real across the line like the tracks: two side platforms running 160 m north from the station's point (trains stop 70 m along to stand at them), 2.1 m outside the Hazel Grove line's tracks, the footbridge between them, a second footbridge at the north end, the signal box and the station building on the east side (set behind its platform, from memory), and the Chester Road bridge over the line to the south. Positive v is east. Shelters, canopy and lamps are from memory. Departure boards on each platform and by the station building; the large car park east of the station (placed by eye) and Sheffield stands by the building with the footbridge (from memory).",
   "platformLength": 175,
   "faces": { "north": { "v": -7.5, "u0": 0, "u1": 150 }, "south": { "v": 3.1, "u0": 0, "u1": 150 } },
   "parts": [
@@ -33,6 +33,13 @@
     { "type": "box", "u0": -87, "u1": -75, "v0": -30, "v1": -9.5, "y0": 0, "y1": 6.4, "mat": "brickDark", "scenery": true },
     { "type": "box", "u0": -87, "u1": -75, "v0": 7, "v1": 30, "y0": 0, "y1": 6.4, "mat": "brickDark", "scenery": true },
     { "type": "box", "u0": -40, "u1": 210, "v0": -14.5, "v1": -13, "y0": 0, "y1": 2.6, "mat": "brickDark", "scenery": true },
-    { "type": "box", "u0": 10, "u1": 210, "v0": 20.5, "v1": 22, "y0": 0, "y1": 2.6, "mat": "brickDark", "scenery": true }
+    { "type": "box", "u0": 10, "u1": 210, "v0": 20.5, "v1": 22, "y0": 0, "y1": 2.6, "mat": "brickDark", "scenery": true },
+    { "type": "board", "u": 103, "v": -9.5, "serves": "north" },
+    { "type": "board", "u": 95, "v": 5.1, "serves": "south", "upgrade": "platform2" },
+    { "type": "board", "u": 15, "v": 5.1, "serves": "both", "upgrade": "building" },
+    { "type": "lamps", "u0": 165, "u1": 195, "v": -9.5, "every": 25, "upgrade": "extend" },
+    { "type": "lamps", "u0": 165, "u1": 195, "v": 5.1, "every": 25, "upgrade": ["extend", "platform2"] },
+    { "type": "carpark", "u0": 20, "u1": 125, "v0": 24, "v1": 62 },
+    { "type": "cycles", "u": 9, "v": 23, "n": 5, "upgrade": "crossing" }
   ]
 }

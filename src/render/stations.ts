@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { MAT, PAL, box, boxUV, matFor } from './scene.ts';
 import { yawFor } from './world.ts';
+import { buildBoard, buildCarPark, buildCycles, buildShop, emptyLive, type Live } from './life.ts';
 import type { Network } from '../sim/network.ts';
 import type { GameState, Station } from '../sim/types.ts';
 
@@ -37,7 +38,14 @@ export type Part =
   | (Gated & { type: 'subway'; u: number; platforms: [number, number][] })
   /** A track no service runs on (a siding, a bay, a goods line), ballast and rails through (u, v) points in order;
    * a buffer stop at the first point when `buffer` is set. */
-  | (Gated & { type: 'rails'; points: [number, number][]; buffer?: boolean });
+  | (Gated & { type: 'rails'; points: [number, number][]; buffer?: boolean })
+  /** A departure board listing the next trains towards Manchester (north), away (south) or both: on two posts over a
+   * platform (its base at y, 1 m if not given), or fixed to a wall at y; facing across the line, or along it. */
+  | (Gated & { type: 'board'; u: number; v: number; serves: 'north' | 'south' | 'both'; y?: number; wall?: boolean; along?: boolean })
+  /** A car park that fills with the hour and how busy the station is: tarmac and bays at y, or bays on a deck. */
+  | (Gated & Footprint & { type: 'carpark'; y?: number; deck?: boolean })
+  /** n Sheffield stands in a row from (u, v), along the line or across it, with bikes that come and go. */
+  | (Gated & { type: 'cycles'; u: number; v: number; n: number; y?: number; across?: boolean });
 export type PartType = Part['type'];
 /** Where each direction's passengers wait: from a line at v (near the platform edge) from u0 to u1, back into the
  * platform as far as depth (4 m if not given). */
@@ -46,7 +54,10 @@ export interface Face { v: number; u0: number; u1: number; depth?: number }
  * (a terminus's concourse at the buffer-stop end). */
 export interface Kit { id: string; note?: string; platformLength?: number; entrance?: number; faces: { north: Face; south: Face }; parts: Part[] }
 
-type Builders = { [K in PartType]: (gp: THREE.Group, p: Extract<Part, { type: K }>) => void };
+/** live: the station's parts that move with the sim (boards, car parks, racks, shops), for StationLife (life.ts). */
+type Builders = { [K in PartType]: (gp: THREE.Group, p: Extract<Part, { type: K }>, live: Live) => void };
+/** A cosmetic number for a part from where it stands, so each car park and rack fills in its own order. */
+const seedOf = (u: number, v: number) => Math.round(u * 31 + v * 17);
 const partBuilders: Builders = {
   platform(gp, p) {
     const mat = matFor(p.mat, MAT.platform);
@@ -82,10 +93,11 @@ const partBuilders: Builders = {
   },
   stairs(gp, p) { box(gp, 10, 5, 4.5, MAT.concrete, p.u, 3.5, p.v); },
   lifts(gp, p) { for (const tv of p.towers) { box(gp, 3.2, 9.5, 3.2, MAT.glass, p.u + 7, 4.75, tv); box(gp, 3.6, 0.4, 3.6, MAT.roof, p.u + 7, 9.7, tv); } },
-  retail(gp, p) {
+  retail(gp, p, live) {
+    // lit inside while it's open, shuttered at night, a queue outside when the station's busy (life.ts)
     const w = p.small ? 3 : 8, d = p.small ? 2.2 : 5;
     box(gp, w, 2.8, d, MAT.timber, p.u, 1.4 + (p.y || 0), p.v); box(gp, w + 0.6, 0.3, d + 0.6, MAT.roof, p.u, 2.95 + (p.y || 0), p.v);
-    box(gp, w - 0.6, 1.2, 0.1, MAT.glow, p.u, 1.8 + (p.y || 0), p.v + d / 2 + 0.02);
+    buildShop(gp, p, w, d, live, seedOf(p.u, p.v));
   },
   barriers(gp, p) { for (let u = p.u0; u <= p.u1; u += 2) box(gp, 0.3, 1.1, 1.6, MAT.steel, u, 0.55 + (p.y || 0), p.v); box(gp, p.u1 - p.u0, 0.1, 0.4, MAT.glow, (p.u0 + p.u1) / 2, 1.1 + (p.y || 0), p.v); },
   signalbox(gp, p) {
@@ -122,9 +134,12 @@ const partBuilders: Builders = {
     const first = p.points[0];
     if (p.buffer && first) box(gp, 0.8, 1.2, 3, MAT.brickDark, first[0], 0.6, first[1]);
   },
+  board(gp, p, live) { buildBoard(gp, p, live); },
+  carpark(gp, p, live) { buildCarPark(gp, p, live, seedOf(p.u0, p.v0)); },
+  cycles(gp, p, live) { buildCycles(gp, p, live, seedOf(p.u, p.v)); },
 };
 // the builders are keyed by the part's type, so the one looked up always takes the part; the cast says so once
-const build = (part: Part, into: THREE.Group) => (partBuilders[part.type] as (gp: THREE.Group, p: Part) => void)(into, part);
+const build = (part: Part, into: THREE.Group, live: Live) => (partBuilders[part.type] as (gp: THREE.Group, p: Part, live: Live) => void)(into, part, live);
 
 /** A group of parts shown together: when all of `needs` are bought and `until` isn't. shown: whether it showed last
  * sync; rise: how far through rising into place it is (1 once it stands); ghost: drawn as a preview of buying it. */
@@ -133,7 +148,7 @@ interface Gate { group: THREE.Group; needs: string[]; until: string | null; show
  * where the label floats. rise: how far the halt is through rising into place once bought. */
 export interface BuiltStation {
   station: Station; kit: Kit; group: THREE.Group; fixed: THREE.Group;
-  gated: Gate[]; label: THREE.Object3D; lockedNow: boolean | null; rise: number;
+  gated: Gate[]; label: THREE.Object3D; lockedNow: boolean | null; rise: number; live: Live;
 }
 
 export function buildStations(scene: THREE.Scene, net: Network, kits: Record<string, Kit>): BuiltStation[] {
@@ -141,21 +156,21 @@ export function buildStations(scene: THREE.Scene, net: Network, kits: Record<str
     const kit = kits[st.kit]; if (!kit) throw new Error(`no kit "${st.kit}" for ${st.name}`);
     const frame = net.stationFrame(st.id);
     const gp = new THREE.Group(); gp.position.set(frame.x, 0, frame.z); gp.rotation.y = yawFor(frame); scene.add(gp);
-    const fixed = new THREE.Group(), scenery = new THREE.Group(), gates = new Map<string, Gate>(); gp.add(fixed); gp.add(scenery);
+    const fixed = new THREE.Group(), scenery = new THREE.Group(), gates = new Map<string, Gate>(), live = emptyLive(); gp.add(fixed); gp.add(scenery);
     for (const part of kit.parts) {
       if (!(part.type in partBuilders)) { console.warn('unknown part', part.type); continue; }
       const needs = part.upgrade === undefined ? [] : Array.isArray(part.upgrade) ? part.upgrade : [part.upgrade];
-      if (part.scenery) build(part, scenery);
+      if (part.scenery) build(part, scenery, live);
       else if (needs.length || part.until) {
         const key = `${needs.join('+')}|${part.until ?? ''}`;
         let gate = gates.get(key);
         if (!gate) { gate = { group: new THREE.Group(), needs, until: part.until ?? null, shown: false, rise: 1, ghost: false }; gate.group.visible = false; gp.add(gate.group); gates.set(key, gate); }
-        build(part, gate.group);
-      } else build(part, fixed);
+        build(part, gate.group, live);
+      } else build(part, fixed, live);
     }
     const gated = [...gates.values()];
     const label = new THREE.Object3D(); label.position.set(0, 14, 0); gp.add(label);
-    return { station: st, kit, group: gp, fixed, gated, label, lockedNow: null, rise: 1 };
+    return { station: st, kit, group: gp, fixed, gated, label, lockedNow: null, rise: 1, live };
   });
 }
 

@@ -1,6 +1,6 @@
 {
   "id": "piccadilly",
-  "note": "From the OpenStreetMap export (the corridor's tracks and platforms, 8 October 2026), 1.25 times real across the line like the tracks: bays 1 to 12 run back from the buffer stops at about u = 40, platform 5 (the stopper, turning round) and 6 (the expresses) on the corridor, the rest laid parallel to it as islands 2/3, 4/5, 6/7, 8/9 and the single platforms 1, 10, 11 and 12, their tracks fanning into the throat. The bays really splay; they're drawn parallel. Platforms 13 and 14, on the line to Oxford Road, aren't drawn yet. Trains stop 35 m short of the station's point so the longest unit clears the buffers. Positive v is east (London Road side). Photos: the great glazed arched train shed over the bays, and canopies on columns along the platforms that run out beyond it. It starts as a halt: a strip of the island along platform 5 with lamps. The concourse (with room for barriers and the food hall), then the train shed and the other bays, build it up; the tracks are scenery.",
+  "note": "From the OpenStreetMap export (the corridor's tracks and platforms, 8 October 2026), 1.25 times real across the line like the tracks: bays 1 to 12 run back from the buffer stops at about u = 40, platform 5 (the stopper, turning round) and 6 (the expresses) on the corridor, the rest laid parallel to it as islands 2/3, 4/5, 6/7, 8/9 and the single platforms 1, 10, 11 and 12, their tracks fanning into the throat. The bays really splay; they're drawn parallel. Platforms 13 and 14, on the line to Oxford Road, aren't drawn yet. Trains stop 35 m short of the station's point so the longest unit clears the buffers. Positive v is east (London Road side). Photos: the great glazed arched train shed over the bays, and canopies on columns along the platforms that run out beyond it. It starts as a halt: a strip of the island along platform 5 with lamps. The concourse (with room for barriers and the food hall), then the train shed and the other bays, build it up; the tracks are scenery. A departure board on platform 5 and over the concourse end facing the platforms; the multi-storey car park on the London Road side with cars on its roof deck, and the cycle hub outside the concourse with it (both from memory, placed by eye).",
   "platformLength": 290,
   "entrance": 38,
   "faces": { "north": { "v": 3, "u0": -260, "u1": 30, "depth": 3 }, "south": { "v": 3, "u0": -260, "u1": 30, "depth": 3 } },
@@ -46,6 +46,12 @@
     { "type": "rails", "points": [[41, 13.25], [-230, 13.25], [-560, 4.4]], "buffer": true, "scenery": true },
     { "type": "rails", "points": [[43, 18.6], [-220, 18.6], [-560, 4.4]], "buffer": true, "scenery": true },
     { "type": "rails", "points": [[44, 29.6], [-220, 29.6], [-560, 4.4]], "buffer": true, "scenery": true },
-    { "type": "rails", "points": [[46, 34.5], [-220, 34.5], [-560, 4.4]], "buffer": true, "scenery": true }
+    { "type": "rails", "points": [[46, 34.5], [-220, 34.5], [-560, 4.4]], "buffer": true, "scenery": true },
+    { "type": "board", "u": -55, "v": 4.35, "serves": "south" },
+    { "type": "board", "u": 39.4, "v": -20, "serves": "both", "y": 6, "wall": true, "along": true, "upgrade": "building" },
+    { "type": "lamps", "u0": -330, "u1": -305, "v": 5.5, "every": 30, "upgrade": "extend" },
+    { "type": "box", "u0": 48, "u1": 104, "v0": 60, "v1": 108, "y0": 0, "y1": 12, "mat": "concrete", "scenery": true },
+    { "type": "carpark", "u0": 49, "u1": 103, "v0": 61, "v1": 107, "y": 12, "deck": true },
+    { "type": "cycles", "u": 100, "v": 0, "n": 8, "across": true, "upgrade": "building" }
   ]
 }

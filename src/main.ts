@@ -59,7 +59,7 @@ declare global {
     __orbit?: Partial<import('./render/camera.ts').Orbit>;
     /** For the checks: how many groups of parts the preview shows, how many are still rising into place, and how many
      * times the camera has framed something (a card's parts, a Built chip's, a train). */
-    __view?: { reach?: () => { now: number[]; target: number[]; ghosts: number; minutes: boolean }; homes?: () => { shown: number[]; room: number[]; rising: number }; preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean }; life?: () => { cases: number; bikes: number; figures: number; shadows: boolean; ratio: number; heard: { running: boolean; brakes: number; departs: number; calls: number; birds: number }; pools: number; lamplight: number; works: [number, number] | null; beacons: number; expresses: number };
+    __view?: { perf?: () => { calls: number; triangles: number; geometries: number; textures: number; programs: number; meshes: number; casters: number; first: number; frames: number; sim: number; sync: number; draw: number }; reach?: () => { now: number[]; target: number[]; ghosts: number; minutes: boolean }; homes?: () => { shown: number[]; room: number[]; rising: number }; preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean }; life?: () => { cases: number; bikes: number; figures: number; shadows: boolean; ratio: number; heard: { running: boolean; brakes: number; departs: number; calls: number; birds: number }; pools: number; lamplight: number; works: [number, number] | null; beacons: number; expresses: number };
       camera?: () => import('./render/camera.ts').Orbit & { above: number; fromLine: number; flying: boolean; riding: number; moves: number; compass: boolean; along: number };
       spot?: (kind: 'station' | 'train', i: number) => [number, number] | null; under?: (x: number, y: number) => [number, number] | null;
       weather?: () => { now: string; rain: number; snow: number; fog: number; cover: number; wet: number; settle: number; season: number; falling: boolean; brollies: number; trees: number; fogFar: number; patter: number } };
@@ -357,10 +357,23 @@ document.documentElement.dataset['sim'] = 'ready';   // the checks wait for this
 
 // ---- loop ----
 let prev = performance.now(), uiAcc = 0, saveAcc = 0;
+// what the frames cost, for the perf check: when the first was drawn, and the script time in the sim, the view's sync
+// and the draw, summed over every frame since (read by window.__view.perf; nothing here allocates). renderer.info is
+// reset by hand before each frame, since its own reset comes after the shadows are drawn and would leave them out
+const cost = { first: 0, frames: 0, sim: 0, sync: 0, draw: 0 };
+renderer.info.autoReset = false;
+Object.assign(view, { perf: () => {
+  let meshes = 0, casters = 0;
+  scene.traverse(o => { if (o instanceof THREE.Mesh && o.visible) { meshes++; if (o.castShadow) casters++; } });
+  const r = renderer.info.render, m = renderer.info.memory;
+  return { calls: r.calls, triangles: r.triangles, geometries: m.geometries, textures: m.textures, programs: renderer.info.programs?.length ?? 0, meshes, casters, ...cost };
+} });
 function frame(now: number): void {
+  const t0 = performance.now();
   const realDt = (now - prev) / 1000, dt = Math.min(0.1, realDt); prev = now;
   const dtGame = dt * GAME_PER_REAL * speed;
   sim.advance(dtGame);
+  const t1 = performance.now();
   resize(); rig.update(dt); pointNorth();
   // the light follows the season: a long summer day, an early winter dusk
   const light = lighting(solarHour(lockHour ?? sim.hour(), yearAt(sim.g.t)), rig.o);
@@ -373,7 +386,11 @@ function frame(now: number): void {
   life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim);
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); followGlide(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
-  renderer.render(scene, camera);
+  const t2 = performance.now();
+  renderer.info.reset(); renderer.render(scene, camera);
+  const t3 = performance.now();
+  if (!cost.frames) cost.first = t3;
+  cost.frames++; cost.sim += t1 - t0; cost.sync += t2 - t1; cost.draw += t3 - t2;
   requestAnimationFrame(frame);
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });

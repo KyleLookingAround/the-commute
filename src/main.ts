@@ -28,6 +28,7 @@ import { HomesLayer } from './render/homes.ts';
 import { Sky } from './render/sky.ts';
 import { Sound } from './render/sound.ts';
 import { Settings } from './ui/settings.ts';
+import { fullScreen } from './ui/fullscreen.ts';
 import { loadPrefs, savePrefs, type Prefs } from './app/prefs.ts';
 import { UI, fmt } from './ui/panel.ts';
 import type { Els } from './ui/panel.ts';
@@ -166,6 +167,8 @@ new Settings(el<HTMLButtonElement>('vSet'), prefs, p => {
   sound.setVolume(p.volume); if (p.sound !== was.sound) sound.setOn(p.sound);
   graphics(p, was);
 });
+
+fullScreen(el<HTMLButtonElement>('vFull'));
 
 // ---- labels ----
 const lblBox = el('lbls');

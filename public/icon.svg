@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- The Commute: a train in departure-board amber on a brick viaduct, in the game's daylight sky -->
+  <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3d84d6"/><stop offset="1" stop-color="#9ccbee"/></linearGradient></defs>
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <circle cx="372" cy="138" r="44" fill="#fff3c4"/>
+  <rect y="402" width="512" height="110" fill="#5a9a44"/>
+  <path d="M0 286h512v130H0z" fill="#a85a3e"/>
+  <path d="M40 416v-50a40 40 0 0 1 80 0v50zM166 416v-50a40 40 0 0 1 80 0v50zM292 416v-50a40 40 0 0 1 80 0v50zM418 416v-50a40 40 0 0 1 80 0v50z" fill="#3a6fa8"/>
+  <rect y="278" width="512" height="14" fill="#7a4030"/>
+  <rect y="270" width="512" height="8" fill="#e4e7ec"/>
+  <path d="M96 270v-74q0-22 22-22h236q50 0 64 50l10 46z" fill="#f2b63a"/>
+  <path d="M128 192h48v36h-48zM196 192h48v36h-48zM264 192h48v36h-48zM336 192h22q30 0 40 36h-62z" fill="#0c1020"/>
+  <rect x="96" y="242" width="332" height="10" fill="#0c1020"/>
+</svg>

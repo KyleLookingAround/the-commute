@@ -18,6 +18,8 @@ const FALLBACK = {
   'board-led': '#ffb52e', 'shop-lit': '#ffe2a6', shutter: '#9aa3ad', 'bay-line': '#eeeeea',
   'cab': '#1f2126', 'cab-sign': '#ffc928', 'cab-bay': '#f2d23c',
   hazard: '#ffa21a', bus: '#2f7fd6', 'bus-band': '#ffd23f', 'bus-stop': '#d8322f',
+  'suit-1': '#2c3a5c', 'suit-2': '#45474f', 'suit-3': '#b98a5a', cyclist: '#b5e32b', bike: '#d0402f', case: '#e86a9a', 'case-2': '#3fb6c4',
+  'kit-city': '#7ec3ee', 'kit-united': '#d8262f', 'kit-county': '#1f55b5',
   'car-1': '#c8283a', 'car-2': '#2a5cb0', 'car-3': '#c9ccd1', 'car-4': '#f4f4f0', 'car-5': '#2b2e35', 'car-6': '#3a8a55',
 };
 const NUMBERS = { 'house-sat': 0.45, 'tower-sat': 0.15, 'house-light': 0.42, 'tower-light': 0.5 };

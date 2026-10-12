@@ -349,7 +349,7 @@ const partBuilders: Builders = {
 // ---- the contract's plaque ----
 // One part, by Stockport's entrance: a brass plate on a sandstone pier that reads the contract's number, with a line
 // for each contract renewed; the plate and its pier grow a line taller each time. Drawn on a canvas where there is one.
-const PLAQUE_W = 2.6, PLAQUE_HEAD = 0.75, PLAQUE_LINE = 0.32, PLAQUE_PX = 160;
+const PLAQUE_W = 5, PLAQUE_HEAD = 1.4, PLAQUE_LINE = 0.6, PLAQUE_PX = 84;
 interface Plaque { group: THREE.Group; pier: THREE.Mesh; plate: THREE.Mesh; canvas: HTMLCanvasElement | null; tex: THREE.CanvasTexture | null }
 const PLAQUES: Plaque[] = [];
 /** Show the plaques reading `head` over `lines` (one for each contract renewed), or hide them (null: no contract

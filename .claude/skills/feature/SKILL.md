@@ -5,7 +5,7 @@ description: Build a feature or change for The Commute from issue to merged PR -
 
 # Building a change
 
-> **Prototype phase** (the project notes, "Phase: prototype"): push straight to `main`; the spec, brief, PR and look back here are optional until the first release. Keep the rules the build enforces, the owner's preferences and the tests.
+> **Prototype phase** (the project notes, "Phase: prototype"): push straight to `main`; the spec, brief, PR and look back here are optional until the first release, and so is the full `npm run check` before a push: `npm run rules` and `npm test` are enough, since `main` is checked after it deploys and a red run is fixed in the next push. Keep the rules the build enforces, the owner's preferences and the tests.
 
 Work through these steps in order. Small fixes (a label, a nit, an obvious bug) can skip the spec; anything a player would notice as new gets one.
 

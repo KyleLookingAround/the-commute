@@ -50,8 +50,9 @@ export type Part =
   | (Gated & Span & { type: 'barriers'; v: number; y?: number })
   | (Gated & { type: 'signalbox'; u: number; v: number })
   | (Gated & Span & { type: 'shed'; v: number; radius: number })
-  /** A building from its real outline: (u, v) corners in order, extruded from y0 to y1. */
-  | (Gated & { type: 'footprint'; outline: [number, number][]; y0: number; y1: number; mat?: string })
+  /** A building from its real outline: (u, v) corners in order, extruded from y0 to y1. floors: that many storeys, each
+   * a band of the material under a band of glass (an office block's ribbon windows, Gateway House's). */
+  | (Gated & { type: 'footprint'; outline: [number, number][]; y0: number; y1: number; mat?: string; floors?: number })
   /** A passage under the line at u: a stair head on each platform it serves (their v extents), with a lit doorway. */
   | (Gated & { type: 'subway'; u: number; platforms: [number, number][] })
   /** A track no service runs on (a siding, a bay, a goods line), ballast and rails through (u, v) points in order;
@@ -251,9 +252,19 @@ const partBuilders: Builders = {
   footprint(gp, p) {
     // the shape is drawn in (u, -v) and extruded along +z; turning it face up puts the extrusion on y and -v back on +z
     const shape = new THREE.Shape(p.outline.map(([u, v]) => new THREE.Vector2(u, -v)));
+    const mat = matFor(p.mat, MAT.brick);
+    if (p.floors) {
+      // one shape a metre high, scaled into each storey's solid band and the glass band above it
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false }); geo.rotateX(-Math.PI / 2);
+      const h = (p.y1 - p.y0) / p.floors;
+      for (let k = 0; k < p.floors; k++) for (const [m, y, dy] of [[mat, 0, 0.35], [MAT.glass, 0.35, 0.65]] as const) {
+        const band = new THREE.Mesh(geo, m); band.scale.y = h * dy; band.position.y = p.y0 + h * (k + y); gp.add(band);
+      }
+      return;
+    }
     const geo = new THREE.ExtrudeGeometry(shape, { depth: p.y1 - p.y0, bevelEnabled: false });
     geo.rotateX(-Math.PI / 2); geo.translate(0, p.y0, 0);
-    const m = new THREE.Mesh(geo, matFor(p.mat, MAT.brick)); gp.add(m);
+    const m = new THREE.Mesh(geo, mat); gp.add(m);
   },
   subway(gp, p) {
     for (const [v0, v1] of p.platforms) {

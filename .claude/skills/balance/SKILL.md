@@ -7,7 +7,7 @@ description: Measure and tune The Commute's pacing and economy with the bot on s
 
 ## What the bot is
 
-- `tools/bot.mjs` plays the game headless in Node through the same `Sim` the page uses, making the choices a sensible player would (a second unit first, then the next station, barriers, kiosks, then longer trains): `npm run bot -- --hours 8 --seed 1 --seed 2 --seed 3` (`--json build/bot.json` keeps the runs).
+- `tools/bot.mjs` plays the game headless in Node through the same `Sim` the page uses, making the choices a sensible player would (its priority order is the comment above `act` in that file): `npm run bot -- --hours 8 --seed 1 --seed 2 --seed 3` (`--json build/bot.json` keeps the runs).
 - It prints, per seed: `SEED`, `REACHED {milestone: game hour}`, `MEASURES`, `PLAY` (a fingerprint of the saved state that affects play); then one table of every seed and their mean against `tools/baseline.json`. It exits 1 only on an error.
 - The same seed and code always give the same run. Any change to the code can shift the dice, so judge a change on several seeds, before and after.
 - The `bot` check group proves it plays 8 sim hours (two game days: the clock runs six times faster than the sim's seconds) without an error and repeats from its seed.
@@ -42,7 +42,7 @@ Make the change and run the same three seeds into `build/after.log`.
 
 ## Baselines
 
-`tools/baseline.json`, **proposed** from the first run on 8 October 2026 (seeds 1–3 from a fresh game), rescaled to 8 sim hours when sim seconds became real seconds, and re-proposed on 11 October 2026 twice: when trains began boarding through their stop, and when stations began as halts (its note says why). The owner agrees ranges when the pacing is settled. Hours are sim hours.
+`tools/baseline.json` holds the ranges. They are **proposed**, not yet agreed: its note says when and why each was set, and the owner agrees ranges when the pacing is settled. Hours are sim hours.
 
 | Milestone or measure | Range | Seeds 1, 2, 3 (11 October 2026, halts) |
 | --- | --- | --- |

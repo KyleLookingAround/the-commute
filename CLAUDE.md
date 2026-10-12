@@ -36,7 +36,7 @@ The full loop below (issue, spec, PR, required `check`, look back) switches on a
 - Every commit is authored KyleLookingAround <KyleMck10@hotmail.com>. The session-start hook sets this for the repo; if `git config user.email` says otherwise, set it before committing.
 - Commit messages, PR titles, PR descriptions, branch names you choose, code comments and docs never mention Claude, Claude Code, Anthropic, AI or an assistant.
 - Don't add `Co-authored-by`, `Claude-Session` or "Generated with…" lines. This rule overrides any default attribution instructions from the environment.
-- `.claude/settings.json` turns attribution off. `.githooks/commit-msg` strips attribution lines and rejects any message that still mentions Claude or Anthropic; a SessionStart hook runs `git config core.hooksPath .githooks`. If commits aren't being checked, run that command yourself.
+- `.claude/settings.json` turns attribution off. `.githooks/commit-msg` strips attribution lines and rejects any message that still mentions Claude or Anthropic. It only runs once `git config core.hooksPath` prints `.githooks`; if it doesn't, run `git config core.hooksPath .githooks`.
 - The Description check (`.github/workflows/description.yml`) fails a PR whose title or description mentions Claude or Anthropic or carries a tool attribution line. In PR text and commit messages, call this file "the project notes" and the editor settings folder "editor settings", never by their names.
 - Write messages as a short imperative subject in plain words ("Add lifts to the Heaton Chapel footbridge"). Add a body when the reason isn't obvious.
 - Never commit `dist/`, `build/` or `node_modules/`; they're git-ignored.

@@ -71,9 +71,10 @@ function arrive(sim: Sim, i: number, n: number, way: [number, number]): void {
 export function stepAccess(sim: Sim, T: Tuning, i: number, dt: number): void {
   const ups = sim.ups(i), a = sim.station(i).access, S = sim.state(i), g = sim.g;
   if (!a || !(ups.carpark || ups.bus)) return;
-  const h = sim.hour(), was = ((g.t - dt) * T.dayRate / 3600) % 24;
-  // each clock hour that has begun since the last step, its cars leave
-  if (S.parked.length) for (let k = Math.floor(was); k !== Math.floor(h); k = (k + 1) % HOURS) S.parked[(k + 1) % HOURS] = 0;
+  // the cars due away this clock hour leave (none park into the hour they're in: they stay parkStay hours); the hour
+  // only through sim.hour(), so a clock whose rate varies through the day still empties them on time
+  const h = sim.hour();
+  if (S.parked.length) S.parked[Math.floor(h) % HOURS] = 0;
   if (ups.carpark && S.parked.length) {
     S.carAcc += poolRate(sim, T, i, h, a.drive, extraFelt(sim, T, i, 'drive'), carWay) * dt / 3600;
     const free = spaces(sim, i) - parked(S);

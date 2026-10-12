@@ -1,6 +1,7 @@
 // The save controls beside Start over: Save to file downloads the game, Load from file picks one, says what's wrong
 // with it or asks once (tap again) before it replaces the game in progress. Nothing leaves the device: the file is made
 // and read in the page. What a save is and how it's checked is the app's (src/app/storage.ts); this only asks and tells.
+// Start over starts this run again; once a contract has been renewed or a perk bought, it also offers to wipe the career.
 
 /** What the save controls need from the page. */
 export interface SaveHandlers {
@@ -40,4 +41,18 @@ export function wireSaves(saveBtn: HTMLButtonElement, loadBtn: HTMLButtonElement
       clearTimeout(timer); timer = setTimeout(disarm, 10000);
     }, () => { disarm(); on.toast("That file couldn't be read. Nothing changed."); });
   });
+}
+
+/** Start over's choice, once there's a career: the first tap on Start over (the panel arms it to start this run over,
+ * the default) also offers "Career too" beside it for as long as it's armed; that wipes the career as well. */
+export function wireStartOver(reset: HTMLButtonElement, all: HTMLButtonElement, on: { hasCareer: () => boolean; all: () => void }): void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const hide = () => { clearTimeout(timer); all.hidden = true; };
+  hide();
+  // after the panel's own listener: armed now means the first tap, not armed the second (or the time ran out)
+  reset.addEventListener('click', () => {
+    if (!reset.dataset['arm'] || !on.hasCareer()) { hide(); return; }
+    all.hidden = false; clearTimeout(timer); timer = setTimeout(hide, 3000);
+  });
+  all.addEventListener('click', () => { hide(); delete reset.dataset['arm']; reset.textContent = 'Start over'; on.all(); });
 }

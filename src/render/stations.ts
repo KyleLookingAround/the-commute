@@ -81,7 +81,10 @@ export type Part =
   /** A stop for rail replacement buses (src/render/buses.ts). */
   | (Gated & BusStopPart & { type: 'busstop' })
   /** A bus link's stop or bus station, with its buses coming and going (src/render/links.ts). */
-  | (Gated & LinkPart & { type: 'buslink' });
+  | (Gated & LinkPart & { type: 'buslink' })
+  /** The contract's brass plaque on a stone pier, its face towards `facing` across the line: it reads the contract's
+   * number and grows a line for each one renewed (setPlaque), and stands only once a contract has been. */
+  | (Gated & { type: 'plaque'; u: number; v: number; facing: 1 | -1 });
 export type PartType = Part['type'];
 /** Where each direction's passengers wait: from a line at v (near the platform edge) from u0 to u1, back into the
  * platform as far as depth (4 m if not given). */
@@ -332,7 +335,45 @@ const partBuilders: Builders = {
   taxi(gp, p, live) { buildRank(gp, p, live); },
   busstop(gp, p, live) { buildBusStop(gp, p, live); },
   buslink(gp, p, live) { buildLink(gp, p, live); },
+  plaque(gp, p) {
+    const g = new THREE.Group(); g.position.set(p.u, 0, p.v); g.rotation.y = p.facing > 0 ? 0 : Math.PI; g.visible = false; gp.add(g);
+    const pier = box(g, PLAQUE_W + 0.6, 1, 0.5, MAT.sandstone, 0, 0.5, 0);
+    const canvas = typeof document === 'undefined' ? null : document.createElement('canvas');
+    const tex = canvas ? new THREE.CanvasTexture(canvas) : null;
+    if (tex) tex.colorSpace = THREE.SRGBColorSpace;
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshLambertMaterial({ color: tex ? 0xffffff : PAL.brass, map: tex }));
+    plate.position.z = 0.26; g.add(plate);
+    PLAQUES.push({ group: g, pier, plate, canvas, tex });
+  },
 };
+// ---- the contract's plaque ----
+// One part, by Stockport's entrance: a brass plate on a sandstone pier that reads the contract's number, with a line
+// for each contract renewed; the plate and its pier grow a line taller each time. Drawn on a canvas where there is one.
+const PLAQUE_W = 2.6, PLAQUE_HEAD = 0.75, PLAQUE_LINE = 0.32, PLAQUE_PX = 160;
+interface Plaque { group: THREE.Group; pier: THREE.Mesh; plate: THREE.Mesh; canvas: HTMLCanvasElement | null; tex: THREE.CanvasTexture | null }
+const PLAQUES: Plaque[] = [];
+/** Show the plaques reading `head` over `lines` (one for each contract renewed), or hide them (null: no contract
+ * renewed yet). Returns how many lines they read. */
+export function setPlaque(head: string | null, lines: string[] = []): number {
+  for (const q of PLAQUES) {
+    q.group.visible = head !== null; if (head === null) continue;
+    const h = PLAQUE_HEAD + PLAQUE_LINE * lines.length, top = 1.6 + h;
+    q.pier.scale.y = top; q.pier.position.y = top / 2;
+    q.plate.scale.set(PLAQUE_W, h, 1); q.plate.position.y = 1.3 + h / 2;
+    const c = q.canvas, ctx = c?.getContext('2d');
+    if (!c || !ctx || !q.tex) continue;
+    c.width = Math.round(PLAQUE_W * PLAQUE_PX); c.height = Math.round(h * PLAQUE_PX);
+    const brass = '#' + PAL.brass.getHexString(), ink = '#' + PAL['brass-ink'].getHexString();
+    ctx.fillStyle = brass; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.strokeStyle = ink; ctx.lineWidth = 8; ctx.strokeRect(10, 10, c.width - 20, c.height - 20);
+    ctx.fillStyle = ink; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold 54px Georgia, serif'; ctx.fillText(head, c.width / 2, PLAQUE_HEAD * PLAQUE_PX / 2 + 6);
+    ctx.font = '36px Georgia, serif';
+    lines.forEach((l, k) => ctx.fillText(l, c.width / 2, (PLAQUE_HEAD + PLAQUE_LINE * (k + 0.5)) * PLAQUE_PX));
+    q.tex.needsUpdate = true;
+  }
+  return lines.length;
+}
 // the builders are keyed by the part's type, so the one looked up always takes the part; the cast says so once
 const build = (part: Part, into: THREE.Group, live: Live) => (partBuilders[part.type] as (gp: THREE.Group, p: Part, live: Live) => void)(into, part, live);
 /** A part at street level: built into a group of its own lifted (or sunk) to the ground under its middle, in a station
@@ -348,12 +389,13 @@ export function partGroup(part: Part): THREE.Group { const gp = new THREE.Group(
 
 /** A group of parts shown together: when all of `needs` are bought and `until` isn't. shown: whether it showed last
  * sync; rise: how far through rising into place it is (1 once it stands); ghost: drawn as a preview of buying it. */
-interface Gate { group: THREE.Group; needs: string[]; until: string | null; shown: boolean; rise: number; ghost: boolean }
+interface Gate { group: THREE.Group; needs: string[]; until: string | null; shown: boolean; rise: number; ghost: boolean; fold: number }
 /** A station on the map: its group, the halt (fogged while locked), its scenery, the parts its upgrades reveal, and
- * where the label floats. rise: how far the halt is through rising into place once bought. */
+ * where the label floats. rise: how far the halt is through rising into place once bought; fold: how far it still has
+ * to fold down when it's locked again (a contract renewed), 0 once it has. */
 export interface BuiltStation {
   station: Station; kit: Kit; group: THREE.Group; fixed: THREE.Group;
-  gated: Gate[]; label: THREE.Object3D; lockedNow: boolean | null; rise: number; live: Live;
+  gated: Gate[]; label: THREE.Object3D; lockedNow: boolean | null; rise: number; fold: number; live: Live;
 }
 
 export function buildStations(scene: THREE.Scene, net: Network, kits: Record<string, Kit>): BuiltStation[] {
@@ -370,13 +412,13 @@ export function buildStations(scene: THREE.Scene, net: Network, kits: Record<str
       else if (needs.length || part.until) {
         const key = `${needs.join('+')}|${part.until ?? ''}`;
         let gate = gates.get(key);
-        if (!gate) { gate = { group: new THREE.Group(), needs, until: part.until ?? null, shown: false, rise: 1, ghost: false }; gate.group.visible = false; gp.add(gate.group); gates.set(key, gate); }
+        if (!gate) { gate = { group: new THREE.Group(), needs, until: part.until ?? null, shown: false, rise: 1, ghost: false, fold: 0 }; gate.group.visible = false; gp.add(gate.group); gates.set(key, gate); }
         put(gate.group);
       } else put(fixed);
     }
     const gated = [...gates.values()];
     const label = new THREE.Object3D(); label.position.set(0, 14, 0); gp.add(label);
-    return { station: st, kit, group: gp, fixed, gated, label, lockedNow: null, rise: 1, live };
+    return { station: st, kit, group: gp, fixed, gated, label, lockedNow: null, rise: 1, fold: 0, live };
   });
 }
 
@@ -425,29 +467,46 @@ export function previewUpgrade(built: BuiltStation[], i: number | null, ups: Ups
 }
 let pulse = 0;
 
+/** One frame of folding down: how far is left after dt more real seconds (at once with reduced motion). */
+const foldBy = (fold: number, dt: number) => riseS ? Math.max(0, fold - dt / riseS) : 0;
+/** How many stations and parts are still folding down (a contract just renewed). */
+export const foldingCount = (built: BuiltStation[]): number => built.reduce((n, b) => n + (b.fold > 0 ? 1 : 0) + b.gated.filter(gt => gt.fold > 0).length, 0);
+/** Lock or unlock a station's halt: the fog's material, or its own back. */
+function fog(b: BuiltStation, locked: boolean): void {
+  b.fixed.traverse(o => {
+    if (!(o instanceof THREE.Mesh)) return;
+    if (locked) { if (!o.userData['mat']) o.userData['mat'] = o.material; o.material = MAT.locked; }
+    else if (o.userData['mat']) o.material = o.userData['mat'];
+  });
+}
+
 // Reflect ownership and upgrades: locked stations go grey and translucent, bought upgrades rise into place, the
-// preview's ghosts pulse. dt: real seconds since the last frame.
+// preview's ghosts pulse. When a contract is renewed everything bought folds back down: each stage sinks away, and each
+// halt sinks and rises again in the fog, ready to buy. dt: real seconds since the last frame.
 export function syncStations(built: BuiltStation[], g: GameState, dt: number): void {
   pulse += dt; GHOST.opacity = 0.4 + 0.2 * Math.sin(pulse * 4);
   built.forEach((b, i) => {
     const locked = !g.owned[i], ups = (g.ups[i] ?? {}) as Ups, first = b.lockedNow === null;
     if (b.lockedNow !== locked) {
-      if (!first && !locked) b.rise = 0;   // bought: the halt rises out of the fog
+      if (!first && !locked) { b.rise = 0; b.fold = 0; fog(b, false); }   // bought: the halt rises out of the fog
+      else if (!first && locked) { b.fold = 1; b.rise = 1; }              // the contract renewed: it folds down first
+      else fog(b, locked);
       b.lockedNow = locked;
-      b.fixed.traverse(o => {
-        if (!(o instanceof THREE.Mesh)) return;
-        if (locked) { if (!o.userData['mat']) o.userData['mat'] = o.material; o.material = MAT.locked; }
-        else if (o.userData['mat']) o.material = o.userData['mat'];
-      });
     }
-    if (b.rise < 1) { b.rise = riseBy(b.rise, dt); b.fixed.scale.y = Math.max(0.01, settle(b.rise)); }
+    if (b.fold > 0) {
+      b.fold = foldBy(b.fold, dt); b.fixed.scale.y = Math.max(0.01, b.fold);
+      if (b.fold <= 0) { fog(b, true); b.rise = 0; }                       // ...then stands again in the fog
+    } else if (b.rise < 1) { b.rise = riseBy(b.rise, dt); b.fixed.scale.y = Math.max(0.01, settle(b.rise)); }
     const has = (id: string) => !!ups[id];
     for (const gate of b.gated) {
       const show = !locked && gate.needs.every(has) && !(gate.until && has(gate.until));
-      if (show && !gate.shown && !first) { gate.rise = 0; ghost(gate, false); }   // just bought: it stops being a ghost and rises
+      if (show && !gate.shown && !first) { gate.rise = 0; gate.fold = 0; ghost(gate, false); }   // just bought: it stops being a ghost and rises
+      else if (!show && gate.shown && !first && !gate.until) { gate.fold = 1; gate.rise = 1; }  // taken away: it folds down
       gate.shown = show;
-      gate.group.visible = show || gate.ghost;
+      if (gate.fold > 0) { gate.fold = foldBy(gate.fold, dt); gate.group.scale.y = Math.max(0.01, gate.fold); }
+      gate.group.visible = show || gate.ghost || gate.fold > 0;
       if (gate.rise < 1) { gate.rise = riseBy(gate.rise, dt); gate.group.scale.y = Math.max(0.01, settle(gate.rise)); }
+      else if (gate.fold <= 0 && gate.group.scale.y !== 1 && show) gate.group.scale.y = 1;
     }
   });
 }

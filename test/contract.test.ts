@@ -94,3 +94,19 @@ test('contract: a career reads back from JSON, and one from another version star
   assert.equal(readCareer({ ...c, v: CAREER_VERSION + 1 }), null);
   assert.equal(readCareer('nope'), null);
 });
+
+test('contract: a save file carries the career beside the run, and putting it on the device keeps them apart', async () => {
+  const { toFile, fromFile, put, load, loadCareer, CAREER_KEY, SAVE_KEY } = await import('../src/app/storage.ts');
+  const m = new Map<string, string>();
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); }, removeItem: (k: string) => { m.delete(k); } };
+  const n = net(), sim = new Sim(n, Sim.fresh(n, 5, ['works1'])), career = { ...freshCareer(), rep: 7, perks: ['works1'], renewals: 2 };
+  const r = fromFile(toFile({ g: sim.g, selected: 0, career }));
+  assert.ok(r.ok); assert.deepEqual(r.saved.career, career);
+  assert.ok(put(r.saved));
+  assert.equal(JSON.parse(m.get(SAVE_KEY)!).career, undefined, 'the run is saved without the career');
+  assert.deepEqual(loadCareer(), career); assert.ok(m.has(CAREER_KEY));
+  assert.deepEqual(load()?.g.perks, ['works1']);
+  // a file whose career is from another version still loads its run
+  const odd = fromFile(toFile({ g: sim.g, career: { ...career, v: 99 } }));
+  assert.ok(odd.ok); assert.equal(odd.saved.career, undefined);
+});

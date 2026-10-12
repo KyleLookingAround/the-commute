@@ -1,6 +1,7 @@
 // Station strip, station panel, line panel, ticker and toasts. Plain DOM, rebuilt on actions and lightly refreshed on a timer.
 import { UPGRADES, LINE_UPGRADES } from '../sim/sim.ts';
 import { pace } from '../sim/day.ts';
+import { renewable, reputation } from '../sim/contract.ts';
 import type { Sim } from '../sim/sim.ts';
 import type { GameState } from '../sim/types.ts';
 
@@ -40,6 +41,8 @@ export interface Handlers {
   lockHour: (hour: number | null) => void;
   /** What buying an upgrade (at station i, or on the line when i is null) saves in minutes, in words, or null. */
   saves: (i: number | null, id: string) => string | null;
+  /** Open the renewal sheet (once the whole line is owned). */
+  renew: () => void;
 }
 
 export class UI {
@@ -61,7 +64,7 @@ export class UI {
     els.reset.addEventListener('click', () => {
       const b = els.reset;
       if (b.dataset['arm']) { delete b.dataset['arm']; b.textContent = 'Start over'; on.reset(); }
-      else { b.dataset['arm'] = '1'; b.textContent = 'Tap again to wipe progress'; setTimeout(() => { delete b.dataset['arm']; b.textContent = 'Start over'; }, 3000); }
+      else { b.dataset['arm'] = '1'; b.textContent = 'Tap again to start over'; setTimeout(() => { delete b.dataset['arm']; b.textContent = 'Start over'; }, 3000); }
     });
   }
   get g(): GameState { return this.sim.g; }
@@ -90,14 +93,14 @@ export class UI {
     const g = this.g;
     this.els.strip.querySelectorAll<HTMLElement>('[data-st]').forEach(el => {
       const i = +(el.dataset['st'] ?? -1), S = g.st[i], s = this.sim.S[i]; if (!S || !s) return;
-      const txt = g.owned[i] ? `${S.waiting} waiting` : fmt(s.price); if (el.textContent !== txt) el.textContent = txt;
+      const txt = g.owned[i] ? `${S.waiting} waiting` : fmt(this.sim.stationPrice(i)); if (el.textContent !== txt) el.textContent = txt;
     });
   }
   buildPanel(): void {
     const i = this.selected, s = this.sim.station(i), g = this.g, panel = this.els.panel;
     if (!g.owned[i]) {
       const blocked = i > 0 && !g.owned[i - 1], needs = this.sim.stationNeeds(i);
-      const label = blocked ? 'Buy the stations before it first' : needs ? `Needs ${needs.station.name}'s ${needs.name}` : `Buy as a halt · ${fmt(s.price)}`;
+      const label = blocked ? 'Buy the stations before it first' : needs ? `Needs ${needs.station.name}'s ${needs.name}` : `Buy as a halt · ${fmt(this.sim.stationPrice(i))}`;
       panel.innerHTML = `<h2>${s.name} <small>${milesFrom(s.miles)} from Stockport · locked</small></h2>
         <p class="blurb">${BLURB[s.id] || ''}</p>
         <button class="buy" id="buyStation" ${this.sim.canBuyStation(i) ? '' : 'disabled'}>${label}</button>`;
@@ -177,21 +180,21 @@ export class UI {
   }
   buildLinePanel(): void {
     const g = this.g, lp = this.els.linePanel, sim = this.sim;
-    const branch = sim.svcs.slice(1).filter(v => sim.unitsFor(v) > 0).length ? ' · Hazel Grove line open' : '';
+    const branch = sim.local().slice(1).filter(v => sim.unitsFor(v) > 0).length ? ' · Hazel Grove line open' : '';
     lp.innerHTML = `<h2>The line <small>${sim.unitsInService()} unit${sim.unitsInService() === 1 ? '' : 's'} · ${sim.carsPerUnit()}-car · ${g.line.timetable ? '90' : '75'} mph${branch}<span id="lBus"></span></small></h2><div class="ups" id="lups"></div>`;
     // the next step of each line upgrade as a card, like a station's; what's bought on one line under them
     const holder = lp.querySelector('#lups'), done: [string, string][] = [];
     const step = (u: (typeof LINE_UPGRADES)[number], lvl: number) => u.max > 1 ? `${u.name} ${lvl + 1} of ${u.max}` : u.name;
     for (const u of LINE_UPGRADES) {
       if (!sim.lineReady(u.id)) continue;   // extra units wait for room to turn at Stockport
-      const lvl = g.line[u.id], price = u.prices[lvl];
+      const lvl = g.line[u.id], price = sim.linePrice(u.id);
       if (lvl) done.push([u.id, u.max > 1 ? `${u.name} ×${lvl}` : u.name]);
       if (lvl >= u.max || price === undefined) continue;
       const opens = lvl + 1 < u.max ? [step(u, lvl + 1)] : [];
       const d = document.createElement('article'); d.className = 'ucard'; d.dataset['lcard'] = u.id;
       d.innerHTML = `<button class="pick" aria-pressed="false" data-lpick="${u.id}">
-          <span class="head"><b>${step(u, lvl)}</b><span class="price">${fmt(price)}</span></span>
-          <span class="adds">${u.desc}</span>
+          <span class="head"><b>${step(u, lvl)}</b><span class="price">${price ? fmt(price) : 'Free'}</span></span>
+          <span class="adds">${price ? u.desc : 'The unit waiting in Stockport’s sidings goes into service'}</span>
           ${saved(this.on.saves(null, u.id))}
           ${opens.length ? `<span class="opens"><span>Then</span> ${opens.map(o => `<i>${o}</i>`).join('')}</span>` : ''}
         </button>
@@ -204,6 +207,14 @@ export class UI {
       holder?.appendChild(d);
     }
     if (holder?.children.length) holder.insertAdjacentHTML('afterbegin', '<p class="hint">Tap a card to see it on the map.</p>');
+    // once the whole line is owned, the contract can be renewed, whenever the player likes; hidden until then
+    if (renewable(g, sim.net.station('piccadilly').index)) {
+      const d = document.createElement('article'); d.className = 'ucard can renew'; d.dataset['renew'] = '';
+      d.innerHTML = `<button class="pick" id="renew"><span class="head"><b>Renew the contract</b><span class="price">★ <span id="lRep"></span></span></span>
+        <span class="adds">Bank your reputation for perks and start again from Stockport, stronger. Play on as long as you like: it keeps counting.</span></button>`;
+      d.querySelector('button')?.addEventListener('click', () => this.on.renew());
+      holder?.appendChild(d);
+    }
     if (done.length) {
       lp.insertAdjacentHTML('beforeend', `<p class="built"><span>Built</span> ${done.map(([id, n]) => `<button class="chip" data-lbuilt="${id}">${n}</button>`).join('')}</p>`);
       lp.querySelectorAll<HTMLElement>('[data-lbuilt]').forEach(b => b.addEventListener('click', () => { this.pickLine(null); this.on.showLine(b.dataset['lbuilt'] ?? null, true); }));
@@ -216,9 +227,11 @@ export class UI {
     // people the replacement buses have carried, once any have run (the buses serve the line, not one station)
     const bus = this.els.linePanel.querySelector('#lBus'), bt = g.trouble.bused ? ` · ${Math.floor(g.trouble.bused).toLocaleString('en-GB')} by bus` : '';
     if (bus && bus.textContent !== bt) bus.textContent = bt;
+    const rep = this.els.linePanel.querySelector('#lRep'), rt = String(reputation(g));
+    if (rep && rep.textContent !== rt) rep.textContent = rt;
     this.els.linePanel.querySelectorAll<HTMLElement>('[data-lcard]').forEach(card => {
       const u = LINE_UPGRADES.find(u => u.id === card.dataset['lcard']); if (!u) return;
-      const price = u.prices[g.line[u.id]] ?? 0, short = price - g.cash;
+      const price = this.sim.linePrice(u.id) ?? 0, short = price - g.cash;
       card.classList.toggle('can', short <= 0);
       const m = card.querySelector('meter'), t = card.querySelector('.togo > span'), v = String(Math.max(0, Math.min(price, Math.floor(g.cash))));
       if (m && m.getAttribute('value') !== v) m.setAttribute('value', v);

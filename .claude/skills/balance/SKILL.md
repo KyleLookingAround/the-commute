@@ -68,6 +68,8 @@ Make the change and run the same three seeds into `build/after.log`.
 | Express £, through | 4,500–8,500; 1,300–2,500 | 6,560, 6,340, 6,572; 1,900, 1,830, 1,906 |
 | By car, by bus link | 300–650; 100–260 | 490, 478, 489; 176, 178, 180 |
 
+Contract renewal (`--runs 2`): each run but the last renews as soon as it owns Piccadilly, banks its reputation and buys perks in the bot's order (`PERKS` in `tools/bot.mjs`), then the same seed is played again with them. It prints each run's milestones, the reputation banked and the perks bought, and checks three proposed ranges (the `contract` entry in `tools/baseline.json`): reputation banked 45–85 (62, 62, 64), the second run's Piccadilly at 3.6–5 h (4.08, 4.07, 4.82) and 15–35% sooner than the first (26%). A change to the economy moves these too; with no perks a run plays exactly as a single run does.
+
 To compare a change to the clock like for like, run the bot for the same game days before and after (`--hours` takes a fraction: two game days are 4.45 sim hours) and compare earned and lost a game day.
 
 The bot also prints PEAKS: at each morning (06:00–10:00) and evening (16:00–19:30) peak, who gave up at each station, how many took a cab, and how late main-line trains left their stops, with a table of the seeds' mean. Read it for where pressure lands, not just how much.

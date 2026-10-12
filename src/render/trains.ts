@@ -14,6 +14,7 @@
 // the sidings, along the line beside the blocked one (the fast line where the stoppers fail, the branch's own track on
 // the Hazel Grove line, where nothing else runs), across onto the blocked line to buffer up to the failed unit's
 // Stockport end, and back to the sidings once it's moving again. The view's own, timed from the sim's failure.
+// A contract's perk can stand a second unit on the next siding from the start, until it's put in service.
 // On some nights, in the small hours, the fast lines close for engineering: the expresses stop and a yellow on-track
 // machine with flashing orange beacons crawls along them, one way one night and back the next. Cosmetic: it's the
 // view's own, from the seed and the night, and no passenger train meets it.
@@ -99,8 +100,9 @@ export function engineering(seed: number, t: number): { at: number; dir: 1 | -1 
   const k = (hour - ENG_FROM) / (ENG_TO - ENG_FROM), dir = night % 2 ? -1 : 1;
   return { at: dir > 0 ? k : 1 - k, dir };
 }
-/** Where the spare unit stands: in Stockport's carriage sidings, in the kit's (u, v). */
-const SPARE_AT: [number, number] = [78, -33];
+/** Where the spare unit stands: in Stockport's carriage sidings, in the kit's (u, v); and the unit a contract's perk
+ * stables there from the start, on the next siding. */
+const SPARE_AT: [number, number] = [78, -33], STABLED_AT: [number, number] = [78, -38.3];
 
 /** A rescue the spare unit is out on, or coming back from: the failure's from and until (sim seconds), where the
  * spare's middle starts (in the sidings) and ends (buffered up to the failed unit), the line it runs out along and the
@@ -262,6 +264,8 @@ export class TrainLayer {
   /** The rescue the spare is out on or coming back from, kept once the failure's over for the drive back. */
   rescue: Rescue | null = null;
   private svcList: ServiceDef[];
+  /** The unit a contract's perk stables in the sidings, shown until it's put in service. */
+  stabled: THREE.Group;
   private last = 0;
   /** The engineering train and its beacons: shown only while it's out. */
   eng: THREE.Group;
@@ -285,6 +289,13 @@ export class TrainLayer {
     // the spare unit: placed once in Stockport's frame, along its siding
     const spare = this.unit(2, NORTHERN);
     this.spare = spare.group; this.spareCars = spare.cars; this.spare.visible = false; this.spareHome();
+    // the unit a contract's perk stables on the next siding
+    const stabled = this.unit(2, NORTHERN), f = net.stationFrame(net.stations[0]?.id ?? 'stockport'), [su, sv] = STABLED_AT;
+    stabled.cars.forEach((m, c) => {
+      const along = su + (c - 0.5) * PITCH; m.position.set(f.x + along * f.dx + sv * f.nx, 0, f.z + along * f.dz + sv * f.nz);
+      m.rotation.y = yawFor(f); m.updateMatrix();
+    });
+    this.stabled = stabled.group; this.stabled.visible = false;
     // the engineering train: two cars in yellow, orange-banded, beacons on its roof at both ends
     const rgb = (c: THREE.Color): RGB => [c.r, c.g, c.b], y = rgb(PAL.eng), dk = rgb(PAL['eng-dark']);
     const eng = this.unit(2, { body: y, roof: dk, band: rgb(PAL['eng-beacon']), door: dk, win: dk, nose: dk });
@@ -421,6 +432,7 @@ export class TrainLayer {
     this.lamps.instanceMatrix.needsUpdate = true;
     const now = performance.now(), dtReal = this.last ? Math.min(0.1, (now - this.last) / 1000) : 0; this.last = now;
     this.trouble(g, dtReal);
+    this.stabled.visible = sim.fx.unit && g.line.units === 0;
     this.riders.count = at.r; this.standing.count = at.s;
     for (const im of [this.riders, this.standing]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
     // the engineering train, on the nights it runs, when no express is about (they don't run in the small hours)

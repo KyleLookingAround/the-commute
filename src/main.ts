@@ -15,7 +15,7 @@ import type { NetworkGeoDef } from './sim/types.ts';
 import { createScene } from './render/scene.ts';
 import { groundAt } from './render/terrain.ts';
 import { buildWorld } from './render/world.ts';
-import { buildStations, syncStations, previewUpgrade, partsBox, setReducedMotion } from './render/stations.ts';
+import { buildStations, syncStations, previewUpgrade, partsBox, setReducedMotion, setPlaque, foldingCount } from './render/stations.ts';
 import type { Kit } from './render/stations.ts';
 import { Lineside } from './render/lineside.ts';
 import { StationLife } from './render/life.ts';
@@ -39,7 +39,9 @@ import { playOffline } from './app/offline.ts';
 import { loadPrefs, savePrefs, type Prefs } from './app/prefs.ts';
 import { UI, fmt } from './ui/panel.ts';
 import type { Els } from './ui/panel.ts';
-import { wireSaves } from './ui/saves.ts';
+import { wireSaves, wireStartOver } from './ui/saves.ts';
+import { ContractSheet } from './ui/contract.ts';
+import { careerEmpty, freshCareer, reputation } from './sim/contract.ts';
 import * as store from './app/storage.ts';
 import { GAME_PER_REAL, awaySeconds } from './app/clock.ts';
 
@@ -80,7 +82,11 @@ const net = fromGeo(networkDef);
 const saved = store.load();
 // a page opened by a check sets window.__seed so a new game repeats; players get a fresh seed
 const seed = typeof window.__seed === 'number' ? window.__seed : undefined;
-let sim = new Sim(net, saved ? saved.g : Sim.fresh(net, seed));
+// the career (contract renewal) is kept apart from the run: a new run starts with the perks it has bought
+let career = store.loadCareer();
+/** A new run's seed: a check's, moved on for each contract so runs differ but repeat; players get a fresh one. */
+const runSeed = () => seed === undefined ? undefined : seed + career.renewals;
+let sim = new Sim(net, saved ? saved.g : Sim.fresh(net, runSeed(), career.perks));
 if (window.__day && !saved) { sim.g.t = simAtHour(window.__day, 6.5); sim.g.day = window.__day; }
 if (window.__weather) Object.assign(sim.g.weather, { now: window.__weather, was: window.__weather, until: sim.g.t + 3600 });
 let speed = 1;
@@ -113,8 +119,14 @@ const rig = new OrbitRig(camera, canvas, scene);
 // where the camera looks stays near the line: the nearest point on it as drawn
 const mainLine = net.corridor('main'), nearF = newFrame();
 rig.line = (x, z) => net.place('main', mainLine.nearest(x, z), 0, nearF);
+/** How many lines the plaque reads, -1 while it's hidden (no contract renewed yet). */
+let plaqueLines = -1;
 const view = {
   preview: 0, framed: 0, rising: () => built.reduce((n, b) => n + b.gated.filter(gt => gt.rise < 1).length, 0) + (lineside.rise < 1 ? 1 : 0) + (trains.spareRising < 1 ? 1 : 0),
+  // contract renewal as drawn: what's still folding down, the plaque's lines, the unit stabled in the sidings, and the
+  // career and run as the page holds them
+  folding: () => foldingCount(built),
+  contract: () => ({ renewals: career.renewals, rep: career.rep, perks: [...career.perks], run: [...sim.g.perks], earned: reputation(sim.g), plaque: plaqueLines, stabled: trains.stabled.visible, spare: trains.spare.visible, cash: sim.g.cash, owned: sim.g.owned.filter(Boolean).length }),
   // homes that grow as drawn: how many new buildings stand at each station, and how many it has room for
   homes: () => ({ shown: homes.counts(), room: homes.plots.map(l => l.length), rising: homes.risingCount }),
   // what's going wrong as drawn: hazard lamps lit or not, caution posts, buses, and the spare unit in the sidings
@@ -230,7 +242,7 @@ function labels(): void {
     // off screen, or in the top band where the stage's own controls sit
     if (v3.z > 1 || Math.abs(v3.x) > 1.1 || Math.abs(v3.y) > 1.1 || top < labelTop) { d.style.display = 'none'; return; }
     d.style.display = ''; d.style.left = ((v3.x + 1) / 2 * w) + 'px'; d.style.top = top + 'px';
-    const s = b.station, owned = !!sim.g.owned[i], txt = owned ? s.name : `${s.name} · <b>${fmt(s.price)}</b>`;
+    const s = b.station, owned = !!sim.g.owned[i], txt = owned ? s.name : `${s.name} · <b>${fmt(sim.stationPrice(i))}</b>`;
     if (d.innerHTML !== txt) d.innerHTML = txt; d.classList.toggle('lock', !owned);
   });
 }
@@ -260,8 +272,30 @@ const ui = new UI(sim, els, {
   showLine: (id, bought) => { if (bought) requestAnimationFrame(() => requestAnimationFrame(() => showLine(id, true))); else showLine(id); },
   saves: (i, id) => savingText(sim, i, id),
   lockHour: h => { lockHour = h; ui.setLight(lockHour ?? sim.hour(), lockHour !== null); },
-  reset: () => { store.wipe(); sim = new Sim(net, Sim.fresh(net, seed)); preview(null, null); ui.sim = sim; ui.selected = 0; ui.picked = null; ui.linePicked = null; ui.buildAll(); const [x, z] = stationXZ(0); rig.focus(x, z); },
+  reset: () => { startRun(); const [x, z] = stationXZ(0); rig.focus(x, z); },
+  renew: () => sheet.open(career, sim.g, net.stations.map(s => s.id)),
 });
+/** Start a run again from Stockport as a halt, with the career's perks: what was bought folds back down on the map. */
+function startRun(): void {
+  store.wipe(); sim = new Sim(net, Sim.fresh(net, runSeed(), career.perks)); preview(null, null);
+  ui.sim = sim; ui.selected = 0; ui.picked = null; ui.linePicked = null; ui.buildAll(); plaque(); persist();
+}
+/** The plaque by Stockport's entrance: the contract's number and a line for each renewed, once one has been. */
+function plaque(): void {
+  plaqueLines = !career.renewals ? -1 : 0;
+  plaqueLines += setPlaque(career.renewals ? `Contract No. ${career.renewals + 1}` : null, career.contracts.map(k => `No. ${k.n} · day ${k.day} · ★ ${k.rep}`));
+}
+// renewing the contract: the sheet banks the reputation and buys perks; beginning the next contract keeps the career,
+// starts the run again, and the whole line is in view as its stages fold down and the halts stand ready
+const sheet = new ContractSheet(networkDef.contract ?? { branches: [], perks: [] }, c => {
+  career = c; store.saveCareer(career); startRun(); lineView();
+  ui.toast(`Contract ${career.renewals + 1} begins at Stockport`);
+});
+wireStartOver(el('reset'), el('resetAll'), {
+  hasCareer: () => !careerEmpty(career),
+  all: () => { store.wipeCareer(); career = freshCareer(); startRun(); const [x, z] = stationXZ(0); rig.focus(x, z); },
+});
+plaque();
 // tapping the map: a train to ride alongside, a station to fly to and open
 const picker = new Picker(camera, canvas, built, trains.meshes);
 rig.onTap = (x, y) => {
@@ -300,7 +334,7 @@ const WHY: Record<store.FileProblem, string> = {
   older: "That save is from an older version and can't be loaded. Nothing changed.",
 };
 wireSaves(el('saveFile'), el('loadFile'), el('loadPick'), {
-  file: () => { persist(); return { name: store.fileName(sim.g), text: store.toFile({ g: sim.g, selected: ui.selected }) }; },
+  file: () => { persist(); return { name: store.fileName(sim.g), text: store.toFile({ g: sim.g, selected: ui.selected, career }) }; },
   read: text => { const r = store.fromFile(text); return r.ok ? { ok: true, what: `day ${r.saved.g.day}` } : { ok: false, why: WHY[r.why] }; },
   load: text => {
     const r = store.fromFile(text);

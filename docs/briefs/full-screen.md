@@ -28,7 +28,7 @@ The session pushes to `main` once the rules, tests and `npm run check` pass and 
 
 ## What's left for others
 
-- The phones-first UX/UI redesign (phase 2 of the roadmap) will restyle the controls; keep the button simple to move.
+- The phones-first UX/UI redesign (the step after this in phase 4 of the roadmap) will restyle the controls; keep the button simple to move.
 
 ## When to stop and ask
 

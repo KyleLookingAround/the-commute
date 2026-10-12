@@ -34,7 +34,7 @@ The session pushes to `main` once the rules, tests and `npm run check` pass (the
 
 ## What's left for others
 
-- New parts and stations as they are today (phase 4 of the roadmap) and "More to see when bought" come after this; list anything you find but don't fix in your last commit message under "Handed on", by station.
+- Stations as they are today (the next step in phase 4 of the roadmap) comes after this; list anything you find but don't fix in your last commit message under "Handed on", by station.
 
 ## When to stop and ask
 

@@ -78,18 +78,20 @@ const fa = newFrame(), fb = newFrame();
  * end) and returns how many cars; the geometry check sweeps the same poses past the stations. */
 export function unitPoses(net: Network, svc: ServiceDef, s: number, dir: number, cars: number, rem: number | null, out: CarPose[]): number {
   const on = dir > 0 ? svc.tracks.north : svc.tracks.south, leaving = dir > 0 ? svc.tracks.south : svc.tracks.north;
-  const corridor = net.track(on).corridor, end = rem === null || on === leaving ? null : s + dir * rem;
-  const at = (x: number, f: typeof fa) => {
-    if (end === null) return net.trackAt(on, x, f);
-    const k = smooth(Math.max(0, Math.min(1, (HOLD + CROSS - (end - x) * dir) / CROSS)));
-    return net.place(corridor, x, net.offsetAt(on, x) * (1 - k) + net.offsetAt(leaving, x) * k, f);
-  };
+  const end = rem === null || on === leaving ? null : s + dir * rem;
   for (let c = 0; c < cars; c++) {
     const x = s + (c - (cars - 1) / 2) * PITCH, o = out[c] ?? (out[c] = { x: 0, z: 0, dx: 1, dz: 0, len: CAR, bogie: BOGIE });
-    const a = at(x - BOGIE, fa), b = at(x + BOGIE, fb), n = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+    const a = onPath(net, on, leaving, end, dir, x - BOGIE, fa), b = onPath(net, on, leaving, end, dir, x + BOGIE, fb), n = Math.hypot(b.x - a.x, b.z - a.z) || 1;
     o.dx = (b.x - a.x) / n; o.dz = (b.z - a.z) / n; o.x = (a.x + b.x) / 2; o.z = (a.z + b.z) / 2; o.len = CAR; o.bogie = n / 2;
   }
   return cars;
+}
+/** A point x along the path a unit runs: its track, or running in to the end of its run (end not null), the
+ * crossover from its track to the one it will leave on, which ends HOLD metres short of the stop. */
+function onPath(net: Network, on: string, leaving: string, end: number | null, dir: number, x: number, f: Frame): Frame {
+  if (end === null) return net.trackAt(on, x, f);
+  const k = smooth(Math.max(0, Math.min(1, (HOLD + CROSS - (end - x) * dir) / CROSS)));
+  return net.place(net.track(on).corridor, x, net.offsetAt(on, x) * (1 - k) + net.offsetAt(leaving, x) * k, f);
 }
 /** Where a service's units run, by their middles: a passenger service between the stops at the ends of its route; an
  * express from where its tracks begin (its tail on them) to the end of its run, standing where the longest stopping

@@ -47,6 +47,10 @@ export type Part =
   /** A ramp along the line at v, w wide, from (u0, y0) to (u1, y1), with a handrail each side; `steps` makes it a flight
    * of solid steps instead. */
   | (Gated & Span & { type: 'ramp'; v: number; w: number; y0: number; y1: number; steps?: boolean })
+  /** A row of n arched recesses set into an embankment's wall from u0 to u1, its face at v looking towards `facing`
+   * across the line (+1, the default, is +v): each an opening h high to its springing under a round head, with brick
+   * piers between. Stands at street level (with `street`), at the wall's foot. */
+  | (Gated & Span & { type: 'recesses'; v: number; n: number; h: number; facing?: 1 | -1 })
   /** A footbridge's stair tower on its own, for a platform built after the bridge. */
   | (Gated & { type: 'stairs'; u: number; v: number })
   | (Gated & { type: 'lifts'; u: number; towers: number[] })
@@ -289,6 +293,22 @@ const partBuilders: Builders = {
     }
     const first = p.points[0];
     if (p.buffer && first) box(gp, 0.8, 1.2, 3, MAT.brickDark, first[0], 0.6, first[1]);
+  },
+  recesses(gp, p) {
+    // each opening as a flat shape just proud of the wall: a dark brick ring, and the shadowed recess inside it, both
+    // running a little below the ground under the row's middle so they meet it where it falls away
+    const span = (p.u1 - p.u0) / p.n, w = span - 1.4, r = w / 2, f = p.facing ?? 1;
+    const arch = (half: number, h: number) => {
+      const sh = new THREE.Shape(); sh.moveTo(-half, -1.2); sh.lineTo(half, -1.2); sh.lineTo(half, h); sh.absarc(0, h, half, 0, Math.PI, false); sh.lineTo(-half, -1.2);
+      return new THREE.ShapeGeometry(sh, 8);
+    };
+    const ring = arch(r + 0.35, p.h), hole = arch(r, p.h);
+    for (let k = 0; k < p.n; k++) {
+      const u = p.u0 + span * (k + 0.5);
+      for (const [geo, mat, out] of [[ring, MAT.brickDark, 0.03], [hole, MAT.roof, 0.06]] as const) {
+        const m = new THREE.Mesh(geo, mat); m.position.set(u, 0, p.v + f * out); m.rotation.y = f > 0 ? 0 : Math.PI; gp.add(m);
+      }
+    }
   },
   board(gp, p, live) { buildBoard(gp, p, live); },
   carpark(gp, p, live) { buildCarPark(gp, p, live, seedOf(p.u0, p.v0)); },

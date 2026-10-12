@@ -5,6 +5,8 @@
 // - Platforms: no ground stands over any platform a kit draws (bought or not).
 // - The datum: the ground at every track's centreline is the rail's level, 0, off the viaduct; under the viaduct the
 //   valley floor is well below it.
+// - Levenshulme: its forecourt, taxi rank and bus stop at street level below the embankment, and the arched recesses
+//   at the foot of the wall under the east platform's building.
 // - Roads: the replacement buses' roads come down off a station's pad as a ramp no steeper than 1 in 10, and never
 //   run under the ground.
 // - Size: what's committed of the terrain stays within its budget (2 MB).
@@ -80,6 +82,17 @@ export default async function ({ ok, root }) {
 
   const size = statSync(join(root, 'src/data/terrain/base.json')).size + fine.reduce((n, f) => n + statSync(join(fineDir, f)).size, 0);
   ok(`terrain: the tiles are within their budget (${(size / 1048576).toFixed(2)} of ${BUDGET / 1048576} MB)`, size <= BUDGET);
+
+  // Levenshulme at street level: its forecourt (the cycle stands), taxi rank and bus stop stand on the street below the
+  // embankment, and the arched recesses at the foot of the wall, just outside the pad
+  {
+    const st = net.station('levenshulme'), F = net.stationFrame(st.id), kit = kits[st.kit];
+    const g = (u, v) => t.groundY(F.x + F.dx * u + F.nx * v, F.z + F.dz * u + F.nz * v), high = [];
+    for (const p of kit.parts) if (['cycles', 'taxi', 'busstop'].includes(p.type) && (!p.street || g(p.u, p.v) > -3)) high.push(`${p.type} at ${g(p.u, p.v).toFixed(1)} m`);
+    const rec = kit.parts.find(p => p.type === 'recesses'), mid = rec && (rec.u0 + rec.u1) / 2;
+    const foot = rec && g(mid, rec.v - 0.15) === 0 && g(mid, rec.v) < -1;
+    ok('terrain: Levenshulme\'s forecourt, taxi rank and bus stop stand at street level, and the arched recesses at the foot of its embankment wall', !high.length && foot, high.join(', ') + (foot ? '' : ' no recesses at the wall\'s foot'));
+  }
 
   // the replacement buses' roads, stop to stop and to the depots: never below the ground, and off a station's pad
   // (the railway's land, level at 0) they come down no steeper than 1 in 10 rather than dropping off it

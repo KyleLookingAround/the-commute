@@ -40,7 +40,7 @@ export const LINE_UPGRADES: LineUpgrade[] = [
 
 export const TUNING = {
   dayRate: 6,                                  // clock hours per sim hour: a game day is four hours of sim time
-  fareBase: 1.5, farePerMile: 0.6, fareMult: 12.0,   // 6x the fare of the old 6x clock: the same money per real minute from a sixth of the trains
+  fareBase: 1.5, farePerMile: 0.6, fareMult: 13.5,   // 6x the old 6x clock's fare, then 12 to 13.5 when homes and draw came from the census (Stockport draws less than guessed)
   seatsPerCar: 75, accel: 1.0, brake: 1.1, vmax: 33.5, vmaxFast: 40,
   // the timetable (docs/DESIGN.md, Timetable): a stop is planned at dwell and a turnaround at turnaround, but a train
   // can do them in dwellMin and turnMin when nobody's about, so a late one makes time up (the rest of a turnaround is

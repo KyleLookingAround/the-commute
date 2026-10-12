@@ -1,4 +1,5 @@
-// The browser checks on the built page (dist/), run with: npm run check, or node tools/check.mjs <group>
+// The browser checks on the built page (dist/), run with: npm run check, or node tools/check.mjs <group>, or
+// node tools/check.mjs --shard <i>/<n> for every nth group from the ith
 // (npm run check also runs the rules, the sim tests and the build first).
 // Each file in tools/checks/ is a group named after it: it exports a default async function that gets the helpers below
 // and reports through ok(name, pass, info), and its opening comment says what it covers. Add a group by adding a file.
@@ -14,7 +15,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..'), dist = join(root, 'dist'), out = join(root, 'build/check');
 mkdirSync(out, { recursive: true });
-const args = process.argv.slice(2), except = args[0] === '--except', named = except ? args.slice(1) : args;
+// --shard i/n runs every nth group from the ith (CI runs the groups as parallel jobs this way)
+const argv = process.argv.slice(2), shardAt = argv.indexOf('--shard'), shard = shardAt < 0 ? null : argv[shardAt + 1].split('/').map(Number);
+const args = shardAt < 0 ? argv : argv.filter((_, i) => i !== shardAt && i !== shardAt + 1);
+const except = args[0] === '--except', named = except ? args.slice(1) : args;
 const SAVE_KEY = 'the-commute-save-v1';
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.map': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 // the base path the page was built for: its assets are under it, so the server mounts dist/ there
@@ -64,7 +68,7 @@ async function open(vp = { width: 1280, height: 800 }, { save = null, touch = fa
 const groups = readdirSync(join(root, 'tools/checks')).filter(f => f.endsWith('.mjs')).sort().map(f => f.slice(0, -4));
 const unknown = named.filter(g => !groups.includes(g));
 if (unknown.length) { console.log(`no check group "${unknown[0]}"; the groups are ${groups.join(', ')}`); process.exit(1); }
-const wanted = g => except ? !named.includes(g) : !named.length || named.includes(g);
+const wanted = g => (!shard || groups.indexOf(g) % shard[1] === shard[0] - 1) && (except ? !named.includes(g) : !named.length || named.includes(g));
 for (const g of groups) if (wanted(g))
   try { await (await import(pathToFileURL(join(root, 'tools/checks', g + '.mjs')).href)).default({ open, ok, root, out, url, SAVE_KEY, get browser() { return getBrowser(); } }); }
   catch (e) { const msg = String(e && e.message || e).split('\n')[0].slice(0, 200); ok(`${g}: *`, false, 'the group stopped: ' + msg); }

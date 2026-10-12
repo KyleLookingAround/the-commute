@@ -23,7 +23,7 @@ Keep them true: a PR that changes how something works updates its topic's file i
 Until the owner calls the first shareable release, speed wins and things may break:
 
 - **Push straight to `main`.** No PR, spec, brief or look back needed. One commit per change, plain message, no attribution lines (the rule below still holds).
-- **`main` deploys first and checks after.** The Publish workflow builds and deploys at once, then runs the checks and opens a "main is red" issue if they fail. Fix it in the next push; don't stop.
+- **`main` deploys first and checks after.** The Publish workflow builds and deploys at once, then runs the checks and opens a "main is red" issue if they fail, closing it once they pass. A deploy never waits for the previous push's checks. Fix it in the next push; don't stop.
 - **Before a push:** `npm run rules` and `npm test` (seconds). Run `npm run check` when you've touched the page and have the time; look at `npm run shots` when you've touched the look.
 - **Reshape anything.** Saved state, kits, the network, the economy: change them freely, raise `SAVE_VERSION` when the save's shape changes, and tell the bot's baselines when pacing moves on purpose.
 - **Still keep:** the four layers and the seeded sim (the build refuses otherwise), every bought thing visible on the map, the owner's preferences, UK English, tokens for colours. These are cheap and save rework.

@@ -5,6 +5,9 @@
 // node tools/shots.mjs --stations [id ...]: every station bought and grown, six-car units, and a unit standing at the
 // station shot; for each, from above and at platform level along the line, at phone and desktop sizes, at 13:00:
 // build/shots/station-<id>-<above|platform>-<phone|desktop>.png, to hold against each kit's note and the real place.
+// A view given as name=du,dv,r,turn,tilt after the ids (instead of the usual two) takes a desktop shot looking at (du, dv) in the station's
+// frame from r m away, turned that many radians from looking along the line and tilted from straight down:
+// node tools/shots.mjs --stations heaton-chapel bridge=-77,0,45,1.6,1.3 writes station-heaton-chapel-bridge-desktop.png.
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
@@ -34,10 +37,10 @@ for (const [name, w, h, touch] of SIZES) for (const hour of hours) {
   await page.screenshot({ path: join(out, `${name}-${String(hour).replace('.', '-')}.png`) });
   await ctx.close();
 }
-if (stations) await stationShots(argv.slice(1));
+if (stations) await stationShots(argv.slice(1).filter(a => !a.includes('=')), argv.slice(1).filter(a => a.includes('=')).map(a => a.split('=')));
 await browser.close(); server.close();
 
-async function stationShots(only) {
+async function stationShots(only, extra) {
   const { register } = await import('tsx/esm/api'); register();
   const { fromGeo } = await import('../src/sim/network.ts');
   const { Sim, UPGRADES } = await import('../src/sim/sim.ts');
@@ -59,8 +62,10 @@ async function stationShots(only) {
     const save = JSON.stringify({ g, selected: st.index });
     const F = net.stationFrame(st.id), u = st.s - st.at, aim = (du, dv) => [F.x + F.dx * (u + du) + F.nx * dv, F.z + F.dz * (u + du) + F.nz * dv];
     const [tx, tz] = aim(0, 0), along = Math.atan2(-F.dx, -F.dz);
-    const views = { above: { tx, tz, ty: 2, r: 150, th: along + 1.2, ph: 0.55 }, platform: { tx, tz, ty: 3, r: 60, th: along + Math.PI - 0.3, ph: 1.5 } };
+    const views = extra.length ? {} : { above: { tx, tz, ty: 2, r: 150, th: along + 1.2, ph: 0.55 }, platform: { tx, tz, ty: 3, r: 60, th: along + Math.PI - 0.3, ph: 1.5 } };
+    for (const [name, spec] of extra) { const [du, dv, r, turn, tilt] = spec.split(',').map(Number), [x, z] = aim(du, dv); views[name] = { tx: x, tz: z, ty: 3, r, th: along + turn, ph: tilt }; }
     for (const [size, w, h, touch] of [['phone', 390, 844, true], ['desktop', 1440, 900, false]]) for (const [view, orbit] of Object.entries(views)) {
+      if (extra.length && size === 'phone') continue;
       const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: touch ? 2 : 1, hasTouch: touch, isMobile: touch });
       await ctx.addInitScript(([o, sv]) => { window.__seed = 1; window.__lockHour = 13; window.__orbit = o; localStorage.setItem('the-commute-save-v1', sv); }, [orbit, save]);
       const page = await ctx.newPage(); await page.goto(url);

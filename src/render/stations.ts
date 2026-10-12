@@ -34,6 +34,11 @@ export type Part =
   /** A lattice footbridge's open stair down to a platform at v: a trestle under the deck, then two flights along the
    * line towards `dir` along u. */
   | (Gated & { type: 'flights'; u: number; v: number; dir: 1 | -1 })
+  /** A brick bridge over the line from u0 to u1 (its width along the line), its face from v0 to v1 up to y1, with
+   * segmental arches cut through it: each span [va, vb, spring, crown]. Piers stand between the spans to the ground. */
+  | (Gated & Span & { type: 'arches'; v0: number; v1: number; y1: number; spans: [number, number, number, number][]; mat?: string })
+  /** A ramp along the line at v, w wide, from (u0, y0) to (u1, y1), with a handrail each side. */
+  | (Gated & Span & { type: 'ramp'; v: number; w: number; y0: number; y1: number })
   /** A footbridge's stair tower on its own, for a platform built after the bridge. */
   | (Gated & { type: 'stairs'; u: number; v: number })
   | (Gated & { type: 'lifts'; u: number; towers: number[] })
@@ -176,6 +181,30 @@ const partBuilders: Builders = {
     box(gp, 2, 0.25, 1.8, MAT.rust, ub + d, DECK_Y - rise - 0.12, p.v);
     trestle(gp, ub + d, p.v, DECK_Y - rise - 0.25, 1.6, 1.6);
     flight(ub + d * 2, DECK_Y - rise);
+  },
+  arches(gp, p) {
+    // piers as boxes to the ground, and over each span the wall above its arch as its own shape (u, y, v from (-v, y)
+    // extruded along u), so nothing solid reaches below an arch's springing
+    const mat = matFor(p.mat, MAT.brickDark), L = p.u1 - p.u0;
+    let v = p.v0;
+    for (const [va, vb, spring, crown] of p.spans) {
+      if (va > v) boxUV(gp, { u0: p.u0, u1: p.u1, v0: v, v1: va, y0: 0, y1: p.y1 }, mat);
+      const c = (vb - va) / 2, h = crown - spring, R = (c * c + h * h) / (2 * h), mid = (va + vb) / 2, cy = crown - R;
+      const shape = new THREE.Shape();
+      shape.moveTo(-va, spring); shape.lineTo(-va, p.y1); shape.lineTo(-vb, p.y1); shape.lineTo(-vb, spring);
+      const a0 = Math.atan2(spring - cy, c);
+      for (let k = 1; k < 12; k++) { const t = a0 + (Math.PI - 2 * a0) * k / 12; shape.lineTo(-(mid + R * Math.cos(t)), cy + R * Math.sin(t)); }
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: L, bevelEnabled: false });
+      geo.rotateY(Math.PI / 2); geo.translate(p.u0, 0, 0);
+      gp.add(new THREE.Mesh(geo, mat));
+      v = vb;
+    }
+    if (p.v1 > v) boxUV(gp, { u0: p.u0, u1: p.u1, v0: v, v1: p.v1, y0: 0, y1: p.y1 }, mat);
+  },
+  ramp(gp, p) {
+    const du = p.u1 - p.u0, dy = p.y1 - p.y0, len = Math.hypot(du, dy), tilt = Math.atan2(dy, du), cu = (p.u0 + p.u1) / 2, cy = (p.y0 + p.y1) / 2;
+    box(gp, len, 0.3, p.w, MAT.concrete, cu, cy - 0.15, p.v).rotation.z = tilt;
+    for (const s of [-1, 1]) box(gp, len, 0.08, 0.08, MAT.tactile, cu, cy + 1, p.v + s * (p.w / 2 - 0.1)).rotation.z = tilt;
   },
   stairs(gp, p) { box(gp, 10, 5, 4.5, MAT.concrete, p.u, 3.5, p.v); },
   lifts(gp, p) { for (const tv of p.towers) { box(gp, 3.2, 9.5, 3.2, MAT.glass, p.u + 7, 4.75, tv); box(gp, 3.6, 0.4, 3.6, MAT.roof, p.u + 7, 9.7, tv); } },

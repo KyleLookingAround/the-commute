@@ -7,7 +7,7 @@ import { fromGeo } from '../src/sim/network.ts';
 import { Sim, demandCurve, TUNING } from '../src/sim/sim.ts';
 import { migrate, SAVE_VERSION, SaveError } from '../src/sim/save.ts';
 import type { NetworkGeoDef, Train } from '../src/sim/types.ts';
-import { BASE, clockAt, simAtHour } from '../src/sim/day.ts';
+import { BASE, clockAt, simAtHour, clockText } from '../src/sim/day.ts';
 
 const def = JSON.parse(readFileSync(new URL('../src/data/network.json', import.meta.url), 'utf8')) as NetworkGeoDef;
 const net = () => fromGeo(def);
@@ -499,6 +499,24 @@ test('expresses: they run through Stockport until its platform 3 is built, then 
   assert.equal(before.paid, 0);
   assert.ok(after.n >= 10 && after.at3 === after.n, `they call at platform 3 (${after.n} calls)`);
   assert.ok(after.paid > after.n * TUNING.accessCharge - 1 && after.through > 0, 'and pay the access charge and a share of through fares');
+});
+
+test('expresses: they come on by the clock, one of each every two hours through the day and none through the night', () => {
+  const sim = new Sim(net(), Sim.fresh(net(), 1)); sim.g.cash = 1e7; sim.buyUpgrade(0, 'crossing'); sim.buyUpgrade(0, 'platform2');
+  const on: Record<string, string[]> = {};
+  const t0 = simAtHour(2, 0), t1 = simAtHour(3, 0);
+  sim.advance(t0 - sim.g.t);
+  const was = new Map(sim.g.trains.map(t => [t, t.state]));
+  while (sim.g.t < t1) {
+    sim.advance(10);
+    for (const tr of sim.g.trains) {
+      if (sim.svc(tr.svc).express && was.get(tr) === 'away' && tr.state !== 'away') (on[tr.svc] ??= []).push(clockText(sim.g.t));
+      was.set(tr, tr.state);
+    }
+  }
+  assert.deepEqual(on['avanti']?.map(c => c.slice(0, 2)), ['06', '08', '10', '12', '14', '16', '18', '20', '22'], `Avanti: ${on['avanti']}`);
+  assert.deepEqual(on['crosscountry']?.map(c => c.slice(0, 2)), ['07', '09', '11', '13', '15', '17', '19', '21'], `CrossCountry: ${on['crosscountry']}`);
+  assert.ok([...on['avanti']!, ...on['crosscountry']!].every(c => +c.slice(3) >= 30 && +c.slice(3) < 35), 'on time, at half past');
 });
 
 test('expresses: an express standing in platform 3 holds a stopper that wants it until it leaves', () => {

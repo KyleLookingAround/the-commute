@@ -11,7 +11,7 @@ import type { Network } from './network.ts';
 import { journeys, cycle, runTime, waitWeight, type Journey } from './journeys.ts';
 import { freshWeather, stepWeather, feel, weatherKey } from './weather.ts';
 import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
-import { stepExpress, nextSlot } from './expresses.ts';
+import { stepExpress, nextSlot, EXPRESS_UNITS } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
 import { effects, type Effects } from './contract.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
@@ -64,12 +64,11 @@ export const TUNING = {
   approach: 450, clear: 150,
   claim: 700,                                  // metres out a train claims the platform it will stand at (the view draws it there)
   carPitch: 23.6,                              // metres from one car's middle to the next's
-  // the expresses (src/sim/expresses.ts, docs/DESIGN.md, Expresses): they run at expressSpeed, stand expressDwell at a
-  // stop, and from the clock's expressFrom to expressTo they don't come on (no long-distance trains through the small
-  // hours). At each call at a station the player owns one pays the access charge, and its long-distance passengers
+  // the expresses (src/sim/expresses.ts, docs/DESIGN.md, Expresses): they run at expressSpeed and stand expressDwell at a
+  // stop, coming on by the clock (`through` in the network data). At each call at a station the player owns one pays the access charge, and its long-distance passengers
   // (expressPax a call at the peak's height, by the demand curve, off and as many on) each pay throughShare of their
   // fare to the station
-  expressSpeed: 40, expressDwell: 60, expressFrom: 23, expressTo: 5.5, accessCharge: 40, expressPax: 30, throughShare: 2,
+  expressSpeed: 40, expressDwell: 60, accessCharge: 40, expressPax: 30, throughShare: 2,
   doorsPerCar: 2, boardPerDoor: 0.7,           // passengers a second through each door: a 2-car unit boards about 110 in a 45 s stop
   doorsCrowd: 0.7,                             // ...slowing as it fills, to 30% of that when full: people squeeze in
   platformCap: 150, platformCapExtended: 320,
@@ -132,7 +131,7 @@ export function demandCurve(h: number): number {
 export interface Svc {
   id: string; route: number[]; home: number | null; def: ServiceDef; tracks: { north: string; south: string };
   plats: Map<number, { north?: number[]; south?: number[]; turn?: number[] }>;
-  express: { south: string; every: number; at: number; portal: number } | null;
+  express: { south: string; first: number; every: number; last: number; portal: number } | null;
 }
 /** A platform face as the sim knows it: its data, and which ways trains call at it where no service says. */
 export interface Plat { def: PlatformDef; ways: (0 | 1)[] }
@@ -286,9 +285,9 @@ export class Sim {
     const g = this.g;
     for (const v of this.svcs) {
       const n = this.unitsFor(v), sp = this.span(v); if (!n) continue;
-      // an express comes on at its next slot
+      // an express's units come on at their next slots
       if (v.express) {
-        if (!g.trains.some(t => t.svc === v.id)) g.trains.push({ ...this.unit(v, v.express.portal, 1), state: 'away', due: nextSlot(v.express, g.t), onboard: 0 });
+        for (let k = g.trains.filter(t => t.svc === v.id).length; k < EXPRESS_UNITS; k++) g.trains.push({ ...this.unit(v, v.express.portal, 1), state: 'away', due: nextSlot(v.express, g.t, k), onboard: 0 });
         continue;
       }
       const s0 = this.station(sp[0]!).s, s1 = this.station(sp[sp.length - 1]!).s;

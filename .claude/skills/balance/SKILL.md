@@ -65,7 +65,7 @@ Make the change and run the same three seeds into `build/after.log`.
 | Lost in trouble | 0–550 | 113, 194, 498 (gave up while something was wrong or in the quarter hour after) |
 | Homes grown | 180–340 | 262, 259, 264 (homes over the census catchments) |
 | Wet hours | 0–2.5 | 1.47, 1.19, 0.76 (sim hours of rain or snow; the first game day stays dry; `--fair` plays the same weather unfelt, to measure what it costs) |
-| Express £, through | 4,500–8,500; 1,300–2,500 | 6,560, 6,340, 6,572; 1,900, 1,830, 1,906 |
+| Express £, through | 5,500–10,500; 1,600–2,900 | 8,052, 8,276, 7,904; 2,226, 2,298, 2,172 (the expresses on the clock, 12 October 2026; the bot also prints express £ and calls a game day) |
 | By car, by bus link | 300–650; 100–260 | 490, 478, 489; 176, 178, 180 |
 
 Contract renewal (`--runs 2`): each run but the last renews as soon as it owns Piccadilly, banks its reputation and buys perks in the bot's order (`PERKS` in `tools/bot.mjs`), then the same seed is played again with them. It prints each run's milestones, the reputation banked and the perks bought, and checks three proposed ranges (the `contract` entry in `tools/baseline.json`): reputation banked 45–85 (62, 62, 64), the second run's Piccadilly at 3.6–5 h (4.08, 4.07, 4.82) and 15–35% sooner than the first (26%). A change to the economy moves these too; with no perks a run plays exactly as a single run does.

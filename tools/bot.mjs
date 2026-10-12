@@ -100,7 +100,7 @@ export function career(seed, runs = runCount, hoursToPlay = hours) {
 }
 
 export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadilly = false) {
-  const net = fromGeo(def), sim = new Sim(net, Sim.fresh(net, seed, perksHeld)), t0 = sim.g.t, picc = net.station('piccadilly').index;
+  const net = fromGeo(def), sim = new Sim(net, Sim.fresh(net, seed, perksHeld)), t0 = sim.g.t, cash0 = sim.g.cash, picc = net.station('piccadilly').index;
   full.clear();
   // car parks and bus links: when each filled (by game day), for the table
   const filled = sim.S.map(() => new Set());
@@ -110,7 +110,9 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
   const peak = k => peaks[k] ??= { lost: {}, cab: {}, deps: 0, within: 0, worst: 0 };
   // how often each platform at the two big stations has a train leave it, by its number on the boards
   const used = {}, big = new Set(['stockport', 'piccadilly']);
+  let expressCalls = 0;
   sim.onDepart = (tr, i, s) => {
+    if (sim.svc(tr.svc).express && sim.g.owned[i]) expressCalls++;
     const st = sim.S[i].id; if (big.has(st) && tr.pfAt === i) { const k = `${st} ${sim.plats[i][tr.pf]?.def.id}`; used[k] = (used[k] ?? 0) + 1; }
     if (tr.svc !== main) return;
     late.deps++; if (s <= 300) late.within++; late.worst = Math.max(late.worst, s);
@@ -140,11 +142,11 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
     if (renewAtPiccadilly && C.renewable(sim.g, picc)) break;
   }
   const g = sim.g, home = sim.svcs[0].route[0], days = (clockAt(g.t) - clockAt(t0)) / 86400;
-  const measures = { 'game days': +days.toFixed(2), 'earned a game day': Math.round(g.earned / days), 'lost a game day': Math.round(g.stats.lost / days), 'cash at end': Math.round(g.cash), 'boarded': g.stats.boarded, 'lost': g.stats.lost, 'by cab': g.stats.cab, 'longest quiet hours': +longestQuiet.toFixed(1), 'longest daytime quiet': +longestDayQuiet.toFixed(2),
+  const measures = { 'game days': +days.toFixed(2), 'earned a game day': Math.round(g.earned / days), 'lost a game day': Math.round(g.stats.lost / days), 'cash a game day': Math.round((g.cash - cash0) / days), 'cash at end': Math.round(g.cash), 'boarded': g.stats.boarded, 'lost': g.stats.lost, 'by cab': g.stats.cab, 'longest quiet hours': +longestQuiet.toFixed(1), 'longest daytime quiet': +longestDayQuiet.toFixed(2),
     'lost beyond home %': g.stats.lost ? +(100 * (1 - g.st[home].lost / g.stats.lost)).toFixed(1) : 0,
     'failures': g.trouble.fails, 'signal failures': g.trouble.signals, 'by bus': g.trouble.bused, 'lost in trouble': troubleLost,
     'wet hours': +(g.weather.wet / 3600).toFixed(2),
-    'express £': Math.round(g.stats.express), 'through': g.stats.through, 'by car': g.stats.car, 'by bus link': g.stats.bus,
+    'express £': Math.round(g.stats.express), 'express £ a game day': Math.round(g.stats.express / days), 'express calls a game day': +(expressCalls / days).toFixed(1), 'through': g.stats.through, 'by car': g.stats.car, 'by bus link': g.stats.bus,
     'homes grown': Math.round(g.homes.reduce((a, h, i) => a + h - sim.S[i].catchment, 0)),
     'within 5 min %': late.deps ? +(100 * late.within / late.deps).toFixed(1) : 100, 'worst late min': +(late.worst / 60).toFixed(1) };
   for (const p of Object.values(peaks)) { p.within = p.deps ? +(100 * p.within / p.deps).toFixed(1) : 100; p.worst = +(p.worst / 60).toFixed(1); }

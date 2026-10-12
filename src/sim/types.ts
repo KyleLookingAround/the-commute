@@ -72,9 +72,9 @@ export interface ServiceDef {
    * list is shared out by unit (the first unit the first platform, the second the next), so each one built is used. */
   platforms?: Record<string, ServicePlatforms | undefined>;
   /** A long-distance train running through from beyond the map: it comes in where its tracks begin, calls at its
-   * route's stations where it has a platform, turns at the last, and goes back off the map to `south`, one every
-   * `every` sim seconds, the first `at` seconds into the cycle. */
-  through?: { south: string; every: number; at: number };
+   * route's stations where it has a platform, turns at the last, and goes back off the map to `south`: by the clock,
+   * the first at clock hour `first`, then one every `every` clock hours to `last`. */
+  through?: { south: string; first: number; every: number; last: number };
 }
 export interface LandmarkDef {
   id: string; name: string; kind: string; corridor?: string;

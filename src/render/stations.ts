@@ -27,6 +27,12 @@ export type Part =
   /** back: which side the glass back is on, away from the track (+1 is +v, the default). */
   | (Gated & { type: 'shelter'; u: number; v: number; back?: 1 | -1 })
   | (Gated & { type: 'footbridge'; u: number; v0: number; v1: number; towers: number[] })
+  /** An open footbridge of riveted plate girders with lattice parapets (Ardwick's), its deck at u from v0 to v1 on
+   * lattice trestles (their v; each platform's `flights` brings its own). */
+  | (Gated & { type: 'lattice'; u: number; v0: number; v1: number; trestles?: number[] })
+  /** A lattice footbridge's open stair down to a platform at v: a trestle under the deck, then two flights along the
+   * line towards `dir` along u. */
+  | (Gated & { type: 'flights'; u: number; v: number; dir: 1 | -1 })
   /** A footbridge's stair tower on its own, for a platform built after the bridge. */
   | (Gated & { type: 'stairs'; u: number; v: number })
   | (Gated & { type: 'lifts'; u: number; towers: number[] })
@@ -65,6 +71,39 @@ export interface Kit { id: string; note?: string; platformLength?: number; longe
 type Builders = { [K in PartType]: (gp: THREE.Group, p: Extract<Part, { type: K }>, live: Live) => void };
 /** A cosmetic number for a part from where it stands, so each car park and rack fills in its own order. */
 const seedOf = (u: number, v: number) => Math.round(u * 31 + v * 17);
+// ---- lattice ironwork (Ardwick's footbridge) ----
+// One diamond-lattice texture, cut out by its alpha, shared by every lattice panel; each panel's UVs are scaled to its
+// size so the diamonds stay the same size everywhere. Without a canvas (the geometry check) the panels are solid.
+const DECK_Y = 7.2, LATTICE_M = 1.1;
+let latticeMat: THREE.Material | null = null;
+function lattice(): THREE.Material {
+  if (latticeMat) return latticeMat;
+  const canvas = typeof document === 'undefined' ? null : document.createElement('canvas'), ctx = canvas?.getContext('2d');
+  let map: THREE.CanvasTexture | null = null;
+  if (canvas && ctx) {
+    canvas.width = canvas.height = 64; ctx.strokeStyle = '#fff'; ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(64, 64); ctx.moveTo(64, 0); ctx.lineTo(0, 64); ctx.stroke();
+    ctx.strokeRect(0, 0, 64, 64);
+    map = new THREE.CanvasTexture(canvas); map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  }
+  latticeMat = new THREE.MeshLambertMaterial({ color: MAT.rust.color, map, alphaTest: 0.5, side: THREE.DoubleSide });
+  return latticeMat;
+}
+/** A lattice panel w long and h high, centred at (u, y, v), turned yaw about y and tilted pitch about its own length. */
+function panel(gp: THREE.Group, w: number, h: number, u: number, y: number, v: number, yaw: number, pitch = 0): void {
+  const geo = new THREE.PlaneGeometry(w, h), uv = geo.attributes['uv'] as THREE.BufferAttribute;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / LATTICE_M, uv.getY(i) * h / LATTICE_M);
+  const m = new THREE.Mesh(geo, lattice()); m.rotation.set(0, yaw, pitch, 'YXZ'); m.position.set(u, y, v); gp.add(m);
+}
+/** A lattice trestle from the ground to y1 under (u, v): four posts and lattice sides, on a brick base. */
+function trestle(gp: THREE.Group, u: number, v: number, y1: number, wu = 2.2, wv = 2): void {
+  box(gp, wu + 0.6, 1.4, wv + 0.6, MAT.brick, u, 0.7, v);
+  for (const su of [-1, 1]) for (const sv of [-1, 1]) box(gp, 0.22, y1 - 1.4, 0.22, MAT.rust, u + su * wu / 2, (y1 + 1.4) / 2, v + sv * wv / 2);
+  for (const s of [-1, 1]) {
+    panel(gp, wu, y1 - 1.6, u, (y1 + 1.4) / 2, v + s * wv / 2, 0);
+    panel(gp, wv, y1 - 1.6, u + s * wu / 2, (y1 + 1.4) / 2, v, Math.PI / 2);
+  }
+}
 const partBuilders: Builders = {
   platform(gp, p) {
     const mat = matFor(p.mat, MAT.platform);
@@ -99,6 +138,34 @@ const partBuilders: Builders = {
     const w = p.v1 - p.v0, cv = (p.v0 + p.v1) / 2;
     box(gp, 3.6, 3.2, w, MAT.glass, p.u, 7.9, cv); box(gp, 4.2, 0.5, w + 2, MAT.roof, p.u, 9.7, cv); box(gp, 3.6, 0.5, w + 2, MAT.concrete, p.u, 6.1, cv);
     for (const tv of p.towers) box(gp, 10, 5, 4.5, MAT.concrete, p.u, 3.5, tv);
+  },
+  lattice(gp, p) {
+    // the deck clears the trains (5.2 m drawn) and the wires, between plate girders with a lattice parapet on top
+    const w = p.v1 - p.v0, cv = (p.v0 + p.v1) / 2;
+    box(gp, 2.8, 0.25, w, MAT.rust, p.u, DECK_Y - 0.12, cv);
+    for (const s of [-1, 1]) {
+      box(gp, 0.25, 1.1, w, MAT.rust, p.u + s * 1.4, DECK_Y - 0.05, cv);
+      panel(gp, w, 0.9, p.u + s * 1.4, DECK_Y + 0.95, cv, Math.PI / 2);
+      box(gp, 0.18, 0.12, w, MAT.rust, p.u + s * 1.4, DECK_Y + 1.45, cv);
+    }
+    for (const tv of p.trestles ?? []) trestle(gp, p.u, tv, DECK_Y - 0.6);
+  },
+  flights(gp, p) {
+    // from the deck's edge down to a landing on a trestle, then on down to the platform (1 m up), each flight with
+    // its stringers and lattice sides
+    const R = 5.4, rise = (DECK_Y - 1) / 2, d = p.dir;
+    trestle(gp, p.u, p.v, DECK_Y - 0.6);
+    const flight = (ua: number, ya: number) => {
+      const ub = ua + d * R, yb = ya - rise, cu = (ua + ub) / 2, cy = (ya + yb) / 2, len = Math.hypot(R, rise);
+      const tilt = Math.atan2(yb - ya, ub - ua);
+      box(gp, len, 0.3, 1.8, MAT.rust, cu, cy, p.v).rotation.z = tilt;
+      for (const s of [-1, 1]) panel(gp, len, 0.9, cu, cy + 0.6, p.v + s * 0.95, 0, tilt);
+      return ub;
+    };
+    const ub = flight(p.u + d * 1.5, DECK_Y);
+    box(gp, 2, 0.25, 1.8, MAT.rust, ub + d, DECK_Y - rise - 0.12, p.v);
+    trestle(gp, ub + d, p.v, DECK_Y - rise - 0.25, 1.6, 1.6);
+    flight(ub + d * 2, DECK_Y - rise);
   },
   stairs(gp, p) { box(gp, 10, 5, 4.5, MAT.concrete, p.u, 3.5, p.v); },
   lifts(gp, p) { for (const tv of p.towers) { box(gp, 3.2, 9.5, 3.2, MAT.glass, p.u + 7, 4.75, tv); box(gp, 3.6, 0.4, 3.6, MAT.roof, p.u + 7, 9.7, tv); } },

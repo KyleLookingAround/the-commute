@@ -1,6 +1,6 @@
 {
   "id": "ardwick",
-  "note": "From an OpenStreetMap export (tools/osm-to-kit.mjs, 8 October 2026): the platform length (the export maps one platform area; the second is set to match) and the footbridge with its steps at the north end. Two bare platforms 2.1 m outside the slow lines by the depot, the real tracks 1.25 times real across. Ardwick's real platforms are on the Hope Valley lines beside the main line; here they serve the stopper. Positive v is east. Photos: a tall rusty lattice footbridge with long open stairs across the whole yard, one blue glazed shelter a platform, a brick staff hut, and the depot's sheds and sidings to the east. Trains stop 8 m north of the station's point, in the middle of the platforms; the extension runs 20 m south as well as 40 m north, so a six-car unit stands wholly alongside (a game choice, the real platforms take fewer). A departure board on each platform; no car park or cycle stands, as at the real station (from memory).",
+  "note": "From an OpenStreetMap export (tools/osm-to-kit.mjs, 8 October 2026): the platform length (the export maps one platform area; the second is set to match) and the footbridge at the north end. Two side platforms 2.1 m outside the slow lines by the depot, the real tracks 1.25 times real across. The real Ardwick is one island platform on the Hope Valley lines beside the main line (geograph 4247094); here it serves the stopper, so it has a platform each side, a game choice. Positive v is east. Photos (geograph 6113205 Gerald England 2019, 1374380 David Long 2009, 4247094 and 4247105 Nigel Thompson 2014; Commons 'Ardwick railway station footbridge (1)' and '(2)', Rept0n1x 2015): the footbridge is riveted plate girders under a diamond-lattice parapet, rust brown, open to the sky, on lattice trestles with brick bases, and its stairs come down in straight open flights along the line with a landing on a trestle between (the `lattice` and `flights` parts). Its deck height is from the step counts and clears the wires; how many tracks its main span crosses the photos can't settle, so it spans the line. A small blue shelter on the platform, white lamp columns with blue bases, no car park, cycle stands or ticket office. The brick booking hut is the game's: the photos show none (Commons 'Ardwick railway station (2)' and '(4)', 2015). Trains stop 8 m north of the station's point, in the middle of the platforms; the extension runs 20 m south as well as 40 m north, so a six-car unit stands wholly alongside (a game choice, the real platform takes fewer). The ticket barriers, the kiosk and the vending machine stand south of the stair foot, the lifts beside the bridge's north side (the real station has neither). A departure board on each platform.",
   "platformLength": 85,
   "faces": { "north": { "v": -3.1, "u0": -40, "u1": 35 }, "south": { "v": 16.9, "u0": -40, "u1": 35 } },
   "parts": [
@@ -14,15 +14,16 @@
     { "type": "shelter", "u": 0, "v": 18.9, "upgrade": "platform2" },
     { "type": "canopy", "u0": -35, "u1": 35, "v0": -8.1, "v1": -2.1, "upgrade": "canopy" },
     { "type": "canopy", "u0": -35, "u1": 35, "v0": 15.9, "v1": 21.9, "upgrade": ["canopy", "platform2"] },
-    { "type": "lamps", "u0": -40, "u1": 35, "v": -5.1, "every": 25 },
-    { "type": "lamps", "u0": -40, "u1": 35, "v": 18.9, "every": 25, "upgrade": "platform2" },
-    { "type": "footbridge", "u": 47, "v0": -9.6, "v1": 23.4, "towers": [-5.1], "upgrade": "crossing" },
-    { "type": "stairs", "u": 47, "v": 18.9, "upgrade": ["crossing", "platform2"] },
-    { "type": "lifts", "u": 47, "towers": [-5.1], "upgrade": "lifts" },
-    { "type": "lifts", "u": 47, "towers": [18.9], "upgrade": ["lifts", "platform2"] },
-    { "type": "retail", "u": 10, "v": -7, "label": "Vending machine", "small": true, "upgrade": "retail" },
-    { "type": "retail", "u": 22, "v": -7, "label": "Kiosk", "small": true, "upgrade": "kiosk" },
-    { "type": "barriers", "u0": 36, "u1": 46, "v": -6.77, "upgrade": "barriers" },
+    { "type": "lamps", "u0": -40, "u1": 30, "v": -5.1, "every": 25 },
+    { "type": "lamps", "u0": -40, "u1": 30, "v": 18.9, "every": 25, "upgrade": "platform2" },
+    { "type": "lattice", "u": 47, "v0": -9.6, "v1": 23.4, "upgrade": "crossing" },
+    { "type": "flights", "u": 47, "v": -5.1, "dir": -1, "upgrade": "crossing" },
+    { "type": "flights", "u": 47, "v": 18.9, "dir": -1, "upgrade": ["crossing", "platform2"] },
+    { "type": "lifts", "u": 42, "towers": [-5.1], "upgrade": "lifts" },
+    { "type": "lifts", "u": 42, "towers": [18.9], "upgrade": ["lifts", "platform2"] },
+    { "type": "retail", "u": 7, "v": -7, "label": "Vending machine", "small": true, "upgrade": "retail" },
+    { "type": "retail", "u": 14, "v": -7, "label": "Kiosk", "small": true, "upgrade": "kiosk" },
+    { "type": "barriers", "u0": 20, "u1": 30, "v": -6.77, "upgrade": "barriers" },
     { "type": "footprint", "outline": [[-30, -19.6], [-18, -19.6], [-18, -11.6], [-30, -11.6]], "y0": 0, "y1": 3.6, "mat": "brick", "upgrade": "building" },
     { "type": "box", "u0": -60, "u1": 60, "v0": 51.4, "v1": 91.4, "y0": 0, "y1": 9, "mat": "steel", "scenery": true },
     { "type": "box", "u0": -62, "u1": 62, "v0": 49.4, "v1": 93.4, "y0": 9, "y1": 10, "mat": "roof", "scenery": true },
@@ -33,6 +34,6 @@
     { "type": "lamps", "u0": 50, "u1": 75, "v": 18.9, "every": 25, "upgrade": ["extend", "platform2"] },
     { "type": "lamps", "u0": -55, "u1": -55, "v": -5.1, "upgrade": "extend" },
     { "type": "lamps", "u0": -55, "u1": -55, "v": 18.9, "upgrade": ["extend", "platform2"] },
-    { "type": "busstop", "u": -24, "v": -26, "back": [1, 0], "kerb": 1, "door": [-24, -19], "note": "By the hut on the approach road, from memory" }
+    { "type": "busstop", "u": -24, "v": -26, "back": [1, 0], "kerb": 1, "door": [-24, -19], "note": "On the cobbled approach by the hut, placed by eye (the real way in is a gate in the viaduct wall on a cobbled street, geograph 4247105)" }
   ]
 }

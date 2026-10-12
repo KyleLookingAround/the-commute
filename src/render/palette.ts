@@ -9,7 +9,7 @@ const FALLBACK = {
   brick: '#a85a3e', 'brick-dark': '#7a4030', concrete: '#c2bdb0', platform: '#d2cdbe', tactile: '#e8cf5c',
   ballast: '#7a7068', rail: '#e4e7ec', canopy: '#4f6a8c', steel: '#8a94a3', glass: '#b8dcef', 'glass-glow': '#27405a',
   roof: '#4a4046', timber: '#e3d6b6', road: '#6c7078', shed: '#a6b2c2', lamp: '#fff1c9', warm: '#ffd88a',
-  locked: '#6e7894', pax: '#f2b63a', 'pax-glow': '#6a4a10', 'pax-head': '#f3d9b8', 'pax-2': '#3f6fd8', 'pax-3': '#d84a3f', 'pax-4': '#5e6168', column: '#9c2b2b', pyramid: '#3f8fd8', 'pyramid-glow': '#0d2a4a', house: '#8a5f50',
+  locked: '#6e7894', pax: '#f2b63a', 'pax-glow': '#6a4a10', 'pax-head': '#f3d9b8', 'pax-2': '#3f6fd8', 'pax-3': '#d84a3f', 'pax-4': '#5e6168', column: '#9c2b2b', rust: '#8a4a2c', pyramid: '#3f8fd8', 'pyramid-glow': '#0d2a4a', house: '#8a5f50',
   coin: '#f5c542', 'coin-glow': '#5a3f08', 'win-empty': '#9db8cc', 'win-busy': '#ffd27a', late: '#ff8a1c', ghost: '#4fdcff',
   reach: '#ffcf5c', 'mins-1': '#ffe066', 'mins-2': '#ffad5a', 'mins-3': '#f07fa0', 'mins-4': '#a58be0',
   signal: '#1d2128', 'signal-green': '#3dff7a', board: '#f7f7f2', 'board-ink': '#14161a',

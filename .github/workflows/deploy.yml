@@ -64,7 +64,7 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v4
 
-  # the browser checks, after the deploy, as four parallel jobs (every fourth group each: tools/check.mjs --shard);
+  # the browser checks, after the deploy, as four parallel jobs balanced by time (tools/check.mjs --shard);
   # at the first release make `build` need this job
   check:
     runs-on: ubuntu-latest

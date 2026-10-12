@@ -2,7 +2,7 @@
 
 Where this is going, phase by phase, in the order it makes sense to build it. Each phase leaves the game playable and ends with something a player would notice. Phases can overlap where nothing depends on the one before; each says what it needs.
 
-The shape: one line made deep (phase 2), then made complete and alive (3); the lines out of Stockport (4) and the city they all run to (5); trams arriving from the city (6); all of Greater Manchester (7); a passenger's view of it all (8); the stations it could have one day (9); and a very long sci-fi game with a deep prestige system (10). Every station in every phase starts as a halt and grows, and everything bought shows on the map.
+The shape: one line made deep (phase 2); given pressure and a reason to keep playing (3); made complete and alive (4); the lines out of Stockport (5) and the city they all run to (6); trams arriving from the city (7); all of Greater Manchester (8); a passenger's view of it all (9); the stations it could have one day (10); and a very long sci-fi game of eras (11). Every station in every phase starts as a halt and grows, and everything bought shows on the map. Each step below is about one session's work, in the order to build it; S, M and L say roughly how big (a few dollars, about ten, twenty or more). From the second release on, each phase ends with a release.
 
 ## 1. Repo and real geography (done)
 
@@ -36,68 +36,80 @@ The loop on Hazel Grove to Piccadilly is worth playing for hours before the map 
 - **Credits** (done 11 October 2026). The page footer credits "© OpenStreetMap contributors" (ODbL), linked to their copyright page, and the geograph.org.uk photographs the kits were checked against.
 - **The first shareable release.** When the owner calls it: the halt-to-station loop, the upgrades UI, phones checked down to 320 px, What's new, and saves migrated from then on. The full loop (issues, specs, PRs, look backs) switches on (the `release` playbook).
 
-## 3. The line, alive and complete
+## 3. Pressure and the long loop
 
-Every station on the line as it stands today, in full, and a line that feels alive at every hour.
+The line you've built gets trouble worth fixing as it gets busy, a reach you can watch grow, and a contract that ends and starts you again a little stronger. Built on phase 2's door-to-door demand: everything here acts through journey times. Mostly sim work, so it runs beside phase 4's view work. Ends with the second release.
 
-- **Stations as they are today**, the last real stage of each kit: Ardwick's lattice footbridge as its own part, Piccadilly's platforms 13 and 14 and the Gateway, the bays' real splay, Levenshulme's curved shelter, Heaton Chapel's arches, Stockport's glass entrance and the photos' other detail.
-- **Landmarks:** the viaduct for real (27 arches at full height over the Mersey), the Pyramid, the Plaza, Stockport's town centre and Merseyway, the city skyline (Beetham Tower, Deansgate Square) on the horizon.
-- **Terrain** from the Environment Agency's open LIDAR: the Mersey valley, the Levenshulme embankment, the cuttings at Heaton Chapel and Davenport, so cutting walls can be their real height again.
-- **More to see when bought:** retail units lit, car parks filling, cycle racks, platform extensions growing, departure boards.
-- **Weather and seasons:** rain, overcast, fog and snow with gameplay (rain hurts patience without a canopy, leaves on the line slow trains in autumn, snow); the year turning through the seasons.
-- **Life:** different passengers (commuters, students with suitcases, cyclists, football crowds), sound with a mute (trains, announcements, birds by day), and the night (lit stations, empty platforms, engineering trains).
-- **Things going wrong, shown on the map:** late trains (a long dwell at a busy peak makes a train late, and lateness carries on down the line), a failed train with its hazard lights on, a signal failure holding trains back, and rail replacement buses calling at a stop outside the station when trains can't run; few, clear and fixable with upgrades.
-- **Taxi ranks:** a stage a station can buy, a rank with cabs queuing outside the entrance that takes some of the people who'd otherwise turn back at a full platform or a late train.
+1. **The reach on the map** (M, view). A soft glow round each station over the homes within about 30 minutes of where they're going; it grows when something you buy saves minutes. A view you can switch on shades the ground by minutes to Manchester. Cards say what they bring in homes and minutes.
+2. **Late trains** (M). A long stop at a busy platform makes a train late, and the lateness carries down the line; late trains use up passengers' budgets, so peaks press hardest where trains bunch. Shown on the train and, once phase 4 has them, the departure boards. Extra units, the second platform and the faster timetable ease it.
+3. **Taxi ranks** (S). A stage a station can buy: cabs queue outside the entrance and take some of the people who'd otherwise give up at a full platform or a late train, for a small cut. The rank and the cabs coming and going show it.
+4. **Things going wrong** (L). A failed train with its hazard lights on, a signal failure holding trains back; few, clear and fixable with upgrades (a spare unit, the resignalling). When trains can't run, rail replacement buses call at a stop outside each station, along the real roads between them (a road path from OpenStreetMap: the first piece of the road network trams and buses use later).
+5. **Real people** (M). Where people live and where they work from Census 2021, turned into each station's homes and draw by a tool like the OpenStreetMap ones, in place of the hand-set numbers; credited on the page.
+6. **Homes that grow** (M). Where the line brings places within reach, houses and flats appear over the game days, and the homes in the reach grow with them: improve the line and the suburbs visibly fill in, as Marchetti's constant says they do.
+7. **Contract renewal** (L), the first layer of the owner's prestige idea. The operating contract ends after a run; the network goes back to halts, and the reputation earned (passengers carried, and how well) buys permanent perks in a tree: starting cash, quicker building, a wider reach, a unit to start with. Milestones last through every renewal. Prestige kept apart from the run in the save; the bot plays whole runs and renewals; pacing per run agreed with the owner.
+8. **The second release.**
 
-## 4. Stockport's network
+## 4. The line, complete and alive
 
-The lines out of Stockport, and the network becomes a graph of lines that meet.
+Every station on the line as it stands today, in full, and a line that feels alive at every hour. Mostly view work in kits and the renderer; it can run alongside phase 3 now. Ends with a release.
 
-- **The network as a graph:** corridors joined at junctions, services routed across them, and signalling so trains wait for each other where they share track. The biggest change to the sim since it began; the bot, the tests and the save move with it.
-- **The lines:** the Crewe line from Edgeley (Cheadle Hulme, Handforth, Wilmslow) and its Macclesfield leg (Bramhall, Poynton); the Buxton line beyond Hazel Grove (Middlewood, Disley, New Mills) to the edge of the map; the Marple line (Reddish North, Brinnington, Bredbury, Romiley, Marple, Rose Hill); the Styal line from Slade Lane (Mauldeth Road, Burnage, East Didsbury, Gatley, Heald Green) to the Airport; and the ghost line through Reddish South and Denton to Stalybridge, one train a week, a cheap and very real curiosity.
-- **Services:** real calling patterns; Hazel Grove and Buxton trains through to Manchester as an upgrade; the expresses (Avanti, CrossCountry, TransPennine) as real services that pay to use your stations and take platforms.
-- **The fleet:** units as things you choose (older diesels, electric units), depots with room for them (Longsight), maintenance.
-- **Timetabling:** a simple timetable view; junction conflicts, platform capacity and delays that spread as the late-game pressure.
-- **Stockport as the hub:** many services changing passengers, and its interchange stage.
+1. **More to see when bought** (M): retail units lit, car parks filling, cycle racks, platform extensions growing, departure boards (showing late trains once phase 3 has them).
+2. **Stations as they are today** (L), the last real stage of each kit: Ardwick's lattice footbridge as its own part, Piccadilly's platforms 13 and 14 and the Gateway, the bays' real splay, Levenshulme's curved shelter, Heaton Chapel's arches, Stockport's glass entrance and the photos' other detail.
+3. **Landmarks** (M): the viaduct for real (27 arches at full height over the Mersey), the Pyramid, the Plaza, Stockport's town centre and Merseyway, the city skyline (Beetham Tower, Deansgate Square) on the horizon.
+4. **Terrain** (L) from the Environment Agency's open LIDAR: the Mersey valley, the Levenshulme embankment, the cuttings at Heaton Chapel and Davenport, so cutting walls can be their real height again. Loaded in tiles from the start, so phase 8's county map reuses it.
+5. **Life** (M): different passengers (commuters, students with suitcases, cyclists, football crowds), sound with a mute (trains, announcements, birds by day), and the night (lit stations, empty platforms, engineering trains).
+6. **Weather and seasons** (M), with their gameplay through journey times: rain makes walking and waiting feel longer (canopies and lifts matter more), leaves on the line slow trains in autumn, snow; the year turning through the seasons.
 
-## 5. Manchester city centre
+## 5. Stockport's network
 
-The city end of the map, and the reason everyone travels.
+The lines out of Stockport, and the network becomes a graph of lines that meet. Ends with a release.
 
-- **Stations:** Piccadilly in full with its through platforms, Oxford Road, Deansgate, Victoria, Salford Central and Salford Crescent; the Ordsall chord between Piccadilly and Victoria.
-- **The Castlefield corridor** from Piccadilly 13 and 14 to Deansgate, the famous bottleneck, as a real pressure (and the reason for platforms 15 and 16 in phase 9).
-- **The lines out of the city:** the Glossop line (Ardwick's real platforms are on it, so Ardwick moves there), the Hope Valley, the Bolton line, the lines from Victoria.
-- **The city:** a skyline from building heights, streets and squares; demand shaped by jobs (the centre as everyone's destination), universities on Oxford Road, concerts and the Christmas markets as surges you can see.
+1. **The network as a graph** (L): corridors joined at junctions, services routed across them, and signalling so trains wait for each other where they share track; journey times across the graph. The biggest change to the sim since it began; the bot, the tests and the save move with it. It runs alone, in a quiet window, since everything else calls it.
+2. **The Buxton line** beyond Hazel Grove (M): Middlewood, Disley, New Mills, to the edge of the map; the simplest extension, on the corridor that's already there.
+3. **The lines out** (L, one session per line): the Marple line (Reddish North, Brinnington, Bredbury, Romiley, Marple, Rose Hill); the Crewe line from Edgeley (Cheadle Hulme, Handforth, Wilmslow) and its Macclesfield leg (Bramhall, Poynton); the Styal line from Slade Lane (Mauldeth Road, Burnage, East Didsbury, Gatley, Heald Green) to the Airport; and the ghost line through Reddish South and Denton to Stalybridge, one train a week, a cheap and very real curiosity.
+4. **Services** (M): real calling patterns; Hazel Grove and Buxton trains through to Manchester as an upgrade; the expresses (Avanti, CrossCountry, TransPennine) as real services that pay to use your stations and take platforms.
+5. **The fleet** (M): units as things you choose (older diesels, electric units), depots with room for them (Longsight), maintenance.
+6. **Timetabling** (L): a simple timetable view; junction conflicts, platform capacity and delays that spread as the late-game pressure.
+7. **Stockport as the hub** (M): many services changing passengers, and its interchange stage.
 
-## 6. Trams
+## 6. Manchester city centre
 
-Metrolink arrives as a second network on the same map, and the long-held goal: trams to Stockport.
+The city end of the map, and the reason everyone travels. Ends with a release.
 
-- **Where they come from:** Piccadilly's own tram stop, under the station in the undercroft. The first tram purchase is that stop, then the line across the city centre (Piccadilly Gardens, Market Street, St Peter's Square, Deansgate-Castlefield), then south through Chorlton and Didsbury to East Didsbury, the end of the real line, about two and a half miles west of Stockport.
-- **The goal:** extend from East Didsbury to Stockport, a real proposal, ending at a new tram stop beside the station; Stockport's tram stage when it arrives.
-- **Trams as their own thing:** a second kind of vehicle (shorter, quicker away, running in the street), roads as a network the trams run along, junctions and traffic lights, stops as kits (side or island platforms in the street, shelters, ticket machines) that grow from a single stop like stations do, a depot and a tram fleet.
-- **How they play:** frequent and cheap to run, feeding the railway at interchanges (Piccadilly, Victoria, Deansgate, East Didsbury's park and ride, then Stockport); the single tram route across the city centre as the pressure, and a second city crossing to relieve it.
+1. **Piccadilly in full, Oxford Road and Deansgate** (L), with **the Castlefield corridor** from Piccadilly 13 and 14 to Deansgate, the famous bottleneck, as a real pressure (and the reason for platforms 15 and 16 in phase 10).
+2. **Victoria and Salford** (M): Victoria, Salford Central and Salford Crescent, and the Ordsall chord between Piccadilly and Victoria.
+3. **The lines out of the city** (L): the Glossop line (Ardwick's real platforms are on it, so Ardwick moves there), the Hope Valley, the Bolton line, the lines from Victoria.
+4. **The city** (L): a skyline from building heights, streets and squares; demand shaped by jobs (the centre as everyone's destination), universities on Oxford Road, concerts and the Christmas markets as surges you can see.
 
-## 7. Greater Manchester
+## 7. Trams
 
-The whole county on one map: ten boroughs, every railway and tram line, opened up region by region.
+Metrolink arrives as a second network on the same map, and the long-held goal: trams to Stockport. Needs the city's streets (phase 6) and the road network begun for replacement buses (phase 3). Ends with a release.
 
-- **Regions:** Manchester, Salford, Stockport, Tameside, Oldham, Rochdale, Bury, Bolton, Wigan and Trafford, each with its hub (Bolton, Wigan, Rochdale, Bury, Oldham, Altrincham, Ashton). The fog lifts a region at a time as the network reaches it.
-- **Every line:** about a hundred railway stations (the Bolton and Wigan lines, the Calder Valley to Rochdale, the Atherton line, the line to Liverpool through Urmston, the Airport) and the whole Metrolink, about a hundred stops (Bury, Altrincham, Eccles and MediaCity, Trafford Park, the Airport, Ashton, Oldham and Rochdale).
-- **Demand from where people live and work:** an origin and destination model from census population and jobs instead of a catchment per station; commuting into Manchester; football at Old Trafford and the Etihad and concerts at Co-op Live as surges on the map; the Airport's flights.
-- **The map at county scale:** the world in tiles loaded by zoom, national terrain, towns drawn by density from land use instead of house by house, stations as markers far out with their kits up close, trains as moving lights at county zoom; a county-wide OpenStreetMap pipeline with checks; a frame-time and memory budget on phones, checked.
-- **Running a big network:** a schematic line-diagram view beside the 3D map, overviews by region and line, and, if the owner brings them back, managers by region.
-- **Maybe buses** as feeders, a third mode, only if they earn their place.
+1. **Trams as their own thing** (L): a second kind of vehicle (shorter, quicker away, running in the street), roads as a network the trams run along, junctions and traffic lights, stops as kits (side or island platforms in the street, shelters, ticket machines) that grow from a single stop like stations do, a depot and a tram fleet.
+2. **Where they come from** (L): Piccadilly's own tram stop, under the station in the undercroft. The first tram purchase is that stop, then the line across the city centre (Piccadilly Gardens, Market Street, St Peter's Square, Deansgate-Castlefield), then south through Chorlton and Didsbury to East Didsbury, the end of the real line, about two and a half miles west of Stockport.
+3. **The goal** (M): extend from East Didsbury to Stockport, a real proposal, ending at a new tram stop beside the station; Stockport's tram stage when it arrives.
+4. **How they play** (M): frequent and cheap to run, feeding the railway at interchanges (Piccadilly, Victoria, Deansgate, East Didsbury's park and ride, then Stockport); the single tram route across the city centre as the pressure, and a second city crossing to relieve it.
 
-## 8. Passenger mode
+## 8. Greater Manchester
 
-A passenger's view of the network you built. Can start any time after phase 3, and grows with the map.
+The whole county on one map: ten boroughs, every railway and tram line, opened up region by region. Ends with a release.
+
+1. **The map at county scale** (L, first): the world in tiles loaded by zoom (building on phase 4's terrain tiles), national terrain, towns drawn by density from land use instead of house by house, stations as markers far out with their kits up close, trains as moving lights at county zoom; a county-wide OpenStreetMap pipeline with checks; a frame-time and memory budget on phones, checked.
+2. **Regions** (L): Manchester, Salford, Stockport, Tameside, Oldham, Rochdale, Bury, Bolton, Wigan and Trafford, each with its hub (Bolton, Wigan, Rochdale, Bury, Oldham, Altrincham, Ashton). The fog lifts a region at a time as the network reaches it.
+3. **Every line** (L, one session per region): about a hundred railway stations (the Bolton and Wigan lines, the Calder Valley to Rochdale, the Atherton line, the line to Liverpool through Urmston, the Airport) and the whole Metrolink, about a hundred stops (Bury, Altrincham, Eccles and MediaCity, Trafford Park, the Airport, Ashton, Oldham and Rochdale).
+4. **Demand across the county** (M): phase 3's census demand widened to every region; commuting into Manchester; football at Old Trafford and the Etihad and concerts at Co-op Live as surges on the map; the Airport's flights.
+5. **Running a big network** (M): a schematic line-diagram view beside the 3D map, overviews by region and line, and buying at scale while the player still chooses every purchase: a stage at every station along a line in one go. Managers by region only if the owner brings them back.
+6. **Maybe buses** as feeders, a third mode, only if they earn their place.
+
+## 9. Passenger mode
+
+A passenger's view of the network you built. Can start any time after phase 4, and grows with the map.
 
 - Walk the stations and ride the trains (and later the trams) in first person as one of your own passengers.
 - Journeys with a brief ("Levenshulme to Stockport by 08:45 with a suitcase", later across the county with changes), scored on time and stress; every decision felt from the other side.
 - Reports from journeys feed back into the tycoon: spot a problem, get a discount on the fix.
 
-## 9. Stations that don't exist yet
+## 10. Stations that don't exist yet
 
 Once a station is complete as it stands today, it keeps growing into versions that have been planned, proposed or are plausible, each still recognisably the real place underneath.
 
@@ -105,21 +117,19 @@ Once a station is complete as it stands today, it keeps growing into versions th
 - **Plausible:** buildings over the tracks, solar canopies and roof gardens, a glass roof over Heaton Chapel's cutting, double-deck platforms, automatic trains every two minutes, the viaduct widened and floodlit.
 - **Trains and towns move on with them:** newer units, the city end growing taller, more people living along the lines.
 
-## 10. The very long game: sci-fi eras and a deep prestige system
+## 11. The very long game: sci-fi eras
 
-Past the plausible the network goes science fiction, still a model railway in daylight rather than anything bleak, and resets become the heart of the long game.
+Past the plausible the network goes science fiction, still a model railway in daylight rather than anything bleak, and the deeper layers of the owner's prestige idea (11 October 2026) become the heart of the long game, on top of phase 3's contract renewal.
 
 - **Eras:** the trains (electric units, then maglev on the viaduct, then pods in tubes, then lines in the sky), the stations (towers, then sky ports), the sky (airships by day, lit traffic lanes at night); the commute shrinking from Stockport to Piccadilly in minutes to one.
-- **A deep prestige system** (the owner's idea, 11 October 2026), in layers:
-  - *Contract renewal*, the shorter loop: the operating contract ends, the network goes back to halts, and the reputation earned (passengers carried, and how well) buys permanent perks in a tree: starting cash, quicker building, bigger catchments, a unit to start with.
-  - *Eras*, the longer loop: start again in the next technology with heritage earned from the last; each era has its own stations and vehicles, and the old ones stay on the map as a heritage line and museum by the viaduct.
-  - *Challenges:* runs with a twist (storm season, strike days, no barriers, one unit only), each with a lasting reward.
-  - *Milestones* that last through every reset.
-- **What it needs:** prestige state kept apart from the run in the save; the bot playing whole loops of resets; pacing targets per layer agreed with the owner.
+- **Eras as the longer loop:** start again in the next technology with heritage earned from the last; each era has its own stations and vehicles, and the old ones stay on the map as a heritage line and museum by the viaduct.
+- **Challenges:** runs with a twist (storm season, strike days, no barriers, one unit only), each with a lasting reward.
+- **What it needs:** the bot playing whole loops of renewals and eras; pacing targets per layer agreed with the owner.
 
 ## Throughout
 
 - Phones first: portrait and landscape down to 320 px, tablets and big screens; a performance budget that grows with the map.
+- A release at the end of each phase from the second on: What's new, save fixtures, and saves migrated.
 - Balance with the bot after any pacing or economy change; baselines moved on purpose, with the reason.
 - Everything bought shows on the map; locked stations stand fogged with their price; locked upgrades stay hidden.
 - Real places and layouts where known, a note where something is from memory; sources credited (OpenStreetMap, the Environment Agency's LIDAR, the census).

@@ -219,7 +219,7 @@
     { "id": "viaduct", "name": "Stockport Viaduct", "corridor": "main", "from": { "lat": 53.4085, "lon": -2.1655 }, "to": { "lat": 53.413, "lon": -2.1705 }, "kind": "viaduct", "arches": 27, "height": 34 },
     { "id": "mersey", "name": "River Mersey", "corridor": "main", "at": { "lat": 53.4105, "lon": -2.168 }, "kind": "river" },
     { "id": "m60", "name": "M60", "corridor": "main", "at": { "lat": 53.4118, "lon": -2.1692 }, "kind": "motorway" },
-    { "id": "pyramid", "name": "Stockport Pyramid", "lat": 53.414, "lon": -2.176, "kind": "building", "todo": "hand-modelled landmark, phase 2" }
+    { "id": "pyramid", "name": "Stockport Pyramid", "lat": 53.414, "lon": -2.176, "kind": "building", "todo": "hand-modelled landmark, phase 4 (Landmarks)" }
   ],
   "services": [
     { "id": "stopper", "name": "Northern stopping service", "operator": "northern", "tracks": { "north": "down-slow", "south": "up-slow" }, "calls": "all", "cars": 2,

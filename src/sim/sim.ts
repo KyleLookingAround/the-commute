@@ -7,7 +7,8 @@
 import { rand, freshSeed } from './random.ts';
 import { SAVE_VERSION } from './save.ts';
 import type { Network } from './network.ts';
-import { journeys, cycle, runTime, type Journey } from './journeys.ts';
+import { journeys, cycle, runTime, waitWeight, type Journey } from './journeys.ts';
+import { freshWeather, stepWeather, feel, weatherKey } from './weather.ts';
 import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
 import type { GameState, LineUpgradeId, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
@@ -144,7 +145,7 @@ export class Sim {
       ups: network.stations.map(() => ({})),
       line: { units: 0, cars: 0, timetable: 0, spare: 0 },
       st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0, cab: 0, cabs: [] })),
-      trains: [], ends: {}, trouble: freshTrouble(),
+      trains: [], ends: {}, trouble: freshTrouble(), weather: freshWeather(seed, 6.5 * 3600 / TUNING.dayRate),
       stats: { boarded: 0, lost: 0, cab: 0 },
       homes: network.stations.map(s => s.catchment),
     };
@@ -160,7 +161,7 @@ export class Sim {
   /** Units on the main line. */
   unitsInService(): number { return 1 + this.g.line.units; }
   carsPerUnit(): number { return 2 + 2 * this.g.line.cars; }
-  vmax(): number { return this.g.line.timetable ? TUNING.vmaxFast : TUNING.vmax; }
+  vmax(): number { return (this.g.line.timetable ? TUNING.vmaxFast : TUNING.vmax) * feel(this.g).speed; }
   /** The timetabled turnaround at the end of a run, recovery included. */
   turnaround(): number { return TUNING.turnaround + (this.g.line.timetable ? TUNING.recoveryFast : 0); }
   capacity(i: number): number { return this.ups(i).extend ? TUNING.platformCapExtended : TUNING.platformCap; }
@@ -378,9 +379,9 @@ export class Sim {
 
   // ---- journeys ----
   /** A number that changes whenever something journeys depend on does: what's owned, the upgrades that change walks,
-   * waits and platforms, and the line's units and speed. */
+   * waits and platforms, the line's units and speed, and the weather and season. */
   journeyKey(): number {
-    const g = this.g; let h = g.line.units * 7 + g.line.timetable;
+    const g = this.g; let h = g.line.units * 7 + g.line.timetable + 97 * weatherKey(g);
     for (let i = 0; i < this.S.length; i++) {
       const u = g.ups[i] ?? {};
       h = (Math.imul(h, 31) + (g.owned[i] ? 1 : 0) + (u.crossing ? 2 : 0) + (u.lifts ? 4 : 0) + (u.canopy ? 8 : 0) + (u.platform2 ? 16 : 0) + (u.platforms ? 32 : 0)) | 0;
@@ -445,7 +446,7 @@ export class Sim {
    * door-to-door journey passes the time budget. Returns the total. */
   tripRates(i: number, h: number): number {
     const a = this.station(i), ups = this.ups(i), out = h < 12 ? TUNING.amOut : TUNING.pmOut, ref = this.net.station('piccadilly').draw;
-    const scale = demandCurve(h) * TUNING.demand * (ups.platforms ? TUNING.platformsBonus : 1) / ref;
+    const scale = demandCurve(h) * TUNING.demand * (ups.platforms ? TUNING.platformsBonus : 1) * feel(this.g).travel / ref;
     let tot = 0;
     for (let j = 0; j < this.S.length; j++) {
       const J = j === i ? null : this.journey(i, j);
@@ -516,7 +517,7 @@ export class Sim {
     const J = this.journey(i, j); if (!J) return TUNING.patienceMin;
     const felt = this.felt(J), B = TUNING.budget, s = TUNING.budgetSoft;
     const least = 1 / (1 + Math.exp(-(felt - B) / s)), u = Math.min(1 - 1e-9, least + (1 - least) * this.rand());
-    const budget = B + s * Math.log(u / (1 - u)), ww = this.ups(i).canopy ? TUNING.waitCanopy : TUNING.waitWeight;
+    const budget = B + s * Math.log(u / (1 - u)), ww = waitWeight(this, TUNING, i);
     // the wait the timetable promises (up to a whole gap between trains) feels as waiting does; past that, a late or
     // full train, it feels delayWeight times riding (a canopy takes the same share off)
     const left = budget - (felt - J.firstWait), gap = this.headway(this.svcs[J.legs[0]!.svc]!.id);
@@ -539,7 +540,7 @@ export class Sim {
   step(dt: number): void {
     const g = this.g; this.ensureTrains();
     const dayLen = 86400 / TUNING.dayRate, d0 = Math.floor(g.t / dayLen); g.t += dt; if (Math.floor(g.t / dayLen) > d0) g.day++;
-    this.refreshJourneys(); this.measureCrowding(); this.grow(dt);
+    stepWeather(g, dt); this.refreshJourneys(); this.measureCrowding(); this.grow(dt);
     for (let i = 0; i < this.S.length; i++) { if (!g.owned[i]) continue; this.generate(i, dt); this.expire(i); }
     stepTrouble(this, TUNING);
     for (const tr of g.trains) this.stepTrain(tr, dt);

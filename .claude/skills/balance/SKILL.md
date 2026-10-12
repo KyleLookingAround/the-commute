@@ -63,5 +63,6 @@ Make the change and run the same three seeds into `build/after.log`.
 | Failures, signal failures | 0–3 each | 1 and 0, 0 and 2, 0 and 1 |
 | Lost in trouble | 0–150 | 250, 77, 35 (gave up while something was wrong or in the quarter hour after; nothing starts in a peak's busiest hour; seed 1's failed train lands in the second morning) |
 | Homes grown | 80–200 | 128, 132, 132 (homes over the census catchments; about 580 in 30 h) |
+| Wet hours | 0–2.5 | 1.0, 0.48, 0.48 (sim hours of rain or snow; the first game day stays dry; `--fair` plays the same weather unfelt, to measure what it costs) |
 
 The bot also prints PEAKS: at each morning (06:00–10:00) and evening (16:00–19:30) peak, who gave up at each station, how many took a cab, and how late main-line trains left their stops, with a table of the seeds' mean. Read it for where pressure lands, not just how much.

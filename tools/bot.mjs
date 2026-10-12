@@ -1,7 +1,8 @@
 // A sensible player, headless: plays the sim in Node from a seed, buying what a player would, and reports when each
 // milestone lands against tools/baseline.json. The same seed and code always give the same run, so a change is
 // judged on seeds 1-3 before and after (the `balance` playbook).
-//   node tools/bot.mjs [--hours 8] [--seed 1 --seed 2 --seed 3] [--json build/bot.json]   (hours are sim hours: a game day is four)
+//   node tools/bot.mjs [--hours 8] [--seed 1 --seed 2 --seed 3] [--json build/bot.json] [--fair]   (hours are sim hours: a game day is four)
+// --fair: the weather comes and goes as usual but people don't feel it, to measure what it costs.
 // Prints per seed: SEED, REACHED {milestone: game hour}, MEASURES, PEAKS (at each morning and evening peak: who gave
 // up at each station, and how late main-line trains left their stops), PLAY (a fingerprint of the saved state that
 // affects play); then a table of every seed and their mean against the baseline, and the peaks' mean. Exit code 1 only
@@ -15,6 +16,7 @@ import { register } from 'tsx/esm/api';
 register();
 const { fromGeo } = await import('../src/sim/network.ts');
 const { Sim } = await import('../src/sim/sim.ts');
+const { WEATHER } = await import('../src/sim/weather.ts');
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'));
@@ -25,6 +27,7 @@ const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] :
 const seeds = args.flatMap((a, i) => a === '--seed' ? [+args[i + 1]] : []);
 if (!seeds.length) seeds.push(1);
 const hours = +opt('--hours', 8), jsonOut = opt('--json', null);
+if (args.includes('--fair')) WEATHER.felt = false;
 
 /** The sensible player's policy, in priority order: a second unit first (Stockport needs its subway and platform 3 for
  * it), then the next station (as a halt, building whatever it waits on elsewhere), then each station's way across and
@@ -90,6 +93,7 @@ export function play(seed, hoursToPlay = hours) {
   const measures = { 'cash at end': Math.round(g.cash), 'boarded': g.stats.boarded, 'lost': g.stats.lost, 'by cab': g.stats.cab, 'longest quiet hours': +longestQuiet.toFixed(1), 'longest daytime quiet': +longestDayQuiet.toFixed(2),
     'lost beyond home %': g.stats.lost ? +(100 * (1 - g.st[home].lost / g.stats.lost)).toFixed(1) : 0,
     'failures': g.trouble.fails, 'signal failures': g.trouble.signals, 'by bus': g.trouble.bused, 'lost in trouble': troubleLost,
+    'wet hours': +(g.weather.wet / 3600).toFixed(2),
     'homes grown': Math.round(g.homes.reduce((a, h, i) => a + h - sim.S[i].catchment, 0)),
     'within 5 min %': late.deps ? +(100 * late.within / late.deps).toFixed(1) : 100, 'worst late min': +(late.worst / 60).toFixed(1) };
   for (const p of Object.values(peaks)) { p.within = p.deps ? +(100 * p.within / p.deps).toFixed(1) : 100; p.worst = +(p.worst / 60).toFixed(1); }

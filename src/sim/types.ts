@@ -116,6 +116,12 @@ export interface Caution { s0: number; s1: number; from: number; until: number }
 export interface Bus { id: number; a: number; b: number; d: 0 | 1; leg: 'load' | 'out' | 'drop' | 'back'; t0: number; t1: number; load: Queued[] }
 /** next: when the next thing may go wrong. fails, signals: how many have, so far; bused: people carried by bus. */
 export interface Trouble { next: number; fails: number; signals: number; bused: number; fail: Failure | null; caution: Caution | null; buses: Bus[] }
+/** The weather's kinds of spell, and the seasons (0 spring, 1 summer, 2 autumn, 3 winter). */
+export type Sky = 'sun' | 'cloud' | 'rain' | 'fog' | 'snow';
+export type Season = 0 | 1 | 2 | 3;
+/** The weather (src/sim/weather.ts): its own random numbers, the spell now and the one before, when this one began and
+ * ends (sim seconds), and how long it's rained or snowed in all (sim seconds). */
+export interface Weather { rngState: number; now: Sky; was: Sky; since: number; until: number; wet: number }
 export interface GameState {
   v: number; seed: number; rngState: number; t: number; day: number; cash: number; earned: number;
   owned: boolean[]; ups: Partial<Record<UpgradeId, boolean>>[]; line: Record<LineUpgradeId, number>;
@@ -127,4 +133,5 @@ export interface GameState {
   /** Each station's homes now: its census `catchment` at the start, growing towards its `ceiling` while it's owned, the
    * quicker the better its trip door to door (docs/DESIGN.md, Homes that grow). */
   homes: number[];
+  weather: Weather;
 }

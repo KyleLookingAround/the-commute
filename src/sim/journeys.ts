@@ -4,6 +4,7 @@
 // seconds: trains run at real speed, and people's time budget is real time. Recomputed only when what it depends on
 // changes (a purchase, units in service), never every tick.
 import type { Sim, Tuning } from './sim.ts';
+import { feel } from './weather.ts';
 
 /** One way from one station to another. walk: both ends; wait: for the first train and any at the change; felt: the
  * whole journey as people feel it, before crowding (walking and waiting weigh more than riding); firstWait: the felt
@@ -52,8 +53,9 @@ export function walk(sim: Sim, T: Tuning, i: number): number {
   return T.walk + 0.5 * far - (ups.lifts ? T.liftsSave : 0);
 }
 
-/** How much a second of waiting at a station weighs against one riding: less under a canopy. */
-export function waitWeight(sim: Sim, T: Tuning, i: number): number { return sim.ups(i).canopy ? T.waitCanopy : T.waitWeight; }
+/** How much a second of waiting at a station weighs against one riding: less under a canopy, more in the rain or
+ * snow, and a canopy keeps most of that off. */
+export function waitWeight(sim: Sim, T: Tuning, i: number): number { const f = feel(sim.g); return sim.ups(i).canopy ? T.waitCanopy * f.waitCanopy : T.waitWeight * f.wait; }
 
 /** A service's planned round trip as the timetable has it: each way's running and stops, and the turnaround (with
  * its recovery time) at each end. Its units share it, so the gap between them is the cycle over the units. */
@@ -72,7 +74,7 @@ export function journeys(sim: Sim, T: Tuning): (Journey | null)[][] {
     const d = sim.dirIdx(i, j), r = runs[k]![d]!, from = r.dep.get(i), to = r.arr.get(j);
     return from === undefined || to === undefined || !isFinite(waits[k]!) ? null : { svc: k, d, ride: to - from };
   };
-  const walks = sim.S.map((_, i) => walk(sim, T, i)), ww = sim.S.map((_, i) => waitWeight(sim, T, i));
+  const walks = sim.S.map((_, i) => walk(sim, T, i)), ww = sim.S.map((_, i) => waitWeight(sim, T, i)), walkFeel = feel(sim.g).walk;
   const table: (Journey | null)[][] = [];
   for (let i = 0; i < n; i++) {
     const row: (Journey | null)[] = [];
@@ -81,7 +83,7 @@ export function journeys(sim: Sim, T: Tuning): (Journey | null)[][] {
       const consider = (legs: Leg[], at: number[]) => {
         const w = walks[i]! + walks[j]!, ride = legs.reduce((a, l) => a + l.ride, 0), changes = legs.length - 1;
         const wait = legs.reduce((a, l) => a + waits[l.svc]!, 0), firstWait = ww[i]! * waits[legs[0]!.svc]!;
-        const felt = T.walkWeight * w + firstWait + legs.slice(1).reduce((a, l, k) => a + ww[at[k]!]! * waits[l.svc]!, 0) + ride + changes * T.change;
+        const felt = T.walkWeight * walkFeel * w + firstWait + legs.slice(1).reduce((a, l, k) => a + ww[at[k]!]! * waits[l.svc]!, 0) + ride + changes * T.change;
         if (!best || felt < best.felt) best = { walk: w, wait, ride, changes, felt, firstWait, legs };
       };
       if (i !== j && sim.reachable(i) && sim.reachable(j)) {

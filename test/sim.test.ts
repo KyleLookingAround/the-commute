@@ -423,7 +423,7 @@ test('trouble: a failed train stands with its line blocked, the one behind waits
 test('trouble: a signal failure has trains crawl through the stretch at caution', () => {
   const sim = troubled('caution'), c = sim.g.trouble.caution!;
   let inside = 0;
-  while (sim.g.trouble.caution) { sim.advance(2); for (const tr of sim.g.trains) if (tr.s > c.s0 + 50 && tr.s < c.s1 - 50 && tr.state === 'run') { inside++; assert.ok(tr.v <= TUNING.caution + 1e-9, `${tr.v} m/s at caution`); } }
+  while (sim.g.trouble.caution) { sim.advance(2); for (const tr of sim.g.trains) if (sim.g.trouble.caution && tr.s > c.s0 + 50 && tr.s < c.s1 - 50 && tr.state === 'run') { inside++; assert.ok(tr.v <= TUNING.caution + 1e-9, `${tr.v} m/s at caution`); } }
   assert.ok(inside > 0, 'a train ran through it');
 });
 

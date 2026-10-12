@@ -35,6 +35,7 @@
     { "type": "board", "u": 36, "v": -4.6, "serves": "both", "upgrade": "building" },
     { "type": "lamps", "u0": -135, "u1": -110, "v": -4.6, "every": 25, "upgrade": "extend" },
     { "type": "lamps", "u0": -135, "u1": -110, "v": 9, "every": 25, "upgrade": ["extend", "platform2"] },
-    { "type": "cycles", "u": 26, "v": -6.4, "n": 4, "y": 1, "upgrade": "crossing" }
+    { "type": "cycles", "u": 26, "v": -6.4, "n": 4, "y": 1, "upgrade": "crossing" },
+    { "type": "busstop", "u": 48, "v": 24, "back": [1, 0], "kerb": -1, "door": [59, 18], "note": "On the road beside the booking office, from memory" }
   ]
 }

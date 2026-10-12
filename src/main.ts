@@ -19,6 +19,7 @@ import type { Kit } from './render/stations.ts';
 import { Lineside } from './render/lineside.ts';
 import { StationLife } from './render/life.ts';
 import { TaxiLayer } from './render/taxis.ts';
+import { BusLayer } from './render/buses.ts';
 import { TrainLayer } from './render/trains.ts';
 import { PassengerLayer } from './render/passengers.ts';
 import { OrbitRig } from './render/camera.ts';
@@ -38,13 +39,16 @@ declare global {
     __orbit?: Partial<import('./render/camera.ts').Orbit>;
     /** For the checks: how many groups of parts the preview shows, how many are still rising into place, and how many
      * times the camera has framed something (a card's parts, a Built chip's, a train). */
-    __view?: { preview: number; rising: () => number; framed: number };
+    __view?: { preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean } };
   }
 }
 
-// the JSON is the data layer's; it's typed here, where it's read, so the data stays plain. Only the waypoints need a
-// word: JSON can't say an array is a pair; everything else is checked against the type as it is
-const networkDef: NetworkGeoDef = { ...networkJson, corridors: networkJson.corridors.map(c => ({ ...c, waypoints: c.waypoints as [number, number][] })) };
+// the JSON is the data layer's; it's typed here, where it's read, so the data stays plain. Only the waypoints and the
+// roads' points need a word: JSON can't say an array is a pair; everything else is checked against the type as it is
+const networkDef: NetworkGeoDef = {
+  ...networkJson, corridors: networkJson.corridors.map(c => ({ ...c, waypoints: c.waypoints as [number, number][] })),
+  roads: networkJson.roads.map(r => ({ ...r, points: r.points as [number, number][] })),
+};
 const kits: Record<string, Kit> = {
   stockport: kitStockport as Kit, 'heaton-chapel': kitHeaton as Kit, levenshulme: kitLevenshulme as Kit, ardwick: kitArdwick as Kit, piccadilly: kitPiccadilly as Kit,
   davenport: kitDavenport as Kit, woodsmoor: kitWoodsmoor as Kit, 'hazel-grove': kitHazelGrove as Kit,
@@ -72,6 +76,7 @@ scene.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = true; o.rece
 const life = new StationLife(built, sim);
 const taxis = new TaxiLayer(built);
 const trains = new TrainLayer(scene, net, networkDef.services ?? []);
+const buses = new BusLayer(scene, net, built);
 // where the track runs beside each platform face, from the service that boards there that way (at Stockport the main
 // line northbound, the Hazel Grove line southbound), so passengers stand back from the right edge
 const faceTrack = (st: (typeof net.stations)[number], dir: 'north' | 'south') => { const svc = net.boardingService(st.id, dir); return svc ? net.offsetAt(svc.tracks[dir], st.s) : 0; };
@@ -79,13 +84,17 @@ const trackV = net.stations.map(st => ({ north: faceTrack(st, 'north'), south: f
 const pax = new PassengerLayer(built, net.stations, trackV);
 const rig = new OrbitRig(camera, canvas, scene);
 setReducedMotion(matchMedia('(prefers-reduced-motion: reduce)').matches);
-const view = { preview: 0, framed: 0, rising: () => built.reduce((n, b) => n + b.gated.filter(gt => gt.rise < 1).length, 0) + (lineside.rise < 1 ? 1 : 0) };
+const view = {
+  preview: 0, framed: 0, rising: () => built.reduce((n, b) => n + b.gated.filter(gt => gt.rise < 1).length, 0) + (lineside.rise < 1 ? 1 : 0) + (trains.spareRising < 1 ? 1 : 0),
+  // what's going wrong as drawn: hazard lamps lit or not, caution posts, buses, and the spare unit in the sidings
+  trouble: () => ({ hazards: trains.hazards.count, cautions: trains.posts.count, buses: buses.count, spare: trains.spare.visible }),
+};
 window.__view = view;
 const partBox = new THREE.Box3();
 /** Preview an upgrade at a station on the map (or stop), and put the camera on what it adds. */
 function preview(i: number | null, id: string | null): void {
   const ups = i === null ? {} : sim.ups(i);
-  lineside.preview(false, !!sim.g.line.timetable);
+  lineside.preview(false, !!sim.g.line.timetable); trains.previewSpare(false);
   view.preview = previewUpgrade(built, i, ups, id);
   const b = i === null ? undefined : built[i], box = b && id ? partsBox(b, ups, id, partBox) : null;
   if (box) frameBox(box);
@@ -106,6 +115,11 @@ function showLine(id: string | null, bought = false): void {
   if (id === 'timetable') {
     view.preview = lineside.preview(!bought, !!sim.g.line.timetable);
     const box = lineside.siteBox(rig.o.tx, rig.o.tz, partBox); if (box) frameBox(box, 40);
+    return;
+  }
+  if (id === 'spare') {
+    view.preview = trains.previewSpare(!bought && !sim.g.line.spare) ? 1 : 0;
+    frameBox(trainBox.setFromObject(trains.spare), 60);
     return;
   }
   const main = sim.svcs[0], home = main ? sim.station(main.route[0]!).s : 0;
@@ -186,7 +200,7 @@ function frame(now: number): void {
   sky.update(light.horizon, light.daylight, camera, dt);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
   syncStations(built, sim.g, realDt); lineside.sync(!!sim.g.line.timetable, realDt); trains.sync(sim.g, dtGame, endAhead); pax.sync(sim.g, dtGame); labels();
-  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame);
+  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim);
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
   renderer.render(scene, camera);

@@ -5,6 +5,9 @@
 // A train looks as full as it is: its windows go from cool glass when empty to warm and lit as it fills, riders show in
 // them, and when it's nearly full people stand in the doorways. A train running late carries an amber lamp over its
 // leading cab, from a minute late, growing until it's five minutes late; on time it looks as it always has.
+// Things going wrong show too: a failed unit flashes its hazard lights at both ends until it's rescued, a stretch of
+// line at caution after a signal failure has flashing amber lamps on posts at each end, both sides, and the spare
+// unit, once bought, stands in Stockport's carriage sidings (out on the line while a failed train is being rescued).
 import * as THREE from 'three';
 import { yawFor } from './world.ts';
 import { PAL } from './scene.ts';
@@ -21,6 +24,7 @@ export const LIVERIES: Record<string, Livery> = {
   avanti: { body: [0.9, 0.91, 0.92], roof: [0.3, 0.32, 0.34], band: [0.12, 0.5, 0.36], door: [0.14, 0.55, 0.4], win: [0.95, 0.85, 0.55], nose: [0.1, 0.1, 0.12] },
 };
 const NORTHERN = LIVERIES['northern']!;
+const GHOST_SPARE = new THREE.MeshBasicMaterial({ color: PAL.ghost, transparent: true, opacity: 0.5, depthWrite: false, fog: false });
 /** The livery an operator paints, Northern's for one the map doesn't know. */
 export const liveryFor = (operator: string): Livery => LIVERIES[operator] ?? NORTHERN;
 
@@ -66,12 +70,17 @@ const MAX_RIDERS = 1200, MAX_STANDING = 240;
 const m4 = new THREE.Matrix4(), winCol = new THREE.Color();
 // the late lamp: from LATE seconds late, scaled from 0.6 to 1.6 by LATE_FULL
 const LATE = 60, LATE_FULL = 300, MAX_LAMPS = 16, lampGeo = new THREE.BoxGeometry(1.1, 0.7, 1.1);
+// hazard lights: a lamp each side at each end of a failed unit, and caution lamps on posts by a signal failure, all
+// flashing about once a real second
+const hazardGeo = new THREE.BoxGeometry(0.9, 0.7, 0.9), postGeo = new THREE.BoxGeometry(0.25, 4, 0.25).translate(0, 2, 0), cautionGeo = new THREE.BoxGeometry(0.9, 0.9, 0.9).translate(0, 4.4, 0);
+/** Where the spare unit stands: in Stockport's carriage sidings, in the kit's (u, v). */
+const SPARE_AT: [number, number] = [78, -33];
 
 /** Where a car stands: its middle on the ground, the way it points (a unit vector), how long it is, and how far its
  * bogies are either side of its middle. */
 export interface CarPose { x: number; z: number; dx: number; dz: number; len: number; bogie: number }
 const POSES: CarPose[] = [];
-const fa = newFrame(), fb = newFrame();
+const fa = newFrame(), fb = newFrame(), fc = newFrame();
 /** Where each car of a unit of a service is drawn, centred at s, on the track for its direction; running in to the end
  * of its run (rem metres to go) the cars follow the crossover to the track it will leave on, each where it is along it.
  * A car rides on its bogies: they're on the track, and its body runs straight between them. Fills out (car 0 at the Stockport
@@ -116,6 +125,16 @@ export class TrainLayer {
   coats: THREE.Color[];
   lamps: THREE.InstancedMesh;
   private counts = { r: 0, s: 0 };
+  hazards: THREE.InstancedMesh;
+  posts: THREE.InstancedMesh;
+  cautions: THREE.InstancedMesh;
+  /** The spare unit in the sidings, shown once bought; ghosted while its card is chosen. */
+  spare: THREE.Group;
+  private spareCars: THREE.Mesh[];
+  private spareGhost = false;
+  private spareRise = 1;
+  private spareHad: boolean | null = null;
+  private last = 0;
   constructor(scene: THREE.Scene, net: Network, services: ServiceDef[]) {
     this.scene = scene; this.net = net; this.mat = new THREE.MeshLambertMaterial({ vertexColors: true });
     this.meshes = []; this.units = [];
@@ -127,6 +146,50 @@ export class TrainLayer {
     this.coats = [PAL.pax, PAL['pax-2'], PAL['pax-3'], PAL['pax-4']];
     this.lamps = new THREE.InstancedMesh(lampGeo, new THREE.MeshBasicMaterial({ color: PAL.late }), MAX_LAMPS);
     this.lamps.count = 0; this.lamps.frustumCulled = false; scene.add(this.lamps);
+    const flash = new THREE.MeshBasicMaterial({ color: PAL.hazard });
+    this.hazards = new THREE.InstancedMesh(hazardGeo, flash, 8); this.posts = new THREE.InstancedMesh(postGeo, new THREE.MeshLambertMaterial({ color: PAL.signal }), 4);
+    this.cautions = new THREE.InstancedMesh(cautionGeo, flash, 4);
+    for (const im of [this.hazards, this.posts, this.cautions]) { im.count = 0; im.frustumCulled = false; scene.add(im); }
+    // the spare unit: placed once in Stockport's frame, along its siding
+    const spare = this.unit(2, NORTHERN), f = net.stationFrame(net.stations[0]?.id ?? 'stockport'), [u, v] = SPARE_AT;
+    spare.cars.forEach((m, c) => {
+      const along = u + (c - 0.5) * PITCH; m.position.set(f.x + along * f.dx + v * f.nx, 0, f.z + along * f.dz + v * f.nz);
+      m.rotation.y = yawFor(f); m.updateMatrix();
+    });
+    this.spare = spare.group; this.spareCars = spare.cars; this.spare.visible = false;
+  }
+  /** Ghost the spare unit while its card is chosen and it isn't bought; returns whether it's ghosted. */
+  previewSpare(on: boolean): boolean {
+    this.spareGhost = on; for (const m of this.spareCars) m.material = on ? GHOST_SPARE : this.mat; return on;
+  }
+  /** How far through rising into place the spare unit is (1 once it stands). */
+  get spareRising(): number { return this.spareRise; }
+  /** The spare unit, the hazard lights on a failed one, and the caution lamps by a signal failure. */
+  private trouble(g: GameState, dtReal: number): void {
+    const tb = g.trouble, on = performance.now() % 1000 < 600;
+    const has = !!g.line.spare;
+    if (this.spareHad === false && has) this.spareRise = 0;   // just bought: it rises into place
+    this.spareHad = has;
+    if (this.spareRise < 1) { this.spareRise = Math.min(1, this.spareRise + dtReal); this.spare.scale.y = Math.max(0.01, this.spareRise); }
+    // out on the line while a failed train is being rescued
+    this.spare.visible = this.spareGhost || (has && !tb.fail);
+    let h = 0;
+    const tr = tb.fail ? g.trains.find(t => t.id === tb.fail!.train) : undefined, u = tr ? this.units[g.trains.indexOf(tr)] : undefined;
+    const ends = u ? [[u.cars[0], -1], [u.cars[u.cars.length - 1], 1]] as const : [];
+    if (on) for (const [m, e] of ends) if (m) for (const z of [-1.5, 1.5]) {
+      m4.makeTranslation(e * (CAR / 2 - 0.3), 1.6 * 1.3, z * 1.3).premultiply(m.matrix); this.hazards.setMatrixAt(h++, m4);
+    }
+    this.hazards.count = h; this.hazards.instanceMatrix.needsUpdate = true;
+    let c = 0;
+    if (tb.caution) {
+      const cor = this.net.corridor('main');
+      for (const s of [tb.caution.s0, tb.caution.s1]) for (const off of [-12, 26]) {
+        const p = cor.at(s, off, fc); m4.makeTranslation(p.x, 0, p.z);
+        this.posts.setMatrixAt(c, m4); this.cautions.setMatrixAt(c, m4); c++;
+      }
+    }
+    this.posts.count = c; this.cautions.count = on ? c : 0;
+    this.posts.instanceMatrix.needsUpdate = true; this.cautions.instanceMatrix.needsUpdate = true;
   }
   /** A unit of n cars in a livery, cabs at both ends, in the scene. */
   private unit(n: number, liv: Livery, into?: Unit): Unit {
@@ -195,6 +258,8 @@ export class TrainLayer {
       this.windows(u, full); this.ridersIn(u, tr, full, at); this.lateLamp(u, tr);
     });
     this.lamps.instanceMatrix.needsUpdate = true;
+    const now = performance.now(), dtReal = this.last ? Math.min(0.1, (now - this.last) / 1000) : 0; this.last = now;
+    this.trouble(g, dtReal);
     this.riders.count = at.r; this.standing.count = at.s;
     for (const im of [this.riders, this.standing]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
     // an express runs up to the end of its run and stands there out the half period, then runs back and is gone

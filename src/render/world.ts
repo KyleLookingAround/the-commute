@@ -120,6 +120,12 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     const inst = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial({ color: PAL.house }), 5000);
     const col = new THREE.Color(); let n = 0;
     const stationS = net.stations.map(s => s.s);
+    // nothing stands on the roads the replacement buses drive (the network's `roads`)
+    const segs = (net.def.roads ?? []).flatMap(r => r.points.slice(1).map((b, i) => [r.points[i]!, b] as const));
+    const onRoad = (x: number, z: number, r: number) => segs.some(([[ax, az], [bx, bz]]) => {
+      const dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+      return Math.hypot(x - ax - dx * t, z - az - dz * t) < r;
+    });
     for (let k = 0; k < 14000 && n < 5000; k++) {
       const s = seed(k, 1) * c.length, side = seed(k, 2) < 0.5 ? -1 : 1, off = side * (60 + seed(k, 3) * 600);
       if (valley && s > valley.s0 - 40 && s < valley.s1 + 40 && Math.abs(off) < 700) continue;
@@ -132,7 +138,9 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       // the city end is towers, but low-rise around its stations (Ardwick is yards and sheds, not a skyline)
       const tower = city && nearStation > 600;
       const w = terrace ? 12 + seed(k, 6) * 26 : 8 + seed(k, 6) * 10, d = 9 + seed(k, 7) * 6, h = tower ? 14 + seed(k, 8) * 60 : 6 + seed(k, 8) * 5;
-      const p = c.at(s, off); e.set(0, yawFor(p) + (seed(k, 11) - 0.5) * 0.3, 0); q.setFromEuler(e);
+      const p = c.at(s, off);
+      if (onRoad(p.x, p.z, 6 + Math.max(w, d) / 2)) continue;
+      e.set(0, yawFor(p) + (seed(k, 11) - 0.5) * 0.3, 0); q.setFromEuler(e);
       v3.set(p.x, h / 2 + groundY(p.x, p.z), p.z); sc.set(w, h, d); m4.compose(v3, q, sc); inst.setMatrixAt(n, m4);
       col.setHSL(0.04 + seed(k, 9) * 0.06, city ? PAL['tower-sat'] : PAL['house-sat'], (city ? PAL['tower-light'] : PAL['house-light']) + seed(k, 10) * 0.15); inst.setColorAt(n, col);
       n++;

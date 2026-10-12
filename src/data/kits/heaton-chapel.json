@@ -38,6 +38,7 @@
     { "type": "lamps", "u0": 100, "u1": 125, "v": -9.7, "every": 25, "upgrade": "extend" },
     { "type": "lamps", "u0": 95, "u1": 120, "v": 14.9, "every": 25, "upgrade": ["extend", "platform2"] },
     { "type": "cycles", "u": -45, "v": -11.9, "n": 4, "y": 1, "upgrade": "crossing" },
-    { "type": "taxi", "u": -40, "v": -24, "back": [1, 0], "kerb": 1, "n": 4, "door": [-62, -17], "upgrade": "taxi", "note": "Cabs waiting by the west entrance off Heaton Moor Road, from memory, placed by eye" }
+    { "type": "taxi", "u": -40, "v": -24, "back": [1, 0], "kerb": 1, "n": 4, "door": [-62, -17], "upgrade": "taxi", "note": "Cabs waiting by the west entrance off Heaton Moor Road, from memory, placed by eye" },
+    { "type": "busstop", "u": -55, "v": -31, "back": [1, 0], "kerb": 1, "door": [-62, -17], "note": "On Manchester Road by the booking office, beyond the taxi rank, from memory" }
   ]
 }

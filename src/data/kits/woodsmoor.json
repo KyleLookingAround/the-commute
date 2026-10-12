@@ -44,6 +44,7 @@
     { "type": "box", "u0": 45, "u1": 51, "v0": 9, "v1": 11.5, "y0": 0, "y1": 3.4, "mat": "concrete", "upgrade": ["crossing", "platform2"] },
     { "type": "box", "u0": 51, "u1": 57, "v0": 9, "v1": 11.5, "y0": 0, "y1": 4.5, "mat": "concrete", "upgrade": ["crossing", "platform2"] },
     { "type": "box", "u0": 57, "u1": 63, "v0": 9, "v1": 11.5, "y0": 0, "y1": 5.6, "mat": "concrete", "upgrade": ["crossing", "platform2"] },
-    { "type": "box", "u0": 63, "u1": 69, "v0": 9, "v1": 11.5, "y0": 0, "y1": 6.7, "mat": "concrete", "upgrade": ["crossing", "platform2"] }
+    { "type": "box", "u0": 63, "u1": 69, "v0": 9, "v1": 11.5, "y0": 0, "y1": 6.7, "mat": "concrete", "upgrade": ["crossing", "platform2"] },
+    { "type": "busstop", "u": 48, "v": 17, "back": [1, 0], "kerb": -1, "door": [34, 10], "note": "On the lane by the entrance, from memory" }
   ]
 }

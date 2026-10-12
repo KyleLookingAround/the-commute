@@ -52,11 +52,14 @@ export interface LandmarkDef {
   id: string; name: string; kind: string; corridor?: string;
   from?: LatLon; to?: LatLon; at?: LatLon; lat?: number; lon?: number; arches?: number; height?: number; todo?: string;
 }
+/** A road between two neighbouring stations, from near one's way out to near the other's, as [lat, lon] points in
+ * order: what the rail replacement buses drive (and later trams and buses). note: where it came from. */
+export interface RoadGeoDef { from: string; to: string; via?: string; note?: string; points: [number, number][] }
 export interface NetworkGeoDef {
   name?: string; note?: string; origin: LatLon;
   corridors: CorridorGeoDef[]; tracks: TrackDef[]; stations: StationGeoDef[];
   trackNote?: string; layout?: LayoutDef[]; ease?: number;
-  landmarks?: LandmarkDef[]; services?: ServiceDef[];
+  landmarks?: LandmarkDef[]; services?: ServiceDef[]; roads?: RoadGeoDef[]; roadNote?: string;
 }
 
 // ---- the network in metres ----
@@ -64,7 +67,9 @@ export interface StationDef extends StationGeoDef { x: number; z: number; s?: nu
 /** A station once placed on its corridor: s is where trains stop along it, at where its kit stands (they differ by
  * `stop`), index its place in the line's order. */
 export interface Station extends StationDef { index: number; s: number; at: number }
-export interface NetworkDef extends Omit<NetworkGeoDef, 'corridors' | 'stations'> { corridors: CorridorDef[]; stations: StationDef[] }
+/** A road in local metres: its points from the `from` station's end to the `to` station's, and its length. */
+export interface RoadDef { from: string; to: string; points: XZ[]; length: number }
+export interface NetworkDef extends Omit<NetworkGeoDef, 'corridors' | 'stations' | 'roads'> { corridors: CorridorDef[]; stations: StationDef[]; roads?: RoadDef[] }
 /** A point on a corridor: position, heading, the unit direction (dx, dz) and the normal (nx, nz) offsets are measured along. */
 export interface Frame { x: number; z: number; heading: number; dx: number; dz: number; nx: number; nz: number }
 
@@ -73,7 +78,7 @@ export interface Frame { x: number; z: number; heading: number; dx: number; dz: 
  * the big stations the rest of the station. Offered only where the station's `grow` lists them. */
 export type StageId = 'crossing' | 'platform2' | 'building' | 'platforms' | 'taxi';
 export type UpgradeId = StageId | 'kiosk' | 'barriers' | 'canopy' | 'lifts' | 'extend' | 'retail';
-export type LineUpgradeId = 'units' | 'cars' | 'timetable';
+export type LineUpgradeId = 'units' | 'cars' | 'timetable' | 'spare';
 /** A group of passengers who joined a platform queue together: when (game seconds), where to, how many, whether
  * they've paid (they're changing trains, so their fare was taken where they first got on), and when they give up and
  * go home (none for someone changing trains). */
@@ -98,6 +103,16 @@ export interface Train {
   next: number | null; load: number[]; onboard: number; cars: number; calling: number | null; boardAcc: number;
   due: number; late: number; stood: number; quiet: number;
 }
+/** Things going wrong (docs/DESIGN.md, Things going wrong). A failed train: the unit (by id) stands where it failed
+ * from `from` until `until`, blocking its line one way (d, 0 towards Manchester) between the stations either side
+ * (a behind it, b ahead). A signal failure: trains run at caution between s0 and s1 (metres along the corridor). */
+export interface Failure { train: number; from: number; until: number; a: number; b: number; d: 0 | 1 }
+export interface Caution { s0: number; s1: number; from: number; until: number }
+/** A rail replacement bus between stations a and b, one way: loading at a, running to b, setting down there, running
+ * back. t0 to t1 is the leg it's on (sim seconds); load is who's aboard. */
+export interface Bus { id: number; a: number; b: number; d: 0 | 1; leg: 'load' | 'out' | 'drop' | 'back'; t0: number; t1: number; load: Queued[] }
+/** next: when the next thing may go wrong. fails, signals: how many have, so far; bused: people carried by bus. */
+export interface Trouble { next: number; fails: number; signals: number; bused: number; fail: Failure | null; caution: Caution | null; buses: Bus[] }
 export interface GameState {
   v: number; seed: number; rngState: number; t: number; day: number; cash: number; earned: number;
   owned: boolean[]; ups: Partial<Record<UpgradeId, boolean>>[]; line: Record<LineUpgradeId, number>;
@@ -105,4 +120,5 @@ export interface GameState {
   /** By service, the timetabled departure of the unit that last turned round at each end of its run (0 the south end,
    * 1 the north), which the next unit keeps a headway behind. */
   ends: Record<string, [number, number]>;
+  trouble: Trouble;
 }

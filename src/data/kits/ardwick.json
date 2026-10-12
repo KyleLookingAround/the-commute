@@ -32,6 +32,7 @@
     { "type": "lamps", "u0": 50, "u1": 75, "v": -5.1, "every": 25, "upgrade": "extend" },
     { "type": "lamps", "u0": 50, "u1": 75, "v": 18.9, "every": 25, "upgrade": ["extend", "platform2"] },
     { "type": "lamps", "u0": -55, "u1": -55, "v": -5.1, "upgrade": "extend" },
-    { "type": "lamps", "u0": -55, "u1": -55, "v": 18.9, "upgrade": ["extend", "platform2"] }
+    { "type": "lamps", "u0": -55, "u1": -55, "v": 18.9, "upgrade": ["extend", "platform2"] },
+    { "type": "busstop", "u": -24, "v": -26, "back": [1, 0], "kerb": 1, "door": [-24, -19], "note": "By the hut on the approach road, from memory" }
   ]
 }

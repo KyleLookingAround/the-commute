@@ -29,7 +29,8 @@ const hours = +opt('--hours', 8), jsonOut = opt('--json', null);
 /** The sensible player's policy, in priority order: a second unit first (Stockport needs its subway and platform 3 for
  * it), then the next station (as a halt, building whatever it waits on elsewhere), then each station's way across and
  * second platform (trains both ways), its booking office and barriers, then cheap wins, a taxi rank where people have
- * been giving up (a dozen or more), and the faster timetable once there's money to spare. */
+ * been giving up (a dozen or more), a spare unit once a train has failed, and the faster timetable once there's money
+ * to spare. */
 export function act(sim) {
   const g = sim.g, home = sim.svcs[0].route[0];
   const up = (i, id) => g.owned[i] && !g.ups[i][id] && sim.buyUpgrade(i, id) ? `${id}:${sim.S[i].id}` : null;
@@ -41,6 +42,7 @@ export function act(sim) {
   }
   for (const id of ['crossing', 'platform2', 'building', 'barriers', 'kiosk']) for (let i = 0; i < sim.S.length; i++) { const r = up(i, id); if (r) return r; }
   for (let i = 0; i < sim.S.length; i++) if (g.st[i].lost >= 12) { const r = up(i, 'taxi'); if (r) return r; }
+  if (g.line.spare < 1 && g.cash > 15000 && sim.buyLine('spare')) return 'spare';
   if (g.line.units < 2 && g.cash > 30000 && sim.buyLine('units')) return 'unit';
   if (g.line.cars < 1 && g.cash > 25000 && sim.buyLine('cars')) return 'cars';
   if (g.line.timetable < 1 && g.cash > 45000 && sim.buyLine('timetable')) return 'timetable';
@@ -65,12 +67,16 @@ export function play(seed, hoursToPlay = hours) {
     const p = peak(k); p.deps++; if (s <= 300) p.within++; p.worst = Math.max(p.worst, s);
   };
   let lostWas = sim.g.st.map(S => S.lost), cabWas = sim.g.st.map(S => S.cab);
+  // what things going wrong cost: who gave up while something was wrong or in the quarter hour after
+  let troubleLost = 0, troubleEnd = -Infinity;
   const mark = (k, h) => { if (reached[k] === undefined) reached[k] = +h.toFixed(2); };
   for (let step = 0; step < hoursToPlay * 60; step++) {          // one decision a game minute
     sim.advance(60);
     const h = step / 60, k = peakOf(sim);
     sim.g.st.forEach((S, i) => { const d = S.lost - lostWas[i]; if (k && d > 0) { const l = peak(k).lost; l[sim.S[i].id] = (l[sim.S[i].id] ?? 0) + d; } });
     sim.g.st.forEach((S, i) => { const d = S.cab - cabWas[i]; if (k && d > 0) { const c = peak(k).cab; c[sim.S[i].id] = (c[sim.S[i].id] ?? 0) + d; } });
+    const tb = sim.g.trouble; if (tb.fail || tb.caution) troubleEnd = sim.g.t;
+    if (sim.g.t - troubleEnd < 900) sim.g.st.forEach((S, i) => { troubleLost += Math.max(0, S.lost - lostWas[i]); });
     lostWas = sim.g.st.map(S => S.lost); cabWas = sim.g.st.map(S => S.cab);
     // daytime quiet: hours between 06:00 and 22:00 with nothing bought (the night is quiet by design)
     const clock = sim.hour(); dayQuiet = clock >= 6 && clock < 22 ? dayQuiet + 1 / 60 : 0;
@@ -83,9 +89,10 @@ export function play(seed, hoursToPlay = hours) {
   const g = sim.g, home = sim.svcs[0].route[0];
   const measures = { 'cash at end': Math.round(g.cash), 'boarded': g.stats.boarded, 'lost': g.stats.lost, 'by cab': g.stats.cab, 'longest quiet hours': +longestQuiet.toFixed(1), 'longest daytime quiet': +longestDayQuiet.toFixed(2),
     'lost beyond home %': g.stats.lost ? +(100 * (1 - g.st[home].lost / g.stats.lost)).toFixed(1) : 0,
+    'failures': g.trouble.fails, 'signal failures': g.trouble.signals, 'by bus': g.trouble.bused, 'lost in trouble': troubleLost,
     'within 5 min %': late.deps ? +(100 * late.within / late.deps).toFixed(1) : 100, 'worst late min': +(late.worst / 60).toFixed(1) };
   for (const p of Object.values(peaks)) { p.within = p.deps ? +(100 * p.within / p.deps).toFixed(1) : 100; p.worst = +(p.worst / 60).toFixed(1); }
-  const play = fingerprint({ v: g.v, owned: g.owned, ups: g.ups, line: g.line, cash: Math.round(g.cash), boarded: g.stats.boarded, lost: g.stats.lost, cab: g.stats.cab });
+  const play = fingerprint({ v: g.v, owned: g.owned, ups: g.ups, line: g.line, cash: Math.round(g.cash), boarded: g.stats.boarded, lost: g.stats.lost, cab: g.stats.cab, bused: g.trouble.bused });
   return { seed, reached, measures, peaks, play };
 }
 

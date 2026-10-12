@@ -241,5 +241,22 @@
       "cars": 9,
       "scenery": true
     }
+  ],
+  "roadNote": "Roads between neighbouring stations, for the rail replacement buses (and later trams and buses): from memory, 12 October 2026, since OpenStreetMap couldn't be reached from the session that drew them. Each follows the real main road, mostly the A6, which runs beside the line all the way, with the side streets to each station; corners are approximate to tens of metres. tools/osm-to-roads.mjs redraws them from an OpenStreetMap export.",
+  "roads": [
+    { "from": "stockport", "to": "heaton-chapel", "via": "the A6: Station Road and Greek Street to Wellington Road South, over Wellington Bridge and up Wellington Road North to Heaton Chapel's crossroads, then west on Manchester Road to the station",
+      "points": [[53.405, -2.1612], [53.4041, -2.16], [53.4033, -2.1585], [53.405, -2.1578], [53.4075, -2.1574], [53.41, -2.1576], [53.4125, -2.159], [53.415, -2.1612], [53.418, -2.164], [53.421, -2.1672], [53.424, -2.1708], [53.4262, -2.1738], [53.4258, -2.176], [53.4255, -2.178], [53.4254, -2.1795]] },
+    { "from": "heaton-chapel", "to": "levenshulme", "via": "back to the A6 at Heaton Chapel and north up Wellington Road North and Stockport Road through Heaton Chapel to Levenshulme, then west to the station",
+      "points": [[53.4254, -2.1795], [53.4255, -2.178], [53.4258, -2.176], [53.4262, -2.1738], [53.4295, -2.177], [53.433, -2.18], [53.4365, -2.183], [53.44, -2.186], [53.443, -2.1888], [53.4445, -2.1902], [53.4447, -2.1918], [53.4447, -2.1935]] },
+    { "from": "levenshulme", "to": "ardwick", "via": "the A6 Stockport Road north through Longsight to Ardwick, then east along Hyde Road and up Chancellor Lane to the station",
+      "points": [[53.4447, -2.1935], [53.4447, -2.1918], [53.4445, -2.1902], [53.448, -2.193], [53.452, -2.1962], [53.456, -2.1992], [53.46, -2.2035], [53.4635, -2.2085], [53.4662, -2.2135], [53.4678, -2.216], [53.4686, -2.214], [53.4697, -2.213], [53.4707, -2.2128]] },
+    { "from": "ardwick", "to": "piccadilly", "via": "Chancellor Lane and Hyde Road to Ardwick Green, then the A6 London Road north to Piccadilly's approach",
+      "points": [[53.4707, -2.2128], [53.4697, -2.213], [53.4686, -2.214], [53.4695, -2.219], [53.4705, -2.2235], [53.4725, -2.2255], [53.4748, -2.2278], [53.4766, -2.2294], [53.4774, -2.23]] },
+    { "from": "stockport", "to": "davenport", "via": "Station Road and Greek Street to the A6, then south down Wellington Road South and Buxton Road to Davenport",
+      "points": [[53.405, -2.1612], [53.4041, -2.16], [53.4033, -2.1585], [53.4005, -2.157], [53.3975, -2.1555], [53.3945, -2.154], [53.392, -2.1527], [53.391, -2.1512]] },
+    { "from": "davenport", "to": "woodsmoor", "via": "the A6 Buxton Road south from Davenport, then east along Woodsmoor Lane to the station",
+      "points": [[53.391, -2.1512], [53.39, -2.1492], [53.3884, -2.1465], [53.3872, -2.144], [53.3865, -2.142]] },
+    { "from": "woodsmoor", "to": "hazel-grove", "via": "back to the A6 and south-east along Buxton Road and London Road to Hazel Grove, the station off it",
+      "points": [[53.3865, -2.142], [53.3852, -2.1398], [53.3832, -2.136], [53.3808, -2.1312], [53.3788, -2.1268], [53.3775, -2.124], [53.3772, -2.1226]] }
   ]
 }

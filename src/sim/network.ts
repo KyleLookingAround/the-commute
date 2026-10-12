@@ -3,7 +3,7 @@
 // world positions. A track's offset changes along the line: each track has an open-line offset, and the layout list
 // moves it around a station (Stockport's tracks spread round two wide islands) or along a stretch, easing in and out.
 // Branching lines later become extra corridors joined at junctions.
-import type { CorridorDef, Frame, LatLon, NetworkDef, NetworkGeoDef, ServiceDef, Station, StationPoint, TrackDef, XZ } from './types.ts';
+import type { CorridorDef, Frame, LatLon, NetworkDef, NetworkGeoDef, RoadDef, ServiceDef, Station, StationPoint, TrackDef, XZ } from './types.ts';
 
 export const NORTH = -1; // trains heading north (towards Manchester) move towards lower z, so "north" is -1 along z,
                          // but along a corridor we measure s increasing in the direction the corridor is drawn (south to north).
@@ -111,6 +111,14 @@ export class Network {
   corridor(id: string): Corridor { const c = this.corridors[id]; if (!c) throw new Error(`no corridor "${id}"`); return c; }
   track(id: string): TrackDef { const t = this.tracks.find(t => t.id === id); if (!t) throw new Error(`no track "${id}"`); return t; }
   station(id: string): Station { const s = this.byId[id]; if (!s) throw new Error(`no station "${id}"`); return s; }
+  /** The road between two stations either way round, or null if the data has none; `reversed` when it runs b to a. */
+  road(a: string, b: string): { road: RoadDef; reversed: boolean } | null {
+    for (const road of this.def.roads ?? []) {
+      if (road.from === a && road.to === b) return { road, reversed: false };
+      if (road.from === b && road.to === a) return { road, reversed: true };
+    }
+    return null;
+  }
 
   /** A station point's distance along its corridor. */
   pointS(p: StationPoint): number { return this.station(p.station).at + p.u; }
@@ -220,5 +228,10 @@ export function fromGeo(def: NetworkGeoDef): Network {
   const origin = def.origin;
   const corridors = def.corridors.map(c => ({ id: c.id, points: smoothPolyline(c.waypoints.map(([lat, lon]): XZ => { const p = projectLatLon(lat, lon, origin); return [p.x, p.z]; }), c.subdivisions || 8) }));
   const stations = def.stations.map(s => { const p = projectLatLon(s.lat, s.lon, origin); return { ...s, x: p.x, z: p.z }; });
-  return new Network({ ...def, corridors, stations });
+  const roads = (def.roads ?? []).map(r => {
+    const points = r.points.map(([lat, lon]): XZ => { const p = projectLatLon(lat, lon, origin); return [p.x, p.z]; });
+    let length = 0; for (let i = 1; i < points.length; i++) length += Math.hypot(points[i]![0] - points[i - 1]![0], points[i]![1] - points[i - 1]![1]);
+    return { from: r.from, to: r.to, points, length };
+  });
+  return new Network({ ...def, corridors, stations, roads });
 }

@@ -371,5 +371,58 @@ test('sim: passengers who get off are counted at their destination', () => {
   sim.advance(3 * 3600);
   const off = sim.state(0).alighted + sim.state(1).alighted + sim.state(4).alighted;
   assert.ok(off > 0, 'someone has arrived somewhere');
-  assert.equal(sim.g.st.reduce((a, s) => a + s.alighted, 0) + sim.g.trains.reduce((a, t) => a + t.onboard, 0), sim.g.stats.boarded, 'everyone who boarded has either arrived or is still on a train');
+  // on their way still: on a train, on a replacement bus, or set down by one to wait for the train on (fare paid)
+  const onBus = sim.g.trouble.buses.reduce((a, b) => a + b.load.reduce((n, c) => n + c.n, 0), 0);
+  const setDown = sim.g.st.reduce((a, s) => a + s.q.flat().reduce((n, c) => n + (c.paid ? c.n : 0), 0), 0);
+  assert.equal(sim.g.st.reduce((a, s) => a + s.alighted, 0) + sim.g.trains.reduce((a, t) => a + t.onboard, 0) + onBus + setDown, sim.g.stats.boarded, 'everyone who boarded has either arrived or is still on their way');
+});
+
+// ---- things going wrong (src/sim/trouble.ts) ----
+/** A game on seed 1 with Stockport grown, Heaton Chapel and Levenshulme bought and a second unit, run until something
+ * goes wrong of the kind wanted (or not at all). */
+const troubled = (kind: 'fail' | 'caution', seed = 1) => {
+  const n = net(), sim = new Sim(n, Sim.fresh(n, seed)); sim.g.cash = 1e7; growStockport(sim);
+  assert.ok(sim.buyStation(1) && sim.buyStation(2) && sim.buyLine('units'));
+  for (let k = 0; k < 40 * 3600 && !sim.g.trouble[kind]; k += 10) sim.advance(10);
+  return sim;
+};
+
+test('trouble: nothing goes wrong in the first sim hour, and the same seed brings the same trouble', () => {
+  const run = (seed: number) => {
+    const n = net(), sim = new Sim(n, Sim.fresh(n, seed)), t0 = sim.g.t; let first = -1;
+    for (let k = 0; k < 24 * 360 && first < 0; k++) { sim.advance(10); if (sim.g.trouble.fail || sim.g.trouble.caution) first = sim.g.t - t0; }
+    return { first, at: JSON.stringify(sim.g.trouble) };
+  };
+  for (const seed of [1, 2, 3, 4]) { const r = run(seed); assert.ok(r.first > TUNING.troubleFrom, `seed ${seed}: first trouble at ${r.first} s`); assert.equal(run(seed).at, r.at); }
+});
+
+test('trouble: a failed train stands with its line blocked, the one behind waits, buses carry people, and it runs again', () => {
+  const sim = troubled('fail'), f = sim.g.trouble.fail!, tr = sim.g.trains.find(t => t.id === f.train)!, s0 = tr.s;
+  assert.ok(f.until - f.from <= TUNING.rescue * 1.25 && f.a !== f.b, 'rescued within a few minutes, between two stations');
+  // fill the platform behind it with people going its way, so the buses have someone to take
+  const A = sim.state(f.a); A.q[f.d].push({ t: sim.g.t, dest: f.b, n: 30, give: sim.g.t + 3600 }); A.waiting += 30;
+  let buses = 0;
+  while (sim.g.trouble.fail) { sim.advance(5); buses = Math.max(buses, sim.g.trouble.buses.length); if (sim.g.trouble.fail) assert.equal(tr.s, s0, 'it stands where it failed'); }
+  for (const o of sim.g.trains) if (o !== tr && o.svc === tr.svc && o.dir === tr.dir && o.state === 'run') assert.ok((tr.s - o.s) * tr.dir >= TUNING.separation - 1 || (tr.s - o.s) * tr.dir < 0, 'the one behind keeps its distance');
+  sim.advance(120); assert.notEqual(tr.s, s0, 'rescued, it runs again');
+  for (let k = 0; k < 360 && sim.g.trouble.buses.length; k++) sim.advance(10);
+  assert.ok(buses > 0 && sim.g.trouble.bused > 0 && !sim.g.trouble.buses.length, `buses ran (${buses}), carried people (${sim.g.trouble.bused}) and went once the line was clear`);
+});
+
+test('trouble: a signal failure has trains crawl through the stretch at caution', () => {
+  const sim = troubled('caution'), c = sim.g.trouble.caution!;
+  let inside = 0;
+  while (sim.g.trouble.caution) { sim.advance(2); for (const tr of sim.g.trains) if (tr.s > c.s0 + 50 && tr.s < c.s1 - 50 && tr.state === 'run') { inside++; assert.ok(tr.v <= TUNING.caution + 1e-9, `${tr.v} m/s at caution`); } }
+  assert.ok(inside > 0, 'a train ran through it');
+});
+
+test('trouble: the spare unit is offered once a train has failed, and halves the rescue', () => {
+  const sim = troubled('fail');
+  assert.ok(sim.lineReady('spare'));
+  const n = net(), fresh = new Sim(n, Sim.fresh(n, 1)); fresh.g.cash = 1e6;
+  assert.ok(!fresh.lineReady('spare') && !fresh.buyLine('spare'), 'not before');
+  const spareOn = troubled('fail', 2); assert.ok(spareOn.buyLine('spare'));
+  while (spareOn.g.trouble.fail) spareOn.advance(10);
+  for (let k = 0; k < 400 * 360 && !spareOn.g.trouble.fail; k++) spareOn.advance(10);
+  const f = spareOn.g.trouble.fail!; assert.ok(f.until - f.from <= TUNING.rescueSpare * 1.25, `rescued in ${f.until - f.from} s`);
 });

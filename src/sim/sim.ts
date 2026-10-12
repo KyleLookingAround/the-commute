@@ -8,6 +8,7 @@ import { rand, freshSeed } from './random.ts';
 import { SAVE_VERSION } from './save.ts';
 import type { Network } from './network.ts';
 import { journeys, cycle, runTime, type Journey } from './journeys.ts';
+import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
 import type { GameState, LineUpgradeId, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
 /** A station upgrade. name null: the station names it (its retail, or its stage in `grow`). requires: upgrades at the
@@ -33,7 +34,8 @@ export const UPGRADES: Upgrade[] = [
 export const LINE_UPGRADES: LineUpgrade[] = [
   { id: 'units', name: 'Extra unit', prices: [6000, 20000, 50000], desc: 'One more train in service: shorter waits, more passengers', max: 3 },
   { id: 'cars', name: 'Longer trains', prices: [12000, 40000], desc: '+2 cars per unit', max: 2 },
-  { id: 'timetable', name: 'Faster timetable', prices: [20000], desc: 'Line speed 75 → 90 mph: quicker rides, shorter waits', max: 1 },
+  { id: 'timetable', name: 'Faster timetable', prices: [20000], desc: 'Line speed 75 → 90 mph and new signals: quicker rides, fewer signal failures', max: 1 },
+  { id: 'spare', name: 'Spare unit', prices: [8000], desc: 'Stands by in Stockport’s sidings: a failed train is moving again in half the time', max: 1 },
 ];
 
 export const TUNING = {
@@ -73,6 +75,17 @@ export const TUNING = {
   // cabMile seconds a mile (town traffic), and the player takes a cut of the cab fare: half of it, and a cab fare is
   // about three times the train's, so cabCut times the train fare
   cabs: 6, cabSeats: 4, cabShare: 0.6, cabRank: 3 * 60, cabMile: 2 * 60, cabCut: 1.5,
+  // things going wrong (src/sim/trouble.ts): nothing in the first sim hour, then on average one every troubleEvery,
+  // never within troubleGap of the last ending, and only by the game's daylight hours. A share failShare are failed
+  // trains, more than failMargin from a station, rescued in about `rescue` (rescueSpare with a spare unit standing by);
+  // the rest signal failures, a stretch between two stations at caution for about signalFor, which the faster
+  // timetable's new signals stop with chance resignalHolds
+  troubleFrom: 3600, troubleEvery: 2.5 * 3600, troubleGap: 40 * 60, troubleDayFrom: 6, troubleDayTo: 21,
+  failShare: 0.5, failMargin: 300, rescue: 9 * 60, rescueSpare: 4 * 60,
+  signalFor: 12 * 60, caution: 9, resignalHolds: 0.6,
+  // rail replacement buses: from busAfter into a failure, one every busGap up to busFleet, busSeats each, loading for
+  // busDwell, on the road at busSpeed (town traffic and stops)
+  busAfter: 4 * 60, busGap: 2 * 60, busFleet: 3, busSeats: 70, busDwell: 60, busSpeed: 6,
 };
 export type Tuning = typeof TUNING;
 
@@ -119,9 +132,9 @@ export class Sim {
       v: SAVE_VERSION, seed, rngState: seed >>> 0, t: 6.5 * 3600 / TUNING.dayRate, day: 1, cash: 3000, earned: 0,
       owned: network.stations.map((_, i) => i === 0),
       ups: network.stations.map(() => ({})),
-      line: { units: 0, cars: 0, timetable: 0 },
+      line: { units: 0, cars: 0, timetable: 0, spare: 0 },
       st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0, cab: 0, cabs: [] })),
-      trains: [], ends: {},
+      trains: [], ends: {}, trouble: freshTrouble(),
       stats: { boarded: 0, lost: 0, cab: 0 },
     };
   }
@@ -332,11 +345,13 @@ export class Sim {
   }
   stepTrain(tr: Train, dt: number): void {
     if (tr.state === 'dwell') { this.depart(tr, dt); return; }
+    // a failed unit stands where it is until it's rescued, and the trains behind it wait
+    if (failed(this.g, tr)) { tr.v = 0; return; }
     if (tr.next === null) tr.next = this.nextStop(tr);
     const target = this.station(tr.next).s, rem = Math.abs(target - tr.s), last = this.isEnd(tr, tr.next);
     // it can go as far as the train ahead allows, and no further than its signal while the platform's taken
     const room = rem >= TUNING.approach && this.blocked(tr, tr.next) ? Math.min(this.clear(tr), rem - TUNING.approach) : this.clear(tr);
-    tr.v = Math.min(this.vmax(), tr.v + TUNING.accel * dt);
+    tr.v = Math.min(this.vmax(), tr.v + TUNING.accel * dt, cautionLimit(this.g, TUNING, tr.s, tr.dir));
     tr.v = Math.max(0.5, Math.min(tr.v, Math.sqrt(2 * TUNING.brake * Math.max(rem, 0))));
     // a train closing on the one ahead, or on a red signal, brakes to stand behind it
     if (room < rem) tr.v = Math.min(tr.v, Math.sqrt(2 * TUNING.brake * Math.max(room, 0)));
@@ -486,6 +501,7 @@ export class Sim {
     const dayLen = 86400 / TUNING.dayRate, d0 = Math.floor(g.t / dayLen); g.t += dt; if (Math.floor(g.t / dayLen) > d0) g.day++;
     this.refreshJourneys(); this.measureCrowding();
     for (let i = 0; i < this.S.length; i++) { if (!g.owned[i]) continue; this.generate(i, dt); this.expire(i); }
+    stepTrouble(this, TUNING);
     for (const tr of g.trains) this.stepTrain(tr, dt);
   }
   advance(gameSeconds: number, maxStep = 2): void { let left = gameSeconds; while (left > 0) { const d = Math.min(maxStep, left); this.step(d); left -= d; } }
@@ -511,8 +527,11 @@ export class Sim {
     this.refreshJourneys(); return true;
   }
   /** Whether a line upgrade can be seen yet: extra units need room for a second train to turn at the line's home
-   * terminus (Stockport's platform 3). */
-  lineReady(id: string): boolean { return id !== 'units' || !!this.ups(this.svcs[0]!.route[0]!).platform2; }
+   * terminus (Stockport's platform 3), and a spare unit comes once a train has failed. */
+  lineReady(id: string): boolean {
+    if (id === 'spare') return this.g.trouble.fails > 0;    // offered once a train has failed: the fix for what you've seen
+    return id !== 'units' || !!this.ups(this.svcs[0]!.route[0]!).platform2;
+  }
   buyLine(id: string): boolean {
     const u = LINE_UPGRADES.find(u => u.id === id), g = this.g; if (!u) return false;
     const lvl = g.line[u.id], price = u.prices[lvl];

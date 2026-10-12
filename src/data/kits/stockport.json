@@ -64,6 +64,7 @@
     { "type": "lamps", "u0": -175, "u1": -145, "v": 61.75, "every": 30, "upgrade": ["extend", "platforms"] },
     { "type": "carpark", "u0": -113, "u1": -23, "v0": 136, "v1": 177, "y": 9, "deck": true },
     { "type": "cycles", "u": 46, "v": 120, "n": 8, "upgrade": "building" },
-    { "type": "taxi", "u": 64, "v": 124, "back": [1, 0], "kerb": -1, "n": 6, "door": [24, 118], "upgrade": "taxi", "note": "The rank on Station Road outside the entrance, from memory, placed by eye" }
+    { "type": "taxi", "u": 64, "v": 124, "back": [1, 0], "kerb": -1, "n": 6, "door": [24, 118], "upgrade": "taxi", "note": "The rank on Station Road outside the entrance, from memory, placed by eye" },
+    { "type": "busstop", "u": -12, "v": 127, "back": [1, 0], "kerb": 1, "door": [24, 118], "note": "Outside the Station Road entrance, past the taxi rank and the cycle stands; replacement buses stand on Station Road, from memory" }
   ]
 }

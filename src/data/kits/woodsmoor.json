@@ -1,7 +1,8 @@
 {
   "id": "woodsmoor",
-  "note": "From the OpenStreetMap export (11 October 2026), 1.25 times real across the line like the tracks: two short side platforms on the Hazel Grove line (about 80 m, so a longer train stands off the ends), 2.1 m outside its two tracks, with steps up to Moorland Road over the line at the north end, which is where passengers come and go; the Brethren's meeting room stands to the west. Positive v is east. Shelters, canopy and lamps are from memory. The steps climb in flights to Moorland Road, so the way across shows from further out. A departure board on each platform.",
+  "note": "From the OpenStreetMap export (11 October 2026), 1.25 times real across the line like the tracks: two short side platforms on the Hazel Grove line (about 80 m: trains stop 20 m south of the station's point, so a two-car unit stands on them as they are and a four-car one once they're extended; a six-car one stands off the north end, as at a real short platform, which `longest` says), 2.1 m outside its two tracks, with steps up to Moorland Road over the line at the north end, which is where passengers come and go; the Brethren's meeting room stands to the west. Positive v is east. Shelters, canopy and lamps are from memory. The steps climb in flights along the back of each platform to Moorland Road, so the way across shows from further out; the lifts stand behind the cutting walls at the top of the steps, by the bridge, from the road down to each platform (laid out with the steps, from memory). A departure board on each platform.",
   "platformLength": 80,
+  "longest": 4,
   "entrance": 34,
   "faces": { "north": { "v": -3.1, "u0": -45, "u1": 30 }, "south": { "v": 7.5, "u0": -45, "u1": 30 } },
   "parts": [
@@ -20,8 +21,8 @@
     { "type": "retail", "u": -25, "v": -5.9, "label": "Coffee cart", "small": true, "upgrade": "retail" },
     { "type": "retail", "u": 10, "v": -5.9, "label": "Kiosk", "small": true, "upgrade": "kiosk" },
     { "type": "barriers", "u0": 24, "u1": 30, "v": -4.6, "upgrade": "barriers" },
-    { "type": "lifts", "u": 40, "towers": [-4.6], "upgrade": "lifts" },
-    { "type": "lifts", "u": 40, "towers": [9], "upgrade": ["lifts", "platform2"] },
+    { "type": "lifts", "u": 57, "towers": [-10.7], "upgrade": "lifts" },
+    { "type": "lifts", "u": 57, "towers": [15.2], "upgrade": ["lifts", "platform2"] },
     { "type": "box", "u0": 70, "u1": 79, "v0": -22, "v1": 26, "y0": 6.4, "y1": 7.2, "mat": "road", "scenery": true },
     { "type": "box", "u0": 70, "u1": 79, "v0": -22, "v1": -21, "y0": 7.2, "y1": 8.3, "mat": "brickDark", "scenery": true },
     { "type": "box", "u0": 70, "u1": 79, "v0": 25, "v1": 26, "y0": 7.2, "y1": 8.3, "mat": "brickDark", "scenery": true },

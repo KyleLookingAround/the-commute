@@ -18,6 +18,8 @@ import { join } from 'node:path';
 import { register } from 'tsx/esm/api';
 
 register();
+// a part that paints a sign on a canvas (a taxi rank's) gets one that paints nothing: only its shape is measured here
+globalThis.document ??= { createElement: () => ({ getContext: () => null }) };
 const THREE = await import('three');
 const { fromGeo } = await import('../../src/sim/network.ts');
 const { partGroup } = await import('../../src/render/stations.ts');

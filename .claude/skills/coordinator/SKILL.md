@@ -5,7 +5,7 @@ description: Run other The Commute sessions - briefs, the sweep at each check-in
 
 # Running the other sessions
 
-> **Prototype phase** (the project notes, "Phase: prototype"): sessions push straight to `main`, so there are no PRs to read or merge. At each check-in, look at what each session pushed, read its commit messages for attribution, and confirm the Publish run for its commits is green; each part lists what it hands on in its last commit message. Briefs still apply.
+> **Prototype phase** (the project notes, "Phase: prototype"): sessions push straight to `main`, so there are no PRs to read or merge. At each check-in, look at what each session pushed, read its commit messages for attribution, and confirm the Publish run for its commits is green, its `check` job included: a check job that is cancelled (by its time limit, or by a newer push) opens no "main is red" issue, so read the jobs rather than waiting for an issue; each part lists what it hands on in its last commit message. Briefs still apply.
 
 Until there are several sessions at once this playbook is mostly §6: write a brief, start one session, check on it. The rest comes from the owner's other games and applies when the work splits.
 

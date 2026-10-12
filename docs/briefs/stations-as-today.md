@@ -10,11 +10,9 @@
 - Prototype phase: work on your session's branch and push straight to `main` (pull first; a sim session is working at the same time). Before a push, `npm run rules` and `npm test`; `npm run check` since this touches the page.
 - Files it may touch: `src/data/kits/*.json`, `src/render/stations.ts`, `src/render/world.ts` (only where a station's surroundings need it), `src/render/palette.ts` and `src/ui/styles/tokens.css`, `tools/checks/`, `tools/shots.mjs`, and the docs below. Not `src/sim/` or the network data's numbers.
 
-## Added by the owner, 12 October 2026: the station's surroundings
+## The station's surroundings (the owner, 12 October 2026)
 
-- A station includes the area around it, not just its platforms: the road bridges over and under the line beside it, its car parks, the forecourt and the roads up to the entrance, and the bus stations that serve it. Draw them as part of each station's kit, from the photographs, as scenery or on the stage that would build them.
-- Stockport's new bus interchange (the Stockport Interchange, opened 2024, with the park on its roof, by the viaduct and Merseyway) is part of Stockport station for this, with the walk between them. The landmarks session has been told to leave it to you.
-- Keep the rules above: no new stages or prices (`PLAY` identical), the geometry check passing, real places with notes. Car parks and bus links as stages that bring people are a later phase 3 step.
+- Not all in this step. Stations grow into their surroundings gradually through the phases (bridges, car parks, forecourts, bus stations such as the Stockport Interchange), each when a phase gives it a reason; see "Throughout" in `docs/ROADMAP.md`. Finish what this brief asks; draw a surrounding only where a station's own parts need it.
 
 ## Read first
 

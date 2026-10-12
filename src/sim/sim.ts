@@ -48,6 +48,10 @@ export const TUNING = {
   squeeze: 1.0,                                // seconds a full train is held for each person left trying to get on
   dispatch: 15,                                // seconds from the platform clearing to leaving: doors shut, all clear
   separation: 400,                             // metres a train keeps behind the one ahead on its line
+  // platforms that block (docs/DESIGN.md, Platforms): one train at a platform face at a time. A train for a stop whose
+  // faces are all taken stands at its signal, approach metres short of where it stops, until one is free, and a face is
+  // free once the train leaving it has run clear metres on (its tail off the platform)
+  approach: 450, clear: 150,
   doorsPerCar: 2, boardPerDoor: 0.7,           // passengers a second through each door: a 2-car unit boards about 110 in a 45 s stop
   doorsCrowd: 0.7,                             // ...slowing as it fills, to 30% of that when full: people squeeze in
   platformCap: 150, platformCapExtended: 320,
@@ -58,9 +62,10 @@ export const TUNING = {
   walkWeight: 2, waitWeight: 2, waitCanopy: 1.5, change: 5 * 60,          // felt time: a change at Stockport costs five minutes on top of its wait
   crowd: 0.6,                                  // a full train's ride feels 1.6 times as long, rising from 60% full
   budget: 60 * 60, budgetSoft: 12 * 60,         // felt seconds each way: half of people travel at the budget, fewer beyond, more within
-  grace: 6 * 60, patienceMin: 3 * 60,          // someone gives up once their wait has used what's left of their own budget and this
-                                               // (they've walked there already), never sooner than patienceMin
-  demand: 1.9,                                 // trips an hour for a station's catchment, at peak, with the city on its doorstep
+  patienceMin: 3 * 60,                         // someone gives up once their wait has used what's left of their own budget
+                                               // (never sooner than this); past the timetabled gap, a late or full train,
+  delayWeight: 3,                              // waiting feels three times riding (UK appraisal weighs lateness about so)
+  demand: 1.95,                                // trips an hour for a station's catchment, at peak, with the city on its doorstep
   amOut: 0.8, pmOut: 0.35,                     // the share of trips from home rather than going home, before and after noon
 };
 export type Tuning = typeof TUNING;
@@ -286,6 +291,33 @@ export class Sim {
       tr.due += run + (this.isEnd(tr, j) ? this.turnaround() : TUNING.dwell);
     }
   }
+  // ---- platforms ----
+  /** Whether a train calls at station i: an owned station with a platform its way, or either end of its run. */
+  callsAt(tr: Train, i: number): boolean { return this.isEnd(tr, i) || (!!this.g.owned[i] && this.serves(i, tr.dir > 0 ? 0 : 1)); }
+  /** The faces a train can use at station i, and which trains share them: where it turns round, the platforms trains
+   * turn in (one at a halt, a second with the second platform, two more with the rest of the station; as many as
+   * needed at a station the player doesn't own, which is the railway's and fully built), shared by every train turning
+   * there; elsewhere the one platform its way, shared with the trains going the same way. */
+  faces(tr: Train, i: number): number {
+    if (!this.isEnd(tr, i)) return 1;
+    if (!this.g.owned[i]) return Infinity;
+    const u = this.ups(i); return 1 + (u.platform2 ? 1 : 0) + (u.platforms ? 2 : 0);
+  }
+  /** Whether train o takes a face at station i: standing there, inside its signal running in, or not yet clear of
+   * the platform leaving. */
+  holds(o: Train, i: number): boolean {
+    if (o.state === 'dwell') return (o.calling ?? o.next) === i;
+    const d = (this.station(i).s - o.s) * o.dir;
+    if (o.next === i) return d < TUNING.approach;
+    return d <= 0 && d > -TUNING.clear && this.callsAt(o, i);
+  }
+  /** Whether a train running in to station i must wait at its signal: every face it could use is taken. */
+  blocked(tr: Train, i: number): boolean {
+    const turn = this.isEnd(tr, i), n = this.faces(tr, i); if (!isFinite(n)) return false;
+    let taken = 0;
+    for (const o of this.g.trains) if (o !== tr && this.isEnd(o, i) === turn && (turn || o.dir === tr.dir) && this.holds(o, i) && ++taken >= n) return true;
+    return false;
+  }
   /** How far a running train can go before it closes on the one ahead of it on its line (same service, same way). */
   clear(tr: Train): number {
     let gap = Infinity;
@@ -295,10 +327,12 @@ export class Sim {
   stepTrain(tr: Train, dt: number): void {
     if (tr.state === 'dwell') { this.depart(tr, dt); return; }
     if (tr.next === null) tr.next = this.nextStop(tr);
-    const target = this.station(tr.next).s, rem = Math.abs(target - tr.s), last = this.isEnd(tr, tr.next), room = this.clear(tr);
+    const target = this.station(tr.next).s, rem = Math.abs(target - tr.s), last = this.isEnd(tr, tr.next);
+    // it can go as far as the train ahead allows, and no further than its signal while the platform's taken
+    const room = rem >= TUNING.approach && this.blocked(tr, tr.next) ? Math.min(this.clear(tr), rem - TUNING.approach) : this.clear(tr);
     tr.v = Math.min(this.vmax(), tr.v + TUNING.accel * dt);
     tr.v = Math.max(0.5, Math.min(tr.v, Math.sqrt(2 * TUNING.brake * Math.max(rem, 0))));
-    // a train closing on the one ahead brakes to stand behind it
+    // a train closing on the one ahead, or on a red signal, brakes to stand behind it
     if (room < rem) tr.v = Math.min(tr.v, Math.sqrt(2 * TUNING.brake * Math.max(room, 0)));
     const step = room < rem ? Math.min(tr.v * dt, Math.max(room, 0)) : tr.v * dt;
     if (step >= rem) {
@@ -396,7 +430,11 @@ export class Sim {
     const felt = this.felt(J), B = TUNING.budget, s = TUNING.budgetSoft;
     const least = 1 / (1 + Math.exp(-(felt - B) / s)), u = Math.min(1 - 1e-9, least + (1 - least) * this.rand());
     const budget = B + s * Math.log(u / (1 - u)), ww = this.ups(i).canopy ? TUNING.waitCanopy : TUNING.waitWeight;
-    return Math.max(TUNING.patienceMin, (budget + TUNING.grace - (felt - J.firstWait)) / ww);
+    // the wait the timetable promises (up to a whole gap between trains) feels as waiting does; past that, a late or
+    // full train, it feels delayWeight times riding (a canopy takes the same share off)
+    const left = budget - (felt - J.firstWait), gap = this.headway(this.svcs[J.legs[0]!.svc]!.id);
+    const dw = TUNING.delayWeight * ww / TUNING.waitWeight;
+    return Math.max(TUNING.patienceMin, left <= ww * gap ? left / ww : gap + (left - ww * gap) / dw);
   }
   /** Whoever has waited past their patience goes home; each group has its own, so the whole queue is looked at. Someone
    * changing trains has come too far to turn back. */

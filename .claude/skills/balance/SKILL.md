@@ -44,19 +44,20 @@ Make the change and run the same three seeds into `build/after.log`.
 
 `tools/baseline.json` holds the ranges. They are **proposed**, not yet agreed: its note says when and why each was set, and the owner agrees ranges when the pacing is settled. Hours are sim hours.
 
-| Milestone or measure | Range | Seeds 1, 2, 3 (12 October 2026, late trains) |
+| Milestone or measure | Range | Seeds 1, 2, 3 (12 October 2026, platforms and peaks) |
 | --- | --- | --- |
 | Second unit | hour 0.25–0.6 | 0.4, 0.4, 0.4 |
-| Heaton Chapel bought | hour 0.5–1.0 | 0.67, 0.67, 0.67 |
-| Levenshulme bought | hour 1.6–2.8 | 2.32, 2.33, 2.32 |
-| Ardwick bought | hour 4.5–6.5 | 4.88, 4.9, 4.88 |
+| Heaton Chapel bought | hour 0.5–1.0 | 0.67, 0.65, 0.65 |
+| Levenshulme bought | hour 1.6–2.8 | 2.32, 2.33, 2.33 |
+| Ardwick bought | hour 4.5–6.5 | 4.92, 4.87, 4.87 |
 | Piccadilly bought | hour 8–20 | not in 8 h |
-| Cash at 8 h | £25,000–55,000 | £51,081, £50,746, £50,995 |
-| Boarded | 3,500–5,200 | 4,808, 4,810, 4,807 |
-| Lost | 50–200 | 81, 79, 82 (nearly all at Stockport in the first morning) |
-| Longest quiet | 1.6–2.7 h (the night) | 2.0, 2.0, 2.0 |
-| Longest daytime quiet | 0.3–1.0 h | 0.52, 0.53, 0.52 |
+| Cash at 8 h | £25,000–55,000 | £51,902, £52,602, £52,388 |
+| Boarded | 3,500–5,200 | 4,813, 4,829, 4,829 |
+| Lost | 150–300 | 203, 196, 196 |
+| Lost beyond home % | 33–100 | 38, 39, 36 (Heaton Chapel and Levenshulme, most in the second morning) |
+| Longest quiet | 1.6–2.7 h (the night) | 2.0, 1.9, 1.9 |
+| Longest daytime quiet | 0.3–1.0 h | 0.55, 0.5, 0.5 |
 | Main-line departures within 5 min | 90–100% | 100, 100, 100 |
-| Worst late | 0–8 min | 0.5, 0.2, 0.5 |
+| Worst late | 0–8 min | 0.6, 0.4, 0.4 |
 
 The bot also prints PEAKS: at each morning (06:00–10:00) and evening (16:00–19:30) peak, who gave up at each station and how late main-line trains left their stops, with a table of the seeds' mean. Read it for where pressure lands, not just how much.

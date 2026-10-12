@@ -1,12 +1,12 @@
-// The sim's tests: the network's geometry, the demand curve, boarding and money, termini, buying in order, pacing, the
-// seed, and saves. node:test, no browser; run with npm test.
+// The sim's tests: the network's geometry, the demand curve, boarding and money, termini, platforms, buying in order,
+// pacing, the seed, and saves. node:test, no browser; run with npm test.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fromGeo } from '../src/sim/network.ts';
 import { Sim, demandCurve, TUNING } from '../src/sim/sim.ts';
 import { migrate, SAVE_VERSION, SaveError } from '../src/sim/save.ts';
-import type { NetworkGeoDef } from '../src/sim/types.ts';
+import type { NetworkGeoDef, Train } from '../src/sim/types.ts';
 
 const def = JSON.parse(readFileSync(new URL('../src/data/network.json', import.meta.url), 'utf8')) as NetworkGeoDef;
 const net = () => fromGeo(def);
@@ -217,6 +217,42 @@ test('timetable: extra units spread out to an even gap at the ends', () => {
   sim.advance(4 * 3600);
   const gaps = deps.slice(-4).map((t, k, a) => k ? t - a[k - 1]! : 0).slice(1), h = sim.headway('stopper');
   for (const gap of gaps) assert.ok(Math.abs(gap - h) < 60, `units leave Stockport about ${h.toFixed(0)} s apart, got ${gap.toFixed(0)}`);
+});
+
+/** Two main-line units: the first standing at station i (turned round there if it's the end of the run), held well past
+ * its time, and the second running in towards it from 2 km out. */
+const twoAt = (sim: Sim, i: number, dir: 1 | -1) => {
+  sim.g.line.units = 1; sim.ensureTrains();
+  const [a, b] = sim.g.trains as [Train, Train], at = sim.station(i).s, end = sim.isEnd(a, i);
+  Object.assign(a, { dir: end ? -dir : dir, s: at, v: 0, state: 'dwell', calling: i, next: i, dwell: 0, due: sim.g.t + 600, stood: 0, quiet: 0, boardAcc: 0 });
+  Object.assign(b, { dir, s: at - dir * 2000, v: 0, state: 'run', next: i, due: sim.g.t + 900 });
+  return { a, b, gap: () => Math.abs(at - b.s) };
+};
+const tick = (sim: Sim, secs: number, until?: () => boolean) => { for (let k = 0; k < secs && !until?.(); k++) { sim.g.t += 1; for (const tr of sim.g.trains) sim.stepTrain(tr, 1); } };
+
+test('platforms: a train for a halt where another stands waits at its signal, and runs in once the platform clears', () => {
+  const sim = new Sim(net()); sim.g.cash = 1e7; growStockport(sim); assert.ok(sim.buyStation(1));
+  const { a, b, gap } = twoAt(sim, 1, 1);
+  tick(sim, 300);
+  assert.equal(a.state, 'dwell', 'the first is still standing');
+  assert.ok(b.v === 0 && Math.abs(gap() - TUNING.approach) < 1, `the second stands at the signal, ${gap().toFixed(0)} m out`);
+  a.due = sim.g.t;
+  let clearOf = -1;
+  tick(sim, 600, () => { if (clearOf < 0 && gap() < TUNING.approach - 1) clearOf = (a.s - sim.station(1).s) * a.dir; return b.state === 'dwell'; });
+  assert.equal(b.state, 'dwell', 'then it calls');
+  assert.ok(clearOf >= TUNING.clear, `once the first is clear of the platform (${clearOf.toFixed(0)} m on)`);
+});
+
+test('platforms: at Stockport a second unit waits to turn until platform 3 gives it a face of its own', () => {
+  const held = (p3: boolean) => {
+    const sim = new Sim(net()); sim.g.cash = 1e7; assert.ok(sim.buyUpgrade(0, 'crossing'));
+    if (p3) assert.ok(sim.buyUpgrade(0, 'platform2'));
+    const { b, gap } = twoAt(sim, 0, -1);
+    tick(sim, 300);
+    return b.state === 'run' && Math.abs(gap() - TUNING.approach) < 1;
+  };
+  assert.ok(held(false), 'one face: it waits outside');
+  assert.ok(!held(true), 'two faces: it runs straight in');
 });
 
 test('branch: buying Davenport after Piccadilly opens the Hazel Grove line, and each station after extends it', () => {

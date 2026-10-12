@@ -13,13 +13,8 @@ export const WALK_M = 70;
 /** Minutes to Manchester where each of the minutes view's bands ends (the last band ends the shading). */
 export const BANDS = [20, 30, 40, 50] as const;
 
-/** Where people from station i are mostly going: the station a train reaches from i that draws the most people
- * (Piccadilly for every station but itself), or null if no train goes anywhere from there. */
-export function destination(sim: Sim, i: number): number | null {
-  let best: number | null = null;
-  for (let j = 0; j < sim.S.length; j++) if (j !== i && sim.journey(i, j) && (best === null || sim.station(j).draw > sim.station(best).draw)) best = j;
-  return best;
-}
+/** Where people from station i are mostly going (`Sim.destination`): Piccadilly for every station but itself. */
+export function destination(sim: Sim, i: number): number | null { return sim.destination(i); }
 
 /** The reach of an owned station, in metres from it: how far from home the walk can start and the trip to where people
  * are going still feel no longer than the budget (half of people's budgets are longer, so the edge is soft). The sim's
@@ -52,17 +47,18 @@ export function withBought(sim: Sim, i: number | null, id: string): Sim {
 }
 
 /** What buying something saves, in words for its card ("4 min less walk for about 1,200 homes"), or null when it
- * saves no minutes on the trips people make most. Homes are the stations' catchments, weighted by how much each saves. */
+ * saves no minutes on the trips people make most. Homes are the stations' homes now (grown), weighted by how much each saves. */
 export function savingText(sim: Sim, i: number | null, id: string): string | null {
   const after = withBought(sim, i, id);
   let homes = 0, walk = 0, wait = 0, ride = 0, felt = 0;
-  sim.S.forEach((st, k) => {
+  sim.S.forEach((_, k) => {
     if (!sim.g.owned[k]) return;
     const j = destination(sim, k), a = j === null ? null : sim.journey(k, j), b = j === null ? null : after.journey(k, j);
     if (!a || !b) return;
     const dw = a.walk - b.walk, dq = a.wait - b.wait, dr = a.ride - b.ride, df = a.felt - b.felt;
     if (Math.max(dw + dq + dr, df) < 30) return;
-    homes += st.catchment; walk += st.catchment * dw; wait += st.catchment * dq; ride += st.catchment * dr; felt += st.catchment * df;
+    const h = sim.homes(k);
+    homes += h; walk += h * dw; wait += h * dq; ride += h * dr; felt += h * df;
   });
   if (!homes) return null;
   const min = (s: number) => `${Math.max(1, Math.round(s / homes / 60))} min`, who = `for about ${about(homes)} homes`;

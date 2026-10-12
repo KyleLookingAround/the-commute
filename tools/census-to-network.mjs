@@ -30,6 +30,10 @@
 //      stands for the whole city centre, so their areas (homes and work) count as its own.
 //      The census was taken in March 2021, in lockdown: people working from home were counted at home, so the city
 //      centre's jobs are understated against a normal year.
+//    - Ceiling: how many homes the station's land could hold as the line brings it within reach (homes that grow,
+//      docs/DESIGN.md): its homes now, and ROOM times as many again as live within a walk of it (WALK_MAX, every area
+//      whichever station it takes now): infill, flats on old yards, new estates. The sim grows each station's homes
+//      towards it.
 //    - Scale: real counts are far larger than the game's, so homes are multiplied by one factor that keeps the
 //      opening where it was (Stockport's morning trips to Piccadilly, as the old guesses gave them), and
 //      draw by one that keeps Piccadilly's (the sim only uses draw over Piccadilly's, so that one is for the panels).
@@ -51,6 +55,7 @@ const REACH = 2500;                              // metres from a station on the
 const WALK_MAX = 1500, WORK_WALK = 1000;         // metres on foot (straight line times DETOUR) from home to a station, and on to work
 const BUS_MAX = 5000, BUS_HUBS = ['stockport'];  // metres (straight line) by bus to a station with a bus station beside it
 const DETOUR = 1.25, WALK = 1.33, RIDE = 15, WALK_WEIGHT = 2;   // streets aren't straight; m/s on foot and on the train
+const ROOM = 0.5;                                 // a walk's land could hold half as many homes again as it does
 const DATE = '12 October 2026';
 // the game's scale: Piccadilly's draw as it was (the sim only uses draw over Piccadilly's), and Stockport's morning trips
 // to Piccadilly as they were with the old guesses (catchment 900 and draw 1400 at Stockport, 2200 and 6000 at
@@ -137,9 +142,11 @@ for (const s of line) {
   if (near) near.id = s.id; else all.push({ name: s.name, lat: s.lat, lon: s.lon, id: s.id });
 }
 const picc = line.find(s => s.id === 'piccadilly');
-const sum = Object.fromEntries(line.map(s => [s.id, { homes: 0, work: 0 }]));
+const sum = Object.fromEntries(line.map(s => [s.id, { homes: 0, work: 0, walk: 0 }]));
+const lineAt = line.map(s => ({ id: s.id, lat: s.lat, lon: s.lon }));
 for (const [, lat, lon, residents, workers] of ex.areas.rows) {
   const p = { lat, lon };
+  for (const s of lineAt) if (DETOUR * dist(p, s) <= WALK_MAX) sum[s.id].walk += residents;
   let home = null, homeCost = Infinity, work = null, workWalk = Infinity;
   for (const s of all) {
     const walk = DETOUR * dist(p, s); if (walk > WALK_MAX) continue;
@@ -157,21 +164,25 @@ const old = Object.fromEntries(line.map(s => [s.id, { catchment: s.catchment, dr
 const drawScale = PICCADILLY_DRAW / sum.piccadilly.work;
 const homeScale = OPENING / (OUT * sum.stockport.homes + (1 - OUT) * sum.stockport.work / sum.piccadilly.work * sum.piccadilly.homes);
 const round = v => v >= 100 ? Math.round(v / 10) * 10 : Math.max(1, Math.round(v));
-const out = line.map(s => ({ id: s.id, homes: sum[s.id].homes, work: sum[s.id].work, catchment: round(sum[s.id].homes * homeScale), draw: round(sum[s.id].work * drawScale) }));
+const out = line.map(s => {
+  const catchment = round(sum[s.id].homes * homeScale);
+  return { id: s.id, homes: sum[s.id].homes, work: sum[s.id].work, walk: sum[s.id].walk, catchment, draw: round(sum[s.id].work * drawScale), ceiling: round(catchment + ROOM * sum[s.id].walk * homeScale) };
+});
 
 console.log(`homes × ${homeScale.toPrecision(3)} (Stockport's morning trips to Piccadilly as before), draw × ${drawScale.toPrecision(3)} (Piccadilly's stays ${PICCADILLY_DRAW})`);
-console.log('station        residents  workers  catchment (was)  draw (was)');
-for (const o of out) console.log(`${o.id.padEnd(14)} ${String(o.homes).padStart(9)} ${String(o.work).padStart(8)}  ${String(o.catchment).padStart(9)} (${old[o.id].catchment})  ${String(o.draw).padStart(5)} (${old[o.id].draw})`);
+console.log(`ceiling: homes and ${ROOM} times the residents within a walk, on the same scale`);
+console.log('station        residents  workers  in a walk  catchment (was)  draw (was)  ceiling');
+for (const o of out) console.log(`${o.id.padEnd(14)} ${String(o.homes).padStart(9)} ${String(o.work).padStart(8)} ${String(o.walk).padStart(10)}  ${String(o.catchment).padStart(9)} (${old[o.id].catchment})  ${String(o.draw).padStart(5)} (${old[o.id].draw})  ${String(o.ceiling).padStart(7)}`);
 if (args.includes('--dry')) process.exit(0);
 
-// write only the two numbers and the note, line by line, so the rest of the file keeps its layout
+// write only the three numbers and the note, line by line, so the rest of the file keeps its layout
 let text = readFileSync(netFile, 'utf8');
 for (const o of out) {
-  const re = new RegExp(`(\\{ "id": "${o.id}",[^\\n]*?"catchment": )\\d+(, "draw": )\\d+(, "note": ")([^"]*)(")`);
+  const re = new RegExp(`(\\{ "id": "${o.id}",[^\\n]*?"catchment": )\\d+(, "draw": )\\d+(?:, "ceiling": \\d+)?(, "note": ")([^"]*)(")`);
   if (!re.test(text)) throw new Error(`can't find ${o.id}'s catchment, draw and note in network.json`);
   text = text.replace(re, (_, a, b, c, note, d) => {
     const what = note.replace(/^Draw from memory: /, '').replace(/^Census 2021[^;]*; draw: /, '');
-    return `${a}${o.catchment}${b}${o.draw}${c}Census 2021 (tools/census-to-network.mjs, ${DATE}): ${o.homes.toLocaleString('en-GB')} residents whose best trip in is from here, ${o.work.toLocaleString('en-GB')} working within a walk; draw: ${what}${d}`;
+    return `${a}${o.catchment}${b}${o.draw}, "ceiling": ${o.ceiling}${c}Census 2021 (tools/census-to-network.mjs, ${DATE}): ${o.homes.toLocaleString('en-GB')} residents whose best trip in is from here, ${o.work.toLocaleString('en-GB')} working within a walk; draw: ${what}${d}`;
   });
 }
 writeFileSync(netFile, text);

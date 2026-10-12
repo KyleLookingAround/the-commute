@@ -27,6 +27,9 @@ export interface StationGeoDef {
   /** What draws people to the station's area (jobs, shops, schools), on the same scale as `catchment` (homes): where
    * the morning goes, and where the evening comes home from. */
   draw: number;
+  /** The most homes the station's land could hold as the line brings it within reach (homes that grow, from the census:
+   * its homes and half as many again as live within a walk); its homes grow from `catchment` towards it. */
+  ceiling?: number;
   /** Where a number came from when it's from memory rather than survey. */
   note?: string;
   /** Where trains stop, in metres along the line from the station's own point (its kit's origin); 0 if not given. */
@@ -121,4 +124,7 @@ export interface GameState {
    * 1 the north), which the next unit keeps a headway behind. */
   ends: Record<string, [number, number]>;
   trouble: Trouble;
+  /** Each station's homes now: its census `catchment` at the start, growing towards its `ceiling` while it's owned, the
+   * quicker the better its trip door to door (docs/DESIGN.md, Homes that grow). */
+  homes: number[];
 }

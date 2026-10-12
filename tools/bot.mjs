@@ -90,9 +90,10 @@ export function play(seed, hoursToPlay = hours) {
   const measures = { 'cash at end': Math.round(g.cash), 'boarded': g.stats.boarded, 'lost': g.stats.lost, 'by cab': g.stats.cab, 'longest quiet hours': +longestQuiet.toFixed(1), 'longest daytime quiet': +longestDayQuiet.toFixed(2),
     'lost beyond home %': g.stats.lost ? +(100 * (1 - g.st[home].lost / g.stats.lost)).toFixed(1) : 0,
     'failures': g.trouble.fails, 'signal failures': g.trouble.signals, 'by bus': g.trouble.bused, 'lost in trouble': troubleLost,
+    'homes grown': Math.round(g.homes.reduce((a, h, i) => a + h - sim.S[i].catchment, 0)),
     'within 5 min %': late.deps ? +(100 * late.within / late.deps).toFixed(1) : 100, 'worst late min': +(late.worst / 60).toFixed(1) };
   for (const p of Object.values(peaks)) { p.within = p.deps ? +(100 * p.within / p.deps).toFixed(1) : 100; p.worst = +(p.worst / 60).toFixed(1); }
-  const play = fingerprint({ v: g.v, owned: g.owned, ups: g.ups, line: g.line, cash: Math.round(g.cash), boarded: g.stats.boarded, lost: g.stats.lost, cab: g.stats.cab, bused: g.trouble.bused });
+  const play = fingerprint({ v: g.v, owned: g.owned, ups: g.ups, line: g.line, cash: Math.round(g.cash), boarded: g.stats.boarded, lost: g.stats.lost, cab: g.stats.cab, bused: g.trouble.bused, homes: g.homes.map(Math.round) });
   return { seed, reached, measures, peaks, play };
 }
 

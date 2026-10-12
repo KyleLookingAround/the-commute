@@ -24,6 +24,7 @@ import { TrainLayer } from './render/trains.ts';
 import { PassengerLayer } from './render/passengers.ts';
 import { OrbitRig } from './render/camera.ts';
 import { ReachLayer, withBought, savingText } from './render/reach.ts';
+import { HomesLayer } from './render/homes.ts';
 import { Sky } from './render/sky.ts';
 import { UI, fmt } from './ui/panel.ts';
 import type { Els } from './ui/panel.ts';
@@ -40,7 +41,7 @@ declare global {
     __orbit?: Partial<import('./render/camera.ts').Orbit>;
     /** For the checks: how many groups of parts the preview shows, how many are still rising into place, and how many
      * times the camera has framed something (a card's parts, a Built chip's, a train). */
-    __view?: { reach?: () => { now: number[]; target: number[]; ghosts: number; minutes: boolean }; preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean } };
+    __view?: { reach?: () => { now: number[]; target: number[]; ghosts: number; minutes: boolean }; homes?: () => { shown: number[]; room: number[]; rising: number }; preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean } };
   }
 }
 
@@ -71,6 +72,7 @@ const canvas = el<HTMLCanvasElement>('gl');
 const { renderer, scene, camera, sun, lighting, resize } = createScene(canvas);
 const world = buildWorld(scene, net, networkDef);
 const reach = new ReachLayer(world.ground, net);
+const homes = new HomesLayer(scene, net, world);
 const built = buildStations(scene, net, kits);
 const lineside = new Lineside(scene, net);
 // everything on the ground so far throws and takes shadows; the sky, added after, does neither
@@ -88,6 +90,8 @@ const rig = new OrbitRig(camera, canvas, scene);
 { const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches; setReducedMotion(reduced); reach.setReducedMotion(reduced); }
 const view = {
   preview: 0, framed: 0, rising: () => built.reduce((n, b) => n + b.gated.filter(gt => gt.rise < 1).length, 0) + (lineside.rise < 1 ? 1 : 0) + (trains.spareRising < 1 ? 1 : 0),
+  // homes that grow as drawn: how many new buildings stand at each station, and how many it has room for
+  homes: () => ({ shown: homes.counts(), room: homes.plots.map(l => l.length), rising: homes.risingCount }),
   // what's going wrong as drawn: hazard lamps lit or not, caution posts, buses, and the spare unit in the sidings
   // the reach as drawn: each station's glow now and where it's easing to, the ghost rings, and the minutes view
   reach: () => ({ ...reach.radii(), ghosts: reach.ghosts(), minutes: reach.minutesOn }),
@@ -211,7 +215,7 @@ function frame(now: number): void {
   const light = lighting(lockHour ?? sim.hour(), rig.o);
   sky.update(light.horizon, light.daylight, camera, dt);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
-  syncStations(built, sim.g, realDt); reach.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt); trains.sync(sim.g, dtGame, endAhead); pax.sync(sim.g, dtGame); labels();
+  syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt); trains.sync(sim.g, dtGame, endAhead); pax.sync(sim.g, dtGame); labels();
   life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim);
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }

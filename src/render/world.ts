@@ -10,8 +10,10 @@ const seed = (a: number, b: number) => { const s = Math.sin(a * 127.1 + b * 311.
 // Rotation about Y that maps local +x to the corridor direction (dx, dz) and local +z to the offset normal.
 export const yawFor = (p: { dx: number; dz: number }): number => Math.atan2(-p.dz, p.dx);
 
-/** groundY: the ground's height; ground: the terrain's material, which the reach (src/render/reach.ts) draws on. */
-export interface World { groundY: (x: number, z: number) => number; yawFor: typeof yawFor; ground: THREE.MeshLambertMaterial }
+/** groundY: the ground's height; ground: the terrain's material, which the reach (src/render/reach.ts) draws on;
+ * buildable: whether a building r metres round (x, z) would stand clear of the railway's land, the river, the M60, the
+ * viaduct's valley, the roads and the houses already drawn (for homes that grow, src/render/homes.ts). */
+export interface World { groundY: (x: number, z: number) => number; yawFor: typeof yawFor; ground: THREE.MeshLambertMaterial; buildable: (x: number, z: number, r: number) => boolean }
 
 export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef): World {
   const c = net.corridor('main');
@@ -118,6 +120,9 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   })();
 
   // ---- houses: terraces through the suburbs, towers at the city end ----
+  // each house's footprint (x, z, radius) in cells of HOUSE_CELL metres, so homes that grow keep off them
+  const HOUSE_CELL = 60, houses = new Map<string, number[]>();
+  const cellKey = (x: number, z: number) => `${Math.floor(x / HOUSE_CELL)},${Math.floor(z / HOUSE_CELL)}`;
   (function towns() {
     const inst = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial({ color: PAL.house }), 5000);
     const col = new THREE.Color(); let n = 0;
@@ -144,6 +149,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       if (onRoad(p.x, p.z, 6 + Math.max(w, d) / 2)) continue;
       e.set(0, yawFor(p) + (seed(k, 11) - 0.5) * 0.3, 0); q.setFromEuler(e);
       v3.set(p.x, h / 2 + groundY(p.x, p.z), p.z); sc.set(w, h, d); m4.compose(v3, q, sc); inst.setMatrixAt(n, m4);
+      { const k2 = cellKey(p.x, p.z), list = houses.get(k2) ?? []; list.push(p.x, p.z, Math.hypot(w, d) / 2); houses.set(k2, list); }
       col.setHSL(0.04 + seed(k, 9) * 0.06, city ? PAL['tower-sat'] : PAL['house-sat'], (city ? PAL['tower-light'] : PAL['house-light']) + seed(k, 10) * 0.15); inst.setColorAt(n, col);
       n++;
     }
@@ -182,7 +188,27 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     box(scene, 60, 2, 60, MAT.concrete, p.x, y0 + 1, p.z);
   }
 
-  return { groundY, yawFor, ground };
+  const roadSegs = (net.def.roads ?? []).flatMap(r => r.points.slice(1).map((b, i) => [r.points[i]!, b] as const));
+  const riverS = along(landmarks['mersey']), m60S = along(landmarks['m60']);
+  const buildable = (x: number, z: number, r: number): boolean => {
+    if (groundY(x, z) < -0.3) return false;
+    const s = c.nearest(x, z), a = c.at(s);
+    if (Math.hypot(x - a.x, z - a.z) < 36 + r) return false;
+    if (riverS !== null && Math.abs(s - riverS) < 30 + r) return false;
+    if (m60S !== null && Math.abs(s - m60S) < 40 + r) return false;
+    for (const [[ax, az], [bx, bz]] of roadSegs) {
+      const dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+      if (Math.hypot(x - ax - dx * t, z - az - dz * t) < r + 7) return false;
+    }
+    const cx = Math.floor(x / HOUSE_CELL), cz = Math.floor(z / HOUSE_CELL);
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      const list = houses.get(`${cx + i},${cz + j}`); if (!list) continue;
+      for (let k = 0; k < list.length; k += 3) if (Math.hypot(x - list[k]!, z - list[k + 1]!) < r + list[k + 2]! + 2) return false;
+    }
+    return true;
+  };
+
+  return { groundY, yawFor, ground, buildable };
 }
 
 function xz(def: NetworkGeoDef, ll: LatLon): [number, number] { const p = projectLatLon(ll.lat, ll.lon, def.origin); return [p.x, p.z]; }

@@ -437,3 +437,32 @@ test('trouble: the spare unit is offered once a train has failed, and halves the
   for (let k = 0; k < 400 * 360 && !spareOn.g.trouble.fail; k++) spareOn.advance(10);
   const f = spareOn.g.trouble.fail!; assert.ok(f.until - f.from <= TUNING.rescueSpare * 1.25, `rescued in ${f.until - f.from} s`);
 });
+
+test('homes: an owned station grows towards its ceiling, faster with a quicker trip; a locked one stays as it was', () => {
+  const run = (units: number) => {
+    const sim = new Sim(net(), Sim.fresh(net(), 7)); sim.g.cash = 1e6;
+    growStockport(sim); for (let k = 0; k < units; k++) assert.ok(sim.buyLine('units'));
+    const q = sim.growthRate(0); sim.grow(3600 * 4);
+    return { sim, q, grown: sim.homes(0) - sim.station(0).catchment };
+  };
+  const one = run(0), three = run(2);
+  assert.ok(one.q > 0 && one.q < 1, `Stockport grows at ${one.q}`);
+  assert.ok(three.q > one.q && three.grown > one.grown, `more units, shorter waits, quicker growth: ${one.grown.toFixed(1)} -> ${three.grown.toFixed(1)}`);
+  for (let i = 1; i < one.sim.S.length; i++) assert.equal(one.sim.homes(i), one.sim.station(i).catchment, `${one.sim.S[i]!.id} is locked and doesn't grow`);
+  // it closes on its ceiling and never passes it
+  for (let k = 0; k < 50; k++) one.sim.grow(3600 * 4);
+  assert.ok(one.sim.homes(0) <= one.sim.ceiling(0) && one.sim.homes(0) > one.sim.ceiling(0) - 2, `${one.sim.homes(0)} of ${one.sim.ceiling(0)}`);
+  assert.ok(net().stations.every(s => (s.ceiling ?? 0) > s.catchment), 'every station has room to grow');
+});
+
+test('homes: growth is slow (a few game days, not minutes), saved, and brings more trips', () => {
+  const sim = new Sim(net(), Sim.fresh(net(), 3));
+  const before = sim.tripRates(0, 8), h0 = sim.homes(0);
+  sim.advance(3600);   // a quarter of a game day
+  const gap = sim.ceiling(0) - h0, grew = sim.homes(0) - h0;
+  assert.ok(grew > 0 && grew < 0.05 * gap, `a sim hour closes ${(100 * grew / gap).toFixed(1)}% of the gap`);
+  const g = JSON.parse(JSON.stringify(sim.g)), again = new Sim(net(), g);
+  assert.equal(again.homes(0), sim.homes(0), 'homes are saved');
+  sim.g.homes[0] = sim.ceiling(0);
+  assert.ok(sim.tripRates(0, 8) > before * 1.05, 'more homes, more trips');
+});

@@ -88,6 +88,10 @@ export const TUNING = {
   // rail replacement buses: from busAfter into a failure, one every busGap up to busFleet, busSeats each, loading for
   // busDwell, on the road at busSpeed (town traffic and stops)
   busAfter: 4 * 60, busGap: 2 * 60, busFleet: 3, busSeats: 70, busDwell: 60, busSpeed: 6,
+  // homes that grow (docs/DESIGN.md): an owned station's homes close this share of the gap to its ceiling each sim hour
+  // when its trip to where its people go fits everyone's budget, scaled by the share it fits (the reach curve), so a
+  // station whose trip feels about the hour grows at half this and one with long waits barely at all
+  grow: 0.06,
 };
 export type Tuning = typeof TUNING;
 
@@ -118,6 +122,9 @@ export class Sim {
   onDepart: ((tr: Train, i: number, late: number) => void) | null = null;
   /** Each service's planned round trip, worked out with the journeys. */
   private cycles: number[] = [];
+  /** How fast each station's homes grow, as a share of TUNING.grow: the reach of its trip to where its people go,
+   * worked out with the journeys. */
+  private growth: Float64Array;
   /** Scratch for generate: trips an hour to each station, and how full each service runs each way. */
   private rates: Float64Array; private crowding: Float64Array; private trainsEachWay: Float64Array;
   constructor(network: Network, state?: GameState) {
@@ -128,6 +135,7 @@ export class Sim {
     if (!this.svcs.length) throw new Error('network.json names no passenger service');
     this.fixedEnds = new Set(this.svcs.filter(v => v.home === null).flatMap(v => [v.route[0]!, v.route[v.route.length - 1]!]));
     this.rates = new Float64Array(this.S.length); this.crowding = new Float64Array(this.svcs.length * 2); this.trainsEachWay = new Float64Array(this.svcs.length * 2);
+    this.growth = new Float64Array(this.S.length);
   }
   static fresh(network: Network, seed: number = freshSeed()): GameState {
     return {
@@ -138,6 +146,7 @@ export class Sim {
       st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0, cab: 0, cabs: [] })),
       trains: [], ends: {}, trouble: freshTrouble(),
       stats: { boarded: 0, lost: 0, cab: 0 },
+      homes: network.stations.map(s => s.catchment),
     };
   }
 
@@ -385,6 +394,35 @@ export class Sim {
     const k = this.journeyKey(); if (k === this.jkey) return;
     this.jt = journeys(this, TUNING); this.jkey = k;
     this.cycles = this.svcs.map((_, v) => cycle(this, TUNING, v));
+    for (let i = 0; i < this.S.length; i++) {
+      const j = this.destination(i), J = j === null ? null : this.jt[i]?.[j];
+      this.growth[i] = this.g.owned[i] && J ? this.reach(J.felt) : 0;
+    }
+  }
+  /** The share of people whose budget a trip felt this long (seconds, each way) fits: half at the budget, fewer beyond. */
+  reach(felt: number): number { return 1 / (1 + Math.exp((felt - TUNING.budget) / TUNING.budgetSoft)); }
+  /** Where people from station i mostly go: the station a train reaches from i that draws the most people (Piccadilly
+   * for every station but itself), or null if no train goes anywhere from there. */
+  destination(i: number): number | null {
+    let best: number | null = null;
+    for (let j = 0; j < this.S.length; j++) if (j !== i && this.journey(i, j) && (best === null || this.station(j).draw > this.station(best).draw)) best = j;
+    return best;
+  }
+
+  // ---- homes that grow ----
+  /** Station i's homes now (its census catchment, grown). */
+  homes(i: number): number { return this.g.homes[i] ?? this.station(i).catchment; }
+  /** The most homes station i's land could hold. */
+  ceiling(i: number): number { const s = this.station(i); return Math.max(s.catchment, s.ceiling ?? s.catchment); }
+  /** How fast station i's homes are growing now, as a share of the most they could (0 to 1): the reach of its trip. */
+  growthRate(i: number): number { if (this.jkey < 0) this.refreshJourneys(); return this.growth[i]!; }
+  /** dt seconds of growth: each owned station's homes close on its ceiling, the quicker the better its trip. */
+  grow(dt: number): void {
+    const H = this.g.homes, k = TUNING.grow * dt / 3600;
+    for (let i = 0; i < this.S.length; i++) {
+      const q = this.growth[i]!; if (q <= 0) continue;
+      const h = H[i] ?? this.station(i).catchment; H[i] = h + (this.ceiling(i) - h) * q * k;
+    }
   }
   /** How a journey feels, in seconds: its felt time, and the ride longer on a crowded train. */
   felt(J: Journey): number {
@@ -412,8 +450,8 @@ export class Sim {
     for (let j = 0; j < this.S.length; j++) {
       const J = j === i ? null : this.journey(i, j);
       if (!J) { this.rates[j] = 0; continue; }
-      const b = this.station(j), reach = 1 / (1 + Math.exp((this.felt(J) - TUNING.budget) / TUNING.budgetSoft));
-      tot += this.rates[j] = scale * reach * (out * a.catchment * b.draw + (1 - out) * a.draw * b.catchment);
+      const b = this.station(j), reach = this.reach(this.felt(J));
+      tot += this.rates[j] = scale * reach * (out * this.homes(i) * b.draw + (1 - out) * a.draw * this.homes(j));
     }
     return tot;
   }
@@ -501,7 +539,7 @@ export class Sim {
   step(dt: number): void {
     const g = this.g; this.ensureTrains();
     const dayLen = 86400 / TUNING.dayRate, d0 = Math.floor(g.t / dayLen); g.t += dt; if (Math.floor(g.t / dayLen) > d0) g.day++;
-    this.refreshJourneys(); this.measureCrowding();
+    this.refreshJourneys(); this.measureCrowding(); this.grow(dt);
     for (let i = 0; i < this.S.length; i++) { if (!g.owned[i]) continue; this.generate(i, dt); this.expire(i); }
     stepTrouble(this, TUNING);
     for (const tr of g.trains) this.stepTrain(tr, dt);

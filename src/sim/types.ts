@@ -31,6 +31,10 @@ export interface StationGeoDef {
   note?: string;
   /** Where trains stop, in metres along the line from the station's own point (its kit's origin); 0 if not given. */
   stop?: number;
+  /** Where the line is drawn straight along the kit's frame, from u0 to u1 (its platforms and the bridges by them), so
+   * the kit's straight platforms stand true to the tracks; it eases back to the corridor either side. Only the drawing:
+   * distances along the line are the corridor's. */
+  straight?: number[];
   /** The stages this station grows through after it's a halt, by upgrade: what each is called here, and a description
    * or price where they differ from the usual. A stage not listed isn't offered here. */
   grow?: Partial<Record<StageId, { name: string; desc?: string; price?: number }>>;

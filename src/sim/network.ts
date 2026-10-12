@@ -31,14 +31,22 @@ export class Corridor {
       this.cum.push(this.cum[i - 1]! + Math.hypot(b.x - a.x, b.z - a.z));
     }
     this.length = this.cum[this.cum.length - 1]!;
+    // each point's direction: its two segments' averaged (the ends take their one segment's)
+    const seg = (i: number): [number, number] => { const a = this.pts[Math.max(0, Math.min(i, this.pts.length - 2))]!, b = this.pts[Math.max(1, Math.min(i + 1, this.pts.length - 1))]!, l = Math.hypot(b.x - a.x, b.z - a.z) || 1; return [(b.x - a.x) / l, (b.z - a.z) / l]; };
+    this.dirs = this.pts.map((_, i) => { const p = seg(i - 1), q = seg(i), x = p[0] + q[0], z = p[1] + q[1], l = Math.hypot(x, z) || 1; return [x / l, z / l]; });
   }
+  /** The direction at each point, between its segments', so offsets turn smoothly round the corners. */
+  private dirs: [number, number][];
   // Position and heading at distance s, offset laterally (positive = right of travel when heading along +s).
   at(s: number, offset = 0, out: Frame = newFrame()): Frame {
     const i = this._seg(s);
     const a = this.pts[i]!, b = this.pts[i + 1]!;
     const segLen = Math.max(1e-6, this.cum[i + 1]! - this.cum[i]!);
     const f = Math.max(0, Math.min(1, (s - this.cum[i]!) / segLen));
-    const dx = (b.x - a.x) / segLen, dz = (b.z - a.z) / segLen;   // unit direction
+    // the direction turns smoothly from one segment's to the next's across each point (the vertex directions, half way
+    // between), so a line offset well off the corridor runs on without a step at each corner
+    const va = this.dirs[i]!, vb = this.dirs[i + 1]!;
+    let dx = va[0] + (vb[0] - va[0]) * f, dz = va[1] + (vb[1] - va[1]) * f; const n = Math.hypot(dx, dz) || 1; dx /= n; dz /= n;
     // right-hand normal (x, z) -> (-dz, dx) is "left" in a y-up right-handed frame viewed from above; pick one and stay consistent
     const nx = -dz, nz = dx;
     out.x = a.x + (b.x - a.x) * f + nx * offset;
@@ -71,6 +79,10 @@ interface Key { s: number; v: number }
 const smooth = (t: number) => t * t * (3 - 2 * t);
 /** The default distance over which a track eases from one layout to the next. */
 export const EASE = 200;
+/** How far the drawn line eases from a station's straight stretch back to the corridor. */
+export const STRAIGHT_EASE = 150;
+/** A station's straight stretch: from s0 to s1 along its corridor the line is drawn along the frame F (at s = at). */
+interface Straight { corridor: string; s0: number; s1: number; at: number; F: Frame }
 
 export class Network {
   def: NetworkDef;
@@ -80,6 +92,7 @@ export class Network {
   byId: Record<string, Station>;
   /** Each track's offset profile along its corridor: keys between which it eases; empty runs at its open-line offset. */
   private keys: Record<string, Key[]>;
+  private straights: Straight[];
   constructor(def: NetworkDef) {
     this.def = def;
     this.corridors = Object.fromEntries(def.corridors.map(c => [c.id, new Corridor(c)]));
@@ -91,6 +104,9 @@ export class Network {
     });
     this.byId = Object.fromEntries(this.stations.map(s => [s.id, s]));
     this.keys = Object.fromEntries(this.tracks.map(t => [t.id, this.profile(t)]));
+    this.straights = this.stations.filter(st => st.straight).map(st => ({
+      corridor: st.corridor, s0: st.at + (st.straight?.[0] ?? 0), s1: st.at + (st.straight?.[1] ?? 0), at: st.at, F: this.stationFrame(st.id),
+    }));
   }
   corridor(id: string): Corridor { const c = this.corridors[id]; if (!c) throw new Error(`no corridor "${id}"`); return c; }
   track(id: string): TrackDef { const t = this.tracks.find(t => t.id === id); if (!t) throw new Error(`no track "${id}"`); return t; }
@@ -141,6 +157,20 @@ export class Network {
     const goes = all.find(s => { const k = s.route.indexOf(i); return k >= 0 && (dir === 'north' ? k < s.route.length - 1 : k > 0); });
     return (goes ?? all.find(s => s.route.includes(i)))?.def ?? null;
   }
+  /** Where the map draws a point at s along a corridor, offset across it: on the corridor, except through a station's
+   * straight stretch, where it follows the station's frame (u = s - at, v = offset) and eases back either side. Only the
+   * drawing: the sim measures along the corridor. */
+  place(corridorId: string, s: number, offset = 0, out: Frame = newFrame()): Frame {
+    const f = this.corridor(corridorId).at(s, offset, out), E = STRAIGHT_EASE;
+    for (const z of this.straights) {
+      if (z.corridor !== corridorId || s <= z.s0 - E || s >= z.s1 + E) continue;
+      const w = s < z.s0 ? smooth((s - z.s0 + E) / E) : s > z.s1 ? smooth((z.s1 + E - s) / E) : 1, u = s - z.at, F = z.F;
+      f.x += (F.x + F.dx * u + F.nx * offset - f.x) * w; f.z += (F.z + F.dz * u + F.nz * offset - f.z) * w;
+      const dx = f.dx + (F.dx - f.dx) * w, dz = f.dz + (F.dz - f.dz) * w, n = Math.hypot(dx, dz);
+      f.dx = dx / n; f.dz = dz / n; f.nx = -f.dz; f.nz = f.dx; f.heading = Math.atan2(f.dz, f.dx);
+    }
+    return f;
+  }
   /** Where a track runs across its corridor at s. */
   offsetAt(trackId: string, s: number): number {
     const k = this.keys[trackId]; if (!k) return this.track(trackId).offset;
@@ -154,7 +184,7 @@ export class Network {
   /** World position and heading for a point on a track at distance s along its corridor: where the track is moving
    * across the corridor (into a station, or crossing over) the heading turns with it. */
   trackAt(trackId: string, s: number, out?: Frame): Frame {
-    const t = this.track(trackId), f = this.corridor(t.corridor).at(s, this.offsetAt(trackId, s), out);
+    const t = this.track(trackId), f = this.place(t.corridor, s, this.offsetAt(trackId, s), out);
     const k = (this.offsetAt(trackId, s + 2) - this.offsetAt(trackId, s - 2)) / 4;
     if (k !== 0) {
       const dx = f.dx + f.nx * k, dz = f.dz + f.nz * k, n = Math.hypot(dx, dz);

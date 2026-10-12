@@ -54,8 +54,9 @@ export type PartType = Part['type'];
  * platform as far as depth (4 m if not given). */
 export interface Face { v: number; u0: number; u1: number; depth?: number }
 /** entrance: where passengers come and go along the platforms, when that isn't a subway's or footbridge's stairs
- * (a terminus's concourse at the buffer-stop end). */
-export interface Kit { id: string; note?: string; platformLength?: number; entrance?: number; faces: { north: Face; south: Face }; parts: Part[] }
+ * (a terminus's concourse at the buffer-stop end). longest: the most cars the real platforms take once extended, where
+ * that's fewer than the line runs; a longer unit stands off the end (the geometry check holds the rest to the platform). */
+export interface Kit { id: string; note?: string; platformLength?: number; longest?: number; entrance?: number; faces: { north: Face; south: Face }; parts: Part[] }
 
 /** live: the station's parts that move with the sim (boards, car parks, racks, shops), for StationLife (life.ts). */
 type Builders = { [K in PartType]: (gp: THREE.Group, p: Extract<Part, { type: K }>, live: Live) => void };
@@ -72,7 +73,9 @@ const partBuilders: Builders = {
     // after Stockport's platform 4: slim columns along the platform's edges, a wide roof with a valance, a ridge above
     const w = p.v1 - p.v0, cv = (p.v0 + p.v1) / 2, L = p.u1 - p.u0, cu = (p.u0 + p.u1) / 2;
     for (let u = p.u0 + 6; u < p.u1 - 3; u += 10) for (const s of [-1, 1]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 5.2, 8), MAT.column); c.position.set(u, 3.6, cv + s * (w / 2 - 1.3)); gp.add(c); }
-    for (const s of [-1, 1]) { const r = box(gp, L - 4, 0.3, w / 2 + 1.6, MAT.canopy, cu, 6.5, cv + s * (w / 4 + 0.3)); r.rotation.x = s * 0.22; }
+    // each half of the roof falls towards its edge, never further than keeps the eaves above a train (5.2 m drawn)
+    const half = (w / 2 + 1.6) / 2, tilt = Math.min(0.22, 0.9 / half);
+    for (const s of [-1, 1]) { const r = box(gp, L - 4, 0.3, w / 2 + 1.6, MAT.canopy, cu, 6.5, cv + s * (w / 4 + 0.3)); r.rotation.x = s * tilt; }
     for (const s of [-1, 1]) box(gp, L - 4, 0.9, 0.15, MAT.timber, cu, 5.9, cv + s * (w / 2 + 1.5));
     box(gp, L - 4, 0.5, 0.5, MAT.steel, cu, 7.3, cv);
   },
@@ -144,6 +147,8 @@ const partBuilders: Builders = {
 };
 // the builders are keyed by the part's type, so the one looked up always takes the part; the cast says so once
 const build = (part: Part, into: THREE.Group, live: Live) => (partBuilders[part.type] as (gp: THREE.Group, p: Part, live: Live) => void)(into, part, live);
+/** One part on its own, in the kit's frame: what the geometry check measures trains against. */
+export function partGroup(part: Part): THREE.Group { const gp = new THREE.Group(); if (part.type in partBuilders) build(part, gp, emptyLive()); return gp; }
 
 /** A group of parts shown together: when all of `needs` are bought and `until` isn't. shown: whether it showed last
  * sync; rise: how far through rising into place it is (1 once it stands); ghost: drawn as a preview of buying it. */

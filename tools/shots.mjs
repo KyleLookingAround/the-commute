@@ -2,6 +2,9 @@
 // npm run build first. Writes build/shots/<size>-<hour>.png at phone, landscape phone, tablet and desktop sizes, with the
 // lighting locked to each hour given (default 08:00, 13:00, 18:30 and 23:00) once the time-of-day control exists;
 // until then every shot is at the game's own clock.
+// node tools/shots.mjs --stations [id ...]: every station bought and grown, six-car units, and a unit standing at the
+// station shot; for each, from above and at platform level along the line, at phone and desktop sizes, at 13:00:
+// build/shots/station-<id>-<above|platform>-<phone|desktop>.png, to hold against each kit's note and the real place.
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
@@ -10,8 +13,9 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..'), dist = join(root, 'dist'), out = join(root, 'build/shots');
 mkdirSync(out, { recursive: true });
-const hours = process.argv.slice(2).map(Number).filter(n => !Number.isNaN(n));
-if (!hours.length) hours.push(8, 13, 18.5, 23);
+const argv = process.argv.slice(2), stations = argv[0] === '--stations';
+const hours = stations ? [] : argv.map(Number).filter(n => !Number.isNaN(n));
+if (!hours.length && !stations) hours.push(8, 13, 18.5, 23);
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
 // dist/ is served under the base path it was built for (/ locally, /the-commute/ in CI), as tools/check.mjs does
 const base = (readFileSync(join(dist, 'index.html'), 'utf8').match(/src="(\/[^"]*?\/)assets\//) || [, '/'])[1];
@@ -30,5 +34,41 @@ for (const [name, w, h, touch] of SIZES) for (const hour of hours) {
   await page.screenshot({ path: join(out, `${name}-${String(hour).replace('.', '-')}.png`) });
   await ctx.close();
 }
+if (stations) await stationShots(argv.slice(1));
 await browser.close(); server.close();
+
+async function stationShots(only) {
+  const { register } = await import('tsx/esm/api'); register();
+  const { fromGeo } = await import('../src/sim/network.ts');
+  const { Sim, UPGRADES } = await import('../src/sim/sim.ts');
+  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')));
+  const grown = () => {
+    const sim = new Sim(net, Sim.fresh(net, 1)), g = sim.g;
+    g.owned = g.owned.map(() => true);
+    g.ups = net.stations.map((st, i) => Object.fromEntries(UPGRADES.filter(u => sim.offered(i, u)).map(u => [u.id, true])));
+    g.line = { units: 3, cars: 2, timetable: 1 };
+    sim.ensureTrains(); sim.advance(5);
+    return sim;
+  };
+  for (const st of net.stations) {
+    if (only.length && !only.includes(st.id)) continue;
+    // a unit of the service that calls here standing at the stop, due away long after the shot
+    const sim = grown(), g = sim.g, svc = net.boardingService(st.id, 'north') ?? net.boardingService(st.id, 'south');
+    const tr = g.trains.find(t => t.svc === svc?.id), dir = st.index === net.services().find(v => v.def.id === svc?.id)?.route.at(-1) ? -1 : 1;
+    if (tr) Object.assign(tr, { s: st.s, v: 0, dir, state: 'dwell', dwell: 9999, calling: st.index, next: st.index, due: g.t + 9999 });
+    const save = JSON.stringify({ g, selected: st.index });
+    const F = net.stationFrame(st.id), u = st.s - st.at, aim = (du, dv) => [F.x + F.dx * (u + du) + F.nx * dv, F.z + F.dz * (u + du) + F.nz * dv];
+    const [tx, tz] = aim(0, 0), along = Math.atan2(-F.dx, -F.dz);
+    const views = { above: { tx, tz, ty: 2, r: 150, th: along + 1.2, ph: 0.55 }, platform: { tx, tz, ty: 3, r: 60, th: along + Math.PI - 0.3, ph: 1.5 } };
+    for (const [size, w, h, touch] of [['phone', 390, 844, true], ['desktop', 1440, 900, false]]) for (const [view, orbit] of Object.entries(views)) {
+      const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: touch ? 2 : 1, hasTouch: touch, isMobile: touch });
+      await ctx.addInitScript(([o, sv]) => { window.__seed = 1; window.__lockHour = 13; window.__orbit = o; localStorage.setItem('the-commute-save-v1', sv); }, [orbit, save]);
+      const page = await ctx.newPage(); await page.goto(url);
+      await page.waitForSelector('html[data-sim="ready"]', { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(1500);
+      await page.screenshot({ path: join(out, `station-${st.id}-${view}-${size}.png`) });
+      await ctx.close();
+    }
+  }
+}
 console.log(`shots in ${out}`);

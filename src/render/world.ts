@@ -101,9 +101,9 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       for (const t of net.tracks) { const [e0, e1] = net.extent(t.id); if (s < e0 || s > e1) continue; const o = net.offsetAt(t.id, s); lo = Math.min(lo, o); hi = Math.max(hi, o); }
       if (lo > hi) continue;
       for (const [off, inward] of [[lo - 3.2, 1], [hi + 3.2, -1]] as const) {
-        const p = c.at(s, off); e.set(0, yawFor(p), 0); q.setFromEuler(e); sc.set(1, 1, 1);
+        const p = net.place('main', s, off); e.set(0, yawFor(p), 0); q.setFromEuler(e); sc.set(1, 1, 1);
         v3.set(p.x, 3.75, p.z); m4.compose(v3, q, sc); poles.setMatrixAt(k, m4);
-        const pa2 = c.at(s, off + inward * 3); v3.set(pa2.x, 6.8, pa2.z); m4.compose(v3, q, sc); arms.setMatrixAt(k, m4); k++;
+        const pa2 = net.place('main', s, off + inward * 3); v3.set(pa2.x, 6.8, pa2.z); m4.compose(v3, q, sc); arms.setMatrixAt(k, m4); k++;
       }
     }
     poles.count = arms.count = k; scene.add(poles); scene.add(arms);

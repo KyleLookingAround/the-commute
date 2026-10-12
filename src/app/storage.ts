@@ -1,6 +1,6 @@
 // Saving to the device: one localStorage key, guarded so a private window or a full store never breaks the game.
-// This is the only place the game names localStorage; the sim never does (tools/rules.mjs). A save can also go to a file
-// and come back from one, to carry a game between devices: the file is the same {g, selected, at} the device keeps.
+// This file and src/app/prefs.ts (the player's settings, kept apart) are the only places the game names localStorage; the sim never does (tools/rules.mjs).
+// A save can also go to a file and come back from one, to carry a game between devices: the file is the same {g, selected, at} the device keeps.
 import { migrate, SaveError } from '../sim/save.ts';
 import type { GameState } from '../sim/types.ts';
 

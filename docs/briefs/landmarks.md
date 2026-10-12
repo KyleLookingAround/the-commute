@@ -4,7 +4,7 @@
 
 - Phase 4 step 4 of `docs/ROADMAP.md`: the places that make the line recognisable at a glance.
   - **Stockport Viaduct for real:** 27 arches at full height over the Mersey valley, red brick with its piers and the 1880s widening's join visible, the M60 and the river beneath, lit at night. It exists today as a simple arcade in `src/render/world.ts`; make it the line's centrepiece.
-  - **The Pyramid** (the blue glass office by the M60), **the Plaza** (Stockport's art deco cinema) and **Stockport's town centre and Merseyway** around the viaduct's north end.
+  - **The Pyramid** (the blue glass office by the M60), **the Plaza** (Stockport's art deco cinema) and **Stockport's town centre and Merseyway** around the viaduct's north end. Leave the Stockport Interchange (the new bus station with the roof park) to the stations-as-today session: the owner counts it as part of the station.
   - **The city skyline on the horizon** towards Manchester: Beetham Tower, Deansgate Square's towers and the other tall buildings, as silhouettes that sit right from every angle and light up at dusk.
 - **Sources:** geograph.org.uk and Wikimedia Commons answer from these sessions (OpenStreetMap does not); the landmarks' positions are in `src/data/network.json` (`landmarks`). Record the photos used in each landmark's `note`.
 - **How:** a new `src/render/landmarks.ts` for the landmarks, called from where `world.ts` builds them now; move the viaduct's build there rather than growing `world.ts`, keeping its valley and the corridor exactly where they are (the geometry check, `tools/checks/geometry.mjs`, must still pass). Instancing for repeated parts (arches, windows); far landmarks cheap (silhouettes, few triangles); no per-frame allocations.

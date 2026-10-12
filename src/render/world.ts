@@ -1,6 +1,7 @@
 // Ground, towns, roads, permanent way and landmarks, all laid out along the network's corridors.
 import * as THREE from 'three';
-import { MAT, PAL, box } from './scene.ts';
+import { MAT, PAL } from './scene.ts';
+import { buildLandmarks, viaductOf } from './landmarks.ts';
 import { newFrame, projectLatLon } from '../sim/network.ts';
 import type { Network } from '../sim/network.ts';
 import type { LandmarkDef, LatLon, NetworkGeoDef } from '../sim/types.ts';
@@ -19,9 +20,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   const c = net.corridor('main');
   const landmarks: Record<string, LandmarkDef | undefined> = Object.fromEntries((def.landmarks || []).map(l => [l.id, l]));
   // Valley for the viaduct: a dip in the ground between the landmark's from/to, centred on the corridor
-  const via = landmarks['viaduct'];
-  const viaduct = via && via.from && via.to && via.height !== undefined && via.arches !== undefined
-    ? { from: c.nearest(...xz(def, via.from)), to: c.nearest(...xz(def, via.to)), height: via.height, arches: via.arches } : null;
+  const viaduct = viaductOf(c, def);
   const valley = viaduct ? { s0: Math.min(viaduct.from, viaduct.to) - 20, s1: Math.max(viaduct.from, viaduct.to) + 60, depth: viaduct.height } : null;
 
   const groundY = (x: number, z: number): number => {
@@ -156,37 +155,8 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     inst.count = n; scene.add(inst);
   })();
 
-  // ---- the viaduct ----
-  if (viaduct && valley) {
-    const s0 = Math.min(viaduct.from, viaduct.to), len = Math.abs(viaduct.to - viaduct.from), n = viaduct.arches, span = len / n, top = -0.4, base = -(viaduct.height + 8);
-    const shape = new THREE.Shape();
-    shape.moveTo(0, base); shape.lineTo(len, base); shape.lineTo(len, top); shape.lineTo(0, top); shape.closePath();
-    for (let i = 0; i < n; i++) {
-      const cx = span * (i + 0.5), r = span * 0.4, spring = -(viaduct.height - 10);
-      const h = new THREE.Path(); h.moveTo(cx - r, base); h.lineTo(cx - r, spring); h.absarc(cx, spring, r, Math.PI, 0, true); h.lineTo(cx + r, base); h.closePath();
-      shape.holes.push(h);
-    }
-    const geo = new THREE.ExtrudeGeometry(shape, { depth: 3, bevelEnabled: false });
-    const frame = c.at(s0 + len / 2); const gp = new THREE.Group(); gp.position.set(frame.x, 0, frame.z); gp.rotation.y = yawFor(frame); scene.add(gp);
-    // as wide as the four tracks on it, with a few metres of cess and a parapet each side
-    let lo = Infinity, hi = -Infinity; for (const t of net.tracks) { const o = net.offsetAt(t.id, s0 + len / 2); lo = Math.min(lo, o); hi = Math.max(hi, o); }
-    const w0 = lo - 6, w1 = hi + 6;
-    for (const off of [w0, w1 - 3]) { const m = new THREE.Mesh(geo, MAT.brick); m.position.set(-len / 2, 0, off); gp.add(m); }
-    box(gp, len, 1.2, w1 - w0, MAT.brickDark, 0, -0.6, (w0 + w1) / 2);
-    for (const off of [w0 + 0.4, w1 - 0.4]) box(gp, len, 1.6, 0.8, MAT.brickDark, 0, 0.4, off);
-    // M60 lane lights in the valley
-    const sm = along(landmarks['m60']);
-    if (sm !== null) { for (let off = -680; off < 700; off += 70) { const p = c.at(sm, off); box(scene, 0.6, 0.3, 14, MAT.warm, p.x, groundY(p.x, p.z) + 0.6, p.z).rotation.y = yawFor(p); } }
-  }
-
-  // ---- the Pyramid: a glass pyramid by the M60, placeholder until it gets a proper model ----
-  const pyramid = landmarks['pyramid'];
-  if (pyramid && pyramid.lat !== undefined && pyramid.lon !== undefined) {
-    const p = projectLatLon(pyramid.lat, pyramid.lon, def.origin);
-    const y0 = groundY(p.x, p.z);
-    const pyr = new THREE.Mesh(new THREE.ConeGeometry(34, 36, 4), MAT.pyramid); pyr.position.set(p.x, y0 + 18, p.z); pyr.rotation.y = Math.PI / 4; scene.add(pyr);
-    box(scene, 60, 2, 60, MAT.concrete, p.x, y0 + 1, p.z);
-  }
+  // ---- the landmarks: the viaduct, the river and the M60 under it, the Pyramid, the town, the city's skyline ----
+  buildLandmarks(scene, net, def, groundY);
 
   const roadSegs = (net.def.roads ?? []).flatMap(r => r.points.slice(1).map((b, i) => [r.points[i]!, b] as const));
   const riverS = along(landmarks['mersey']), m60S = along(landmarks['m60']);

@@ -1,5 +1,5 @@
 // The settings sheet: sound on or off and its volume, graphics for older phones (High, Low, or shadows, fewer
-// figures and sharpness one by one), and the weather shown or kept fair (only the look: the game is the same). Opened from the stage's settings button; it changes nothing in the game, and the
+// figures and sharpness one by one), and the weather shown or kept fair (only the look: the game is the same), and a quiet line once the game plays offline. Opened from the stage's settings button; it changes nothing in the game, and the
 // settings are kept on this device apart from the save (src/app/prefs.ts, through main.ts).
 import './styles/settings.css';
 import { DEFAULT_PREFS, LOW, type Prefs } from '../app/prefs.ts';
@@ -25,7 +25,8 @@ export class Settings {
       <div class="set-row"><button data-t="shadows" aria-pressed="false">Shadows</button><button data-t="fewer" aria-pressed="false">Fewer people</button><button data-t="sharp" aria-pressed="false">Sharp</button></div>
       <p class="set-note">Low is lighter on older phones.</p></section>
       <section><h3>Weather</h3><div class="set-row"><button data-t="weather" aria-pressed="false">Weather</button></div>
-      <p class="set-note">Fair weather keeps rain, fog and snow off the map. The game plays the same. Settings stay on this device.</p></section>`;
+      <p class="set-note">Fair weather keeps rain, fog and snow off the map. The game plays the same. Settings stay on this device.</p>
+      <p class="set-note set-offline" hidden>Ready to play offline.</p></section>`;
     document.body.appendChild(d);
     const q = <T extends Element>(sel: string) => d.querySelector<T & Element>(sel)!;
     for (const b of d.querySelectorAll<HTMLButtonElement>('[data-t]')) {
@@ -45,6 +46,9 @@ export class Settings {
     button.addEventListener('click', () => { d.showModal(); button.setAttribute('aria-expanded', 'true'); });
     this.show();
   }
+
+  /** The game is kept on this device: say so, quietly. */
+  offlineReady(): void { this.sheet.querySelector<HTMLElement>('.set-offline')!.hidden = false; }
 
   private set(p: Partial<Prefs>): void { this.prefs = { ...this.prefs, ...p }; this.show(); this.changed({ ...this.prefs }); }
 

@@ -32,6 +32,7 @@ import { yearAt } from './sim/weather.ts';
 import { Sound } from './render/sound.ts';
 import { Settings } from './ui/settings.ts';
 import { fullScreen } from './ui/fullscreen.ts';
+import { playOffline } from './app/offline.ts';
 import { loadPrefs, savePrefs, type Prefs } from './app/prefs.ts';
 import { UI, fmt } from './ui/panel.ts';
 import type { Els } from './ui/panel.ts';
@@ -182,13 +183,14 @@ function graphics(p: Prefs, was: Prefs | null): void {
   renderer.setPixelRatio(p.sharp ? Math.min(2, window.devicePixelRatio || 1) : 1);
 }
 graphics(prefs, null);
-new Settings(el<HTMLButtonElement>('vSet'), prefs, p => {
+const settings = new Settings(el<HTMLButtonElement>('vSet'), prefs, p => {
   const was = prefs; prefs = p; savePrefs(p);
   sound.setVolume(p.volume); if (p.sound !== was.sound) sound.setOn(p.sound);
   graphics(p, was);
 });
 
 fullScreen(el<HTMLButtonElement>('vFull'));
+playOffline(() => settings.offlineReady());
 
 // ---- labels ----
 const lblBox = el('lbls');

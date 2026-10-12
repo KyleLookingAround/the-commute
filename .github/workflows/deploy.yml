@@ -10,6 +10,7 @@ on:
     paths:
       - 'src/**'
       - 'index.html'
+      - 'public/**'
       - 'vite.config.ts'
       - 'tsconfig.json'
       - 'tools/build.mjs'

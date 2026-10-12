@@ -163,13 +163,15 @@ export function buildStations(scene: THREE.Scene, net: Network, kits: Record<str
 // Choosing an upgrade's card draws the parts it would add as a ghost in its own blueprint cyan (the chosen card's edge too), pulsing
 // gently; buying it makes them rise into place over RISE_S seconds, as buying a station raises its halt out of the fog.
 // Both are only the view: nothing here reads or changes the game beyond what's bought.
-const GHOST = new THREE.MeshBasicMaterial({ color: PAL.ghost, transparent: true, opacity: 0.5, depthWrite: false, fog: false });
+export const GHOST = new THREE.MeshBasicMaterial({ color: PAL.ghost, transparent: true, opacity: 0.5, depthWrite: false, fog: false });
 const RISE_S = 1;
 let riseS = RISE_S;
 /** Players who ask for less motion get the parts in place at once. */
 export function setReducedMotion(reduced: boolean): void { riseS = reduced ? 0 : RISE_S; }
+/** One frame of a rise: how far through it is after dt more real seconds (at once with reduced motion). */
+export function riseBy(rise: number, dt: number): number { return riseS ? Math.min(1, rise + dt / riseS) : 1; }
 /** Ease out with a little overshoot, so a part settles into place. */
-const settle = (t: number) => { const c = 1.4, x = t - 1; return 1 + (c + 1) * x * x * x + c * x * x; };
+export const settle = (t: number) => { const c = 1.4, x = t - 1; return 1 + (c + 1) * x * x * x + c * x * x; };
 
 type Ups = Record<string, boolean | undefined>;
 /** The gates buying `id` would show at a station with these upgrades bought. */
@@ -217,14 +219,14 @@ export function syncStations(built: BuiltStation[], g: GameState, dt: number): v
         else if (o.userData['mat']) o.material = o.userData['mat'];
       });
     }
-    if (b.rise < 1) { b.rise = riseS ? Math.min(1, b.rise + dt / riseS) : 1; b.fixed.scale.y = Math.max(0.01, settle(b.rise)); }
+    if (b.rise < 1) { b.rise = riseBy(b.rise, dt); b.fixed.scale.y = Math.max(0.01, settle(b.rise)); }
     const has = (id: string) => !!ups[id];
     for (const gate of b.gated) {
       const show = !locked && gate.needs.every(has) && !(gate.until && has(gate.until));
       if (show && !gate.shown && !first) { gate.rise = 0; ghost(gate, false); }   // just bought: it stops being a ghost and rises
       gate.shown = show;
       gate.group.visible = show || gate.ghost;
-      if (gate.rise < 1) { gate.rise = riseS ? Math.min(1, gate.rise + dt / riseS) : 1; gate.group.scale.y = Math.max(0.01, settle(gate.rise)); }
+      if (gate.rise < 1) { gate.rise = riseBy(gate.rise, dt); gate.group.scale.y = Math.max(0.01, settle(gate.rise)); }
     }
   });
 }

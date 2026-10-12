@@ -16,6 +16,7 @@ import { createScene } from './render/scene.ts';
 import { buildWorld } from './render/world.ts';
 import { buildStations, syncStations, previewUpgrade, partsBox, setReducedMotion } from './render/stations.ts';
 import type { Kit } from './render/stations.ts';
+import { Lineside } from './render/lineside.ts';
 import { TrainLayer } from './render/trains.ts';
 import { PassengerLayer } from './render/passengers.ts';
 import { OrbitRig } from './render/camera.ts';
@@ -63,6 +64,7 @@ const canvas = el<HTMLCanvasElement>('gl');
 const { renderer, scene, camera, sun, lighting, resize } = createScene(canvas);
 buildWorld(scene, net, networkDef);
 const built = buildStations(scene, net, kits);
+const lineside = new Lineside(scene, net);
 // everything on the ground so far throws and takes shadows; the sky, added after, does neither
 scene.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = true; o.receiveShadow = true; } });
 const trains = new TrainLayer(scene, net, networkDef.services ?? []);
@@ -73,17 +75,18 @@ const trackV = net.stations.map(st => ({ north: faceTrack(st, 'north'), south: f
 const pax = new PassengerLayer(built, net.stations, trackV);
 const rig = new OrbitRig(camera, canvas, scene);
 setReducedMotion(matchMedia('(prefers-reduced-motion: reduce)').matches);
-const view = { preview: 0, framed: 0, rising: () => built.reduce((n, b) => n + b.gated.filter(gt => gt.rise < 1).length, 0) };
+const view = { preview: 0, framed: 0, rising: () => built.reduce((n, b) => n + b.gated.filter(gt => gt.rise < 1).length, 0) + (lineside.rise < 1 ? 1 : 0) };
 window.__view = view;
 const partBox = new THREE.Box3();
 /** Preview an upgrade at a station on the map (or stop), and put the camera on what it adds. */
 function preview(i: number | null, id: string | null): void {
   const ups = i === null ? {} : sim.ups(i);
+  lineside.preview(false, !!sim.g.line.timetable);
   view.preview = previewUpgrade(built, i, ups, id);
   const b = i === null ? undefined : built[i], box = b && id ? partsBox(b, ups, id, partBox) : null;
   if (box) frameBox(box);
 }
-function frameBox(box: THREE.Box3): void { rig.frame(box); view.framed++; }
+function frameBox(box: THREE.Box3, near?: number): void { rig.frame(box, near); view.framed++; }
 /** Put the camera on what an upgrade at a station built, with no ghost. */
 function showBuilt(i: number, id: string): void {
   preview(null, null);
@@ -91,11 +94,16 @@ function showBuilt(i: number, id: string): void {
 }
 const trainBox = new THREE.Box3();
 /** Show a line upgrade on the map: for units and cars a main-line unit (the newest once one's been bought, otherwise
- * the one nearest the line's home, where the units turn), for the timetable the whole line. null stops the preview. */
+ * the one nearest the line's home, where the units turn), for the timetable its signals and boards nearest where the
+ * camera is looking, as a ghost until it's bought. null stops the preview. */
 function showLine(id: string | null, bought = false): void {
   preview(null, null);
   if (id === null) return;
-  if (id === 'timetable') { lineView(); view.framed++; return; }
+  if (id === 'timetable') {
+    view.preview = lineside.preview(!bought, !!sim.g.line.timetable);
+    const box = lineside.siteBox(rig.o.tx, rig.o.tz, partBox); if (box) frameBox(box, 40);
+    return;
+  }
   const main = sim.svcs[0], home = main ? sim.station(main.route[0]!).s : 0;
   let k = -1;
   sim.g.trains.forEach((tr, j) => { if (tr.svc !== main?.id) return; if (k < 0 || (id === 'units' && bought ? j > k : Math.abs(tr.s - home) < Math.abs(sim.g.trains[k]!.s - home))) k = j; });
@@ -173,7 +181,7 @@ function frame(now: number): void {
   const light = lighting(lockHour ?? sim.hour(), rig.o);
   sky.update(light.horizon, light.daylight, camera, dt);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
-  syncStations(built, sim.g, realDt); trains.sync(sim.g, dtGame, endAhead); pax.sync(sim.g, dtGame); labels();
+  syncStations(built, sim.g, realDt); lineside.sync(!!sim.g.line.timetable, realDt); trains.sync(sim.g, dtGame, endAhead); pax.sync(sim.g, dtGame); labels();
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
   renderer.render(scene, camera);

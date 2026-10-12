@@ -28,10 +28,10 @@ export class OrbitRig {
   }
   focus(x: number, z: number, r = 230, th = 5.5, ph = 1.2): void { this.tween = { from: { ...this.o }, to: { tx: x, ty: 2, tz: z, r, th, ph }, t: 0 }; }
   /** Frame a box in the world (a station's new parts): look at its middle from the angle the player has now, a little
-   * higher, near enough that it fills the view but never nearer than a platform's length. */
-  frame(b: THREE.Box3): void {
+   * higher, near enough that it fills the view but never nearer than a platform's length (or `near`, for small things). */
+  frame(b: THREE.Box3, near = 70): void {
     const cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2, size = Math.max(b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z);
-    this.tween = { from: { ...this.o }, to: { tx: cx, ty: Math.min(6, (b.min.y + b.max.y) / 2), tz: cz, r: Math.max(70, Math.min(600, size * 1.5)), th: this.o.th, ph: Math.min(this.o.ph, 1.05) }, t: 0 };
+    this.tween = { from: { ...this.o }, to: { tx: cx, ty: Math.min(6, (b.min.y + b.max.y) / 2), tz: cz, r: Math.max(near, Math.min(600, size * 1.5)), th: this.o.th, ph: Math.min(this.o.ph, 1.05) }, t: 0 };
   }
   update(dt: number): void {
     const o = this.o;

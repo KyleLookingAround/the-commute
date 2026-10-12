@@ -297,5 +297,27 @@
       "points": [[53.391, -2.1512], [53.39, -2.1492], [53.3884, -2.1465], [53.3872, -2.144], [53.3865, -2.142]] },
     { "from": "woodsmoor", "to": "hazel-grove", "via": "back to the A6 and south-east along Buxton Road and London Road to Hazel Grove, the station off it",
       "points": [[53.3865, -2.142], [53.3852, -2.1398], [53.3832, -2.136], [53.3808, -2.1312], [53.3788, -2.1268], [53.3775, -2.124], [53.3772, -2.1226]] }
-  ]
+  ],
+  "contract": {
+    "note": "The perks reputation buys between contracts (src/sim/contract.ts, docs/DESIGN.md, Contract renewal): four branches, each bought in order, each perk dearer than the last in its branch. Prices are in reputation; game choices, set with the bot (tools/bot.mjs --runs 2).",
+    "branches": [
+      { "id": "capital", "name": "Capital" },
+      { "id": "works", "name": "Works" },
+      { "id": "reach", "name": "Reach" },
+      { "id": "stock", "name": "Rolling stock" }
+    ],
+    "perks": [
+      { "id": "capital1", "branch": "capital", "name": "Opening balance", "desc": "Start with £2,000 more", "price": 10, "cash": 2000 },
+      { "id": "capital2", "branch": "capital", "name": "Investors", "desc": "Start with £5,000 more again", "price": 25, "cash": 5000 },
+      { "id": "capital3", "branch": "capital", "name": "Backers", "desc": "Start with £10,000 more again", "price": 50, "cash": 10000 },
+      { "id": "works1", "branch": "works", "name": "Framework contractor", "desc": "Everything costs 15% less to build", "price": 20, "build": 0.15 },
+      { "id": "works2", "branch": "works", "name": "Own works team", "desc": "Another 5% off everything", "price": 40, "build": 0.05 },
+      { "id": "works3", "branch": "works", "name": "Prefabrication", "desc": "Another 5% off everything", "price": 80, "build": 0.05 },
+      { "id": "reach1", "branch": "reach", "name": "Signposting", "desc": "A minute off the walk to every station", "price": 10, "walk": 60 },
+      { "id": "reach2", "branch": "reach", "name": "Walking routes", "desc": "Another minute off every walk", "price": 30, "walk": 60 },
+      { "id": "reach3", "branch": "reach", "name": "Station travel plans", "desc": "Another minute off every walk", "price": 60, "walk": 60 },
+      { "id": "stock1", "branch": "stock", "name": "A unit in the sidings", "desc": "A second unit waits in Stockport’s sidings: free to put in service once platform 3 is built", "price": 25, "unit": true },
+      { "id": "stock2", "branch": "stock", "name": "Spare on standby", "desc": "The spare unit stands by in the sidings from the start", "price": 45, "spare": true }
+    ]
+  }
 }

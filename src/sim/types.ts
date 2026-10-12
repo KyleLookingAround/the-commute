@@ -88,7 +88,15 @@ export interface NetworkGeoDef {
   corridors: CorridorGeoDef[]; tracks: TrackDef[]; stations: StationGeoDef[];
   trackNote?: string; layout?: LayoutDef[]; ease?: number;
   landmarks?: LandmarkDef[]; services?: ServiceDef[]; roads?: RoadGeoDef[]; roadNote?: string;
+  /** The perks reputation buys between contracts (src/sim/contract.ts). */
+  contract?: ContractDef;
 }
+/** A perk bought with reputation between contracts, in a branch whose perks are bought in order. What it does is said
+ * through the sim's own numbers: cash at the start (pounds), build (a share off every price), walk (seconds off the walk
+ * at every station), unit (the first extra unit stands in Stockport's sidings, free to put in service), spare (the spare
+ * unit stands by from the start). */
+export interface PerkDef { id: string; branch: string; name: string; desc: string; price: number; cash?: number; build?: number; walk?: number; unit?: boolean; spare?: boolean }
+export interface ContractDef { note?: string; branches: { id: string; name: string }[]; perks: PerkDef[] }
 
 // ---- the network in metres ----
 export interface StationDef extends StationGeoDef { x: number; z: number; s?: number }
@@ -159,8 +167,9 @@ export interface GameState {
   v: number; seed: number; rngState: number; t: number; day: number; cash: number; earned: number;
   owned: boolean[]; ups: Partial<Record<UpgradeId, boolean>>[]; line: Record<LineUpgradeId, number>;
   st: StationState[]; trains: Train[];
-  /** through: long-distance passengers on and off the expresses at owned stations; express: what the expresses paid. */
-  stats: { boarded: number; lost: number; cab: number; through: number; express: number; car: number; bus: number };
+  /** late: main-line and branch departures more than five minutes behind the timetable (src/sim/contract.ts weighs
+   * them in the reputation). through: long-distance passengers on and off the expresses at owned stations; express: what the expresses paid. */
+  stats: { boarded: number; lost: number; cab: number; through: number; express: number; car: number; bus: number; late: number };
   /** By service, the timetabled departure of the unit that last turned round at each end of its run (0 the south end,
    * 1 the north), which the next unit keeps a headway behind. */
   ends: Record<string, [number, number]>;
@@ -169,4 +178,7 @@ export interface GameState {
    * quicker the better its trip door to door (docs/DESIGN.md, Homes that grow). */
   homes: number[];
   weather: Weather;
+  /** The perks this run was started with (their ids, src/sim/contract.ts): what the career had bought when the contract
+   * began. They stay as they are for the whole run. */
+  perks: string[];
 }

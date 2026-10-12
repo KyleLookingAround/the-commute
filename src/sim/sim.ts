@@ -13,6 +13,7 @@ import { freshWeather, stepWeather, feel, weatherKey } from './weather.ts';
 import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
 import { stepExpress, nextSlot } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
+import { effects, type Effects } from './contract.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
 /** A station upgrade. name null: the station names it (its retail, or its stage in `grow`). requires: upgrades at the
@@ -158,10 +159,13 @@ export class Sim {
   /** Scratch for generate: trips an hour to each station, and how full each service runs each way. */
   private rates: Float64Array; private crowding: Float64Array; private trainsEachWay: Float64Array;
   private hourT = NaN; private hourNow = 0;
+  /** What the run's perks do (src/sim/contract.ts): nothing at all without any. */
+  fx: Effects;
   constructor(network: Network, state?: GameState) {
     this.net = network;
     this.S = network.stations;              // [{ id, name, s, miles, catchment, price, retail, index }]
     this.g = state || Sim.fresh(network);
+    this.fx = effects(network.def.contract, this.g.perks);
     this.svcs = network.services().map(s => ({ id: s.def.id, route: s.route, home: s.home, def: s.def, tracks: s.def.tracks, plats: new Map(), express: null }));
     if (!this.svcs.length || this.svcs[0]!.def.through) throw new Error('network.json names no passenger service first');
     this.fixedEnds = new Set(this.local().filter(v => v.home === null).flatMap(v => [v.route[0]!, v.route[v.route.length - 1]!]));
@@ -179,15 +183,17 @@ export class Sim {
     this.rates = new Float64Array(this.S.length); this.crowding = new Float64Array(this.svcs.length * 2); this.trainsEachWay = new Float64Array(this.svcs.length * 2);
     this.growth = new Float64Array(this.S.length);
   }
-  static fresh(network: Network, seed: number = freshSeed()): GameState {
+  /** A new run from Stockport as a halt, with the perks the career has bought (none on a first contract). */
+  static fresh(network: Network, seed: number = freshSeed(), perks: readonly string[] = []): GameState {
+    const fx = effects(network.def.contract, perks);
     return {
-      v: SAVE_VERSION, seed, rngState: seed >>> 0, t: simAtHour(1, 6.5), day: 1, cash: 3000, earned: 0,
+      v: SAVE_VERSION, seed, rngState: seed >>> 0, t: simAtHour(1, 6.5), day: 1, cash: 3000 + fx.cash, earned: 0,
       owned: network.stations.map((_, i) => i === 0),
       ups: network.stations.map(() => ({})),
-      line: { units: 0, cars: 0, timetable: 0, spare: 0 },
+      line: { units: 0, cars: 0, timetable: 0, spare: fx.spare ? 1 : 0 }, perks: [...perks],
       st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0, cab: 0, cabs: [], through: 0, car: 0, bus: 0, carAcc: 0, busAcc: 0, parked: [] })),
       trains: [], ends: {}, trouble: freshTrouble(), weather: freshWeather(seed, simAtHour(1, 6.5)),
-      stats: { boarded: 0, lost: 0, cab: 0, through: 0, express: 0, car: 0, bus: 0 },
+      stats: { boarded: 0, lost: 0, cab: 0, through: 0, express: 0, car: 0, bus: 0, late: 0 },
       homes: network.stations.map(s => s.catchment),
     };
   }
@@ -228,7 +234,17 @@ export class Sim {
   offered(i: number, u: Upgrade): boolean { return !u.stage || !!this.station(i).grow?.[u.id as StageId]; }
   upgradeName(i: number, u: Upgrade): string { return (u.stage ? this.station(i).grow?.[u.id as StageId]?.name : null) ?? u.name ?? this.station(i).retail; }
   upgradeDesc(i: number, u: Upgrade): string { return (u.stage ? this.station(i).grow?.[u.id as StageId]?.desc : null) ?? u.desc; }
-  upgradePrice(i: number, u: Upgrade): number { return (u.stage ? this.station(i).grow?.[u.id as StageId]?.price : null) ?? u.price; }
+  upgradePrice(i: number, u: Upgrade): number { return this.cost((u.stage ? this.station(i).grow?.[u.id as StageId]?.price : null) ?? u.price); }
+  /** A price as this run pays it: less the share the career's quicker building takes off (src/sim/contract.ts). */
+  cost(price: number): number { return this.fx.build ? Math.round(price * (1 - this.fx.build) / 10) * 10 : price; }
+  /** What station i costs to buy as a halt. */
+  stationPrice(i: number): number { return this.cost(this.station(i).price); }
+  /** What the next step of a line upgrade costs, or undefined once it's all bought; a unit standing in the sidings from
+   * the start (a perk) is the first extra unit, free to put in service. */
+  linePrice(id: LineUpgradeId): number | undefined {
+    const u = LINE_UPGRADES.find(x => x.id === id), lvl = this.g.line[id], p = u?.prices[lvl];
+    return p === undefined ? undefined : id === 'units' && lvl === 0 && this.fx.unit ? 0 : this.cost(p);
+  }
   /** Whether what an upgrade needs at its station is built (a need the station doesn't offer counts as built). */
   ready(i: number, u: Upgrade): boolean {
     const ups = this.ups(i);
@@ -374,6 +390,7 @@ export class Sim {
     tr.state = 'run'; tr.calling = null; tr.next = this.nextStop(tr);
     if (i !== null) {
       this.onDepart?.(tr, i, tr.late);
+      if (tr.late > 300) g.stats.late++;
       const j = tr.next, run = runTime(Math.abs(this.station(j).s - this.station(i).s), this.vmax(), TUNING.accel, TUNING.brake);
       tr.due += run + (this.isEnd(tr, j) ? this.turnaround() : TUNING.dwell);
     }
@@ -664,8 +681,8 @@ export class Sim {
     const st = this.net.station(n.station), u = UPGRADES.find(x => x.id === n.upgrade);
     return u && !this.ups(st.index)[u.id] ? { station: st, name: this.upgradeName(st.index, u) } : null;
   }
-  canBuyStation(i: number): boolean { const g = this.g, s = this.S[i]; return !!s && !g.owned[i] && g.cash >= s.price && (i === 0 || !!g.owned[i - 1]) && !this.stationNeeds(i); }
-  buyStation(i: number): boolean { if (!this.canBuyStation(i)) return false; this.g.cash -= this.station(i).price; this.g.owned[i] = true; this.refreshJourneys(); return true; }
+  canBuyStation(i: number): boolean { const g = this.g, s = this.S[i]; return !!s && !g.owned[i] && g.cash >= this.stationPrice(i) && (i === 0 || !!g.owned[i - 1]) && !this.stationNeeds(i); }
+  buyStation(i: number): boolean { if (!this.canBuyStation(i)) return false; this.g.cash -= this.stationPrice(i); this.g.owned[i] = true; this.refreshJourneys(); return true; }
   canBuyUpgrade(i: number, id: string): boolean {
     const u = UPGRADES.find(u => u.id === id), g = this.g, ups = g.ups[i];
     return !!u && !!ups && !!g.owned[i] && !ups[u.id] && this.offered(i, u) && this.ready(i, u) && g.cash >= this.upgradePrice(i, u);
@@ -686,7 +703,7 @@ export class Sim {
   }
   buyLine(id: string): boolean {
     const u = LINE_UPGRADES.find(u => u.id === id), g = this.g; if (!u) return false;
-    const lvl = g.line[u.id], price = u.prices[lvl];
+    const lvl = g.line[u.id], price = this.linePrice(u.id);
     if (lvl >= u.max || price === undefined || g.cash < price || !this.lineReady(u.id)) return false;
     g.cash -= price; g.line[u.id]++; this.ensureTrains(); this.refreshJourneys(); return true;
   }

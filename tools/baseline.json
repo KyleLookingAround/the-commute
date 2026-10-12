@@ -26,5 +26,14 @@
     "through": [1300, 2500],
     "by car": [300, 650],
     "by bus link": [100, 260]
+  },
+  "contract": {
+    "note": "Contract renewal (docs/DESIGN.md, Contract renewal), proposed 12 October 2026: the bot on seeds 1-3 with --runs 2 renews as soon as it owns Piccadilly, banks the reputation and buys perks in its order (tools/bot.mjs, PERKS), then plays the same seed again with them. A first run banks 62, 62, 64 and buys Framework contractor, Signposting and A unit in the sidings; the second run reaches Piccadilly at 4.08, 4.07, 4.82 h against 5.82, 5.92, 5.85 (26% sooner, the brief's target being about a quarter), Heaton Chapel at 0.25 h against 0.63 and Levenshulme at 0.98 against 1.93. A run with no perks plays exactly as before. Renewing as soon as it can banks less each time (quicker runs carry fewer people), so five contracts in a row level off at 3.6 h to Piccadilly (39% sooner) with Heaton Chapel at 0.17 h.",
+    "runs": 2,
+    "ranges": {
+      "reputation banked": [45, 85],
+      "run 2 owns:piccadilly": [3.6, 5.0],
+      "run 2 sooner %": [15, 35]
+    }
   }
 }

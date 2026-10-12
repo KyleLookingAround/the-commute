@@ -1,8 +1,11 @@
 // A sensible player, headless: plays the sim in Node from a seed, buying what a player would, and reports when each
 // milestone lands against tools/baseline.json. The same seed and code always give the same run, so a change is
 // judged on seeds 1-3 before and after (the `balance` playbook).
-//   node tools/bot.mjs [--hours 8] [--seed 1 --seed 2 --seed 3] [--json build/bot.json] [--fair]   (hours are sim hours: a game day is four)
+//   node tools/bot.mjs [--hours 8] [--seed 1 --seed 2 --seed 3] [--json build/bot.json] [--fair] [--runs 2]   (hours are sim hours: a game day is about 2.3)
 // --fair: the weather comes and goes as usual but people don't feel it, to measure what it costs.
+// --runs n: whole contracts (docs/DESIGN.md, Contract renewal). Each run but the last renews the contract as soon as
+// Piccadilly is bought (or at --hours), banks its reputation and buys perks (`perks` below); the next run starts from
+// the same seed with them. Prints a table of each run's milestones, the reputation banked and the perks bought.
 // Prints per seed: SEED, REACHED {milestone: game hour}, MEASURES, PEAKS (at each morning and evening peak: who gave
 // up at each station, and how late main-line trains left their stops), PLAY (a fingerprint of the saved state that
 // affects play); then a table of every seed and their mean against the baseline, and the peaks' mean. Exit code 1 only
@@ -19,6 +22,7 @@ const { Sim, UPGRADES, TUNING } = await import('../src/sim/sim.ts');
 const { spaces, parked } = await import('../src/sim/access.ts');
 const { WEATHER } = await import('../src/sim/weather.ts');
 const { clockAt } = await import('../src/sim/day.ts');
+const C = await import('../src/sim/contract.ts');
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'));
@@ -28,7 +32,7 @@ const args = process.argv.slice(2);
 const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
 const seeds = args.flatMap((a, i) => a === '--seed' ? [+args[i + 1]] : []);
 if (!seeds.length) seeds.push(1);
-const hours = +opt('--hours', 8), jsonOut = opt('--json', null);
+const hours = +opt('--hours', 8), jsonOut = opt('--json', null), runCount = Math.max(1, +opt('--runs', 1));
 if (args.includes('--fair')) WEATHER.felt = false;
 
 /** The sensible player's policy, in priority order: a second unit first (Stockport needs its subway and platform 3 for
@@ -69,8 +73,34 @@ export function act(sim) {
 /** The peak the game clock is in, as "day 1 am", or null between them: 06:00-10:00 and 16:00-19:30. */
 function peakOf(sim) { const h = sim.hour(), k = h >= 6 && h < 10 ? 'am' : h >= 16 && h < 19.5 ? 'pm' : null; return k && `day ${sim.g.day} ${k}`; }
 
-export function play(seed, hoursToPlay = hours) {
-  const net = fromGeo(def), sim = new Sim(net, Sim.fresh(net, seed)), t0 = sim.g.t;
+/** The perks the bot buys between contracts, in the order it wants them: whichever comes first that it can afford, until
+ * it can afford none. Quicker building first (it brings Piccadilly soonest), then the wider reach and the unit in the
+ * sidings; starting cash mostly speeds the opening, so it comes after them in each round. */
+export const PERKS = ['works1', 'reach1', 'stock1', 'capital1', 'works2', 'reach2', 'capital2', 'stock2', 'works3', 'reach3', 'capital3'];
+export function perks(career) {
+  const bought = [];
+  for (let again = true; again;) {
+    again = false;
+    for (const id of PERKS) { const c = C.buyPerk(def.contract, career, id); if (c) { career = c; bought.push(id); again = true; break; } }
+  }
+  return { career, bought };
+}
+
+/** Whole contracts on one seed: each run but the last renews once Piccadilly is bought, banks its reputation and buys
+ * perks; the next starts again from the same seed with them. */
+export function career(seed, runs = runCount, hoursToPlay = hours) {
+  let c = C.freshCareer(); const out = [];
+  for (let k = 0; k < runs; k++) {
+    const last = k === runs - 1, r = play(seed, hoursToPlay, c.perks, !last);
+    r.run = k + 1; r.perks = [...c.perks]; r.rep = r.repNow;
+    if (!last) { c = C.renew(c, r.sim.g, r.sim.S.map(s => s.id)); const p = perks(c); c = p.career; r.bought = p.bought; r.banked = r.repNow; }
+    delete r.sim; out.push(r);
+  }
+  return out;
+}
+
+export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadilly = false) {
+  const net = fromGeo(def), sim = new Sim(net, Sim.fresh(net, seed, perksHeld)), t0 = sim.g.t, picc = net.station('piccadilly').index;
   full.clear();
   // car parks and bus links: when each filled (by game day), for the table
   const filled = sim.S.map(() => new Set());
@@ -107,6 +137,7 @@ export function play(seed, hoursToPlay = hours) {
     if (sim.g.cash !== lastCash) { lastCash = sim.g.cash; }
     longestQuiet = Math.max(longestQuiet, h - quietSince);
     for (let i = 1; i < sim.S.length; i++) if (sim.g.owned[i]) mark('owns:' + sim.S[i].id, h);
+    if (renewAtPiccadilly && C.renewable(sim.g, picc)) break;
   }
   const g = sim.g, home = sim.svcs[0].route[0], days = (clockAt(g.t) - clockAt(t0)) / 86400;
   const measures = { 'game days': +days.toFixed(2), 'earned a game day': Math.round(g.earned / days), 'lost a game day': Math.round(g.stats.lost / days), 'cash at end': Math.round(g.cash), 'boarded': g.stats.boarded, 'lost': g.stats.lost, 'by cab': g.stats.cab, 'longest quiet hours': +longestQuiet.toFixed(1), 'longest daytime quiet': +longestDayQuiet.toFixed(2),
@@ -126,7 +157,7 @@ export function play(seed, hoursToPlay = hours) {
     const j = sim.destination(i), fare = j === null ? 0 : sim.fare(i, j) * (g.ups[i].barriers ? 1 : g.ups[i].building ? 0.9 : 0.82);
     access[st.id] = { car: S.car, bus: S.bus, earned: Math.round(S.car * (fare + TUNING.parkCharge) + S.bus * fare), 'days full': filled[i].size };
   });
-  return { seed, reached, measures, peaks, play, used, access };
+  return { seed, reached, measures, peaks, play, used, access, sim, repNow: C.reputation(g) };
 }
 
 function fingerprint(o) { const s = JSON.stringify(o); let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16).padStart(8, '0'); }
@@ -134,8 +165,9 @@ function fingerprint(o) { const s = JSON.stringify(o); let h = 2166136261; for (
 function band(value, [lo, hi]) { if (value === undefined) return 'none'; if (value >= lo && value <= hi) return 'ok'; const tol = 0.15 * (hi - lo || Math.abs(hi) || 1); return value >= lo - tol && value <= hi + tol ? 'near' : 'off'; }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  if (runCount > 1) { contracts(); process.exit(0); }
   const runs = seeds.map(s => play(s));
-  for (const r of runs) { console.log(`SEED ${r.seed}`); console.log('REACHED ' + JSON.stringify(r.reached)); console.log('MEASURES ' + JSON.stringify(r.measures)); console.log('PEAKS ' + JSON.stringify(r.peaks)); console.log('PLATFORMS ' + JSON.stringify(Object.fromEntries(Object.entries(r.used).sort()))); console.log('PLAY ' + r.play); }
+  for (const r of runs) { delete r.sim; console.log(`SEED ${r.seed}`); console.log('REACHED ' + JSON.stringify(r.reached)); console.log('MEASURES ' + JSON.stringify(r.measures)); console.log('PEAKS ' + JSON.stringify(r.peaks)); console.log('PLATFORMS ' + JSON.stringify(Object.fromEntries(Object.entries(r.used).sort()))); console.log('PLAY ' + r.play); }
   const keys = Object.keys(baseline.ranges);
   console.log(`\n| Milestone or measure (${hours} game hours) | Range | ${runs.map(r => 'seed ' + r.seed).join(' | ')} | Mean | Band |`);
   console.log(`| --- | --- | ${runs.map(() => '---').join(' | ')} | --- | --- |`);
@@ -167,4 +199,37 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   }
   console.log(off ? `\n${off} measure${off === 1 ? '' : 's'} off the baseline` : '\nall within the baseline');
   if (jsonOut) { mkdirSync(dirname(join(root, jsonOut)), { recursive: true }); writeFileSync(join(root, jsonOut), JSON.stringify(runs, null, 2)); }
+}
+
+/** --runs: each seed's contracts, then a table of each run's milestones (sim hours), the reputation it banked and the
+ * perks the bot bought with it. */
+function contracts() {
+  const all = seeds.map(s => career(s));
+  for (const runs of all) for (const r of runs) {
+    console.log(`SEED ${r.seed} RUN ${r.run}`); console.log('PERKS ' + JSON.stringify(r.perks)); console.log('REACHED ' + JSON.stringify(r.reached));
+    console.log('MEASURES ' + JSON.stringify(r.measures)); console.log(`REPUTATION ${r.rep}${r.bought ? ` banked; bought ${JSON.stringify(r.bought)}` : ''}`); console.log('PLAY ' + r.play);
+  }
+  const keys = ['unit', 'owns:heaton-chapel', 'owns:levenshulme', 'owns:ardwick', 'owns:piccadilly', 'owns:davenport', 'owns:woodsmoor', 'owns:hazel-grove'];
+  const cols = all.flatMap(runs => runs.map(r => `seed ${r.seed} run ${r.run}`));
+  console.log(`\n| Milestone (sim hours) | ${cols.join(' | ')} |`); console.log(`| --- | ${cols.map(() => '---').join(' | ')} |`);
+  const row = (name, f) => console.log(`| ${name} | ${all.flatMap(runs => runs.map(f)).join(' | ')} |`);
+  for (const k of keys) row(k, r => r.reached[k] ?? 'none');
+  row('reputation at the end', r => r.rep);
+  row('perks held', r => r.perks.join(', ') || 'none');
+  row('perks bought after', r => r.bought?.join(', ') || '');
+  // the time to Piccadilly, each run against the first, mean of the seeds
+  const runsN = all[0].length, mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
+  for (let k = 1; k < runsN; k++) {
+    const a = mean(all.map(r => r[0].reached['owns:piccadilly'] ?? NaN)), b = mean(all.map(r => r[k].reached['owns:piccadilly'] ?? NaN));
+    console.log(`\nrun ${k + 1} reaches Piccadilly at ${b.toFixed(2)} h against ${a.toFixed(2)} h: ${(100 * (1 - b / a)).toFixed(0)}% sooner`);
+  }
+  // against the contract baseline (two runs): what a first run banks, and how much sooner the second reaches Piccadilly
+  const cb = baseline.contract;
+  if (cb && runsN >= 2) {
+    const a = mean(all.map(r => r[0].reached['owns:piccadilly'] ?? NaN)), b = mean(all.map(r => r[1].reached['owns:piccadilly'] ?? NaN));
+    const got = { 'reputation banked': mean(all.map(r => r[0].banked)), 'run 2 owns:piccadilly': b, 'run 2 sooner %': 100 * (1 - b / a) };
+    console.log('\n| Contracts (mean of seeds) | Range | Mean | Band |\n| --- | --- | --- | --- |');
+    for (const [k, r] of Object.entries(cb.ranges)) console.log(`| ${k} | ${r.join('–')} | ${+got[k].toFixed(2)} | ${band(got[k], r)} |`);
+  }
+  if (jsonOut) { mkdirSync(dirname(join(root, jsonOut)), { recursive: true }); writeFileSync(join(root, jsonOut), JSON.stringify(all, null, 2)); }
 }

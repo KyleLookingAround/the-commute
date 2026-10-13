@@ -386,6 +386,8 @@ function lineView(): void {
     return [x, z, (text.length * 7.7 + 18) / 2];
   }));
 }
+// the line between stations (src/render/sections.ts): each section's renewed track on the map, fetched just after the start
+const lineLayer = import('./render/sections.ts').then(m => { const L = new m.SectionLayer(scene, net, () => sim, camera, canvas); Object.assign(view, { sections: () => L.stats() }); return L; });
 const ui = new UI(sim, els, {
   speed: s => { speed = s; ui.setSpeed(s); },
   viewLine: lineView,
@@ -401,6 +403,7 @@ const ui = new UI(sim, els, {
   lockHour: h => { lockHour = h; ui.setLight(lockHour ?? sim.hour(), lockHour !== null); },
   reset: () => { startRun(); const [x, z] = stationXZ(0); rig.focus(x, z); },
   renew: () => void contractSheet().then(c => c.open(career, sim.g, net.stations.map(s => s.id))),
+  showSection: (id, bought) => void lineLayer.then(L => { const box = L.preview(bought ? null : id) ?? (id ? L.boxOf(id) : null); if (box) frameBox(box); }),
 }, sheet);
 uiMade = true;
 /** Start a run again from Stockport as a halt, with the career's perks: what was bought folds back down on the map. */
@@ -432,7 +435,7 @@ const picker = new Picker(camera, canvas, built, trains.meshes, [trains.spare, t
 rig.onTap = (x, y) => {
   // an edge marker first: the map keeps the gestures that start on one, and its tap opens the station
   const r = canvas.getBoundingClientRect(), mark = edges.hit(x - r.left, y - r.top); if (mark >= 0) { ui.select(mark); return; }
-  const hit = picker.pick(x, y); if (!hit) return;
+  const hit = picker.pick(x, y); if (!hit) { void lineLayer.then(L => { const s = L.tap(x, y); if (s) ui.show(s); }); return; }
   if (hit.kind === 'train') {
     const m = trains.meshes[hit.i], tr = sim.g.trains[hit.i]; if (m) rig.ride(m);
     if (tr && sim.owns(`route:${tr.svc}`)) ui.show(`route:${tr.svc}`, false);

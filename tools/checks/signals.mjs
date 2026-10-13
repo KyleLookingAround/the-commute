@@ -17,7 +17,7 @@ const { PAL } = await import('../../src/render/scene.ts');
 
 export default async function ({ ok, root }) {
   const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.fresh(net, 1));
-  sim.g.cash = 1e7; sim.grant(sim.P.stopper, 'timetable'); sim.grant(sim.P.stopper, 'units'); sim.g.trouble.next = sim.g.t + 1e9;
+  sim.g.cash = 1e7; for (const k of sim.P.stopperSections) sim.grant(k, 'speed'); sim.grant(sim.P.stopper, 'units'); sim.g.trouble.next = sim.g.t + 1e9;
   sim.ensureTrains(); sim.step(1);
   const side = new Lineside(new THREE.Scene(), net);
   const B = net.blocks('down-slow'), st = net.station('stockport').s, hc = net.station('heaton-chapel').s;

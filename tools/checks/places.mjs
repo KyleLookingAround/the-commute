@@ -25,11 +25,11 @@ export default async function ({ ok, open, root }) {
   const save = JSON.stringify({ g: sim.g, selected: 0 });
   const visible = i => sim.visibleUpgrades(i).filter(u => !sim.ups(i)[u.id] && !u.stop).map(u => u.id).sort().join(',');
   const CARDS = [
-    ["Stockport's", '#strip [data-place="station:stockport"]', 'station:stockport', /^(Halt|Station) · /, visible(0), ['station:heaton-chapel', 'station:davenport', 'route:stopper', 'stop:stockport-interchange', 'depot:stockport-sidings']],
-    ["Levenshulme's", '#strip [data-place="station:levenshulme"]', 'station:levenshulme', /^(Halt|Station) · /, visible(net.station('levenshulme').index), ['station:heaton-chapel', 'station:ardwick', 'route:stopper', 'stop:levenshulme-station-view']],
+    ["Stockport's", '#strip [data-place="station:stockport"]', 'station:stockport', /^(Halt|Station) · /, visible(0), ['station:heaton-chapel', 'station:davenport', 'route:stopper', 'stop:stockport-interchange', 'depot:stockport-sidings', 'section:main:stockport:heaton-norris-junction']],
+    ["Levenshulme's", '#strip [data-place="station:levenshulme"]', 'station:levenshulme', /^(Halt|Station) · /, visible(net.station('levenshulme').index), ['station:heaton-chapel', 'station:ardwick', 'route:stopper', 'stop:levenshulme-station-view', 'section:main:heaton-chapel:levenshulme']],
     ["Ardwick's (not owned)", '#strip [data-place="station:ardwick"]', 'station:ardwick', /£/, null, ['station:levenshulme', 'route:stopper']],
     ["Levenshulme's bus stop (not owned)", '#strip [data-place="stop:levenshulme-station-view"]', 'stop:levenshulme-station-view', /^Bus stop · £/, null, ['station:levenshulme']],
-    ["the stopper's", '#strip [data-place="route:stopper"]', 'route:stopper', /^Train service · 1 unit$/, 'cars,timetable', ['station:stockport', 'station:heaton-chapel', 'station:levenshulme', 'station:ardwick']],
+    ["the stopper's", '#strip [data-place="route:stopper"]', 'route:stopper', /^Train service · 1 unit$/, 'cars', ['station:stockport', 'station:heaton-chapel', 'station:levenshulme', 'station:ardwick']],
     ["the sidings'", '#strip [data-place="depot:stockport-sidings"]', 'depot:stockport-sidings', /^Depot · /, sim.g.trouble.fails ? 'spare' : '', ['station:stockport']],
     ["Stockport Interchange's", ['#strip [data-place="station:stockport"]', '[data-next="stop:stockport-interchange"]'], 'stop:stockport-interchange', /^Bus station · /, '', ['station:stockport']],
     ['the Network', '#cash', 'network', /^Network · 3 stations$/, '', []],

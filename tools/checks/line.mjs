@@ -3,10 +3,10 @@
 // is built; tapping a card marks it and frames what it's about on the map (window.__view.framed counts framings), and
 // opening Stockport and choosing one of its cards instead clears it. With the money (a save from that game, with cash
 // added and platform 3 built): extra units show as a card, buying one frames the new unit, the next one shows as the
-// next card, and the bought one sits on the stopper's Built line. The faster
-// timetable has its own work on the map: its card ghosts the signals and 90 boards (window.__view.preview) and frames
-// them, tapping it again clears the ghost; buying it makes them rise into place (window.__view.rising) within about a
-// second, and its Built chip frames them with no ghost. One phone page (320 px, touch) and one desktop page.
+// next card, and the bought one sits on the stopper's Built line. A section of line (Heaton Norris Junction – Heaton
+// Chapel, from Next to on Heaton Chapel's card, owned with it): its line speed card ghosts the renewed track
+// (window.__view.sections) and frames it, buying it shows it at 90 mph, and its Built chip frames it. One phone page
+// (320 px, touch) and one desktop page.
 import { reveal } from '../reveal.mjs';
 export default async function ({ ok, open, SAVE_KEY }) {
   for (const [w, h, touch] of [[320, 568, true], [1280, 800, false]]) {
@@ -36,21 +36,13 @@ export default async function ({ ok, open, SAVE_KEY }) {
     const off = await page.evaluate(() => document.querySelectorAll('#panel .ucard.sel').length === 1 && !!document.querySelector('#panel .ucard.sel[data-card="crossing"]'));
     ok(`line: at ${w}×${h} tapping a stopper's card marks it and frames a train, and choosing a station's card instead clears it`, marked && f1 > f0 && off, `marked ${marked}, framed ${f0} → ${f1}, cleared ${off}`);
 
-    await tap(stopper); await page.waitForSelector(on('route:stopper'), { timeout: 60000 }).catch(() => {});
-    const t0 = await framed();
-    await tap('[data-pick="timetable"]'); await page.waitForFunction(t0 => (window.__view?.preview ?? 0) > 0 && (window.__view?.framed ?? 0) > t0, t0, { timeout: 60000 }).catch(() => {});
-    const tOn = await page.evaluate(() => window.__view?.preview ?? 0), t1 = await framed();
-    await tap('[data-pick="timetable"]'); await page.waitForFunction(() => window.__view?.preview === 0, null, { timeout: 60000 }).catch(() => {});
-    const tOff = await page.evaluate(() => window.__view?.preview ?? -1);
-    ok(`line: at ${w}×${h} the faster timetable's card ghosts its signals and boards and frames them, and tapping it again clears them`, tOn > 0 && t1 > t0 && tOff === 0, `ghost ${tOn} → ${tOff}, framed ${t0} → ${t1}`);
-
     // buying the subway saves the game; that save, with money and platform 3, opens the next page
     await tap(stockport); await page.waitForSelector(on('station:stockport'), { timeout: 60000 }).catch(() => {});
     await tap('[data-pick="crossing"]'); await tap('[data-up="crossing"]'); await page.waitForFunction(k => !!localStorage.getItem(k) && JSON.parse(localStorage.getItem(k)).g.places['station:stockport']?.crossing, SAVE_KEY, { timeout: 60000 }).catch(() => {});
     const raw = await page.evaluate(k => localStorage.getItem(k), SAVE_KEY);
     await ctx.close();
     if (!raw) { ok(`line: at ${w}×${h} buying an extra unit frames it and moves it to the Built line`, false, 'no save to start from'); continue; }
-    const s = JSON.parse(raw); s.g.cash = 100000; s.g.places['station:stockport'].platform2 = 1; delete s.at;
+    const s = JSON.parse(raw); s.g.cash = 100000; s.g.places['station:stockport'].platform2 = 1; s.g.places['station:heaton-chapel'] = {}; delete s.at;
     const p2 = await open({ width: w, height: h }, { touch, save: JSON.stringify(s), steady: 50 });
     await p2.page.waitForTimeout(600);
     const tap2 = async sel => {
@@ -67,25 +59,23 @@ export default async function ({ ok, open, SAVE_KEY }) {
     const bad2 = [!bought && 'no Buy on the extra unit card', after.n <= g0 && 'the camera framed nothing', !/2 of 3/.test(after.next) && `the next card reads "${after.next}"`, !/Extra unit/.test(after.built) && 'not on the Built line', errs[0], p2.errs[0]].filter(Boolean);
     ok(`line: at ${w}×${h} buying an extra unit frames it, the next one shows as the next card, and it moves to the Built line`, !bad2.length, bad2.join('; '));
 
-    await tap2('[data-pick="timetable"]'); await p2.page.waitForFunction(() => (window.__view?.preview ?? 0) > 0, null, { timeout: 60000 }).catch(() => {});
-    const b0 = await p2.page.evaluate(() => window.__view?.framed ?? 0);
-    const tb = await tap2('[data-up="timetable"]');
-    // the rise in the page's own time (steady frames, so it takes the same frames however slow the machine): wait for
-    // it to start, then to settle, each with a minute of real time to spare, and time the settle by the page's clock
-    const riseAt = await p2.page.evaluate(() => window.__frameT);
-    const rose = await p2.page.waitForFunction(() => (window.__view?.rising() ?? 0) > 0, null, { timeout: 60000 }).then(() => p2.page.evaluate(() => window.__view.rising()), () => 0);
-    const ghost = await p2.page.evaluate(() => window.__view?.preview ?? -1);
-    await p2.page.waitForFunction(() => window.__view?.rising() === 0, null, { timeout: 60000 }).catch(() => {});
-    const took = (await p2.page.evaluate(() => window.__frameT) - riseAt) / 1000;
-    await p2.page.waitForFunction(b0 => (window.__view?.framed ?? 0) > b0, b0, { timeout: 60000 }).catch(() => {});
-    const rising = { n: rose, ghost };
-    const settled = await p2.page.evaluate(() => ({ n: window.__view?.rising() ?? -1, built: document.querySelector('#panel .built')?.textContent || '' }));
-    const h0 = await p2.page.evaluate(() => window.__view?.framed ?? 0);
-    const chip = await tap2('[data-built="timetable"]'); await p2.page.waitForFunction(h0 => (window.__view?.framed ?? 0) > h0, h0, { timeout: 60000 }).catch(() => {});
-    const h1 = await p2.page.evaluate(() => ({ n: window.__view?.framed ?? 0, ghost: window.__view?.preview ?? -1 }));
-    const bad3 = [!tb && 'no Buy on the faster timetable card', rising.n < 1 && 'nothing rose', rising.ghost !== 0 && 'the ghost stayed', settled.n !== 0 && 'still rising after a minute', took > 2.5 && `took ${took.toFixed(1)} s of the page's time to settle, not 2.5`,
-      !/Faster timetable/.test(settled.built) && 'not on the Built line', !chip && 'no Built chip', h1.n <= h0 && 'the chip framed nothing', h1.ghost !== 0 && 'the chip ghosted', p2.errs[0]].filter(Boolean);
-    ok(`line: at ${w}×${h} buying the faster timetable makes its signals and boards rise into place, and its Built chip frames them`, !bad3.length, bad3.join('; '));
+    // a section of line's card, from Next to on Heaton Chapel's: its line speed step ghosts the renewed track and
+    // frames it, buying it makes it show, and its Built chip frames it
+    const sec = 'section:main:heaton-norris-junction:heaton-chapel';
+    await tap2('#strip [data-place="station:heaton-chapel"]'); await p2.page.waitForSelector(on('station:heaton-chapel'), { timeout: 60000 }).catch(() => {});
+    await tap2(`[data-next="${sec}"]`); await p2.page.waitForSelector(on(sec), { timeout: 60000 }).catch(() => {});
+    const s0 = await p2.page.evaluate(() => ({ n: window.__view?.framed ?? 0, head: document.querySelector('[data-card="speed"] .head b')?.textContent || '' }));
+    await tap2('[data-pick="speed"]'); await p2.page.waitForFunction(() => (window.__view?.sections?.().ghosts ?? 0) > 0, null, { timeout: 60000 }).catch(() => {});
+    const ghosted = await p2.page.evaluate(() => ({ ...window.__view?.sections?.(), n: window.__view?.framed ?? 0 }));
+    const sb = await tap2('[data-up="speed"]'); await p2.page.waitForFunction(() => (window.__view?.sections?.().shown ?? 0) > 0, null, { timeout: 60000 }).catch(() => {});
+    const shown = await p2.page.evaluate(() => ({ ...window.__view?.sections?.(), built: document.querySelector('#panel .built')?.textContent || '', speed: document.getElementById('xSpeed')?.textContent || '' }));
+    const c0 = await p2.page.evaluate(() => window.__view?.framed ?? 0);
+    const sChip = await tap2('[data-built="speed"]'); await p2.page.waitForFunction(c0 => (window.__view?.framed ?? 0) > c0, c0, { timeout: 60000 }).catch(() => {});
+    const c1 = await p2.page.evaluate(() => window.__view?.framed ?? 0);
+    const bad3 = [!/^Line speed 90 mph$/.test(s0.head) && `the section's card offers "${s0.head}"`, !(ghosted.ghosts > 0) && 'no ghost of the renewed track', !(ghosted.n > s0.n) && 'the camera framed nothing',
+      !sb && 'no Buy on the line speed card', !(shown.shown > 0 && shown.ghosts === 0) && `the renewed track doesn't show (${JSON.stringify(shown)})`, shown.speed !== '90 mph' && `the card says ${shown.speed}`,
+      !/Line speed 90 mph/.test(shown.built) && 'not on the Built line', !sChip || c1 <= c0 ? 'the Built chip framed nothing' : false, p2.errs[0]].filter(Boolean);
+    ok(`line: at ${w}×${h} a section's line speed card ghosts its renewed track and frames it, buying it shows it, and its Built chip frames it`, !bad3.length, bad3.join('; '));
     await p2.ctx.close();
   }
 }

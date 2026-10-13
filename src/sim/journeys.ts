@@ -35,12 +35,12 @@ function run(sim: Sim, T: Tuning, svc: number, d: 0 | 1): Run {
   const first = order[0], last = order[order.length - 1];
   if (first === undefined || last === undefined) return { arr, dep, total: 0 };
   const calls = (i: number) => i === first || i === last || (!!sim.g.owned[i] && sim.serves(i, d));
-  let t = 0, at = sim.station(first).s;
+  let t = 0, at = sim.station(first).s, prev = first;
   dep.set(first, 0);
   for (const i of order.slice(1)) {
     if (!calls(i)) continue;
     const s = sim.station(i).s;
-    t += runTime(Math.abs(s - at), sim.vmax(), T.accel, T.brake); at = s;
+    t += runTime(Math.abs(s - at), sim.runSpeed(v, prev, i), T.accel, T.brake); at = s; prev = i;
     arr.set(i, t);
     if (i !== last) { t += T.dwell; dep.set(i, t); }
   }

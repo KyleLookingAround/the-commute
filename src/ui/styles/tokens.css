@@ -67,6 +67,8 @@
   --map-reach:#ffcf5c; --map-mins-1:#ffe066; --map-mins-2:#ffad5a; --map-mins-3:#f07fa0; --map-mins-4:#a58be0;
   /* Strain: where the network hurts, a warm ramp from amber (a little) to coral (a lot), never red */
   --map-strain-1:#ffb347; --map-strain-2:#ff6b5b;
+  /* the line between stations: the fresh ballast under a section whose line speed has been raised */
+  --map-ballast-new:#b9ad9b;
   /* homes that grow: new terraces and flats round the stations whose trips get quicker; walls, roofs and windows */
   --map-home-1:#c0563a; --map-home-2:#d9a35a; --map-home-3:#f1e4c8; --map-home-4:#9fd6b8; --map-home-5:#f2a7a0; --map-home-6:#8fbde6;
   --map-home-roof:#5d6b80; --map-home-tile:#a8473a; --map-home-glass:#cfe6f5;

@@ -116,6 +116,9 @@ export interface NetworkGeoDef {
   stops?: StopDef[]; depots?: DepotDef[]; stopNote?: string;
   /** The perks reputation buys between contracts (src/sim/contract.ts). */
   contract?: ContractDef;
+  /** Each corridor's sections of line in chainage order (as src/sim/places.ts makes them): each one's real speed (mph,
+   * null where OSM had none) and the share of it under wires (tools/osm-to-sections.mjs). */
+  sections?: Record<string, { mph: (number | null)[]; wired: number[] }>; sectionNote?: string;
 }
 /** A perk bought with reputation between contracts, in a branch whose perks are bought in order. What it does is said
  * through the sim's own numbers: cash at the start (pounds), build (a share off every price), walk (seconds off the walk

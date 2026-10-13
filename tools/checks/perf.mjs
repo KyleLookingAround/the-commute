@@ -41,6 +41,7 @@ export default async function ({ ok, open, root }) {
     sim.grant(sim.P.station[i]); for (const u of UPGRADES.filter(u => sim.offered(i, u))) sim.grant(...sim.upgradePlace(i, u.id)); sim.g.homes[i] = sim.ceiling(i);
   }
   for (const u of LINE_UPGRADES) while (sim.g.line[u.id] < u.max) sim.grant(sim.linePlace(u.id), u.id);
+  for (const x of sim.secs) for (let k = 0; k < x.steps; k++) sim.grant(x.id, 'speed');
   sim.advance(1200);
   const t = simAtHour(2, 8);
   sim.g.t = t; sim.g.day = 2;

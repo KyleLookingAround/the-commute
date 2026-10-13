@@ -15,7 +15,7 @@ import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
 import { stepExpress, nextSlot, EXPRESS_UNITS } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
 import { effects, type Effects } from './contract.ts';
-import { places, build, derive, UPGRADES, LINE_UPGRADES, LINE_PLACE, type Places, type Upgrade } from './places.ts';
+import { places, build, derive, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, type Places, type Upgrade } from './places.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
 // a station's stages and the line's, now stages of places (src/sim/places.ts); here too, where the view finds them
@@ -143,6 +143,12 @@ export class Sim {
   fx: Effects;
   /** Every place on the network, what touches what (src/sim/places.ts). */
   P: Places;
+  /** Each section of line (the line between stations): its place, where it runs along its corridor, the line speed it
+   * starts at (mph: the game's 75 on the stopper's line, so the opening is as it was; elsewhere its real speed where
+   * that's lower) and how many SECTION_SPEED steps take it to the top. */
+  secs: { id: string; corridor: string; s0: number; s1: number; base: number; steps: number; miles: number }[];
+  /** Line speeds between two stops, by service and stops, worked out as needed and forgotten when a section changes. */
+  private speeds = new Map<number, number>();
   constructor(network: Network, state?: GameState) {
     this.net = network;
     this.S = network.stations;              // [{ id, name, s, miles, catchment, price, retail, index }]
@@ -163,6 +169,13 @@ export class Sim {
       const th = v.def.through;
       if (th) v.express = { ...th, portal: v.path.start + v.def.cars * TUNING.carPitch / 2 };
     }
+    const stopperLine = new Set(this.P.stopperSections);
+    const nth = new Map<string, number>();
+    this.secs = this.P.all.filter(p => p.kind === 'section').map(p => {
+      const k = nth.get(p.corridor!) ?? 0; nth.set(p.corridor!, k + 1);
+      const real = network.def.sections?.[p.corridor!]?.mph[k], base = stopperLine.has(p.id) ? 75 : Math.min(75, real ?? 75);
+      return { id: p.id, corridor: p.corridor!, s0: Math.min(p.s0!, p.s1!), s1: Math.max(p.s0!, p.s1!), base, steps: Math.max(0, Math.ceil((SECTION_SPEED.top - base) / SECTION_SPEED.step)), miles: Math.abs(p.s1! - p.s0!) / 1609.34 };
+    });
     this.rates = new Float64Array(this.S.length); this.crowding = new Float64Array(this.svcs.length * 2); this.trainsEachWay = new Float64Array(this.svcs.length * 2);
     this.growth = new Float64Array(this.S.length);
   }
@@ -193,6 +206,36 @@ export class Sim {
   unitsInService(): number { return 1 + this.g.line.units; }
   carsPerUnit(): number { return 2 + 2 * this.g.line.cars; }
   vmax(): number { return (this.g.line.timetable ? TUNING.vmaxFast : TUNING.vmax) * feel(this.g).speed; }
+  /** A section of line as it stands: its line speed now and where it started (mph), steps built of how many, its length,
+   * and its next step's price (undefined once it's at the top). */
+  sectionAt(id: string): { mph: number; base: number; level: number; steps: number; miles: number; price: number | undefined } | null {
+    const x = this.secs.find(q => q.id === id); if (!x) return null;
+    const level = Math.min(x.steps, this.g.places[id]?.[SECTION_SPEED.id] ?? 0), price = this.cost(Math.max(1000, Math.round(SECTION_SPEED.perMile * x.miles / 500) * 500));
+    return { mph: Math.min(SECTION_SPEED.top, x.base + SECTION_SPEED.step * level), base: x.base, level, steps: x.steps, miles: x.miles, price: level < x.steps ? price : undefined };
+  }
+  /** How fast a service's trains run between two of its stops (station indices), as the timetable plans it and they
+   * drive it: the run's length over the time it takes through each section at its own line speed (the game's line
+   * speed where it runs beyond any section), in the weather. */
+  runSpeed(v: Svc, a: number, b: number): number {
+    const k = (this.svcs.indexOf(v) * 128 + a) * 128 + b;
+    let sp = this.speeds.get(k);
+    if (sp === undefined) {
+      const sa = this.station(a).s, sb = this.station(b).s, lo = Math.min(sa, sb), hi = Math.max(sa, sb);
+      let t = 0, d = 0;
+      for (const L of v.path.legs) {
+        const x0 = Math.max(lo, L.s0), x1 = Math.min(hi, L.s1); if (x1 <= x0) continue;
+        for (const x of this.secs) {
+          if (x.corridor !== L.corridor) continue;
+          const y0 = Math.max(x0, x.s0), y1 = Math.min(x1, x.s1); if (y1 <= y0) continue;
+          const lvl = Math.min(x.steps, this.g.places[x.id]?.[SECTION_SPEED.id] ?? 0);
+          t += (y1 - y0) / (TUNING.vmax * Math.min(SECTION_SPEED.top, x.base + SECTION_SPEED.step * lvl) / 75); d += y1 - y0;
+        }
+      }
+      sp = hi > lo ? (hi - lo) / (t + (hi - lo - d) / TUNING.vmax) : TUNING.vmax;
+      this.speeds.set(k, sp);
+    }
+    return sp * feel(this.g).speed;
+  }
   /** The timetabled turnaround at the end of a run, recovery included. */
   turnaround(): number { return TUNING.turnaround + (this.g.line.timetable ? TUNING.recoveryFast : 0); }
   capacity(i: number): number { return this.ups(i).extend ? TUNING.platformCapExtended : TUNING.platformCap; }
@@ -400,7 +443,7 @@ export class Sim {
     if (i !== null) {
       this.onDepart?.(tr, i, tr.late);
       if (tr.late > 300) g.stats.late++;
-      const j = tr.next, run = runTime(Math.abs(this.station(j).s - this.station(i).s), this.vmax(), TUNING.accel, TUNING.brake);
+      const j = tr.next, run = runTime(Math.abs(this.station(j).s - this.station(i).s), this.runSpeed(this.svc(tr.svc), i, j), TUNING.accel, TUNING.brake);
       tr.due += run + (this.isEnd(tr, j) ? this.turnaround() : TUNING.dwell);
     }
   }
@@ -572,7 +615,7 @@ export class Sim {
     if (tr.next === null) tr.next = this.nextStop(tr);
     const i = tr.next, last = this.isEnd(tr, i);
     const target = tr.bound >= 0 ? this.stopAt(tr, i, tr.bound) : this.station(i).s;
-    if (this.move(tr, dt, target, i, this.vmax())) {
+    if (this.move(tr, dt, target, i, this.runSpeed(this.svc(tr.svc), tr.pfAt >= 0 ? tr.pfAt : i, i))) {
       if (last) tr.dir = tr.dir > 0 ? -1 : 1;      // reverse first so boarding uses the departure direction
       this.standAt(tr, i);
       this.callAt(tr, i);
@@ -586,6 +629,7 @@ export class Sim {
    * waits and platforms, the line's units and speed, and the weather and season. */
   journeyKey(): number {
     const g = this.g; let h = g.line.units * 7 + g.line.timetable + 97 * weatherKey(g);
+    for (const x of this.secs) h = (Math.imul(h, 31) + (g.places[x.id]?.[SECTION_SPEED.id] ?? 0)) | 0;
     for (let i = 0; i < this.S.length; i++) {
       const u = g.ups[i] ?? {};
       h = (Math.imul(h, 31) + (g.owned[i] ? 1 : 0) + (u.crossing ? 2 : 0) + (u.lifts ? 4 : 0) + (u.canopy ? 8 : 0) + (u.platform2 ? 16 : 0) + (u.platforms ? 32 : 0)) | 0;
@@ -770,6 +814,7 @@ export class Sim {
     const p = this.P.byId.get(id); if (!p) return undefined;
     if (stage === undefined) return p.kind === 'station' ? this.stationPrice(p.station!) : p.kind === 'stop' && p.stop ? this.cost(p.stop.price) : undefined;
     if (p.kind === 'station') { const u = UPGRADES.find(x => x.id === stage && !x.stop); return u ? this.upgradePrice(p.station!, u) : undefined; }
+    if (p.kind === 'section') return stage === SECTION_SPEED.id ? this.sectionAt(id)?.price : undefined;
     const u = this.lineStage(stage);
     return u && this.P.stagesFor(this.net, id).includes(u) ? this.linePrice(u.id) : undefined;
   }
@@ -780,6 +825,7 @@ export class Sim {
     if (stage === undefined) return !(id in g.places) && this.P.touches(g, id) && !this.P.waits(g, this.net, id);
     if (!this.owns(id)) return false;
     if (p.kind === 'station') { const i = p.station!, u = UPGRADES.find(x => x.id === stage)!; return !this.ups(i)[u.id] && this.offered(i, u) && this.ready(i, u); }
+    if (p.kind === 'section') return true;
     const u = this.lineStage(stage)!;
     return g.line[u.id] < u.max && this.lineReady(u.id);
   }
@@ -787,7 +833,7 @@ export class Sim {
   buy(id: string, stage?: string): boolean {
     if (!this.canBuy(id, stage)) return false;
     const p = this.P.get(id);
-    this.g.cash -= this.price(id, stage)!; build(this.g, id, stage); derive(this.g, this.P);
+    this.g.cash -= this.price(id, stage)!; build(this.g, id, stage); derive(this.g, this.P); this.speeds.clear();
     if (p.kind === 'station' && stage !== undefined) {
       const i = p.station!;
       if (stage === 'taxi') this.state(i).cabs = new Array<number>(TUNING.cabs).fill(0);   // the rank opens with every cab in
@@ -800,7 +846,7 @@ export class Sim {
    * game). */
   grant(id: string, stage?: string): void {
     if (stage === undefined || this.P.get(id).kind !== 'station' || !this.g.places[id]?.[stage]) build(this.g, id, stage);
-    derive(this.g, this.P);
+    derive(this.g, this.P); this.speeds.clear();
     if (stage === 'taxi') { const i = this.P.get(id).station!; if (!this.state(i).cabs.length) this.state(i).cabs = new Array<number>(TUNING.cabs).fill(0); }
     if (stage === 'carpark') openAccess(this, this.P.get(id).station!, 'carpark');
     this.jkey = -1;
@@ -831,6 +877,6 @@ export class Sim {
     return id !== 'units' || !!this.ups(this.svcs[0]!.route[0]!).platform2;
   }
   /** The place each line upgrade is a stage of: the stopper, or the sidings for the spare unit. */
-  linePlace(id: LineUpgradeId): string | null { return LINE_PLACE[id] === 'route' ? this.P.stopper : this.P.sidings; }
+  linePlace(id: LineUpgradeId): string | null { return id === 'timetable' ? null : LINE_PLACE[id] === 'route' ? this.P.stopper : this.P.sidings; }
   buyLine(id: string): boolean { const u = this.lineStage(id), p = u && this.linePlace(u.id); return !!p && this.buy(p, id); }
 }

@@ -99,10 +99,13 @@ for (const p of P.all) {
 // rest of the file keeps its own layout and another session's edits merge
 if (process.argv.includes('--write')) {
   let text = readFileSync(file, 'utf8').replace(/,\n  "sectionNote": [\s\S]*?\n  "sections": \{[\s\S]*?\n  \}(?=\n\}\s*$)/, '');
-  const note = 'Real line speed (mph) and share wired, from OpenStreetMap by tools/osm-to-sections.mjs, 13 October 2026.';
-  const body = Object.entries(out).map(([k, v]) => `    ${JSON.stringify(k)}: ${JSON.stringify(v).replace(/,"/g, ', "').replace(/":/g, '": ').replace(/^\{/, '{ ').replace(/\}$/, ' }')}`).join(',\n');
+  // each corridor's sections in chainage order (as src/sim/places.ts makes them): their speeds, and the share wired
+  const by = {};
+  for (const [id, v] of Object.entries(out)) { const c = id.split(':')[0]; (by[c] ??= { mph: [], wired: [] }); by[c].mph.push(v.mph ?? null); by[c].wired.push(v.wired); }
+  const note = 'Sections by corridor, in chainage order: real mph and share wired (tools/osm-to-sections.mjs).';
+  const body = Object.entries(by).map(([k, v]) => `    ${JSON.stringify(k)}: { "mph": ${JSON.stringify(v.mph).replace(/,/g, ', ')}, "wired": ${JSON.stringify(v.wired).replace(/,/g, ', ')} }`).join(',\n');
   text = text.replace(/\n\}\s*$/, `,\n  "sectionNote": ${JSON.stringify(note)},\n  "sections": {\n${body}\n  }\n}\n`);
   JSON.parse(text);
   writeFileSync(file, text);
-  console.log(`wrote ${Object.keys(out).length} sections to src/data/network.json`);
+  console.log(`wrote ${Object.keys(out).length} sections on ${Object.keys(by).length} corridors to src/data/network.json`);
 }

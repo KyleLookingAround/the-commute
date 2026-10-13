@@ -72,6 +72,8 @@ export interface Handlers {
   saves: (i: number | null, id: string) => string | null;
   /** Open the renewal sheet (once the whole line is owned). */
   renew: () => void;
+  /** Show a section of line on the map with its next line speed step as a ghost, or what it built (bought); null stops. */
+  showSection: (id: string | null, bought?: boolean) => void;
 }
 
 /** A stage on the open card, as its card, the Buy bar and the timer read it. */
@@ -212,7 +214,8 @@ export class UI {
   }
   /** Next to: a chip for each place touching this one that's owned or offered; a tap flies there and opens it. */
   private nextTo(id: string): void {
-    const near = this.sim.P.touching(id).filter(k => this.listed(k));
+    // what the row lists, and the sections of line the player has (they're found on the map or here, not on the row)
+    const near = this.sim.P.touching(id).filter(k => this.listed(k) || (k.startsWith('section:') && this.sim.owns(k)));
     if (!near.length) return;
     const p = document.createElement('div'); p.className = 'next'; p.innerHTML = '<span>Next to</span>';
     for (const k of near) p.appendChild(this.chip(k, 'next'));
@@ -344,6 +347,7 @@ export class UI {
     const sim = this.sim, g = this.g, p = sim.P.get(id), panel = this.els.panel;
     if (p.kind === 'route') panel.innerHTML = this.stats([['rUnits', 'Units'], ['rCars', 'Cars'], ['rEvery', 'Every'], ['rAboard', 'Aboard']], id === sim.P.stopper ? [['rSpeed', 'Line speed'], ['rBus', 'By bus']] : []);
     else if (p.kind === 'depot') panel.innerHTML = this.stats([['dSpare', 'Spare unit'], ['dFails', 'Failures'], ['dBus', 'By bus']]);
+    else if (p.kind === 'section') { this.sectionCard(id); return; }
     else { panel.innerHTML = '<p class="blurb">Comes with the stations at its ends.</p>'; return; }
     const step = (u: LineUpgrade, lvl: number) => u.max > 1 ? `${u.name} ${lvl + 1} of ${u.max}` : u.name;
     this.stageCards(sim.P.stagesFor(sim.net, id).filter(u => sim.lineReady(u.id)).map(x => {
@@ -357,6 +361,20 @@ export class UI {
       };
       return { id: u.id, stage, saves: this.on.saves(null, u.id), opens: lvl + 1 < u.max ? [step(u, lvl + 1)] : [], built };
     }), k => this.on.showLine(k, true));
+  }
+  /** A section of line: its line speed and length, and once it's the player's (both ends owned) its next line speed
+   * step, 15 mph faster (the line between stations). */
+  private sectionCard(id: string): void {
+    const sim = this.sim, x = sim.sectionAt(id), panel = this.els.panel;
+    panel.innerHTML = this.stats([['xSpeed', 'Line speed'], ['xLen', 'Length']]) + `<p class="blurb">Comes with the stations at its ends.</p>`;
+    if (!x || !sim.owns(id)) return;
+    const price = x.price, name = 'Line speed', next = Math.min(90, x.mph + 15);
+    const stage: Stage | null = price === undefined ? null : {
+      name: `${name} ${next} mph`, adds: `Track renewed: ${x.mph} → ${next} mph through it`, price, can: () => sim.canBuy(id, 'speed'),
+      buy: () => { if (!sim.buy(id, 'speed')) return false; this.toast(`${sim.P.get(id).name}: ${next} mph`); this.on.showSection(id, true); return true; },
+      pick: on => this.on.showSection(on ? id : null),
+    };
+    this.stageCards([{ id: 'speed', stage, saves: null, opens: [], built: x.level ? `${name} ${x.mph} mph` : null }], () => this.on.showSection(id, true));
   }
   /** A bus stop or bus station: what it does, and its figures once it's the player's. */
   private stopCard(id: string): void {
@@ -411,6 +429,8 @@ export class UI {
       set('rAboard', num(mine.reduce((n, t) => n + t.onboard, 0))); set('rSpeed', `${g.line.timetable ? 90 : 75} mph`); set('rBus', num(g.trouble.bused));
     } else if (p?.kind === 'depot') {
       set('dSpare', g.line.spare ? 'Ready' : 'None'); set('dFails', num(g.trouble.fails)); set('dBus', num(g.trouble.bused));
+    } else if (p?.kind === 'section') {
+      const x = sim.sectionAt(id); set('xSpeed', x ? `${x.mph} mph` : '–'); set('xLen', x ? `${x.miles.toFixed(1)} mi` : '–');
     } else if (p?.kind === 'stop') {
       const S = sim.state(p.station!); set('sBus', num(S.bus)); set('sWait', `${S.waiting} waiting`);
     } else if (!p) {

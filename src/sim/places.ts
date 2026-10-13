@@ -40,17 +40,20 @@ export const UPGRADES: Upgrade[] = [
 export const LINE_UPGRADES: LineUpgrade[] = [
   { id: 'units', name: 'Extra unit', prices: [6000, 20000, 50000], desc: 'One more train in service: shorter waits, more passengers', max: 3 },
   { id: 'cars', name: 'Longer trains', prices: [12000, 40000], desc: '+2 cars per unit', max: 2 },
-  { id: 'timetable', name: 'Faster timetable', prices: [20000], desc: 'Line speed 75 → 90 mph and new signals: quicker rides, fewer signal failures', max: 1 },
   { id: 'spare', name: 'Spare unit', prices: [8000], desc: 'Stands by in Stockport’s sidings: a failed train is moving again in half the time', max: 1 },
 ];
+/** A section of line's stage (the line between stations, docs/briefs/line-between-stations.md): line speed, 15 mph a
+ * step up to SECTION_TOP, at `perMile` pounds a mile a step (the faster timetable's £20,000 over the stopper's six
+ * miles). How many steps a section has, from where it starts, is the sim's (Sim.sectionAt). */
+export const SECTION_SPEED = { id: 'speed', name: 'Line speed', perMile: 3300, step: 15, top: 90, desc: 'Track renewed for a faster line speed: quicker rides through it' } as const;
 /** Which kind of place each of those stages is on. */
-export const LINE_PLACE: Record<LineUpgradeId, 'route' | 'depot'> = { units: 'route', cars: 'route', timetable: 'route', spare: 'depot' };
+export const LINE_PLACE: Record<Exclude<LineUpgradeId, 'timetable'>, 'route' | 'depot'> = { units: 'route', cars: 'route', spare: 'depot' };
 
 export const placeId = (kind: PlaceKind, name: string): string => `${kind}:${name}`;
 
 /** A place as the network data gives it. station: the station's index (a station; the one a stop or depot stands by);
  * svc: a route's service; ends: a section's ends, as nodes (station or junction place ids), along `corridor`. */
-export interface Place { id: string; kind: PlaceKind; name: string; station?: number; svc?: string; ends?: [string, string]; corridor?: string; stop?: StopDef }
+export interface Place { id: string; kind: PlaceKind; name: string; station?: number; svc?: string; ends?: [string, string]; corridor?: string; stop?: StopDef; s0?: number; s1?: number }
 
 /** Every place on a network, what touches what, and what comes with what. Built once a network (`places`). */
 export class Places {
@@ -62,6 +65,8 @@ export class Places {
   stopOf: (string | null)[];
   /** The main-line stopper's route, and the depot its spare unit stands in (Stockport's sidings). */
   stopper: string; sidings: string | null;
+  /** The sections the stopper runs over, end to end. */
+  stopperSections: string[] = [];
   /** Each station's neighbours along the lines, through junctions: the next station each way on each corridor. */
   near = new Map<string, string[]>();
   /** The sections and junctions at each node (a station or junction place id). */
@@ -92,15 +97,18 @@ export class Places {
         else if (net.def.corridors.find(d => d.id === c.id)?.to === j.id) items.push([c.end, k]);
       }
       items.sort((a, b) => a[0] - b[0]);
-      const nodes = items.map(x => x[1]).filter((k, n, a) => a.indexOf(k) === n);
+      const nodes = items.map(x => x[1]).filter((k, n, a) => a.indexOf(k) === n), sAt = (k: string) => items.find(x => x[1] === k)![0];
       for (let n = 0; n + 1 < nodes.length; n++) {
         const a = nodes[n]!, b = nodes[n + 1]!, id = `section:${c.id}:${a.split(':')[1]}${a.startsWith('junction') ? '-junction' : ''}:${b.split(':')[1]}${b.startsWith('junction') ? '-junction' : ''}`;
         const ends = (k: string) => this.byId.get(k)?.name ?? net.junction(k.slice('junction:'.length)).name;
-        add({ id, kind: 'section', name: `${ends(a)} – ${ends(b)}`, ends: [a, b], corridor: c.id });
+        add({ id, kind: 'section', name: `${ends(a)} – ${ends(b)}`, ends: [a, b], corridor: c.id, s0: sAt(a), s1: sAt(b) });
         for (const k of [a, b]) { const l = this.at.get(k) ?? []; l.push(id); this.at.set(k, l); }
       }
     }
     for (const j of net.junctions) { const k = placeId('junction', j.id); if (this.at.has(k)) add({ id: k, kind: 'junction', name: j.name }); }
+    // the stopper's sections: on the corridors its route runs along, between its end stations
+    { const path = net.route(first.def), ends = first.route.map(i => net.stations[i]!.s), lo = Math.min(...ends), hi = Math.max(...ends);
+      this.stopperSections = this.all.filter(p => p.kind === 'section' && path.uses(p.corridor!) && p.s0! >= lo - 1 && p.s1! <= hi + 1).map(p => p.id); }
     // each station's neighbours: the first station along each section from it, walking on through junctions
     for (const s of this.station) this.near.set(s, this.beyond(s, null));
   }
@@ -177,13 +185,13 @@ export class Places {
     return this.all.filter(p => (p.kind === 'station' || p.kind === 'stop') && !(p.id in g.places) && this.touches(g, p.id) && !this.waits(g, net, p.id)).map(p => p.id);
   }
   /** The stages a place grows through: a station those its `grow` lists and the everyday ones; the stopper its units,
-   * longer trains and faster timetable; the sidings the spare unit. Others have none yet (sections and junctions get
-   * theirs with the line between stations, stops theirs with buses as a network). */
+   * longer trains; the sidings the spare unit. A section's line speed is the sim's (Sim.sectionAt); junctions get
+   * theirs with the line between stations, stops theirs with buses as a network. */
   stagesFor(net: Network, id: string): (Upgrade | LineUpgrade)[] {
     const p = this.get(id);
     if (p.kind === 'station') { const grow = net.stations[p.station!]?.grow; return UPGRADES.filter(u => !u.stop && (!u.stage || !!grow?.[u.id as StageId])); }
-    if (id === this.stopper) return LINE_UPGRADES.filter(u => LINE_PLACE[u.id] === 'route');
-    if (id === this.sidings) return LINE_UPGRADES.filter(u => LINE_PLACE[u.id] === 'depot');
+    if (id === this.stopper) return LINE_UPGRADES.filter(u => LINE_PLACE[u.id as keyof typeof LINE_PLACE] === 'route');
+    if (id === this.sidings) return LINE_UPGRADES.filter(u => LINE_PLACE[u.id as keyof typeof LINE_PLACE] === 'depot');
     return [];
   }
 }
@@ -212,7 +220,10 @@ export function derive(g: GameState, P: Places): GameState {
     return Object.freeze(o);
   }));
   const R = g.places[P.stopper] ?? {}, D = (P.sidings ? g.places[P.sidings] : undefined) ?? {};
-  const line = Object.freeze({ units: R['units'] ?? 0, cars: R['cars'] ?? 0, timetable: R['timetable'] ?? 0, spare: D['spare'] ?? 0 });
+  // the faster timetable's new signals and recovery (src/sim/sim.ts, trouble, weather) once every section the stopper
+  // runs has had its line speed raised, until resignalling by section takes them over
+  const timetable = P.stopperSections.length && P.stopperSections.every(k => (g.places[k]?.['speed'] ?? 0) > 0) ? 1 : 0;
+  const line = Object.freeze({ units: R['units'] ?? 0, cars: R['cars'] ?? 0, timetable, spare: D['spare'] ?? 0 });
   for (const [k, value] of [['owned', owned], ['ups', ups], ['line', line]] as const) Object.defineProperty(g, k, { value, enumerable: false, configurable: true, writable: false });
   return g;
 }

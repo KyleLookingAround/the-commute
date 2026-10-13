@@ -190,8 +190,8 @@ test('journeys: door to door, upgrades save minutes and minutes bring passengers
   assert.ok(sim.buyUpgrade(0, 'platform2') && sim.buyLine('units'));
   assert.ok(Math.abs(J().wait - start.wait / 2) < 1, 'a second unit halves the wait');
   const t2 = trips(); assert.ok(t2 > t1, 'and brings more people');
-  assert.ok(sim.buyLine('timetable'));
-  assert.ok(J().ride < start.ride && J().wait < start.wait / 2, 'the faster timetable shortens the ride and the wait');
+  for (const k of sim.P.stopperSections) sim.grant(k, 'speed');
+  assert.ok(J().ride < start.ride && J().wait < start.wait / 2, 'a faster line speed on every section shortens the ride and the wait');
   assert.ok(trips() > t2, 'and brings more people');
 });
 

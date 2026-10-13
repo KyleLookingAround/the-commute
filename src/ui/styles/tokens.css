@@ -4,19 +4,26 @@
    navy with departure-board amber; the map's own palette is a bright model railway in daylight. */
 :root{
   color-scheme:dark;
-  /* colour roles */
-  --bg:#0c1020; --surface:#151b32; --surface-2:#1f2748; --line:#2b3459; --line-strong:#4a5580;
+  /* colour roles: borders (--line) at 3:1 on the surface and cards, --line-soft for dividers inside a panel, locked
+     text (--lock) at 4.5:1 or more */
+  --bg:#0c1020; --surface:#151b32; --surface-2:#1f2748; --line:#5e6a98; --line-soft:#2b3459; --line-strong:#7480b0;
   --ink:#f0ebdd; --soft:#9aa2bf; --accent:#f2b63a; --accent-ink:#1b1403; --accent-soft:#5a4a1f;
-  --ok:#6fe3a5; --ok-soft:#2f6b4c; --card:#0f1428; --accent-glow:rgba(242,182,58,.25); --ghost:var(--map-ghost); --ghost-glow:rgba(79,220,255,.28); --danger:#ff6a57; --lock:#6b7391; --focus:#7fd8ff;
+  --ok:#6fe3a5; --ok-soft:#2f6b4c; --card:#0f1428; --accent-glow:rgba(242,182,58,.25); --ghost:var(--map-ghost); --ghost-glow:rgba(79,220,255,.28); --danger:#ff6a57; --lock:#7d86a6; --focus:#7fd8ff;
   /* older names, kept as aliases */
   --panel:var(--surface); --panel-hi:var(--surface-2); --fg:var(--ink); --muted:var(--soft);
   /* type */
   --display:"Overpass", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono:"Overpass Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --text-xs:10px; --text-sm:12px; --text:14px; --text-lg:17px; --text-xl:24px;
+  /* no type under 12 px */
+  --text-xs:12px; --text-sm:13px; --text:15px; --text-lg:17px; --text-xl:24px;
   /* spacing, 4 px steps; radii; motion */
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:24px; --s-6:32px;
-  --r-sm:6px; --r:10px; --r-pill:999px;
+  --r-sm:6px; --r:10px; --r-lg:18px; --r-pill:999px;
+  /* what floats over the map: one lift, and one translucent navy for the map's pills and labels (panels stay solid) */
+  --elev:0 6px 24px rgba(0,0,0,.35); --glass:rgba(12,16,32,.86);
+  /* the sheet (src/ui/sheet.ts): its peek and half heights in portrait, its width docked to the side (landscape,
+     tablet, desktop) */
+  --peek:142px; --half:58%; --sheet-w:340px;
   --motion:160ms;
   --touch:44px;
   /* behind a sheet: the stage dimmed */
@@ -63,4 +70,6 @@
   --map-home-roof:#5d6b80; --map-home-tile:#a8473a; --map-home-glass:#cfe6f5;
   --map-ghost:#4fdcff; --map-house-sat:0.45; --map-tower-sat:0.15; --map-house-light:0.42; --map-tower-light:0.5;
 }
+@media (min-width:768px){ :root{ --sheet-w:360px } }
+@media (min-width:1200px){ :root{ --sheet-w:400px } }
 @media (prefers-reduced-motion: reduce){ :root{ --motion:0ms } }

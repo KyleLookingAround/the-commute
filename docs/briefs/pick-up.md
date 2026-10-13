@@ -57,3 +57,12 @@ Nothing runs alongside this session. If the coordinator starts another, it will 
 
 - Estimate: about $30 an item for items 2 and 5's parts, and $10 to $20 for the others.
 - At about 500k of context, stop at the end of the current item. Add a "## Handed on" section here saying where the list stands, and tell the coordinator, which will start a fresh session on it.
+
+## Handed on
+
+13 October 2026, from the first pick-up session, stopping at about 450k of context as the cost budget says.
+
+- **Item 1, done.** Main is green from 9059634 (run 38394838744, all four shards). What it took: camera flights take the frame's real time up to half a second a frame, and riding follows a unit's cars rather than its group, which stood at the origin (4141ff8, 03240af, 3d1c50b); the far tree clumps only from 8 m across, to keep the triangle budgets; the trouble group waits for its flashing lamps; the shards rebalanced on current minutes, with a 40-minute job limit (ff18792); the perf group counts the map with every square loaded, so CI and a local run agree (9059634: opening 447,040 of 450,000, busy save 541,428 of 550,000 on main). The coordinator decided against trimming further for headroom until a run comes in over budget.
+- **Item 2, done** (d4f9dde, its Publish run to be confirmed by the next session if this one hasn't): places in the sim, as its commit message says. The busy save's perf count is 548,514 with it, as the save now opens its taxi ranks and car parks: little room under 550,000, so item 3 or 4 adding to the map must make room first.
+- **Next: item 3**, the audit fix. `docs/audits/phase-3-4.md` is on `main` (ffc2918), with the coordinator's additions: the Middlewood bridge slab, and leave the roads (finding 1) and buildings across the stand-in roads to steps 8 and 9. The road bridges over the line are in `docs/briefs/real-surroundings/bridges.md`. Then items 4 to 7 as listed.
+- **Working here:** a browser check group takes 5 to 20 minutes in this container (the camera group about 19); run the groups an item touches in the background, one at a time, and let the Publish run do the rest.

@@ -26,7 +26,7 @@ export class Settings {
       <label class="set-vol">Volume<input type="range" min="0" max="1" step="0.05" aria-label="Volume"></label></div></section>
       <section><h3>Graphics</h3><div class="set-row set-seg"><button data-q="high" aria-pressed="false">High</button><button data-q="low" aria-pressed="false">Low</button></div>
       <div class="set-row"><button data-t="shadows" aria-pressed="false">Shadows</button><button data-t="fewer" aria-pressed="false">Fewer people</button><button data-t="sharp" aria-pressed="false">Sharp</button></div>
-      <p class="set-note">Low is lighter on older phones.</p></section>
+      <p class="set-note">Low is lighter on older phones. Fewer people also leaves out the buildings far off.</p></section>
       <section><h3>Weather</h3><div class="set-row"><button data-t="weather" aria-pressed="false">Weather</button></div>
       <p class="set-note">Fair weather keeps rain, fog and snow off the map. The game plays the same. Settings stay on this device.</p></section>
       <section class="set-screen"><h3>Screen</h3><div class="set-row"><button id="vFull" aria-pressed="false">Full screen</button></div></section>

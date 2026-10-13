@@ -102,6 +102,8 @@ const { renderer, scene, camera, sun, lighting, resize } = createScene(canvas);
 const world = buildWorld(scene, net, networkDef);
 const reach = new ReachLayer(world.ground, net);
 const homes = new HomesLayer(scene, net, world);
+// the real buildings come in after the first frame: the new homes keep off them
+void world.buildings.ready.then(() => homes.replan());
 const built = buildStations(scene, net, kits);
 const lineside = new Lineside(scene, net);
 // everything on the ground so far throws and takes shadows; the sky, added after, does neither
@@ -137,6 +139,9 @@ const view = {
   // car parks and bus links as drawn: cars standing in each station's car parks, and the town's buses at the links
   // point the camera (for the checks' screenshots)
   look: (o: Partial<import('./render/camera.ts').Orbit>) => { Object.assign(rig.o, o); },
+  // the real buildings as drawn: what was read, drawn and left out; loadAll fetches every square (and the fine terrain) now
+  buildings: () => ({ ...world.buildings.stats, squares: world.buildings.squares.size }),
+  loadBuildings: () => world.buildings.loadAll(),
   access: () => ({ cars: built.map(b => b.live.parks.reduce((a, f) => a + f.mesh.count, 0)), buses: links.count }),
   trouble: () => ({ hazards: trains.hazards.count, cautions: trains.posts.count, buses: buses.count, spare: trains.spare.visible }),
   // life as drawn: suitcases and bikes beside the figures, figures drawn, and what the sound has started
@@ -223,7 +228,7 @@ function graphics(p: Prefs, was: Prefs | null): void {
     renderer.shadowMap.enabled = p.shadows;
     if (was) scene.traverse(o => { if (o instanceof THREE.Mesh) for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.needsUpdate = true; });
   }
-  pax.setFewer(p.fewer); weather.setLow(p.fewer); weather.setFair(!p.weather);
+  pax.setFewer(p.fewer); weather.setLow(p.fewer); world.buildings.setLow(p.fewer); weather.setFair(!p.weather);
   renderer.setPixelRatio(p.sharp ? Math.min(2, window.devicePixelRatio || 1) : 1);
 }
 graphics(prefs, null);

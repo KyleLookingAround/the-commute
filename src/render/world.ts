@@ -4,6 +4,7 @@ import { MAT, PAL } from './scene.ts';
 import { byCell } from './cells.ts';
 import { bridgesOf, buildLandmarks, onCourses, viaductOf } from './landmarks.ts';
 import { Terrain, TerrainLayer, fineFiles, kitFiles, setTerrain } from './terrain.ts';
+import { BuildingsLayer, worldFiles } from './buildings.ts';
 import { SPINE, newFrame } from '../sim/network.ts';
 import type { Network } from '../sim/network.ts';
 import type { NetworkGeoDef } from '../sim/types.ts';
@@ -16,8 +17,9 @@ export const yawFor = (p: { dx: number; dz: number }): number => Math.atan2(-p.d
 /** groundY: the ground's height as drawn (src/render/terrain.ts); ground: the terrain's material, which the reach
  * (src/render/reach.ts) draws on; buildable: whether a building r metres round (x, z) would stand clear of the railway's
  * land, the river, the M60, the town in the viaduct's valley, the roads and the houses already drawn, on ground level
- * enough to build on (for homes that grow, src/render/homes.ts); terrain: the ground itself. */
-export interface World { groundY: (x: number, z: number) => number; yawFor: typeof yawFor; ground: THREE.MeshLambertMaterial; buildable: (x: number, z: number, r: number) => boolean; terrain: TerrainLayer }
+ * enough to build on (for homes that grow, src/render/homes.ts); terrain: the ground itself; buildings: the real ones
+ * (src/render/buildings.ts). */
+export interface World { groundY: (x: number, z: number) => number; yawFor: typeof yawFor; ground: THREE.MeshLambertMaterial; buildable: (x: number, z: number, r: number) => boolean; terrain: TerrainLayer; buildings: BuildingsLayer }
 
 export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef): World {
   const c = net.spine;
@@ -35,6 +37,9 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   scene.add(layer.group);
   const ground = layer.material;
   const groundY = (x: number, z: number): number => terrain.groundY(x, z);
+  // the real buildings, where there are tiles for them: the made-up houses keep out of those squares
+  const buildings = new BuildingsLayer(terrain, worldFiles(), net, kitFiles(), layer);
+  scene.add(buildings.group);
 
   // ---- the far ground: one flat field out to the horizon at the level the terrain eases to, so it never shows an edge ----
   // drawn first (after the sky) and without depth: one quad this big loses depth tests to the terrain above it from some
@@ -133,6 +138,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       const tower = city && nearStation > 600;
       const w = terrace ? 12 + seed(k, 6) * 26 : 8 + seed(k, 6) * 10, d = 9 + seed(k, 7) * 6, h = tower ? 14 + seed(k, 8) * 60 : 6 + seed(k, 8) * 5;
       const p = c.at(s, off);
+      if (buildings.real(p.x, p.z)) continue;
       if (onRoad(p.x, p.z, 6 + Math.max(w, d) / 2)) continue;
       // on the ground's lowest corner, its walls running down into it; none on a bank too steep to build on
       const rr = Math.max(w, d) / 2, ys = [groundY(p.x, p.z), groundY(p.x - rr, p.z - rr), groundY(p.x + rr, p.z - rr), groundY(p.x - rr, p.z + rr), groundY(p.x + rr, p.z + rr)];
@@ -159,6 +165,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     const ys = [groundY(x, z), groundY(x - r, z), groundY(x + r, z), groundY(x, z - r), groundY(x, z + r)];
     if (Math.max(...ys) - Math.min(...ys) > 4) return false;
     if (onCourse(x, z, r)) return false;
+    if (buildings.blocked(x, z, r + 2)) return false;
     for (const [[ax, az], [bx, bz]] of roadSegs) {
       const dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
       if (Math.hypot(x - ax - dx * t, z - az - dz * t) < r + 7) return false;
@@ -171,6 +178,6 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     return true;
   };
 
-  return { groundY, yawFor, ground, buildable, terrain: layer };
+  return { groundY, yawFor, ground, buildable, terrain: layer, buildings };
 }
 

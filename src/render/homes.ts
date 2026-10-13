@@ -23,17 +23,28 @@ interface Plot { x: number; y: number; z: number; yaw: number; w: number; d: num
 
 export class HomesLayer {
   /** Each station's plots, nearest first, and how many show. */
-  readonly plots: Plot[][] = [];
-  private shown: number[];
-  private walls: THREE.InstancedMesh; private roofs: THREE.InstancedMesh; private tops: THREE.InstancedMesh; private bands: THREE.InstancedMesh;
+  plots: Plot[][] = [];
+  private shown: number[] = [];
+  private walls!: THREE.InstancedMesh; private roofs!: THREE.InstancedMesh; private tops!: THREE.InstancedMesh; private bands!: THREE.InstancedMesh;
   /** Where each plot's instances start: [station][k] -> index into walls (and roofs/tops), and into bands. */
   private at: number[][] = []; private bandAt: number[][] = [];
-  private meshes: THREE.InstancedMesh[];
+  private meshes: THREE.InstancedMesh[] = [];
   private rising: number[] = []; private first = true;
   private m4 = new THREE.Matrix4(); private q = new THREE.Quaternion(); private e = new THREE.Euler(); private v = new THREE.Vector3(); private sc = new THREE.Vector3();
   private zero = new THREE.Matrix4().makeScale(0, 0, 0);
 
-  constructor(scene: THREE.Scene, net: Network, world: World) {
+  constructor(private scene: THREE.Scene, private net: Network, private world: World) { this.plan(); }
+
+  /** Where they can go, worked out again (once the real buildings are in, so none stands on one): what shows is put
+   * back at once on the next frame. */
+  replan(): void {
+    for (const m of this.meshes) { this.scene.remove(m); m.dispose(); m.geometry.dispose(); (m.material as THREE.Material).dispose(); }
+    this.plots = []; this.at = []; this.bandAt = []; this.rising = []; this.first = true;
+    this.plan();
+  }
+
+  private plan(): void {
+    const { scene, net, world } = this;
     const c = net.spine, st = net.stations.map(s => net.stationFrame(s.id));
     const taken: number[] = [];   // x, z, r of every plot so far
     const clear = (x: number, z: number, r: number): boolean => {

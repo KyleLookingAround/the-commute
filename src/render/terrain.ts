@@ -220,6 +220,28 @@ export class Terrain {
     const x = fr.x, z = fr.z; c.at(s, o, fr);
     return this.raw(x, z) - this.datumAt(fr.x, fr.z);
   }
+  /** Where a surveyed point (a building's middle, a tree) is drawn: moved out from the line as the ground beside it is
+   * read (realOffset, inverted), so it stands where its ground is drawn. (One array, filled again: read it at once.) */
+  drawnAt(x: number, z: number): [number, number] {
+    const { s, o, past } = this.locate(x, z), out = DRAWN;
+    out[0] = x; out[1] = z;
+    if (past || Math.abs(o) > 2 * FAR) return out;
+    const [lo, hi] = this.band(s); let d = o;
+    for (let k = 0; k < 6; k++) d += o - this.realOffset(d, lo, hi);
+    this.net.spine.at(s, 0, LOC_F); out[0] = x + LOC_F.nx * (d - o); out[1] = z + LOC_F.nz * (d - o);
+    return out;
+  }
+  /** Whether a drawn point is on the railway's land, within `margin` m of it, or on its cutting or embankment slope
+   * (where the ground is drawn shaped to the line rather than as surveyed). */
+  railLand(x: number, z: number, margin: number): boolean {
+    const { s, o, past } = this.locate(x, z);
+    if (past || Math.abs(o) > 2 * FAR) return false;
+    const [lo, hi, pLo, pHi] = this.band(s);
+    if (o >= lo - margin && o <= hi + margin) return !this.bridged(s) || (o >= lo && o <= hi);
+    if (this.bridged(s)) return false;
+    const out = o > hi ? o - hi : lo - o, g = this.beside(s, o);
+    return Math.abs(shape(g, out, o > hi ? pHi : pLo, this.beside(s, o > hi ? hi + 2.5 : lo - 2.5)) - g) > 0.3;
+  }
   /** The ground's height as drawn at a point: 0 on the railway's land, else the real ground less the datum, with the
    * slopes and walls where they meet. */
   groundY(x: number, z: number): number {
@@ -248,6 +270,7 @@ export class Terrain {
   hasFine(key: string): boolean { return this.fine.has(key.replace('_', ',')); }
 }
 const FRAME = { x: 0, z: 0, heading: 0, dx: 0, dz: 0, nx: 0, nz: 0 }, LOC_F = { ...FRAME }, LOC = { s: 0, o: 0, past: false }, BAND: [number, number, boolean, boolean] = [0, 0, false, false];
+const DRAWN: [number, number] = [0, 0];
 
 /** The ground `out` metres past the land's edge, given the real ground there (g) and just past the edge (g0): at a
  * station a wall up or down to the ground; on the open line no steeper than a cutting or an embankment slope. */
@@ -324,7 +347,7 @@ export class TerrainLayer {
   readonly material: THREE.MeshLambertMaterial;
   readonly group = new THREE.Group();
   private chunks: { s0: number; s1: number; mid: THREE.Vector3; mesh: THREE.Mesh; coarse: THREE.BufferGeometry; fine: THREE.BufferGeometry | null; dirty: boolean }[] = [];
-  private files: Record<string, string>; private loading = new Set<string>();
+  private files: Record<string, string>; private loading = new Map<string, Promise<void>>();
   private col = palette(); private last = -1;
   /** The base mesh's chunks: they take shadows but cast none (the page sets every mesh casting at start; the first frame unsets these). */
   private baseMeshes: THREE.Mesh[] = [];
@@ -362,6 +385,13 @@ export class TerrainLayer {
   fineStrips(): THREE.BufferGeometry[] { return this.chunks.map(ch => this.strip(ch.s0, ch.s1, ROW_FINE, OUT_FINE)); }
   /** Load every fine tile now (for the checks and a screenshot that wants the detail at once). */
   async loadAll(): Promise<void> { await Promise.all(Object.keys(this.files).map(k => this.get(k))); for (const ch of this.chunks) ch.dirty = true; this.last = -1; }
+  /** Load the fine tiles a circle touches (for what stands on the ground there: the buildings wait for them). */
+  async ensure(x: number, z: number, r: number): Promise<void> {
+    const keys = this.t.fineWanted(x, z, r, k => k in this.files); if (!keys.length) return;
+    await Promise.all(keys.map(k => this.get(k)));
+    for (const ch of this.chunks) if (Math.hypot(x - ch.mid.x, z - ch.mid.z) < r + CHUNK) ch.dirty = true;
+    this.last = -1;
+  }
   private fetch(x: number, z: number, r: number): void {
     for (const key of this.t.fineWanted(x, z, r, k => k in this.files)) if (!this.loading.has(key)) this.get(key).then(() => {
       // the chunks over this tile draw again with it
@@ -369,9 +399,14 @@ export class TerrainLayer {
       this.last = -1;
     });
   }
-  private async get(key: string): Promise<void> {
-    if (this.loading.has(key) || this.t.hasFine(key)) return; this.loading.add(key);
-    try { const res = await fetch(this.files[key]!); if (res.ok) this.t.addFine(key, await res.text()); } catch { this.loading.delete(key); }
+  private get(key: string): Promise<void> {
+    if (this.t.hasFine(key)) return Promise.resolve();
+    let p = this.loading.get(key);
+    if (!p) {
+      p = (async () => { try { const res = await fetch(this.files[key]!); if (res.ok) this.t.addFine(key, await res.text()); } catch { this.loading.delete(key); } })();
+      this.loading.set(key, p);
+    }
+    return p;
   }
   /** The colour of a vertex of ground at a point, `out` past the land's edge (or the land itself at -1), on a slope. */
   private colour(x: number, z: number, out: number, slope: number, k: THREE.Color): THREE.Color {

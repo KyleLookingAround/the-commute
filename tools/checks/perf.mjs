@@ -49,6 +49,9 @@ export default async function ({ ok, open, root }) {
 
   for (const [tag, save] of [['open', null], ['busy', busy]]) {
     const { ctx, page, errs } = await open({ width: 390, height: 844 }, { touch: true, save, steady: 50 });
+    // every square of real buildings and trees in first, so the count is the most the page draws here, not what has
+    // happened to load by now
+    await page.evaluate(() => window.__view.loadBuildings?.());
     const cdp = await ctx.newCDPSession(page);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
     // let it settle (the rises, the weather easing in), then time FRAMES frames

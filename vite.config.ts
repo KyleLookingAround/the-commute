@@ -29,6 +29,19 @@ function offline(): Plugin {
 }
 
 // GitHub Pages serves the site under /the-commute/
+// The data's notes (`note`, and the network's `platformNote`, `roadNote` and the rest) say where a number came from, for
+// whoever edits the data; the page never reads them, so they're left out of what it loads (about a third of the
+// network data and half the kits), which keeps the script before the first frame inside its budget. The checks, the
+// bot and the tools read the files themselves, notes and all.
+function dropNotes(): Plugin {
+  const strip = (o: unknown): unknown => Array.isArray(o) ? o.map(strip)
+    : o && typeof o === 'object' ? Object.fromEntries(Object.entries(o).filter(([k]) => !/note$/i.test(k)).map(([k, v]) => [k, strip(v)])) : o;
+  return {
+    name: 'commute-drop-notes', enforce: 'pre',
+    transform(code, id) { return /[\\/]src[\\/]data[\\/].*\.json$/.test(id) ? { code: JSON.stringify(strip(JSON.parse(code))), map: null } : null; },
+  };
+}
+
 export default defineConfig({
   base: process.env.GITHUB_ACTIONS ? '/the-commute/' : '/',
   build: {
@@ -40,5 +53,5 @@ export default defineConfig({
     // the tiles named by their hash alone: their list is in the script before the first frame, so each name kept short
     rollupOptions: { output: { assetFileNames: a => ((a.names?.[0] ?? a.name ?? '').endsWith('.txt') ? 'assets/[hash][extname]' : 'assets/[name]-[hash][extname]'), manualChunks: id => (id.includes('/node_modules/three/') ? 'three' : id.includes('/src/data/terrain/') ? 'terrain' : undefined) } },
   },
-  plugins: [offline()],
+  plugins: [dropNotes(), offline()],
 });

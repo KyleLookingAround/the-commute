@@ -860,5 +860,32 @@
       { "id": "stock1", "branch": "stock", "name": "A unit in the sidings", "desc": "A second unit waits in Stockport’s sidings: free to put in service once platform 3 is built", "price": 25, "unit": true },
       { "id": "stock2", "branch": "stock", "name": "Spare on standby", "desc": "The spare unit stands by in the sidings from the start", "price": 45, "spare": true }
     ]
+  },
+  "sectionNote": "Real line speed (mph) and share wired, from OpenStreetMap by tools/osm-to-sections.mjs, 13 October 2026.",
+  "sections": {
+    "hazel-grove:new-mills-newtown:disley": { "mph": 50, "wired": 0 },
+    "hazel-grove:disley:middlewood": { "mph": 50, "wired": 0 },
+    "hazel-grove:middlewood:hazel-grove": { "mph": 60, "wired": 0.1 },
+    "hazel-grove:hazel-grove:woodsmoor": { "mph": 60, "wired": 1 },
+    "hazel-grove:woodsmoor:davenport": { "mph": 60, "wired": 1 },
+    "hazel-grove:davenport:edgeley-junction": { "mph": 45, "wired": 1 },
+    "main:edgeley-junction:stockport": { "mph": 45, "wired": 1 },
+    "main:stockport:heaton-norris-junction": { "mph": 75, "wired": 1 },
+    "main:heaton-norris-junction:heaton-chapel": { "mph": 90, "wired": 1 },
+    "main:heaton-chapel:levenshulme": { "mph": 90, "wired": 1 },
+    "main:levenshulme:slade-lane-junction": { "mph": 85, "wired": 1 },
+    "main:slade-lane-junction:ardwick": { "mph": 75, "wired": 1 },
+    "main:ardwick:ardwick-junction": { "mph": 50, "wired": 1 },
+    "main:ardwick-junction:piccadilly": { "mph": 25, "wired": 1 },
+    "marple:marple:marple-wharf-junction": { "mph": 60, "wired": 0 },
+    "marple:marple-wharf-junction:romiley": { "mph": 60, "wired": 0 },
+    "marple:romiley:bredbury": { "mph": 50, "wired": 0 },
+    "marple:bredbury:brinnington": { "mph": 50, "wired": 0 },
+    "marple:brinnington:reddish-north": { "mph": 50, "wired": 0 },
+    "marple:reddish-north:ryder-brow": { "mph": 50, "wired": 0 },
+    "marple:ryder-brow:belle-vue": { "mph": 50, "wired": 0 },
+    "marple:belle-vue:ashburys": { "mph": 50, "wired": 0.3 },
+    "marple:ashburys:ardwick-junction": { "mph": 40, "wired": 1 },
+    "rose-hill:rose-hill:marple-wharf-junction": { "mph": 40, "wired": 0 }
   }
 }

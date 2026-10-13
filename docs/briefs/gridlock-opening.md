@@ -12,7 +12,8 @@
   4. **Places that start shut:** whether every station starts closed and fogged with its price as now, and how "reopen" differs from "buy", or whether that's the same thing with new words.
   5. **Pacing:** how the economy changes. Is income per passenger the same, with demand starting lower and growing as the roads clear? Or is there a reward for cars taken off the road? Say what the bot should show after, against today's baselines.
   6. **What it replaces or folds into:** today's opening (owning Stockport's halt from the start), the contract's renewal, Strain, and the existing car parks and drive pools.
-  7. **Open questions for the owner,** at the top, each with the option the build takes if the owner doesn't answer.
+  7. **Other starting positions later** (the owner, 13 October 2026): contract renewal, the prestige layer, will unlock different starting positions later on, such as a run that starts from Piccadilly, from a bus station, or on another line. The first game always opens the same way, so the owner's no-scenario-choice rule holds for it. Design the gridlock opening so that a start is data, not code: which places are open, where the camera starts, and which roads are jammed. Sketch two or three later starts in a short section, without mockups.
+  8. **Open questions for the owner,** at the top, each with the option the build takes if the owner doesn't answer.
 - **Research the real picture:** the A6 through Stockport and Heaton Chapel, the M60 at junction 1, Stockport town centre and the Mersey Square gyratory at peak, and Greater Manchester's car mode share, so the design's numbers have a source. Use the census tools' data where it helps (`tools/census-to-network.mjs`, Nomis's method-of-travel tables).
 
 ## Read first

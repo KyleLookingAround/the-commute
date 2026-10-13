@@ -68,9 +68,8 @@ async function stationShots(only, extra) {
   const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')));
   const grown = () => {
     const sim = new Sim(net, Sim.fresh(net, 1)), g = sim.g;
-    g.owned = g.owned.map(() => true);
-    g.ups = net.stations.map((st, i) => Object.fromEntries(UPGRADES.filter(u => sim.offered(i, u)).map(u => [u.id, true])));
-    g.line = { units: 3, cars: 2, timetable: 1, spare: 0 };
+    net.stations.forEach((st, i) => { sim.grant(sim.P.station[i]); for (const u of UPGRADES.filter(u => sim.offered(i, u))) sim.grant(...sim.upgradePlace(i, u.id)); });
+    for (const [id, n] of [['units', 3], ['cars', 2], ['timetable', 1]]) for (let k = 0; k < n; k++) sim.grant(sim.P.stopper, id);
     // a while into the morning, so the units and the expresses stand at their platforms round the line
     sim.ensureTrains(); sim.advance(+(process.env.SHOT_RUN ?? 5));
     return sim;

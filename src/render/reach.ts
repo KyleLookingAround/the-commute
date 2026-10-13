@@ -6,7 +6,8 @@
 import * as THREE from 'three';
 import { Sim, TUNING } from '../sim/sim.ts';
 import type { Network } from '../sim/network.ts';
-import type { GameState, LineUpgradeId, UpgradeId } from '../sim/types.ts';
+import type { GameState, LineUpgradeId } from '../sim/types.ts';
+import { build } from '../sim/places.ts';
 import { PAL } from './scene.ts';
 import { accessReach } from '../sim/access.ts';
 
@@ -39,12 +40,12 @@ export function minutesOf(sim: Sim, i: number, picc: number): number | null {
   return J ? (J.walk - TUNING.walk + J.wait + J.ride) / 60 : null;
 }
 
-/** A copy of the sim with one more thing bought, for looking ahead: its state's upgrades and line are its own, the rest
- * is shared and never stepped. */
+/** A copy of the sim with one more thing bought, for looking ahead: its state's places are its own, the rest is shared
+ * and never stepped. */
 export function withBought(sim: Sim, i: number | null, id: string): Sim {
-  const g: GameState = { ...sim.g, ups: sim.g.ups.map(u => ({ ...u })), line: { ...sim.g.line } };
-  if (i === null) { if (id in g.line) g.line[id as LineUpgradeId]++; }
-  else { const u = g.ups[i]; if (u) u[id as UpgradeId] = true; }
+  const g = { ...sim.g, places: Object.fromEntries(Object.entries(sim.g.places).map(([k, r]) => [k, { ...r }])) } as GameState;
+  const at = i === null ? (id in sim.g.line ? sim.linePlace(id as LineUpgradeId) : null) : sim.upgradePlace(i, id)?.[0] ?? null;
+  if (at) build(g, at, i === null || id !== 'bus' ? id : undefined);
   return new Sim(sim.net, g);
 }
 

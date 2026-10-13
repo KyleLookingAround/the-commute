@@ -15,37 +15,11 @@ import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
 import { stepExpress, nextSlot, EXPRESS_UNITS } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
 import { effects, type Effects } from './contract.ts';
+import { places, build, derive, UPGRADES, LINE_UPGRADES, LINE_PLACE, type Places, type Upgrade } from './places.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
-/** A station upgrade. name null: the station names it (its retail, or its stage in `grow`). requires: upgrades at the
- * same station that must be built first; one the station doesn't offer counts as built. stage: offered only where the
- * station's `grow` lists it. */
-export interface Upgrade { id: UpgradeId; name: string | null; price: number; desc: string; requires?: UpgradeId[]; stage?: boolean }
-export interface LineUpgrade { id: LineUpgradeId; name: string; prices: number[]; desc: string; max: number }
-
-// in the order a station grows: a bought station is a halt (one platform, one line) and these build it up
-export const UPGRADES: Upgrade[] = [
-  { id: 'crossing', name: null, price: 2000, desc: 'The far side walks across, not round: 5 min off their walk', stage: true },
-  { id: 'platform2', name: null, price: 3500, desc: 'Trains call both ways, so the crowd going home too', requires: ['crossing'], stage: true },
-  { id: 'building', name: null, price: 3000, desc: '90% of fares collected (82% at a halt)', stage: true },
-  { id: 'taxi', name: null, price: 1200, desc: 'Cabs take some who’d give up on the train: a cut of each fare', stage: true },
-  { id: 'carpark', name: null, price: 4000, desc: 'Drivers from beyond a walk park and ride, while there are spaces: a charge a car', stage: true },
-  { id: 'carpark2', name: null, price: 7000, desc: 'More spaces, so the car park fills later', requires: ['carpark'], stage: true },
-  { id: 'bus', name: null, price: 3000, desc: 'Buses bring people from beyond a walk', stage: true },
-  { id: 'kiosk', name: 'Kiosk', price: 1500, desc: '+£0.35 per boarding passenger' },
-  { id: 'canopy', name: 'Canopy', price: 2500, desc: 'Waiting in the dry feels a quarter shorter' },
-  { id: 'barriers', name: 'Ticket barriers', price: 4000, desc: 'Collect every fare', requires: ['building'] },
-  { id: 'extend', name: 'Platform extension', price: 5000, desc: 'Platform holds 320 instead of 150' },
-  { id: 'lifts', name: 'Lifts', price: 6000, desc: 'Step-free: 3 min off the far side’s walk, 1 off everyone’s', requires: ['crossing'] },
-  { id: 'retail', name: null, price: 9000, desc: '+£0.80 per boarding passenger', requires: ['building'] },
-  { id: 'platforms', name: null, price: 30000, desc: '+20% catchment', requires: ['platform2', 'building'], stage: true },
-];
-export const LINE_UPGRADES: LineUpgrade[] = [
-  { id: 'units', name: 'Extra unit', prices: [6000, 20000, 50000], desc: 'One more train in service: shorter waits, more passengers', max: 3 },
-  { id: 'cars', name: 'Longer trains', prices: [12000, 40000], desc: '+2 cars per unit', max: 2 },
-  { id: 'timetable', name: 'Faster timetable', prices: [20000], desc: 'Line speed 75 → 90 mph and new signals: quicker rides, fewer signal failures', max: 1 },
-  { id: 'spare', name: 'Spare unit', prices: [8000], desc: 'Stands by in Stockport’s sidings: a failed train is moving again in half the time', max: 1 },
-];
+// a station's stages and the line's, now stages of places (src/sim/places.ts); here too, where the view finds them
+export { UPGRADES, LINE_UPGRADES, type Upgrade, type LineUpgrade } from './places.ts';
 
 export const TUNING = {
   fareBase: 1.5, farePerMile: 0.6, fareMult: 13.5,   // 6x the old 6x clock's fare, then 12 to 13.5 when homes and draw came from the census (Stockport draws less than guessed)
@@ -167,10 +141,13 @@ export class Sim {
   private hourT = NaN; private hourNow = 0;
   /** What the run's perks do (src/sim/contract.ts): nothing at all without any. */
   fx: Effects;
+  /** Every place on the network, what touches what (src/sim/places.ts). */
+  P: Places;
   constructor(network: Network, state?: GameState) {
     this.net = network;
     this.S = network.stations;              // [{ id, name, s, miles, catchment, price, retail, index }]
-    this.g = state || Sim.fresh(network);
+    this.P = places(network);
+    this.g = derive(state || Sim.fresh(network), this.P);
     this.fx = effects(network.def.contract, this.g.perks);
     this.svcs = network.services().map(s => ({ id: s.def.id, route: s.route, home: s.home, def: s.def, path: network.route(s.def), plats: new Map(), express: null }));
     if (!this.svcs.length || this.svcs[0]!.def.through) throw new Error('network.json names no passenger service first');
@@ -191,23 +168,24 @@ export class Sim {
   }
   /** A new run from Stockport as a halt, with the perks the career has bought (none on a first contract). */
   static fresh(network: Network, seed: number = freshSeed(), perks: readonly string[] = []): GameState {
-    const fx = effects(network.def.contract, perks);
-    return {
+    const fx = effects(network.def.contract, perks), P = places(network);
+    // Stockport as a halt, and the spare unit in its sidings if the career has bought it
+    const owned: GameState['places'] = { [P.station[0]!]: {} };
+    if (fx.spare && P.sidings) owned[P.sidings] = { spare: 1 };
+    return derive({
       v: SAVE_VERSION, seed, rngState: seed >>> 0, t: simAtHour(1, 6.5), day: 1, cash: 3000 + fx.cash, earned: 0,
-      owned: network.stations.map((_, i) => i === 0),
-      ups: network.stations.map(() => ({})),
-      line: { units: 0, cars: 0, timetable: 0, spare: fx.spare ? 1 : 0 }, perks: [...perks],
+      places: owned, perks: [...perks],
       st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0, cab: 0, cabs: [], through: 0, car: 0, bus: 0, carAcc: 0, busAcc: 0, parked: [] })),
       trains: [], ends: {}, trouble: freshTrouble(), weather: freshWeather(seed, simAtHour(1, 6.5)),
       stats: { boarded: 0, lost: 0, cab: 0, through: 0, express: 0, car: 0, bus: 0, late: 0 },
       homes: network.stations.map(s => s.catchment),
-    };
+    } as Omit<GameState, 'owned' | 'ups' | 'line'> as GameState, P);
   }
 
   // ---- lookups: the sim only ever indexes stations it created, so a miss is a bug, not a case ----
   station(i: number): Station { const s = this.S[i]; if (!s) throw new Error(`no station ${i}`); return s; }
   state(i: number): StationState { const s = this.g.st[i]; if (!s) throw new Error(`no station state ${i}`); return s; }
-  ups(i: number): Partial<Record<UpgradeId, boolean>> { const u = this.g.ups[i]; if (!u) throw new Error(`no upgrades for station ${i}`); return u; }
+  ups(i: number): Readonly<Partial<Record<UpgradeId, boolean>>> { const u = this.g.ups[i]; if (!u) throw new Error(`no upgrades for station ${i}`); return u; }
 
   // ---- derived ----
   fare(a: number, b: number): number { return (TUNING.fareBase + TUNING.farePerMile * Math.abs(this.station(a).miles - this.station(b).miles)) * TUNING.fareMult; }
@@ -238,10 +216,12 @@ export class Sim {
 
   // ---- what a station grows into ----
   /** Whether a station offers an upgrade: every station the everyday ones, and the stages its `grow` lists. */
-  offered(i: number, u: Upgrade): boolean { return !u.stage || !!this.station(i).grow?.[u.id as StageId]; }
-  upgradeName(i: number, u: Upgrade): string { return (u.stage ? this.station(i).grow?.[u.id as StageId]?.name : null) ?? u.name ?? this.station(i).retail; }
-  upgradeDesc(i: number, u: Upgrade): string { return (u.stage ? this.station(i).grow?.[u.id as StageId]?.desc : null) ?? u.desc; }
-  upgradePrice(i: number, u: Upgrade): number { return this.cost((u.stage ? this.station(i).grow?.[u.id as StageId]?.price : null) ?? u.price); }
+  offered(i: number, u: Upgrade): boolean { return u.stop ? !!this.P.stopOf[i] : !u.stage || !!this.station(i).grow?.[u.id as StageId]; }
+  /** The bus stop or bus station by station i, as the network data gives it, if it has one. */
+  stopDef(i: number) { const s = this.P.stopOf[i]; return s ? this.P.get(s).stop ?? null : null; }
+  upgradeName(i: number, u: Upgrade): string { return (u.stop ? this.stopDef(i)?.name : u.stage ? this.station(i).grow?.[u.id as StageId]?.name : null) ?? u.name ?? this.station(i).retail; }
+  upgradeDesc(i: number, u: Upgrade): string { return (u.stop ? this.stopDef(i)?.desc : u.stage ? this.station(i).grow?.[u.id as StageId]?.desc : null) ?? u.desc; }
+  upgradePrice(i: number, u: Upgrade): number { return this.cost((u.stop ? this.stopDef(i)?.price : u.stage ? this.station(i).grow?.[u.id as StageId]?.price : null) ?? u.price); }
   /** A price as this run pays it: less the share the career's quicker building takes off (src/sim/contract.ts). */
   cost(price: number): number { return this.fx.build ? Math.round(price * (1 - this.fx.build) / 10) * 10 : price; }
   /** What station i costs to buy as a halt. */
@@ -777,42 +757,80 @@ export class Sim {
   }
   advance(gameSeconds: number, maxStep = 2): void { let left = gameSeconds; while (left > 0) { const d = Math.min(maxStep, left); this.step(d); left -= d; } }
 
-  // ---- actions ----
-  /** What a station waits on elsewhere before it can be bought, if anything not yet built. */
-  stationNeeds(i: number): { station: Station; name: string } | null {
-    const n = this.station(i).needs; if (!n) return null;
-    const st = this.net.station(n.station), u = UPGRADES.find(x => x.id === n.upgrade);
-    return u && !this.ups(st.index)[u.id] ? { station: st, name: this.upgradeName(st.index, u) } : null;
+  // ---- places: buying ----
+  /** Whether the player owns a place (src/sim/places.ts). */
+  owns(id: string): boolean { return this.P.owns(this.g, id); }
+  /** The places offered now: not owned, touching one that is, with what they need built. */
+  offeredPlaces(): string[] { return this.P.offered(this.g, this.net); }
+  /** A stage of a route or depot, by its id (units, cars, timetable, spare). */
+  private lineStage(id: string) { return LINE_UPGRADES.find(u => u.id === id); }
+  /** What a place costs to buy, or its stage to build (the next of a stage bought more than once); undefined if there's
+   * no such stage or it's all built. */
+  price(id: string, stage?: string): number | undefined {
+    const p = this.P.byId.get(id); if (!p) return undefined;
+    if (stage === undefined) return p.kind === 'station' ? this.stationPrice(p.station!) : p.kind === 'stop' && p.stop ? this.cost(p.stop.price) : undefined;
+    if (p.kind === 'station') { const u = UPGRADES.find(x => x.id === stage && !x.stop); return u ? this.upgradePrice(p.station!, u) : undefined; }
+    const u = this.lineStage(stage);
+    return u && this.P.stagesFor(this.net, id).includes(u) ? this.linePrice(u.id) : undefined;
   }
-  /** The station that must be owned before station i can be bought: its `after`, or the one before it in the list
-   * (none for the first). */
-  prior(i: number): number { const a = this.station(i).after; return a ? this.net.station(a).index : i - 1; }
-  /** Whether station i is next to buy: not owned, and the station before it is. */
-  offerable(i: number): boolean { const p = this.prior(i); return !this.g.owned[i] && (p < 0 || !!this.g.owned[p]); }
-  canBuyStation(i: number): boolean { const g = this.g, s = this.S[i]; return !!s && this.offerable(i) && g.cash >= this.stationPrice(i) && !this.stationNeeds(i); }
-  buyStation(i: number): boolean { if (!this.canBuyStation(i)) return false; this.g.cash -= this.stationPrice(i); this.g.owned[i] = true; this.refreshJourneys(); return true; }
-  canBuyUpgrade(i: number, id: string): boolean {
-    const u = UPGRADES.find(u => u.id === id), g = this.g, ups = g.ups[i];
-    return !!u && !!ups && !!g.owned[i] && !ups[u.id] && this.offered(i, u) && this.ready(i, u) && g.cash >= this.upgradePrice(i, u);
+  /** Whether a place can be bought now (offered: touching one owned, its needs built) or its stage built (on a place
+   * owned, offered there, what it needs there built, and not all built), with the cash for it. */
+  canBuy(id: string, stage?: string): boolean {
+    const g = this.g, p = this.P.byId.get(id), price = this.price(id, stage); if (!p || price === undefined || g.cash < price) return false;
+    if (stage === undefined) return !(id in g.places) && this.P.touches(g, id) && !this.P.waits(g, this.net, id);
+    if (!this.owns(id)) return false;
+    if (p.kind === 'station') { const i = p.station!, u = UPGRADES.find(x => x.id === stage)!; return !this.ups(i)[u.id] && this.offered(i, u) && this.ready(i, u); }
+    const u = this.lineStage(stage)!;
+    return g.line[u.id] < u.max && this.lineReady(u.id);
   }
-  buyUpgrade(i: number, id: string): boolean {
-    const u = UPGRADES.find(u => u.id === id), ups = this.g.ups[i];
-    if (!u || !ups || !this.canBuyUpgrade(i, id)) return false;
-    this.g.cash -= this.upgradePrice(i, u); ups[u.id] = true;
-    if (u.id === 'taxi') this.state(i).cabs = new Array<number>(TUNING.cabs).fill(0);   // the rank opens with every cab in
-    openAccess(this, i, u.id);
+  /** Buy a place, or build one of its stages: pay, record it, and let what it changes take effect. */
+  buy(id: string, stage?: string): boolean {
+    if (!this.canBuy(id, stage)) return false;
+    const p = this.P.get(id);
+    this.g.cash -= this.price(id, stage)!; build(this.g, id, stage); derive(this.g, this.P);
+    if (p.kind === 'station' && stage !== undefined) {
+      const i = p.station!;
+      if (stage === 'taxi') this.state(i).cabs = new Array<number>(TUNING.cabs).fill(0);   // the rank opens with every cab in
+      openAccess(this, i, stage as UpgradeId);
+    } else if (p.kind === 'stop') openAccess(this, p.station!, 'bus');
+    else if (stage !== undefined) this.ensureTrains();
     this.refreshJourneys(); return true;
   }
+  /** Give the player a place, or a stage of it, without paying or asking what it waits on (tests and checks setting up a
+   * game). */
+  grant(id: string, stage?: string): void {
+    if (stage === undefined || this.P.get(id).kind !== 'station' || !this.g.places[id]?.[stage]) build(this.g, id, stage);
+    derive(this.g, this.P);
+    if (stage === 'taxi') { const i = this.P.get(id).station!; if (!this.state(i).cabs.length) this.state(i).cabs = new Array<number>(TUNING.cabs).fill(0); }
+    if (stage === 'carpark') openAccess(this, this.P.get(id).station!, 'carpark');
+    this.jkey = -1;
+  }
+  /** The place a station upgrade is a stage of (the station's own, or for `bus` the stop by it), and the stage. */
+  upgradePlace(i: number, id: string): [string, string | undefined] | null {
+    if (id === 'bus') { const s = this.P.stopOf[i]; return s ? [s, undefined] : null; }
+    return [this.P.station[i]!, id];
+  }
+
+  // ---- buying, as the view and the bot have always asked for it ----
+  /** What station i waits on elsewhere before it can be bought, if anything not yet built. */
+  stationNeeds(i: number): { station: Station; name: string } | null {
+    const w = this.P.waits(this.g, this.net, this.P.station[i]!); if (!w) return null;
+    const u = UPGRADES.find(x => x.id === w.upgrade);
+    return u ? { station: this.station(w.station), name: this.upgradeName(w.station, u) } : null;
+  }
+  /** Whether station i is offered: not owned, and a station next to it along the lines is (whatever it needs). */
+  offerable(i: number): boolean { const id = this.P.station[i]; return !!id && !this.g.owned[i] && this.P.touches(this.g, id); }
+  canBuyStation(i: number): boolean { const id = this.P.station[i]; return !!id && this.canBuy(id); }
+  buyStation(i: number): boolean { const id = this.P.station[i]; return !!id && this.buy(id); }
+  canBuyUpgrade(i: number, id: string): boolean { const p = this.upgradePlace(i, id); return !!p && !!this.g.owned[i] && this.canBuy(...p); }
+  buyUpgrade(i: number, id: string): boolean { const p = this.upgradePlace(i, id); return !!p && !!this.g.owned[i] && this.buy(...p); }
   /** Whether a line upgrade can be seen yet: extra units need room for a second train to turn at the line's home
    * terminus (Stockport's platform 3), and a spare unit comes once a train has failed. */
   lineReady(id: string): boolean {
     if (id === 'spare') return this.g.trouble.fails > 0;    // offered once a train has failed: the fix for what you've seen
     return id !== 'units' || !!this.ups(this.svcs[0]!.route[0]!).platform2;
   }
-  buyLine(id: string): boolean {
-    const u = LINE_UPGRADES.find(u => u.id === id), g = this.g; if (!u) return false;
-    const lvl = g.line[u.id], price = this.linePrice(u.id);
-    if (lvl >= u.max || price === undefined || g.cash < price || !this.lineReady(u.id)) return false;
-    g.cash -= price; g.line[u.id]++; this.ensureTrains(); this.refreshJourneys(); return true;
-  }
+  /** The place each line upgrade is a stage of: the stopper, or the sidings for the spare unit. */
+  linePlace(id: LineUpgradeId): string | null { return LINE_PLACE[id] === 'route' ? this.P.stopper : this.P.sidings; }
+  buyLine(id: string): boolean { const u = this.lineStage(id), p = u && this.linePlace(u.id); return !!p && this.buy(p, id); }
 }

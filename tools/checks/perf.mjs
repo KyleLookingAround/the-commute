@@ -38,9 +38,9 @@ export default async function ({ ok, open, root }) {
   // the busy save: five stations owned with everything bought, the line built up, homes grown, the morning peak, rain
   const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.fresh(net, 1));
   for (let i = 0; i < Math.min(5, net.stations.length); i++) {
-    sim.g.owned[i] = true; sim.g.ups[i] = Object.fromEntries(UPGRADES.filter(u => sim.offered(i, u)).map(u => [u.id, true])); sim.g.homes[i] = sim.ceiling(i);
+    sim.grant(sim.P.station[i]); for (const u of UPGRADES.filter(u => sim.offered(i, u))) sim.grant(...sim.upgradePlace(i, u.id)); sim.g.homes[i] = sim.ceiling(i);
   }
-  for (const u of LINE_UPGRADES) sim.g.line[u.id] = u.max;
+  for (const u of LINE_UPGRADES) while (sim.g.line[u.id] < u.max) sim.grant(sim.linePlace(u.id), u.id);
   sim.advance(1200);
   const t = simAtHour(2, 8);
   sim.g.t = t; sim.g.day = 2;

@@ -36,22 +36,25 @@ const hours = +opt('--hours', 8), jsonOut = opt('--json', null), runCount = Math
 if (args.includes('--fair')) WEATHER.felt = false;
 
 /** The sensible player's policy, in priority order: a second unit first (Stockport needs its subway and platform 3 for
- * it), then the next station (as a halt, building whatever it waits on elsewhere; where two lines' next stations are
- * offered, the cheaper), then each station's way across and
- * second platform (trains both ways), its booking office and barriers, then cheap wins, a taxi rank where people have
- * been giving up (a dozen or more), a spare unit once a train has failed, and the faster timetable once there's money
- * to spare. */
+ * it), then the next station: of the stations offered (touching one it owns, src/sim/places.ts), the one that brings
+ * most homes and draw per pound, counting the price of what it waits on elsewhere, which it builds first
+ * (docs/design/buying.md, The bot); then each station's way across and second platform (trains both ways), its
+ * booking office and barriers, then cheap wins, a taxi rank where people have been giving up (a dozen or more), a spare
+ * unit once a train has failed, and the faster timetable once there's money to spare. */
 /** The stations whose car park has filled, this run (the bot's memory: it builds the second stage there). */
 const full = new Set();
 export function act(sim) {
-  const g = sim.g, home = sim.svcs[0].route[0];
-  const up = (i, id) => g.owned[i] && !g.ups[i][id] && sim.buyUpgrade(i, id) ? `${id}:${sim.S[i].id}` : null;
-  if (g.line.units < 1) { if (sim.buyLine('units')) return 'unit'; const r = up(home, 'crossing') || up(home, 'platform2'); if (r) return r; }
-  // the next station: of those offered (each line's next, where the network branches), the cheapest
-  const offered = sim.S.map((_, i) => i).filter(i => i > 0 && sim.offerable(i)).sort((a, b) => sim.stationPrice(a) - sim.stationPrice(b) || a - b);
+  const g = sim.g, home = sim.svcs[0].route[0], P = sim.P;
+  // a stage at a station (its bus link: the stop by it, a place of its own)
+  const up = (i, id) => { const at = g.owned[i] && !g.ups[i][id] && sim.upgradePlace(i, id); return at && sim.buy(...at) ? `${id}:${sim.S[i].id}` : null; };
+  const line = id => sim.buy(sim.linePlace(id), id);
+  if (g.line.units < 1) { if (line('units')) return 'unit'; const r = up(home, 'crossing') || up(home, 'platform2'); if (r) return r; }
+  // the next station: of those offered, the most homes and draw per pound, what it waits on counted in
+  const worth = i => { const w = P.waits(g, sim.net, P.station[i]), need = w ? sim.upgradePrice(w.station, UPGRADES.find(u => u.id === w.upgrade)) : 0; return (sim.homes(i) + sim.S[i].draw) / (sim.stationPrice(i) + need); };
+  const offered = sim.S.map((_, i) => i).filter(i => sim.offerable(i)).sort((a, b) => worth(b) - worth(a) || a - b);
   for (const i of offered.slice(0, 1)) {
-    if (sim.buyStation(i)) return 'station:' + sim.S[i].id;
-    const needs = sim.stationNeeds(i); if (needs) { const r = up(needs.station.index, sim.S[i].needs.upgrade); if (r) return r; }
+    if (sim.buy(P.station[i])) return 'station:' + sim.S[i].id;
+    const w = P.waits(g, sim.net, P.station[i]); if (w) { const r = up(w.station, w.upgrade); if (r) return r; }
   }
   for (const id of ['crossing', 'platform2', 'building', 'barriers', 'kiosk']) for (let i = 0; i < sim.S.length; i++) { const r = up(i, id); if (r) return r; }
   for (let i = 0; i < sim.S.length; i++) if (g.st[i].lost >= 12) { const r = up(i, 'taxi'); if (r) return r; }
@@ -63,10 +66,10 @@ export function act(sim) {
     if (!a || !dawn || !sim.offered(i, u) || g.cash < 2 * price) continue;
     if (id === 'carpark' ? a.drive > 0 : id === 'carpark2' ? full.has(i) : a.bus > 0 || a.busShare) { const r = up(i, id); if (r) return r; }
   }
-  if (g.line.spare < 1 && g.cash > 15000 && sim.buyLine('spare')) return 'spare';
-  if (g.line.units < 2 && g.cash > 30000 && sim.buyLine('units')) return 'unit';
-  if (g.line.cars < 1 && g.cash > 25000 && sim.buyLine('cars')) return 'cars';
-  if (g.line.timetable < 1 && g.cash > 45000 && sim.buyLine('timetable')) return 'timetable';
+  if (g.line.spare < 1 && g.cash > 15000 && line('spare')) return 'spare';
+  if (g.line.units < 2 && g.cash > 30000 && line('units')) return 'unit';
+  if (g.line.cars < 1 && g.cash > 25000 && line('cars')) return 'cars';
+  if (g.line.timetable < 1 && g.cash > 45000 && line('timetable')) return 'timetable';
   for (let i = 0; i < sim.S.length; i++) if (g.st[i].lost > 200 && g.ups[i] && !g.ups[i].extend) { const r = up(i, 'extend'); if (r) return r; }
   if (g.cash > 12000) for (let i = 0; i < sim.S.length; i++) { const r = up(i, 'canopy'); if (r) return r; }
   return null;
@@ -153,7 +156,8 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
     'homes grown': Math.round(g.homes.reduce((a, h, i) => a + h - sim.S[i].catchment, 0)),
     'within 5 min %': late.deps ? +(100 * late.within / late.deps).toFixed(1) : 100, 'worst late min': +(late.worst / 60).toFixed(1) };
   for (const p of Object.values(peaks)) { p.within = p.deps ? +(100 * p.within / p.deps).toFixed(1) : 100; p.worst = +(p.worst / 60).toFixed(1); }
-  const play = fingerprint({ v: g.v, owned: g.owned, ups: g.ups, line: g.line, cash: Math.round(g.cash), boarded: g.stats.boarded, lost: g.stats.lost, cab: g.stats.cab, bused: g.trouble.bused, homes: g.homes.map(Math.round) });
+  // what's owned and built as the sim reads it (each station's stages in a fixed order, whatever order they were bought in)
+  const play = fingerprint({ v: g.v, owned: g.owned, ups: g.ups.map(u => Object.fromEntries(Object.entries(u).sort())), line: g.line, cash: Math.round(g.cash), boarded: g.stats.boarded, lost: g.stats.lost, cab: g.stats.cab, bused: g.trouble.bused, homes: g.homes.map(Math.round) });
   // what each car park and bus link brought: people, and roughly what they earned (the charge, and each one's fare to
   // where most go, as collected there)
   const access = {};

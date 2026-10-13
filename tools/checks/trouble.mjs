@@ -75,7 +75,7 @@ export default async function ({ ok, open, root }) {
   sim.g.trouble.caution = { s0: c + 300, s1: d - 300, from: sim.g.t, until: sim.g.t + 3600 };
   const save = g => JSON.stringify({ g, selected: f.a });
   const failing = JSON.parse(JSON.stringify(sim.g));
-  const clear = JSON.parse(JSON.stringify(sim.g)); clear.trouble.fail = null; clear.trouble.caution = null; clear.trouble.buses = []; clear.trouble.next = clear.t + 1e6; clear.line.spare = 1;
+  const clear = JSON.parse(JSON.stringify(sim.g)); clear.trouble.fail = null; clear.trouble.caution = null; clear.trouble.buses = []; clear.trouble.next = clear.t + 1e6; clear.places[sim.P.sidings] = { spare: 1 };
   mkdirSync(join(root, 'build/shots'), { recursive: true });
   for (const [w, h, touch] of [[390, 844, true], [1280, 800, false]]) {
     const { ctx, page, errs } = await open({ width: w, height: h }, { touch, save: save(failing) });

@@ -54,9 +54,6 @@ export interface StationGeoDef {
   grow?: Partial<Record<StageId, { name: string; desc?: string; price?: number; spaces?: number }>>;
   /** Something that must be built elsewhere before this station can be bought. */
   needs?: { station: string; upgrade: string };
-  /** The station that must be owned before this one: the one before it in the list when not given (the Marple line's
-   * first, Ashburys, comes after Hazel Grove, beside the Buxton line). */
-  after?: string;
   /** The platform faces trains stand at, where they're more than the halt's one and the second platform's (the sim
    * makes those two up for a station that doesn't list its own). */
   platforms?: PlatformDef[];
@@ -95,6 +92,12 @@ export interface ServiceDef {
    * the first at clock hour `first`, then one every `every` clock hours to `last`. */
   through?: { south: string; first: number; every: number; last: number };
 }
+/** A bus stop or bus station by a station (src/sim/places.ts): a place of its own, offered once its station is owned.
+ * Its first state brings the census's bus pool beyond a walk in by bus (src/sim/access.ts); `part` is the kit part
+ * (`buslink`) that draws it at its station. lat, lon: where it really stands. */
+export interface StopDef { id: string; name: string; /** 'bus-stop' or 'bus-station' */ kind: string; station: string; lat: number; lon: number; price: number; desc: string; note?: string }
+/** A depot: a yard where units stand, coming with the station it opens off (Stockport's carriage sidings). */
+export interface DepotDef { id: string; name: string; station: string; note?: string }
 export interface LandmarkDef {
   id: string; name: string; kind: string; corridor?: string;
   from?: LatLon; to?: LatLon; at?: LatLon; lat?: number; lon?: number; arches?: number; height?: number; todo?: string;
@@ -109,6 +112,8 @@ export interface NetworkGeoDef {
   spine?: string[]; junctions?: JunctionGeoDef[]; corridorNote?: string; junctionNote?: string;
   trackNote?: string; layout?: LayoutDef[]; ease?: number;
   landmarks?: LandmarkDef[]; services?: ServiceDef[]; roads?: RoadGeoDef[]; roadNote?: string;
+  /** Bus stops and bus stations by the stations, and the depots: places of their own (src/sim/places.ts). */
+  stops?: StopDef[]; depots?: DepotDef[]; stopNote?: string;
   /** The perks reputation buys between contracts (src/sim/contract.ts). */
   contract?: ContractDef;
 }
@@ -132,7 +137,9 @@ export interface Frame { x: number; z: number; heading: number; dx: number; dz: 
 
 // ---- the saved game ----
 /** The stages a station grows through from a halt: a way across the line, a second platform, a booking office, and at
- * the big stations the rest of the station. Offered only where the station's `grow` lists them. */
+ * the big stations the rest of the station. Offered only where the station's `grow` lists them. `bus` is the bus stop
+ * or bus station by it, a place of its own (`stops` in the network data), which the view still shows on the station's
+ * card. */
 export type StageId = 'crossing' | 'platform2' | 'building' | 'platforms' | 'taxi' | 'carpark' | 'carpark2' | 'bus';
 export type UpgradeId = StageId | 'kiosk' | 'barriers' | 'canopy' | 'lifts' | 'extend' | 'retail';
 export type LineUpgradeId = 'units' | 'cars' | 'timetable' | 'spare';
@@ -189,7 +196,14 @@ export type Season = 0 | 1 | 2 | 3;
 export interface Weather { rngState: number; now: Sky; was: Sky; since: number; until: number; wet: number }
 export interface GameState {
   v: number; seed: number; rngState: number; t: number; day: number; cash: number; earned: number;
-  owned: boolean[]; ups: Partial<Record<UpgradeId, boolean>>[]; line: Record<LineUpgradeId, number>;
+  /** What the player has bought or grown, by place id (kind:name, src/sim/places.ts), each with its stages built (a
+   * count, for stages bought more than once): 'station:stockport': { crossing: 1 }, 'route:stopper': { units: 2 },
+   * 'depot:stockport-sidings': { spare: 1 }, 'stop:levenshulme-station-view': {}. A station or stop is owned once it's
+   * here; what comes with something owned (a route, a section, a junction, the sidings) only once a stage is built. */
+  places: Record<string, Record<string, number>>;
+  /** Read through these, worked out from `places` by the sim (src/sim/places.ts, derive) and never saved: each
+   * station owned, its stages built (and `bus` for the stop by it), and the stopper's and the sidings' stages. */
+  readonly owned: readonly boolean[]; readonly ups: readonly Readonly<Partial<Record<UpgradeId, boolean>>>[]; readonly line: Readonly<Record<LineUpgradeId, number>>;
   st: StationState[]; trains: Train[];
   /** late: main-line and branch departures more than five minutes behind the timetable (src/sim/contract.ts weighs
    * them in the reputation). through: long-distance passengers on and off the expresses at owned stations; express: what the expresses paid. */

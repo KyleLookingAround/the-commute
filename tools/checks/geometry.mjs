@@ -42,7 +42,7 @@ export default async function ({ ok, root, kits: given }) {
   const poses = [];
   const lengths = svc => svc.scenery || svc.through ? [svc.cars] : CARS;
   // the line fully built and every station owned, so every platform is there
-  const sim = new Sim(net); sim.g.owned = sim.g.owned.map(() => true); sim.g.ups = sim.g.ups.map(() => Object.fromEntries(UPGRADES.map(u => [u.id, true])));
+  const sim = new Sim(net); sim.P.station.forEach((id, i) => { sim.grant(id); for (const u of UPGRADES) { const at = sim.upgradePlace(i, u.id); if (at) sim.grant(...at); } });
   /** Where each service stands at a station, and on which platforms: [service, kind, the way it runs in, the way it
    * stands, platform indices]. A line turns at its ends (a line with a home, wherever it's been opened to as well). */
   const standsAt = i => {

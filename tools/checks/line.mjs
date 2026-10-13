@@ -40,11 +40,11 @@ export default async function ({ ok, open, SAVE_KEY }) {
     ok(`line: at ${w}×${h} the faster timetable's card ghosts its signals and boards and frames them, and tapping it again clears them`, tOn > 0 && t1 > t0 && tOff === 0, `ghost ${tOn} → ${tOff}, framed ${t0} → ${t1}`);
 
     // buying the subway saves the game; that save, with money and platform 3, opens the next page
-    await tap('[data-pick="crossing"]'); await tap('[data-up="crossing"]'); await page.waitForFunction(k => !!localStorage.getItem(k) && JSON.parse(localStorage.getItem(k)).g.ups[0].crossing, SAVE_KEY, { timeout: 60000 }).catch(() => {});
+    await tap('[data-pick="crossing"]'); await tap('[data-up="crossing"]'); await page.waitForFunction(k => !!localStorage.getItem(k) && JSON.parse(localStorage.getItem(k)).g.places['station:stockport']?.crossing, SAVE_KEY, { timeout: 60000 }).catch(() => {});
     const raw = await page.evaluate(k => localStorage.getItem(k), SAVE_KEY);
     await ctx.close();
     if (!raw) { ok(`line: at ${w}×${h} buying an extra unit frames it and moves it to the Built line`, false, 'no save to start from'); continue; }
-    const s = JSON.parse(raw); s.g.cash = 100000; s.g.ups[0].platform2 = true; delete s.at;
+    const s = JSON.parse(raw); s.g.cash = 100000; s.g.places['station:stockport'].platform2 = 1; delete s.at;
     const p2 = await open({ width: w, height: h }, { touch, save: JSON.stringify(s), steady: 50 });
     await p2.page.waitForTimeout(600);
     const tap2 = async sel => {

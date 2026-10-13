@@ -74,6 +74,6 @@ test('weather: leaves on the line slow trains a little in autumn, less with the 
   g.t += 4 * DAY; assert.equal(seasonAt(g.t), 2);
   g.weather.now = 'sun';
   assert.ok(sim.vmax() < v && sim.vmax() > 0.85 * v, 'leaves slow the line a little');
-  const leaves = sim.vmax() / v; g.line.timetable = 1;
+  const leaves = sim.vmax() / v; sim.grant(sim.P.stopper, 'timetable');
   assert.ok(sim.vmax() / TUNING.vmaxFast > leaves, 'the new signals help');
 });

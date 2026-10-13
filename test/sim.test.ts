@@ -274,7 +274,7 @@ test('timetable: extra units spread out to an even gap at the ends', () => {
 /** Two main-line units: the first standing at station i (turned round there if it's the end of the run), held well past
  * its time, and the second running in towards it from 2 km out. */
 const twoAt = (sim: Sim, i: number, dir: 1 | -1) => {
-  sim.g.line.units = 1; sim.ensureTrains();
+  sim.grant(sim.P.stopper, 'units'); sim.ensureTrains();
   const [a, b] = sim.g.trains.filter(t => t.svc === 'stopper') as [Train, Train], at = sim.station(i).s, end = sim.isEnd(a, i);
   Object.assign(a, { dir: end ? -dir : dir, s: at, v: 0, state: 'dwell', calling: i, next: i, dwell: 0, due: sim.g.t + 600, stood: 0, quiet: 0, boardAcc: 0 });
   Object.assign(a, { pfAt: i, pf: sim.platsFor(a, i, sim.kindAt(a, i))[0] });
@@ -694,8 +694,8 @@ test('signalling: at a junction a train waits while another crosses its way, the
 
 // ---- journeys across the graph ----
 test('journeys: from the Hazel Grove line to the main line is a path of two rides, changing at Stockport', () => {
-  const sim = new Sim(net()), n = sim.net; sim.g.cash = 1e7; sim.g.owned = sim.g.owned.map(() => true); growStockport(sim);
-  for (let i = 0; i < n.stations.length; i++) sim.ups(i).platform2 = true;
+  const sim = new Sim(net()), n = sim.net; sim.g.cash = 1e7; for (const id of sim.P.station) sim.grant(id); growStockport(sim);
+  for (const id of sim.P.station) sim.grant(id, 'platform2');
   sim.refreshJourneys();
   const J = sim.journey(n.station('davenport').index, n.station('heaton-chapel').index)!;
   assert.deepEqual(J.legs.map(l => sim.svcs[l.svc]!.id), ['hazel-grove', 'stopper']);
@@ -718,8 +718,8 @@ test('journeys: a trip takes as many changes as the quickest way needs, never ba
     stations: [st('a', -500), st('b', -3000), st('c', -5500), st('piccadilly', -8500)],
     services: [svc('ab', ['a', 'b']), svc('bc', ['b', 'c']), svc('cd', ['c', 'piccadilly'])],
   };
-  const sim = new Sim(new Network(def as never)); sim.g.owned = sim.g.owned.map(() => true);
-  for (let i = 0; i < 4; i++) sim.ups(i).platform2 = true;
+  const sim = new Sim(new Network(def as never));
+  for (const id of sim.P.station) { sim.grant(id); sim.grant(id, 'platform2'); }
   const J = journeys(sim, TUNING);
   const there = J[0]![3]!, back = J[3]![0]!;
   assert.deepEqual(there.legs.map(l => sim.svcs[l.svc]!.id), ['ab', 'bc', 'cd']);

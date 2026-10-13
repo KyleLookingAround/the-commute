@@ -156,7 +156,7 @@ export class UI {
     if (this.els.shName.textContent !== s.name) this.els.shName.textContent = s.name;
     if (!g.owned[i]) {
       const blocked = !this.sim.offerable(i), needs = this.sim.stationNeeds(i);
-      const label = blocked ? 'Buy the stations before it first' : needs ? `Needs ${needs.station.name}'s ${needs.name}` : `Buy as a halt · ${fmt(this.sim.stationPrice(i))}`;
+      const label = blocked ? 'Buy a station next to it first' : needs ? `Needs ${needs.station.name}'s ${needs.name}` : `Buy as a halt · ${fmt(this.sim.stationPrice(i))}`;
       panel.innerHTML = `<p class="blurb">${BLURB[s.id] || ''}</p>
         <button class="buy" id="buyStation" ${this.sim.canBuyStation(i) ? '' : 'disabled'}>${label}</button>`;
       panel.querySelector('#buyStation')?.addEventListener('click', () => { if (this.sim.buyStation(i)) { this.toast(`${s.name} is yours. Trains now call here.`); this.buildStrip(); this.buildPanel(); this.buildLinePanel(); this.on.changed(); } });

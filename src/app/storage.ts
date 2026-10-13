@@ -58,8 +58,8 @@ export function fromFile(text: string): { ok: true; saved: Saved } | { ok: false
   if (typeof v !== 'number') return { ok: false, why: 'bad' };
   try {
     const g = migrate(s.g);
-    // a save that migrates still has to look like a game: stations, trains and money
-    if (!Array.isArray(g.st) || !Array.isArray(g.trains) || !Array.isArray(g.owned) || typeof g.cash !== 'number') return { ok: false, why: 'bad' };
+    // a save that migrates still has to look like a game: stations, trains, what's owned and money
+    if (!Array.isArray(g.st) || !Array.isArray(g.trains) || !g.places || typeof g.places !== 'object' || typeof g.cash !== 'number') return { ok: false, why: 'bad' };
     // whatever else the file carries beside the game comes along, so the format can grow
     const out: Saved = { ...s, g };
     // a career from another version is left behind: the run still loads

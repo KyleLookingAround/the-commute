@@ -41,7 +41,6 @@ const BASE_CELL = 32, FINE_CELL = 2, TILE = 128;
 const FINE_BAND = 100;     // fine samples within this many metres of the corridor (the line's widest layouts reach 80 m)
 const RAIL_STEP = 5, DATUM_CELL = 64;
 const FAR_CELL = 128, BLOCK = 32, FAR_RING = 1500, OUT_RING = 800;   // the far ring: see nearBlock (OUT_RING: a line out's)
-const LATERAL = 1.25;      // the tracks and kits are drawn this many times real across the line
 const COARSE_CHUNK = 2000, COARSE_RES = 4, FINE_CHUNK = 500;
 
 const fresh = process.argv.includes('--fresh');
@@ -234,7 +233,7 @@ function railOf(l, spans) {
     for (const t of net.tracks) {
       if (!net.onLine(t.corridor, l)) continue;
       const [e0, e1] = net.extent(t.id); if (s < e0 || s > e1) continue;
-      const p = l.at(s, net.offsetAt(t.id, s) / LATERAL), v = ground(p.x, p.z, 2); if (Number.isFinite(v)) lo = Math.min(lo, v);
+      const p = l.at(s, net.offsetAt(t.id, s)), v = ground(p.x, p.z, 2); if (Number.isFinite(v)) lo = Math.min(lo, v);
     }
     if (!Number.isFinite(lo)) { const p = l.at(s); lo = ground(p.x, p.z, 4); }
     under[k] = lo;
@@ -337,7 +336,7 @@ for (let ti = fi0; ti <= fi1; ti++) for (let tj = fj0; tj <= fj1; tj++) {
 }
 const out = {
   note: 'From the Environment Agency LIDAR Composite DTM 1 m (Open Government Licence), by tools/lidar-to-terrain.mjs: heights in decimetres above Ordnance Datum, in game metres from the network origin (x east, z south). Contains Environment Agency information © Environment Agency and/or database right.',
-  cell: BASE_CELL, tile: TILE, farCell: FAR_CELL, block: BLOCK, fineCell: FINE_CELL, fineBand: FINE_BAND, lateral: LATERAL,
+  cell: BASE_CELL, tile: TILE, farCell: FAR_CELL, block: BLOCK, fineCell: FINE_CELL, fineBand: FINE_BAND,
   tiles: base, near: nearBase,
   rail: { step: RAIL_STEP, dm: dmRail },
   datum: { x0: dx0, z0: dz0, cell: DATUM_CELL, w: dw, h: dh, dm: encodeGrid(Array.from(datum), dw, dh) },

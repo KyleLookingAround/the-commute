@@ -26,8 +26,8 @@ const BODY = lam(PAL.cab), BAY = lam(PAL['cab-bay']);
 const LIGHT = new THREE.MeshBasicMaterial({ color: PAL['cab-sign'] });
 const COAT = lam(PAL.pax);
 const B = (w: number, h: number, d: number, x: number, y: number, z: number) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
-// a black cab pointing along +z: body, the tall cabin, wheels under; 1.25 times real across the line like everything else
-const CAB = mergeGeometries([B(2.2, 0.85, 4.6, 0, 0.75, 0), B(2.0, 0.8, 2.9, 0, 1.55, -0.3), B(2.3, 0.5, 0.9, 0, 0.35, 1.5), B(2.3, 0.5, 0.9, 0, 0.35, -1.5)]);
+// a black cab pointing along +z: body, the tall cabin, wheels under; its real width (2 m) across
+const CAB = mergeGeometries([B(1.94, 0.85, 4.6, 0, 0.75, 0), B(1.76, 0.8, 2.9, 0, 1.55, -0.3), B(2.02, 0.5, 0.9, 0, 0.35, 1.5), B(2.02, 0.5, 0.9, 0, 0.35, -1.5)]);
 const ROOF = B(0.7, 0.2, 0.3, 0, 2.05, 0.6);
 const PERSON = mergeGeometries([new THREE.CylinderGeometry(0.26, 0.3, 1.25, 8).translate(0, 0.62, 0), new THREE.SphereGeometry(0.2, 8, 6).translate(0, 1.45, 0)]);
 

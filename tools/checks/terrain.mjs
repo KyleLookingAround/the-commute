@@ -20,7 +20,7 @@ const { fromGeo } = await import('../../src/sim/network.ts');
 const { Terrain, TerrainLayer, partBoxes } = await import('../../src/render/terrain.ts');
 const { viaductOf, bridgesOf } = await import('../../src/render/landmarks.ts');
 
-const HALF = 1.93 + 0.5, Y0 = 0.65;   // a body's half width as drawn (the geometry check's), and its underframe
+const HALF = 1.51 + 0.5, Y0 = 0.65;   // a body's half width as drawn (the geometry check's), and its underframe
 const BUDGET = 2.6 * 1024 * 1024;
 
 export default async function ({ ok, root }) {

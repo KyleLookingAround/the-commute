@@ -30,12 +30,13 @@ const DEPOT_SPEED = 14;    // m/s an empty bus runs to and from the depot, quick
 
 const lam = (c: THREE.Color) => new THREE.MeshLambertMaterial({ color: c });
 const B = (w: number, h: number, d: number, x: number, y: number, z: number) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
-// a bus pointing along +z, 1.25 times real across like everything else: body, a coloured band, wheels; the glass and
-// the boards are their own meshes
-const BODY = mergeGeometries([B(3.1, 2.4, LEN, 0, 1.75, 0), B(3.15, 0.35, LEN - 0.4, 0, 1.1, 0), B(3.2, 0.7, 1.2, 0, 0.45, LEN / 2 - 2.2), B(3.2, 0.7, 1.2, 0, 0.45, -LEN / 2 + 2.6)]);
-const BAND = B(3.16, 0.3, LEN - 0.6, 0, 2.2, 0);
-const GLASS = mergeGeometries([B(3.18, 0.9, LEN - 2.4, 0, 2.55, -0.4), B(2.7, 1.3, 0.1, 0, 2.35, LEN / 2 + 0.01)]);
-const BOARD = mergeGeometries([B(2.2, 0.45, 0.08, 0, 3.25, LEN / 2 + 0.02), B(0.08, 0.45, 4.2, 1.6, 3.25, 1), B(0.08, 0.45, 4.2, -1.6, 3.25, 1)]);
+// a bus pointing along +z, its real width (2.5 m) across: body, a coloured band, wheels; the glass and the boards are
+// their own meshes
+const W = 2.5 / 3.1;
+const BODY = mergeGeometries([B(3.1, 2.4, LEN, 0, 1.75, 0), B(3.15, 0.35, LEN - 0.4, 0, 1.1, 0), B(3.2, 0.7, 1.2, 0, 0.45, LEN / 2 - 2.2), B(3.2, 0.7, 1.2, 0, 0.45, -LEN / 2 + 2.6)]).scale(W, 1, 1);
+const BAND = B(3.16, 0.3, LEN - 0.6, 0, 2.2, 0).scale(W, 1, 1);
+const GLASS = mergeGeometries([B(3.18, 0.9, LEN - 2.4, 0, 2.55, -0.4), B(2.7, 1.3, 0.1, 0, 2.35, LEN / 2 + 0.01)]).scale(W, 1, 1);
+const BOARD = mergeGeometries([B(2.2, 0.45, 0.08, 0, 3.25, LEN / 2 + 0.02), B(0.08, 0.45, 4.2, 1.6, 3.25, 1), B(0.08, 0.45, 4.2, -1.6, 3.25, 1)]).scale(W, 1, 1);
 const PERSON = mergeGeometries([new THREE.CylinderGeometry(0.26, 0.3, 1.25, 8).translate(0, 0.62, 0), new THREE.SphereGeometry(0.2, 8, 6).translate(0, 1.45, 0)]);
 
 /** The "Rail Replacement" board, drawn once and shared. */

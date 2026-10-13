@@ -1,5 +1,6 @@
 // Train units as vertex-coloured box geometry, positioned on their service's track by distance along the corridor. The
-// cars are real length but 1.3 times real height and width, model-railway style, so a train reads from the stock zoom.
+// cars are real length and width but 1.3 times real height, model-railway style, so a train reads from the stock zoom
+// and still runs clear of the platforms and the trains beside it on tracks at their real spacing.
 // A train stands at the platform the sim gave it (`Train.bound` running in, `Train.pf` standing and leaving): running in,
 // it crosses from its own track to that platform's (its track, or the rails drawn into a bay) where the two come
 // closest, nearest the station, and leaving it crosses back the same way; turning round, it leaves on the track it
@@ -44,9 +45,9 @@ export const liveryFor = (operator: string): Livery => LIVERIES[operator] ?? NOR
  * as the train fills. */
 export function carGeometry(liv: Livery, noseLow: boolean, noseHigh: boolean): THREE.BufferGeometry {
   const P: number[] = [], N: number[] = [], C: number[] = [], win: number[] = [];
-  const S = 1.3;   // the cross-section scale
+  const S = 1.3;   // the height's scale (the width is real)
   const addBox = (x0: number, x1: number, y0r: number, y1r: number, z0r: number, z1r: number, col: RGB) => {
-    const y0 = y0r * S, y1 = y1r * S, z0 = z0r * S, z1 = z1r * S;
+    const y0 = y0r * S, y1 = y1r * S, z0 = z0r, z1 = z1r;
     const f: [RGB, RGB, RGB, RGB, RGB][] = [[[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1]], [[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [0, 0, -1]], [[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], [0, 1, 0]], [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [0, -1, 0]], [[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [1, 0, 0]], [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [-1, 0, 0]]];
     for (const [a, b, c, d, n] of f) for (const v of [a, b, c, a, c, d]) { P.push(...v); N.push(...n); C.push(...col); }
   };
@@ -333,8 +334,8 @@ export class TrainLayer {
     let h = 0;
     const tr = tb.fail ? g.trains.find(t => t.id === tb.fail!.train) : undefined, u = tr ? this.units[g.trains.indexOf(tr)] : undefined;
     const ends = u ? [[u.cars[0], -1], [u.cars[u.cars.length - 1], 1]] as const : [];
-    if (on) for (const [m, e] of ends) if (m) for (const z of [-1.5, 1.5]) {
-      m4.makeTranslation(e * (CAR / 2 - 0.3), 1.6 * 1.3, z * 1.3).premultiply(m.matrix); this.hazards.setMatrixAt(h++, m4);
+    if (on) for (const [m, e] of ends) if (m) for (const z of [-1.55, 1.55]) {
+      m4.makeTranslation(e * (CAR / 2 - 0.3), 1.6 * 1.3, z).premultiply(m.matrix); this.hazards.setMatrixAt(h++, m4);
     }
     this.hazards.count = h; this.hazards.instanceMatrix.needsUpdate = true;
     let c = 0;
@@ -426,11 +427,11 @@ export class TrainLayer {
       for (const side of [-1, 1]) {
         for (let k = 0; k < seated && at.r < MAX_RIDERS; k++) {
           const seat = SEATS[(k + c * 3 + (side > 0 ? 5 : 0)) % SEATS.length]!;
-          m4.makeTranslation(x0 + SEAT_U(seat), 3.4, side * 1.9).premultiply(m.matrix);
+          m4.makeTranslation(x0 + SEAT_U(seat), 3.4, side * 1.48).premultiply(m.matrix);
           this.riders.setMatrixAt(at.r, m4); this.riders.setColorAt(at.r, this.coats[(tr.id + c + seat) % this.coats.length]!); at.r++;
         }
         if (full >= STANDING) for (const d of DOORS) if (at.s < MAX_STANDING) {
-          m4.makeTranslation(x0 + d, 3.0, side * 1.93).premultiply(m.matrix);
+          m4.makeTranslation(x0 + d, 3.0, side * 1.51).premultiply(m.matrix);
           this.standing.setMatrixAt(at.s, m4); this.standing.setColorAt(at.s, this.coats[(tr.id + c + at.s) % this.coats.length]!); at.s++;
         }
       }

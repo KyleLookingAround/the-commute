@@ -1,8 +1,8 @@
 // The line's geometry, measured from the data and the renderer's own shapes rather than by eye. No browser: the kits'
 // parts are built with the renderer's builders (src/render/stations.ts) and the trains posed as the renderer poses them
 // (unitPoses in src/render/trains.ts), each in the station's own frame (u along, v across).
-// - Platform edges: at every station, on every face a train stands at, the platform edge runs EDGE m (2.1 m, a real
-//   gap 1.25 times across like the tracks, for trains drawn 1.3 times real width) from that track's centreline, the
+// - Platform edges: at every station, on every face a train stands at, the platform edge runs EDGE m (1.68 m,
+//   a real gap, for trains drawn at their real 2.8 m width) from that track's centreline, the
 //   same all the way along the platform and its extension.
 // - Clearance: no solid part (anything between rail top and roof height but the rails themselves: platforms,
 //   buildings, stairs, shelters, columns, piers, walls, lamps, boards) stands in the space a train's bodies sweep on
@@ -11,7 +11,7 @@
 //   no kit parts; its masts and signals are placed outside the outer track.
 // - Stops: every unit standing at every platform its service uses is wholly alongside it (the shortest unit on the
 //   halt's platform, the longest with the extension, or the longest the kit says its real platforms take; an express
-//   its own length), on the platform's edge 2.1 m from where it stands, short of any buffer stop.
+//   its own length), on the platform's edge EDGE m from where it stands, short of any buffer stop.
 // - The drawing matches the sim: wherever a unit runs on its own track, the bogies of each car it draws (its body
 //   straight between) lie on its track's centreline as the sim's network gives it (within ON m); standing, on its
 //   platform's track or rails; and a standing unit is centred where the sim stops it.
@@ -28,8 +28,8 @@ const { partGroup } = await import('../../src/render/stations.ts');
 const { unitPoses, serviceRange, offsetOn, NO_BERTHS } = await import('../../src/render/trains.ts');
 const { Sim, UPGRADES } = await import('../../src/sim/sim.ts');
 
-const EDGE = 2.1, EDGE_TOL = 0.1;   // platform edge from the track's centreline
-const HALF = 1.93;                  // a body's half width as drawn, 1.3 times real, with the riders in its windows
+const EDGE = 1.68, EDGE_TOL = 0.1;   // platform edge from the track's centreline
+const HALF = 1.51;                  // a body's half width as drawn, real, with the riders in its windows
 const Y0 = 0.65, Y1 = 5.2;          // a body's underframe to its roof, as drawn
 const ON = 0.05;                    // how far a car's bogies may stray from its track's centreline
 const CARS = [2, 4, 6];             // the unit lengths the line can run
@@ -192,7 +192,7 @@ export default async function ({ ok, root, kits: given }) {
       // where its track runs across the kit, as the drawing has a unit standing there
       const tvAt = u => offsetOn(net, v.def, dout, 2, { ahead: null, behind: b }, st.at + u);
       const face = kit.faces[dout > 0 ? 'north' : 'south'], mid = sim.stopAt({ svc: v.id, dir: din, cars: 2 }, st.index, p) - st.at, tv = tvAt(mid);
-      // the platform edge 2.1 m from the track there: on the face's side for the station's own one face each way
+      // the platform edge EDGE m from the track there: on the face's side for the station's own one face each way
       const near = plats.filter(q => q.u0 <= mid && mid <= q.u1 && ![].concat(q.upgrade ?? []).includes('extend'));
       const own = P.def.v === undefined
         ? near.find(q => q.v0 <= face.v && face.v <= q.v1)

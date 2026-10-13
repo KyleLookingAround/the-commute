@@ -5,10 +5,9 @@
 // - Base tiles (src/data/terrain/base.json, every 64 m over the map, and every 32 m in blocks within 1.5 km of the line) come with the page; fine tiles (every 2 m within
 //   100 m of the line) are fetched as the camera comes near. A wider map (phase 8) adds tiles and levels the same way.
 // - The railway's land is flat at 0: every track with its cess, and each station's pad, the ground its kit's parts
-//   stand on. The tracks and kits are drawn 1.25 times real across the line, so beyond that land the ground is read
-//   that much further out, and its real cuttings and banks start at the land's edge. Where a station's pad meets
-//   higher ground a retaining wall stands; on the open line, a cutting slope; where it falls away, an embankment slope
-//   (or a wall, at a station).
+//   stand on. The tracks and kits are drawn at real scale, so the ground beside the land is read where it is, and its
+//   real cuttings and banks start at the land's edge. Where a station's pad meets higher ground a retaining wall
+//   stands; on the open line, a cutting slope; where it falls away, an embankment slope (or a wall, at a station).
 // - Drawn as a base mesh over the whole map (sunk under the line's strip) and a strip along the line, in chunks, each
 //   built coarse at start and fine once the camera is near and its tiles are in.
 import * as THREE from 'three';
@@ -43,7 +42,7 @@ const TOUCH = 60;          // a point of railway land this near another line is 
 const CESS = 5;            // the railway's land beyond the outer track's centre (the masts stand at 3.2)
 const BAND_STEP = 2;       // metres between samples of the land's edges along the line
 const STRIP = 150;         // the strip's reach beyond the land's edge
-const FAR = 600;           // beyond this from the line the ground is read where it is (the shift across fades out)
+const FAR = 600;           // beyond twice this from the line the ground isn't shaped to it
 const WALL_MIN = 1;        // a step this high or more at a station's edge is a wall
 const CUT = 1.2, BANK = 1 / 1.5;   // the steepest cutting and embankment slopes on the open line (rise over run)
 
@@ -61,7 +60,7 @@ export class Terrain {
   readonly net: Network;
   private base = new Map<string, Tile>(); private near = new Map<string, Tile>(); private fine = new Map<string, Tile>();
   private baseSize: number; private nearSize: number; private fineSize: number;
-  readonly fineCell: number; readonly fineBand: number; readonly lateral: number;
+  readonly fineCell: number; readonly fineBand: number;
   private railDm: number[]; private railStep: number;
   private datum: { x0: number; z0: number; cell: number; w: number; h: number; v: Float32Array };
   /** The railway's land along each line the ground is laid along: the spine first, then the lines out (net.lines). */
@@ -75,7 +74,7 @@ export class Terrain {
   constructor(net: Network, kits: Record<string, KitDef | undefined>, spans: [number, number][] | ((line: Corridor) => [number, number][]) = [], data: typeof baseData = baseData) {
     this.net = net; this.spans = typeof spans === 'function' ? spans(net.spine) : spans;
     this.baseSize = data.cell * data.tile; this.fineCell = data.fineCell; this.fineSize = data.fineCell * data.tile;
-    this.fineBand = data.fineBand; this.lateral = data.lateral;
+    this.fineBand = data.fineBand;
     let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
     // the base tiles are every farCell m; within a kilometre and a half of the line, blocks every cell m besides
     this.nearSize = data.cell * data.block;
@@ -249,29 +248,10 @@ export class Terrain {
     b[2] = !!(g.padLo[k]! || g.padLo[k + 1]!); b[3] = !!(g.padHi[k]! || g.padHi[k + 1]!);
     return b;
   }
-  /** Where to read the real ground for a point `o` across the line at s: beyond the land, as far past the land's real
-   * edge as the point is past the drawn one (fading back to where it is far out). */
-  private realOffset(o: number, lo: number, hi: number): number {
-    const L = this.lateral, r = o > hi ? hi / L + (o - hi) : o < lo ? lo / L + (o - lo) : o / L;
-    const d = Math.abs(o) - FAR; return d <= 0 ? r : d >= FAR ? o : r + (o - r) * d / FAR;
-  }
-  /** The ground beside a line, drawn: `o` across at s (outside the land), and the step at the land's edge. */
+  /** The ground beside a line: `o` across at s (outside the land), less the datum. */
   beside(g: GroundLine, s: number, o: number, fr = FRAME): number {
-    const [lo, hi] = this.band(g, s), c = g.c;
-    c.at(s, this.realOffset(o, lo, hi), fr);
-    const x = fr.x, z = fr.z; c.at(s, o, fr);
-    return this.raw(x, z) - this.datumAt(fr.x, fr.z);
-  }
-  /** Where a surveyed point (a building's middle, a tree) is drawn: moved out from the line as the ground beside it is
-   * read (realOffset, inverted), so it stands where its ground is drawn. (One array, filled again: read it at once.) */
-  drawnAt(x: number, z: number): [number, number] {
-    const { k: l, s, o, past } = this.locate(x, z), out = DRAWN, L = this.lines[l]!;
-    out[0] = x; out[1] = z;
-    if (past || Math.abs(o) > 2 * FAR) return out;
-    const [lo, hi] = this.band(L, s); let d = o;
-    for (let k = 0; k < 6; k++) d += o - this.realOffset(d, lo, hi);
-    L.c.at(s, 0, LOC_F); out[0] = x + LOC_F.nx * (d - o); out[1] = z + LOC_F.nz * (d - o);
-    return out;
+    g.c.at(s, o, fr);
+    return this.raw(fr.x, fr.z) - this.datumAt(fr.x, fr.z);
   }
   /** Whether a drawn point is on the railway's land, within `margin` m of it, or on its cutting or embankment slope
    * (where the ground is drawn shaped to the line rather than as surveyed). */
@@ -315,7 +295,6 @@ export class Terrain {
   hasFine(key: string): boolean { return this.fine.has(key.replace('_', ',')); }
 }
 const FRAME = { x: 0, z: 0, heading: 0, dx: 0, dz: 0, nx: 0, nz: 0 }, LOC_F = { ...FRAME }, EACH_F = { ...FRAME }, LOC = { k: 0, s: 0, o: 0, past: false }, NEAR_AT = { k: 0, s: 0 }, BAND: [number, number, boolean, boolean] = [0, 0, false, false];
-const DRAWN: [number, number] = [0, 0];
 
 /** The ground `out` metres past the land's edge, given the real ground there (g) and just past the edge (g0): at a
  * station a wall up or down to the ground; on the open line no steeper than a cutting or an embankment slope. */

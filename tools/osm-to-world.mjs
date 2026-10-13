@@ -587,7 +587,7 @@ if (args.includes('--bridges')) {
     let n = 0, high = 0, top = 0;
     for (const t of net.tracks) {
       const [e0, e1] = net.extent(t.id); if (s < e0 || s > e1 || !(net.onLine ? net.onLine(t.corridor, c) : true)) continue;
-      const p = c.at(s, net.offsetAt(t.id, s) / 1.25), h = lidar('dsm', p.x, p.z) - lidar('dtm', p.x, p.z), l = lidar('dsm', p.x, p.z) - lidar('lst', p.x, p.z);
+      const p = c.at(s, net.offsetAt(t.id, s)), h = lidar('dsm', p.x, p.z) - lidar('dtm', p.x, p.z), l = lidar('dsm', p.x, p.z) - lidar('lst', p.x, p.z);
       n++; if (h >= 3.5 && l < 0.5) { high++; top = Math.max(top, h); }
     }
     const on = n > 0 && high >= Math.max(1, Math.ceil(n * 0.7));

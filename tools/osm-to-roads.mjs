@@ -37,8 +37,8 @@ function wayOut(id) {
   let k = 0; for (let i = 1; i < wp.length; i++) if (dist(wp[i], st) < dist(wp[k], st)) k = i;
   const a = wp[Math.max(0, k - 1)], b = wp[Math.min(wp.length - 1, k + 1)], kx = 111320 * Math.cos(st.lat * Math.PI / 180);
   let dx = (b.lon - a.lon) * kx, dy = (b.lat - a.lat) * 111320; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
-  // u along the line towards Manchester (the waypoints run that way), v across it to the right; across is 1.25 times real
-  const e = stop.u * dx + (stop.v / 1.25) * dy, n = stop.u * dy - (stop.v / 1.25) * dx;
+  // u along the line towards Manchester (the waypoints run that way), v across it to the right, both real
+  const e = stop.u * dx + stop.v * dy, n = stop.u * dy - stop.v * dx;
   return { lat: st.lat + n / 111320, lon: st.lon + e / kx };
 }
 

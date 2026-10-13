@@ -97,8 +97,8 @@ test('tracks: trains stand just clear of the platform their passengers wait on, 
         .map(p => side > 0 ? p.v0! : p.v1!).filter(e => (e - tv) * side > 0 && (fv - e) * side >= 0);
       assert.ok(edges.length, `${st.id} ${dir}: a platform between the track at ${tv.toFixed(2)} and the face at ${fv}`);
       const gap = Math.min(...edges.map(e => Math.abs(e - tv)));
-      // trains are drawn 3.64 m wide: the edge clears half of that and is close enough to step across
-      assert.ok(gap >= 1.95 && gap <= 3, `${st.id} ${dir}: platform edge ${gap.toFixed(2)} m from the track`);
+      // trains are drawn 2.8 m wide, their real width: the edge clears half of that and is close enough to step across
+      assert.ok(gap >= 1.45 && gap <= 2.4, `${st.id} ${dir}: platform edge ${gap.toFixed(2)} m from the track`);
     }
   }
 });
@@ -123,7 +123,7 @@ test('tracks: on the open line and through the stations the tracks there keep cl
     // line's two tracks are the one road (together)
     for (const c of Object.keys(n.corridors)) {
       const o = n.tracks.filter(t => { const [e0, e1] = n.extent(t.id); return t.corridor === c && s >= e0 && s <= e1; }).map(t => n.offsetAt(t.id, s)).sort((a, b) => a - b);
-      for (let i = 1; i < o.length; i++) assert.ok(o[i]! - o[i - 1]! >= 4.2 || o[i]! - o[i - 1]! <= 0.3, `at ${s.toFixed(0)} m on ${c} two tracks are ${(o[i]! - o[i - 1]!).toFixed(2)} m apart`);
+      for (let i = 1; i < o.length; i++) assert.ok(o[i]! - o[i - 1]! >= 3.3 || o[i]! - o[i - 1]! <= 0.24, `at ${s.toFixed(0)} m on ${c} two tracks are ${(o[i]! - o[i - 1]!).toFixed(2)} m apart`);
     }
   }
 });

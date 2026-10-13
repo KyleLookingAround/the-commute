@@ -116,16 +116,17 @@ export class Route {
   uses(corridor: string): boolean { return this.legs.some(l => l.corridor === corridor); }
 }
 
-/** What a sensible layout keeps (docs/DESIGN.md, Where the tracks run; src/sim/layout.ts checks it all, the test runs it):
- * step: metres between the points it samples. slope: the steepest a track or a station's rails shift sideways, across
- * per along: a real 1 in 9 turnout's angle is about 1 in 7 across at the map's 1.25 times, and a throat on a curve fans
- * a little faster (Stockport's north end, from OpenStreetMap, at up to about 1 in 5). still: slower than this a track
- * isn't moving. apart: two tracks side by side are at least this far apart (trains are drawn 3.64 m wide), or within
- * `together` of each other (one road worked both ways); in between they're in a turnout, merging, parting or crossing
- * over, for no longer than `turnout`. gap: the clear line between one section (a station's throat, a junction, a
- * crossover) and the next. cess: how far a structure's deck reaches beyond its outer track. block: the shortest block
- * section, the longest train (an express's nine cars) and an overlap. */
-export const LAYOUT = { step: 5, slope: 0.2, still: 0.004, apart: 4.2, together: 0.3, turnout: 120, gap: 100, cess: 6, block: 9 * 23.6 + 50 };
+/** What a sensible layout keeps (docs/DESIGN.md, Where the tracks run; src/sim/layout.ts checks it all, the test runs it),
+ * at real scale across the line: step: metres between the points it samples. slope: the steepest a track or a station's
+ * rails shift sideways, across per along: a real 1 in 9 turnout's diverging road leaves at about that, and a throat on a
+ * curve fans a little faster (Stockport's north end, from OpenStreetMap, at up to about 1 in 6.3), so 1 in 6. still:
+ * slower than this a track isn't moving. apart: two tracks side by side are at least this far apart (real track centres
+ * are about 3.4 to 4 m: a six-foot of about 1.9 m between two 1.435 m gauges; trains are drawn 2.8 m wide, so two pass
+ * half a metre apart), or within `together` of each other (one road worked both ways); in between they're in a
+ * turnout, merging, parting or crossing over, for no longer than `turnout`. gap: the clear line between one section (a
+ * station's throat, a junction, a crossover) and the next. cess: how far a structure's deck reaches beyond its outer
+ * track. block: the shortest block section, the longest train (an express's nine cars) and an overlap. */
+export const LAYOUT = { step: 5, slope: 1 / 6, still: 0.0032, apart: 3.3, together: 0.24, turnout: 120, gap: 100, cess: 4.8, block: 9 * 23.6 + 50 };
 
 /** Signals: a site every SIGNAL_SITE metres of chainage from SIGNAL_FIRST (halfway between two masts), none within
  * SIGNAL_CLEAR of a station on its corridor (its kit fills that stretch) nor in a section where the tracks move (a

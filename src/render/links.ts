@@ -17,10 +17,11 @@ const MAX_BUSES = 24;
 const RUN = 90;               // how far a bus drives in from and out to, past the bays
 const lam = (c: THREE.Color) => new THREE.MeshLambertMaterial({ color: c });
 const B = (w: number, h: number, d: number, x: number, y: number, z: number) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
-// a bus pointing along +z, 1.25 times real across like everything else: body, wheels, and the glass as its own mesh
-const BODY = mergeGeometries([B(3.1, 2.4, LEN, 0, 1.75, 0), B(3.2, 0.7, 1.2, 0, 0.45, LEN / 2 - 2.2), B(3.2, 0.7, 1.2, 0, 0.45, -LEN / 2 + 2.6)]);
-const BAND = B(3.16, 0.5, LEN - 0.6, 0, 1.2, 0);
-const GLASS = mergeGeometries([B(3.18, 0.9, LEN - 2.4, 0, 2.55, -0.4), B(2.7, 1.3, 0.1, 0, 2.35, LEN / 2 + 0.01)]);
+// a bus pointing along +z, its real width (2.5 m) across: body, wheels, and the glass as its own mesh
+const W = 2.5 / 3.1;
+const BODY = mergeGeometries([B(3.1, 2.4, LEN, 0, 1.75, 0), B(3.2, 0.7, 1.2, 0, 0.45, LEN / 2 - 2.2), B(3.2, 0.7, 1.2, 0, 0.45, -LEN / 2 + 2.6)]).scale(W, 1, 1);
+const BAND = B(3.16, 0.5, LEN - 0.6, 0, 1.2, 0).scale(W, 1, 1);
+const GLASS = mergeGeometries([B(3.18, 0.9, LEN - 2.4, 0, 2.55, -0.4), B(2.7, 1.3, 0.1, 0, 2.35, LEN / 2 + 0.01)]).scale(W, 1, 1);
 
 /** A link as built: its group (whose frame turns kit (u, v) into the world) and its bays' heads and direction there. */
 interface Link { gp: THREE.Group; p: LinkPart; bu: number; bv: number }

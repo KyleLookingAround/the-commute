@@ -2,9 +2,9 @@
 // (tools/osm-to-world.mjs writes them by kilometre square into src/data/world/), drawn in the model-railway style.
 // - The squares are fetched after the first frame, nearest the camera first, as the fine terrain is; a square waits for
 //   the fine terrain under it, so its buildings stand on the ground as drawn.
-// - Each building moves out from the line as the ground beside it is read (Terrain.drawnAt), and stands on the lowest
-//   ground along its walls. Left out: anything on the railway's land or its cutting and embankment slopes, on a
-//   station's kit (its parts draw their own), or on the roads the replacement buses drive.
+// - Each building stands where it's surveyed, on the lowest ground along its walls. Left out: anything on the
+//   railway's land or its cutting and embankment slopes, on a station's kit (its parts draw their own), or on the
+//   roads the replacement buses drive.
 // - Drawn merged by half-kilometre chunk, one draw call each: walls and roofs (pitched, hipped or flat) near the camera,
 //   blocks with a flat top further off; only the near chunks cast shadows (all take them), and Low (Settings, Graphics)
 //   leaves out the far ones.
@@ -283,7 +283,7 @@ class Builder {
   }
 }
 
-/** A piece as drawn: moved out from the line, on its ground. */
+/** A piece as drawn: on its ground. */
 interface Placed { p: Piece; cs: number[]; y0: number; y1: number }
 /** A square as drawn: one merged block mesh for far off, and its chunks in full (built while the camera's near). */
 interface Square { key: string; x0: number; z0: number; d: number; placed: Placed[]; far: THREE.Mesh; farTrees: THREE.InstancedMesh[]; chunks: Chunk[] }
@@ -479,14 +479,11 @@ export class BuildingsLayer {
   add(key: string, pieces: Piece[], trees: Float32Array = new Float32Array(0)): Placed[] {
     const out = this.placeBuildings(key, pieces); this.finish(key, out, this.placeTrees(trees)); return out;
   }
-  /** A square's pieces, moved out from the line, kept off what they may not stand on, and on their ground. */
+  /** A square's pieces, kept off what they may not stand on, and on their ground. */
   private placeBuildings(key: string, pieces: Piece[]): Placed[] {
     const t = this.t, out: Placed[] = [];
     this.stats.buildings += pieces.length;
-    for (const p of pieces) {
-      // moved out from the line as its ground is
-      const [dx, dz] = t.drawnAt(p.x, p.z), sx = dx - p.x, sz = dz - p.z;
-      const q: Piece = { ...p, x: dx, z: dz, ring: p.ring ? p.ring.map((v, k) => v + (k & 1 ? sz : sx)) : null };
+    for (const q of pieces) {
       if (!this.keep.ok(q)) { this.stats.left++; continue; }
       const cs = corners(q); let lo = Infinity, sum = 0;
       for (let k = 0; k < cs.length; k += 2) {
@@ -508,11 +505,11 @@ export class BuildingsLayer {
     }
     return out;
   }
-  /** A square's trees, moved out from the line and kept off what they may not stand on (TREE numbers each). */
+  /** A square's trees, kept off what they may not stand on (TREE numbers each). */
   private placeTrees(trees: Float32Array): number[] {
     const t = this.t, all: number[] = [];
     for (let k = 0; k < trees.length; k += 4) {
-      const [x, z] = t.drawnAt(trees[k]!, trees[k + 1]!), h = trees[k + 2]!, r = trees[k + 3]!;
+      const x = trees[k]!, z = trees[k + 1]!, h = trees[k + 2]!, r = trees[k + 3]!;
       if (!this.keep.tree(x, z, r) || this.blocked(x, z, 1)) { this.stats.treesLeft++; continue; }
       const w = hash(x, z); all.push(x, t.groundY(x, z), z, h, r, w < 0.35 ? 1 : 0, 0.86 + hash(z, x) * 0.24, 0);
     }
@@ -545,15 +542,15 @@ export class BuildingsLayer {
     else { b.prism(q.cs, q.y0, q.y1, wall, null); b.roof(p, q.y1, wall, top); }
   }
 
-  /** Paint a square's ground cover into its layer: each area and street moved out from the line as the ground is, then
-   * the railway's land cleared (the terrain draws its own). */
+  /** Paint a square's ground cover into its layer: each area and street, then the railway's land cleared (the terrain
+   * draws its own). */
   paint(key: string, list: Cover[]): void {
     const C = this.cover, at = C?.layer.get(key); if (!C || at === undefined) return;
     const g = C.canvas.getContext('2d', { willReadFrequently: true }); if (!g) return;
     const [i, j] = key.split('_').map(Number) as [number, number], X = i * SQUARE, Z = j * SQUARE, k = COVER_PX / SQUARE, t = this.t;
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, COVER_PX, COVER_PX); g.setTransform(k, 0, 0, k, -X * k, -Z * k);
     g.lineCap = 'round'; g.lineJoin = 'round';
-    const trace = (pts: Float32Array) => { g.beginPath(); for (let q = 0; q < pts.length; q += 2) { const [x, z] = t.drawnAt(pts[q]!, pts[q + 1]!); if (q) g.lineTo(x, z); else g.moveTo(x, z); } };
+    const trace = (pts: Float32Array) => { g.beginPath(); for (let q = 0; q < pts.length; q += 2) { const x = pts[q]!, z = pts[q + 1]!; if (q) g.lineTo(x, z); else g.moveTo(x, z); } };
     for (const c of list) {
       const colour = C.colours[c.cls]; if (!colour) continue;
       trace(c.pts);

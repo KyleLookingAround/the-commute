@@ -157,19 +157,19 @@ const partBuilders: Builders = {
     for (let u = p.u0; u <= p.u1; u += p.every || 10) for (const y of p.ys) box(gp, 1.6, 2.2, 0.1, MAT.glow, u, y, p.v);
   },
   shelter(gp, p) {
-    // a glazed bus-stop shelter, 1.25 times real like the platforms it stands on: the glass back at +v
+    // a glazed bus-stop shelter: the glass back at +v
     const b = p.back ?? 1;
     if (p.vault) {
       // a half-cylinder roof along the line on a solid blue dado, glazed above
       const r = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 8, 12, 1, false, 0, Math.PI), MAT.shed);
       r.rotation.z = Math.PI / 2; r.position.set(p.u, 3.4, p.v); gp.add(r);
-      box(gp, 8, 1, 0.2, MAT.shelter, p.u, 1.5, p.v + b * 1.4); box(gp, 8, 1.4, 0.2, MAT.glass, p.u, 2.7, p.v + b * 1.4);
-      for (const du of [-3.9, 3.9]) { box(gp, 0.2, 1, 3, MAT.shelter, p.u + du, 1.5, p.v); box(gp, 0.2, 1.4, 3, MAT.glass, p.u + du, 2.7, p.v); }
-      for (const du of [-3.9, 0, 3.9]) box(gp, 0.18, 2.4, 0.18, MAT.shelter, p.u + du, 2.2, p.v - b * 1.5);
+      box(gp, 8, 1, 0.2, MAT.shelter, p.u, 1.5, p.v + b * 1.1); box(gp, 8, 1.4, 0.2, MAT.glass, p.u, 2.7, p.v + b * 1.1);
+      for (const du of [-3.9, 3.9]) { box(gp, 0.2, 1, 2.4, MAT.shelter, p.u + du, 1.5, p.v); box(gp, 0.2, 1.4, 2.4, MAT.glass, p.u + du, 2.7, p.v); }
+      for (const du of [-3.9, 0, 3.9]) box(gp, 0.18, 2.4, 0.18, MAT.shelter, p.u + du, 2.2, p.v - b * 1.2);
       return;
     }
-    box(gp, 8, 0.25, 3.2, MAT.canopy, p.u, 3.5, p.v); box(gp, 8, 2.4, 0.2, MAT.glass, p.u, 2.2, p.v + b * 1.4);
-    for (const du of [-3.8, 3.8]) { box(gp, 0.2, 2.4, 3, MAT.glass, p.u + du, 2.2, p.v); const c = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.4, 6), MAT.steel); c.position.set(p.u + du, 2.2, p.v - b * 1.4); gp.add(c); }
+    box(gp, 8, 0.25, 2.6, MAT.canopy, p.u, 3.5, p.v); box(gp, 8, 2.4, 0.2, MAT.glass, p.u, 2.2, p.v + b * 1.1);
+    for (const du of [-3.8, 3.8]) { box(gp, 0.2, 2.4, 2.4, MAT.glass, p.u + du, 2.2, p.v); const c = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.4, 6), MAT.steel); c.position.set(p.u + du, 2.2, p.v - b * 1.1); gp.add(c); }
   },
   footbridge(gp, p) {
     const w = p.v1 - p.v0, cv = (p.v0 + p.v1) / 2;

@@ -44,8 +44,8 @@ function merged(parts: [THREE.BufferGeometry, number, number, number][]): THREE.
   return out;
 }
 const B = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d);
-// a car pointing along z: body and cabin, 1.25 times real across the line like everything else
-const CAR = merged([[B(1.9, 0.75, 4.6), 0, 0.6, 0], [B(1.7, 0.6, 2.4), 0, 1.25, -0.2]]);
+// a car pointing along z: body and cabin, its real width (1.8 m) across
+const CAR = merged([[B(1.8, 0.75, 4.6), 0, 0.6, 0], [B(1.6, 0.6, 2.4), 0, 1.25, -0.2]]);
 // a bike standing along z: two wheels and the frame
 const wheel = () => new THREE.CylinderGeometry(0.34, 0.34, 0.06, 10).rotateZ(Math.PI / 2);
 const BIKE = merged([[wheel(), 0, 0.34, -0.55], [wheel(), 0, 0.34, 0.55], [B(0.06, 0.08, 1.1), 0, 0.62, 0], [B(0.06, 0.5, 0.06), 0, 0.5, -0.15], [B(0.45, 0.05, 0.05), 0, 0.95, 0.5]]);

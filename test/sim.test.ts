@@ -685,3 +685,41 @@ test('signalling: at a junction a train waits while another crosses its way, the
   assert.equal(Bt.leg, 1, 'on the line now');
   assert.ok(sim.signalRoom(L, 5000) < 500, 'and holds the next one back while it crosses');
 });
+
+// ---- journeys across the graph ----
+test('journeys: from the Hazel Grove line to the main line is a path of two rides, changing at Stockport', () => {
+  const sim = new Sim(net()), n = sim.net; sim.g.cash = 1e7; sim.g.owned = sim.g.owned.map(() => true); growStockport(sim);
+  for (let i = 0; i < n.stations.length; i++) sim.ups(i).platform2 = true;
+  sim.refreshJourneys();
+  const J = sim.journey(n.station('davenport').index, n.station('heaton-chapel').index)!;
+  assert.deepEqual(J.legs.map(l => sim.svcs[l.svc]!.id), ['hazel-grove', 'stopper']);
+  assert.deepEqual(J.at, [n.station('stockport').index]);
+  assert.equal(J.changes, 1);
+  // setting out, they wait for the train their journey's first ride takes: towards Manchester
+  assert.equal(sim.dirIdx(n.station('davenport').index, n.station('heaton-chapel').index), 0);
+  assert.equal(sim.dirIdx(n.station('heaton-chapel').index, n.station('davenport').index), 1);
+});
+
+test('journeys: a trip takes as many changes as the quickest way needs, never back on the line it just left', async () => {
+  const { Network } = await import('../src/sim/network.ts');
+  const { journeys } = await import('../src/sim/journeys.ts');
+  const st = (id: string, z: number) => ({ id, name: id, corridor: 'line', x: 0, z, lat: 0, lon: 0, miles: -z / 1609, catchment: 100, draw: 100, price: 0, kit: id, retail: '' });
+  const svc = (id: string, route: string[]) => ({ id, name: id, operator: 'x', tracks: { north: ['n'], south: ['s'] }, calls: 'all', cars: 2, route });
+  // four stations up a line, three services each running between two neighbours: a to d is three rides
+  const def = {
+    origin: { lat: 0, lon: 0 }, corridors: [{ id: 'line', points: [[0, 0], [0, -9000]] as [number, number][] }],
+    tracks: [{ id: 'n', corridor: 'line', offset: 0 }, { id: 's', corridor: 'line', offset: 5 }],
+    stations: [st('a', -500), st('b', -3000), st('c', -5500), st('piccadilly', -8500)],
+    services: [svc('ab', ['a', 'b']), svc('bc', ['b', 'c']), svc('cd', ['c', 'piccadilly'])],
+  };
+  const sim = new Sim(new Network(def as never)); sim.g.owned = sim.g.owned.map(() => true);
+  for (let i = 0; i < 4; i++) sim.ups(i).platform2 = true;
+  const J = journeys(sim, TUNING);
+  const there = J[0]![3]!, back = J[3]![0]!;
+  assert.deepEqual(there.legs.map(l => sim.svcs[l.svc]!.id), ['ab', 'bc', 'cd']);
+  assert.deepEqual(there.at, [1, 2]);
+  assert.equal(there.changes, 2);
+  assert.ok(there.legs.every(l => l.d === 0) && back.legs.every(l => l.d === 1), 'towards Manchester, and back');
+  assert.ok(Math.abs(there.felt - back.felt) < 1e-6, 'the same felt either way on a line the same both ways');
+  assert.ok(there.felt > J[0]![2]!.felt, 'a change further feels longer');
+});

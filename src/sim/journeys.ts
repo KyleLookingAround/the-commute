@@ -1,16 +1,18 @@
-// Door-to-door journey times between every pair of stations, as the line stands: the walk to the station, the wait for
-// a train (half the gap between trains that way), the ride (distance at line speed plus a dwell at each stop between),
-// a change at Stockport where the journey needs one, and the walk at the far end. All in sim seconds, which are real
+// Door-to-door journey times between every pair of stations, as the network stands: the walk to the station, the wait
+// for a train (half the gap between trains that way), the ride (distance along its route at line speed plus a dwell at
+// each stop between), a change wherever the best way needs one (Stockport, between the Hazel Grove line and the main
+// line, today), and the walk at the far end. A trip is a path through the graph of rides on services and changes
+// between them, the quickest as people feel it, as many changes as that takes. All in sim seconds, which are real
 // seconds: trains run at real speed, and people's time budget is real time. Recomputed only when what it depends on
 // changes (a purchase, units in service), never every tick.
 import type { Sim, Tuning } from './sim.ts';
 import { feel } from './weather.ts';
 
-/** One way from one station to another. walk: both ends; wait: for the first train and any at the change; felt: the
+/** One way from one station to another. walk: both ends; wait: for the first train and any at the changes; felt: the
  * whole journey as people feel it, before crowding (walking and waiting weigh more than riding); firstWait: the felt
  * part of the wait on the first platform, which is what patience runs out on. legs: the services ridden, whose
- * crowding makes the ride feel longer. */
-export interface Journey { walk: number; wait: number; ride: number; changes: number; felt: number; firstWait: number; legs: Leg[] }
+ * crowding makes the ride feel longer; at: the stations changed at between them. */
+export interface Journey { walk: number; wait: number; ride: number; changes: number; felt: number; firstWait: number; legs: Leg[]; at: number[] }
 /** A ride on one service one way (d 0 towards Manchester, 1 away) and how long it takes. */
 export interface Leg { svc: number; d: 0 | 1; ride: number }
 
@@ -71,34 +73,52 @@ export function journeys(sim: Sim, T: Tuning): (Journey | null)[][] {
     const units = sim.unitsFor(v);
     waits[k] = units ? cycle(sim, T, k) / units / 2 : Infinity;
   });
-  /** A ride from i to j on service k, if its trains call at both going that way. */
+  /** A ride from i to j on service k, if its trains call at both going that way (along its route, 0 towards Manchester). */
   const leg = (k: number, i: number, j: number): Leg | null => {
-    const d = sim.dirIdx(i, j), r = runs[k]![d]!, from = r.dep.get(i), to = r.arr.get(j);
+    const route = sim.svcs[k]!.route, a = route.indexOf(i), b = route.indexOf(j); if (a < 0 || b < 0 || a === b) return null;
+    const d: 0 | 1 = b > a ? 0 : 1, r = runs[k]![d]!, from = r.dep.get(i), to = r.arr.get(j);
     return from === undefined || to === undefined || !isFinite(waits[k]!) ? null : { svc: k, d, ride: to - from };
   };
   const walks = sim.S.map((_, i) => walk(sim, T, i)), ww = sim.S.map((_, i) => waitWeight(sim, T, i)), walkFeel = feel(sim.g).walk;
+  // every ride there is: from each station, on each service its trains call at both ends of going that way
+  const rides: { to: number; leg: Leg }[][] = sim.S.map(() => []);
+  for (let k = 0; k < sim.svcs.length; k++) for (const x of sim.svcs[k]!.route) for (const y of sim.svcs[k]!.route) {
+    const l = x === y ? null : leg(k, x, y); if (l) rides[x]!.push({ to: y, leg: l });
+  }
   const table: (Journey | null)[][] = [];
+  // the search's nodes: a station and the service ridden there (m = 0 at the start), so a change is always onto another
+  // service: riding past and coming back on the same line isn't a journey people make
+  const m = sim.svcs.length + 1, N = n * m;
+  const felt = new Float64Array(N), via = new Int32Array(N), by = new Array<Leg | null>(N), done = new Uint8Array(N);
   for (let i = 0; i < n; i++) {
+    // the quickest way as people feel it from i to everywhere: rides and changes, each ride's wait felt where it's
+    // boarded, a change costing its own five minutes on top (Dijkstra)
+    felt.fill(Infinity); via.fill(-1); by.fill(null); done.fill(0);
+    if (sim.reachable(i)) felt[i * m] = 0;
+    for (;;) {
+      let u = -1; for (let y = 0; y < N; y++) if (!done[y] && felt[y]! < Infinity && (u < 0 || felt[y]! < felt[u]!)) u = y;
+      if (u < 0) break;
+      done[u] = 1;
+      const x = Math.floor(u / m), came = u % m - 1;
+      // a change only where two services meet at a station people can travel to and from
+      if (x !== i && !sim.reachable(x)) continue;
+      for (const { to, leg: l } of rides[x]!) {
+        if (l.svc === came) continue;
+        const f = felt[u]! + ww[x]! * waits[l.svc]! + (x === i ? 0 : T.change) + l.ride, w = to * m + l.svc + 1;
+        if (f < felt[w]!) { felt[w] = f; via[w] = u; by[w] = l; }
+      }
+    }
     const row: (Journey | null)[] = [];
     for (let j = 0; j < n; j++) {
-      let best: Journey | null = null;
-      const consider = (legs: Leg[], at: number[]) => {
-        const w = walks[i]! + walks[j]!, ride = legs.reduce((a, l) => a + l.ride, 0), changes = legs.length - 1;
-        const wait = legs.reduce((a, l) => a + waits[l.svc]!, 0), firstWait = ww[i]! * waits[legs[0]!.svc]!;
-        const felt = T.walkWeight * walkFeel * w + firstWait + legs.slice(1).reduce((a, l, k) => a + ww[at[k]!]! * waits[l.svc]!, 0) + ride + changes * T.change;
-        if (!best || felt < best.felt) best = { walk: w, wait, ride, changes, felt, firstWait, legs };
-      };
-      if (i !== j && sim.reachable(i) && sim.reachable(j)) {
-        for (let a = 0; a < sim.svcs.length; a++) {
-          const direct = leg(a, i, j); if (direct) consider([direct], []);
-          // or change once where two services meet (Stockport, between the branch and the main line)
-          for (let b = 0; b < sim.svcs.length; b++) if (b !== a) for (const x of sim.span(sim.svcs[a]!)) {
-            if (x === i || x === j || !sim.span(sim.svcs[b]!).includes(x)) continue;
-            const l1 = leg(a, i, x), l2 = leg(b, x, j); if (l1 && l2) consider([l1, l2], [x]);
-          }
-        }
-      }
-      row.push(best);
+      let end = -1; for (let k = 1; k < m; k++) if (by[j * m + k] && (end < 0 || felt[j * m + k]! < felt[end]!)) end = j * m + k;
+      if (i === j || end < 0 || !sim.reachable(i) || !sim.reachable(j)) { row.push(null); continue; }
+      // the path back from j: its rides in order, and the stations changed at
+      const legs: Leg[] = [], at: number[] = [];
+      for (let u = end; u >= 0 && by[u];) { const v = via[u]!; legs.unshift(by[u]!); if (Math.floor(v / m) !== i) at.unshift(Math.floor(v / m)); u = v; }
+      const w = walks[i]! + walks[j]!, ride = legs.reduce((a, l) => a + l.ride, 0), changes = legs.length - 1;
+      const wait = legs.reduce((a, l) => a + waits[l.svc]!, 0), firstWait = ww[i]! * waits[legs[0]!.svc]!;
+      const f = T.walkWeight * walkFeel * w + firstWait + legs.slice(1).reduce((a, l, k) => a + ww[at[k]!]! * waits[l.svc]!, 0) + ride + changes * T.change;
+      row.push({ walk: w, wait, ride, changes, felt: f, firstWait, legs, at });
     }
     table.push(row);
   }

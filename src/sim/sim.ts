@@ -223,8 +223,9 @@ export class Sim {
   clock(): string { return clockText(this.g.t); }
   /** A station passengers can travel to: one that's owned, or one always served. */
   reachable(i: number): boolean { return !!this.g.owned[i] || this.fixedEnds.has(i); }
-  /** Which way station j lies from station i: 0 towards Manchester (further along the corridor), 1 away. */
-  dirIdx(i: number, j: number): 0 | 1 { return this.station(j).s > this.station(i).s ? 0 : 1; }
+  /** Which way someone at station i sets out for station j: the way their journey's first train goes (0 towards
+   * Manchester, 1 away), or with no journey there, which way it lies along the line. */
+  dirIdx(i: number, j: number): 0 | 1 { const J = this.jt[i]?.[j]; return J ? J.legs[0]!.d : this.station(j).s > this.station(i).s ? 0 : 1; }
   /** The one way a halt's platform serves: towards Manchester where any train goes on that way, otherwise away. */
   haltDir(i: number): 0 | 1 { return this.local().some(v => { const k = v.route.indexOf(i); return k >= 0 && k < v.route.length - 1; }) ? 0 : 1; }
   /** Whether trains travelling one way (0 towards Manchester, 1 away) have a platform here: a halt only its one way,

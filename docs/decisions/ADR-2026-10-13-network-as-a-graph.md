@@ -1,6 +1,6 @@
 # The network is a graph of corridors joined at junctions, measured in chainage, with services as routes of legs
 
-**Status:** Proposed · 13 October 2026
+**Status:** Approved · 13 October 2026
 
 ## Context
 
@@ -19,6 +19,7 @@ Until now the whole map was one corridor, the Hazel Grove line included, and eve
 - **Junctions:** named points on a corridor (`junctions`, real names and positions, a `note` where from memory), with the corridors that start or end there. A junction with no line beyond it yet marks where a later line joins.
 - **Tracks** belong to one corridor. A service lists its tracks each way leg by leg (`tracks: { north: [...], south: [...] }`); `Route` in `src/sim/network.ts` joins the legs at the junctions where their corridors meet, and a train passes onto the next leg's track there.
 - **Signalling:** every track is cut into blocks at the signal sites along its corridor and at its ends; a train doesn't enter an open-line block another is in, and at a junction doesn't cross a way set for another train. A station's own block is worked by its platforms. The view's colour-light signals stand at those sites and show what the sim says.
+- **Journeys** are paths through the graph: rides on services and changes between them, the quickest as people feel it, as many changes as that takes, each change onto another service.
 - **The view** asks the network for positions as before; what's laid along the whole line (the ground, trees, masts, signals) follows `net.spine`, the spine's corridors as one.
 
 ## Consequences

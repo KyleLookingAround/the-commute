@@ -50,7 +50,7 @@ mkdirSync(rawDir, { recursive: true });
 // ---------------------------------------------------------------------------------------------------------------
 // The network, and the map between game metres, WGS84 and the British National Grid
 const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'));
-const net = fromGeo(def), c = net.corridor('main'), O = def.origin;
+const net = fromGeo(def), c = net.spine, O = def.origin;
 const kLat = 111320, kLon = 111320 * Math.cos(O.lat * Math.PI / 180);
 const toLatLon = (x, z) => [O.lat - z / kLat, O.lon + x / kLon];
 const rad = Math.PI / 180;

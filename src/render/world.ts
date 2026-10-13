@@ -4,7 +4,7 @@ import { MAT, PAL } from './scene.ts';
 import { byCell } from './cells.ts';
 import { bridgesOf, buildLandmarks, onCourses, viaductOf } from './landmarks.ts';
 import { Terrain, TerrainLayer, fineFiles, kitFiles, setTerrain } from './terrain.ts';
-import { newFrame } from '../sim/network.ts';
+import { SPINE, newFrame } from '../sim/network.ts';
 import type { Network } from '../sim/network.ts';
 import type { NetworkGeoDef } from '../sim/types.ts';
 
@@ -20,7 +20,7 @@ export const yawFor = (p: { dx: number; dz: number }): number => Math.atan2(-p.d
 export interface World { groundY: (x: number, z: number) => number; yawFor: typeof yawFor; ground: THREE.MeshLambertMaterial; buildable: (x: number, z: number, r: number) => boolean; terrain: TerrainLayer }
 
 export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef): World {
-  const c = net.corridor('main');
+  const c = net.spine;
   // the viaduct's valley: the town centre fills it, so no suburb houses or new homes stand there
   const viaduct = viaductOf(c, def);
   const valley = viaduct ? { s0: Math.min(viaduct.from, viaduct.to) - 20, s1: Math.max(viaduct.from, viaduct.to) + 60 } : null;
@@ -85,9 +85,9 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       for (const t of net.tracks) { const [e0, e1] = net.extent(t.id); if (s < e0 || s > e1) continue; const o = net.offsetAt(t.id, s); lo = Math.min(lo, o); hi = Math.max(hi, o); }
       if (lo > hi) continue;
       for (const [off, inward] of [[lo - 3.2, 1], [hi + 3.2, -1]] as const) {
-        const p = net.place('main', s, off); e.set(0, yawFor(p), 0); q.setFromEuler(e); sc.set(1, 1, 1);
+        const p = net.place(SPINE, s, off); e.set(0, yawFor(p), 0); q.setFromEuler(e); sc.set(1, 1, 1);
         v3.set(p.x, 3.75, p.z); m4.compose(v3, q, sc); poles.setMatrixAt(k, m4);
-        const pa2 = net.place('main', s, off + inward * 3); v3.set(pa2.x, 6.8, pa2.z); m4.compose(v3, q, sc); arms.setMatrixAt(k, m4); k++;
+        const pa2 = net.place(SPINE, s, off + inward * 3); v3.set(pa2.x, 6.8, pa2.z); m4.compose(v3, q, sc); arms.setMatrixAt(k, m4); k++;
       }
     }
     poles.count = arms.count = k; scene.add(byCell(poles).group, byCell(arms).group);

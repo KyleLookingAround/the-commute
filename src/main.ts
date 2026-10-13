@@ -9,7 +9,7 @@ import kitPiccadilly from './data/kits/piccadilly.json';
 import kitDavenport from './data/kits/davenport.json';
 import kitWoodsmoor from './data/kits/woodsmoor.json';
 import kitHazelGrove from './data/kits/hazel-grove.json';
-import { fromGeo, newFrame } from './sim/network.ts';
+import { SPINE, fromGeo, newFrame } from './sim/network.ts';
 import { Sim, TUNING } from './sim/sim.ts';
 import type { NetworkGeoDef } from './sim/types.ts';
 import { createScene } from './render/scene.ts';
@@ -111,14 +111,14 @@ const buses = new BusLayer(scene, net, built);
 const links = new LinkLayer(scene, built);
 // where the track runs beside each platform face, from the service that boards there that way (at Stockport the main
 // line northbound, the Hazel Grove line southbound), so passengers stand back from the right edge
-const faceTrack = (st: (typeof net.stations)[number], dir: 'north' | 'south') => { const svc = net.boardingService(st.id, dir); return svc ? net.offsetAt(svc.tracks[dir], st.s) : 0; };
+const faceTrack = (st: (typeof net.stations)[number], dir: 'north' | 'south') => { const svc = net.boardingService(st.id, dir); return svc ? net.offsetAt(net.route(svc).track(st.s, dir === 'north' ? 1 : -1), st.s) : 0; };
 const trackV = net.stations.map(st => ({ north: faceTrack(st, 'north'), south: faceTrack(st, 'south') }));
 const pax = new PassengerLayer(built, net.stations, trackV, net.stations.findIndex(st => st.id === 'piccadilly'));
 const rig = new OrbitRig(camera, canvas, scene);
 { const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches; setReducedMotion(reduced); reach.setReducedMotion(reduced); rig.reduced = reduced; }
 // where the camera looks stays near the line: the nearest point on it as drawn
-const mainLine = net.corridor('main'), nearF = newFrame();
-rig.line = (x, z) => net.place('main', mainLine.nearest(x, z), 0, nearF);
+const mainLine = net.spine, nearF = newFrame();
+rig.line = (x, z) => net.place(SPINE, mainLine.nearest(x, z), 0, nearF);
 /** How many lines the plaque reads, -1 while it's hidden (no contract renewed yet). */
 let plaqueLines = -1;
 const view = {
@@ -144,7 +144,7 @@ const view = {
 window.__view = view;
 // the camera as it is, for the checks: the orbit, how far above the ground and from the line, flying, riding, the compass
 Object.assign(view, { camera: () => {
-  const p = camera.position, n = net.place('main', mainLine.nearest(rig.o.tx, rig.o.tz), 0, newFrame());
+  const p = camera.position, n = net.place(SPINE, mainLine.nearest(rig.o.tx, rig.o.tz), 0, newFrame());
   return { ...rig.o, above: p.y - groundAt(p.x, p.z), fromLine: Math.hypot(rig.o.tx - n.x, rig.o.tz - n.z), flying: !!rig.tween, riding: rig.riding ? trains.meshes.indexOf(rig.riding as THREE.Group) : -1, moves: rig.moves, compass: !compass.hidden, along: +glide.value };
 },
   // where a station's label or a train stands on the screen, in client pixels (null off it), and the ground under a point
@@ -320,7 +320,7 @@ glide.min = String(Math.round(sLo)); glide.max = String(Math.round(sHi));
 let gliding = false;
 glide.addEventListener('pointerdown', () => { gliding = true; });
 addEventListener('pointerup', () => { gliding = false; }); addEventListener('pointercancel', () => { gliding = false; });
-glide.addEventListener('input', () => { const f = net.place('main', +glide.value, 0, nearF); rig.glide(f.x, f.z); });
+glide.addEventListener('input', () => { const f = net.place(SPINE, +glide.value, 0, nearF); rig.glide(f.x, f.z); });
 function followGlide(): void { if (!gliding && document.activeElement !== glide) glide.value = String(Math.round(mainLine.nearest(rig.o.tx, rig.o.tz))); }
 followGlide();
 // the minutes view: the ground shaded by minutes to Manchester, with its key; off by default

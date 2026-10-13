@@ -6,8 +6,14 @@ export interface LatLon { lat: number; lon: number }
 export type XZ = [number, number];
 
 // ---- the line as data (src/data/network.json) ----
-export interface CorridorGeoDef { id: string; name?: string; waypoints: [number, number][]; subdivisions?: number }
-export interface CorridorDef { id: string; name?: string; points: XZ[] }
+/** A corridor: a real line's centreline, drawn towards Manchester. from, to: the junctions it starts and ends at, if
+ * any (its waypoints may run a little past one, and it's cut at the junction's point). */
+export interface CorridorGeoDef { id: string; name?: string; waypoints: [number, number][]; subdivisions?: number; from?: string; to?: string }
+/** base: the chainage at its first point (src/sim/network.ts works it out from the junctions). */
+export interface CorridorDef { id: string; name?: string; points: XZ[]; from?: string; to?: string; base?: number }
+/** A junction: a named point on a corridor, where other corridors start or end (or will, once their lines are drawn). */
+export interface JunctionGeoDef { id: string; name: string; corridor: string; lat: number; lon: number; note?: string }
+export interface JunctionDef { id: string; name: string; corridor: string; x: number; z: number; note?: string }
 /** A point on the line given by a station: u metres along from the station's own point. */
 export interface StationPoint { station: string; u: number }
 /** offset: where the track runs across its corridor on the open line, in metres (positive is right of travel along +s).
@@ -62,11 +68,13 @@ export interface PlatformDef {
 /** A service's platforms at a station, by the platform ids: calling going north or south, or turning round. */
 export interface ServicePlatforms { north?: string[]; south?: string[]; turn?: string[] }
 export interface Access { drive: number; driveTime: number; driveR: number; bus: number; busTime: number; busR: number; busShare?: number }
-/** route: the stations a service calls at, in order along the corridor (south to north). home: a service with one
+/** tracks: the tracks it runs on towards Manchester (north) and back (south), leg by leg along its route through the
+ * graph, each leg's pair on one corridor and the next leg's on a corridor joined to it at a junction.
+ * route: the stations a service calls at, in order towards Manchester. home: a service with one
  * runs from there only as far along its route as stations are owned, and not at all until one is; without one it runs
  * the whole route, its ends always served. Scenery services carry nobody. */
 export interface ServiceDef {
-  id: string; name: string; operator: string; tracks: { north: string; south: string };
+  id: string; name: string; operator: string; tracks: { north: string[]; south: string[] };
   calls: string | string[]; cars: number; scenery?: boolean; route?: string[]; home?: string;
   /** The platforms it uses at each station, preferred first; a station not listed: whichever face is its way. A `turn`
    * list is shared out by unit (the first unit the first platform, the second the next), so each one built is used. */
@@ -89,6 +97,8 @@ export interface RoadGeoDef { from: string; to: string; via?: string; note?: str
 export interface NetworkGeoDef {
   name?: string; note?: string; origin: LatLon;
   corridors: CorridorGeoDef[]; tracks: TrackDef[]; stations: StationGeoDef[];
+  /** The corridors the ground is laid along, end to end; chainage runs from 0 at the first one's start. */
+  spine?: string[]; junctions?: JunctionGeoDef[]; corridorNote?: string; junctionNote?: string;
   trackNote?: string; layout?: LayoutDef[]; ease?: number;
   landmarks?: LandmarkDef[]; services?: ServiceDef[]; roads?: RoadGeoDef[]; roadNote?: string;
   /** The perks reputation buys between contracts (src/sim/contract.ts). */
@@ -108,7 +118,7 @@ export interface StationDef extends StationGeoDef { x: number; z: number; s?: nu
 export interface Station extends StationDef { index: number; s: number; at: number }
 /** A road in local metres: its points from the `from` station's end to the `to` station's, and its length. */
 export interface RoadDef { from: string; to: string; points: XZ[]; length: number }
-export interface NetworkDef extends Omit<NetworkGeoDef, 'corridors' | 'stations' | 'roads'> { corridors: CorridorDef[]; stations: StationDef[]; roads?: RoadDef[] }
+export interface NetworkDef extends Omit<NetworkGeoDef, 'corridors' | 'stations' | 'roads' | 'junctions'> { corridors: CorridorDef[]; stations: StationDef[]; roads?: RoadDef[]; junctions?: JunctionDef[] }
 /** A point on a corridor: position, heading, the unit direction (dx, dz) and the normal (nx, nz) offsets are measured along. */
 export interface Frame { x: number; z: number; heading: number; dx: number; dz: number; nx: number; nz: number }
 

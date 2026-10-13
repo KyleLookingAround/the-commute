@@ -22,10 +22,9 @@ import * as THREE from 'three';
 import { yawFor } from './world.ts';
 import { PAL } from './scene.ts';
 import { LINE_UPGRADES, TUNING, type Sim } from '../sim/sim.ts';
-import { newFrame } from '../sim/network.ts';
+import { SPINE, newFrame, type Network } from '../sim/network.ts';
 import { clockAt } from '../sim/day.ts';
 import type { Train } from '../sim/types.ts';
-import type { Network } from '../sim/network.ts';
 import type { Frame, GameState, PlatformDef, ServiceDef, Station } from '../sim/types.ts';
 
 type RGB = [number, number, number];
@@ -116,9 +115,9 @@ const SIDING_CLEAR = 220, EASE_OUT = 300, CROSS_IN = 150;   // metres: past the 
 export function rescueFor(net: Network, svcs: ServiceDef[], g: GameState): Rescue | null {
   const f = g.trouble.fail, tr = f && g.trains.find(t => t.id === f.train), svc = tr && svcs.find(v => v.id === tr.svc);
   if (!f || !tr || !svc) return null;
-  const way = tr.dir > 0 ? 'north' : 'south', onto = svc.tracks[way], fast = svcs.find(v => v.through);
+  const onto = net.route(svc).track(tr.s, tr.dir), fast = svcs.find(v => v.through);
   // the stoppers' line has the fast line beside it; anything else (the branch) has only its own
-  const along = fast && svc === svcs[0] ? fast.tracks[way] : onto;
+  const along = fast && svc === svcs[0] ? net.route(fast).track(tr.s, tr.dir) : onto;
   const st = net.stations[0]!, sg = Math.sign(tr.s - st.s) || 1;
   const s1 = tr.s - sg * ((tr.cars * PITCH - 0.6) / 2 + (2 * PITCH - 0.6) / 2 + 0.6);
   return { from: f.from, until: f.until, s0: st.at + SPARE_AT[0], s1, along, onto, back: 0.65 * (f.until - f.from) };
@@ -161,23 +160,24 @@ export function unitPoses(net: Network, svc: ServiceDef, s: number, dir: number,
 }
 /** A point x along the path a unit runs: its own track, crossing to a berth's platform near a station. */
 function onPath(net: Network, svc: ServiceDef, dir: number, cars: number, B: Berths, x: number, f: Frame): Frame {
-  const on = dir > 0 ? svc.tracks.north : svc.tracks.south;
+  const on = net.route(svc).track(x, dir);
   return net.place(net.track(on).corridor, x, offsetOn(net, svc, dir, cars, B, x), f);
 }
 /** Where across the line a unit's point x runs: its own track's offset, eased onto the platform it's leaving and the
  * one it's running in to over their crossovers. */
 export function offsetOn(net: Network, svc: ServiceDef, dir: number, cars: number, B: Berths, x: number): number {
-  const on = dir > 0 ? svc.tracks.north : svc.tracks.south;
+  const on = net.route(svc).track(x, dir);
   let o = net.offsetAt(on, x);
   if (B.behind) o = eased(net, svc, on, cars, B.behind, dir > 0 ? 1 : -1, true, x, o);
   if (B.ahead) o = eased(net, svc, on, cars, B.ahead, dir > 0 ? -1 : 1, false, x, o);
   return o;
 }
 /** Which track a platform's trains stand on, by id: its own, or (none given) the train's own going on, which at a
- * turn is the one it leaves on. */
-function berthTrack(svc: ServiceDef, on: string, b: Berth, behind: boolean): string | null {
+ * turn is the one it leaves on (the other of its leg's pair there). */
+function berthTrack(net: Network, svc: ServiceDef, on: string, b: Berth, behind: boolean): string | null {
   if (b.def?.path) return null;
-  return b.def?.track ?? (b.turn && !behind ? (on === svc.tracks.north ? svc.tracks.south : svc.tracks.north) : on);
+  const leg = net.route(svc).leg(b.st.s);
+  return b.def?.track ?? (b.turn && !behind ? (on === leg.north ? leg.south : leg.north) : on);
 }
 /** A platform's offset at x: its track's, or along the rails drawn into a bay (held at their ends beyond them). */
 function berthOffset(net: Network, track: string | null, b: Berth, x: number): number {
@@ -194,7 +194,7 @@ function berthOffset(net: Network, track: string | null, b: Berth, x: number): n
  * crossover is where the two tracks come closest (within 0.3 m), the nearest such place to the station clear of the
  * unit standing there, and is 12 times as long as the tracks are apart (60 m at least). */
 function eased(net: Network, svc: ServiceDef, on: string, cars: number, b: Berth, side: number, behind: boolean, x: number, o: number): number {
-  const track = berthTrack(svc, on, b, behind); if (track === on) return o;
+  const track = berthTrack(net, svc, on, b, behind); if (track === on) return o;
   // each crossover worked out once, kept on the berth by track, side and length
   const key = ((net.tracks.findIndex(t => t.id === on) * 2 + (side > 0 ? 1 : 0)) * 2 + (behind ? 1 : 0)) * 32 + cars, cross = b.cross ??= new Map();
   let c = cross.get(key);
@@ -236,7 +236,8 @@ function berth(sim: Sim, i: number, p: number, turn: boolean): Berth {
 export function serviceRange(net: Network, svc: ServiceDef): [number, number] {
   if (!svc.scenery && !svc.through) { const ss = (svc.route ?? []).map(id => net.station(id).s); return [Math.min(...ss), Math.max(...ss)]; }
   const half = (svc.cars * PITCH - 0.6) / 2, last = net.station((Array.isArray(svc.calls) ? svc.calls : []).at(-1) ?? net.stations.at(-1)!.id);
-  return [Math.max(net.extent(svc.tracks.north)[0], net.extent(svc.tracks.south)[0]) + half, last.s + (LONGEST * PITCH - 0.6) / 2 - half];
+  const first = net.route(svc).legs[0]!;
+  return [Math.max(net.extent(first.north)[0], net.extent(first.south)[0]) + half, last.s + (LONGEST * PITCH - 0.6) / 2 - half];
 }
 
 export class TrainLayer {
@@ -334,7 +335,7 @@ export class TrainLayer {
     this.hazards.count = h; this.hazards.instanceMatrix.needsUpdate = true;
     let c = 0;
     if (tb.caution) {
-      const cor = this.net.corridor('main');
+      const cor = this.net.spine;
       for (const s of [tb.caution.s0, tb.caution.s1]) for (const off of [-12, 26]) {
         const p = cor.at(s, off, fc); m4.makeTranslation(p.x, 0, p.z);
         this.posts.setMatrixAt(c, m4); this.cautions.setMatrixAt(c, m4); c++;
@@ -349,7 +350,7 @@ export class TrainLayer {
     this.spareOut = true;
     this.spareCars.forEach((m, c) => {
       const xc = x + (c - 0.5) * PITCH;
-      const a = this.net.place('main', xc - BOGIE, rescueOffset(this.net, r, xc - BOGIE), fa), b = this.net.place('main', xc + BOGIE, rescueOffset(this.net, r, xc + BOGIE), fb);
+      const a = this.net.place(SPINE, xc - BOGIE, rescueOffset(this.net, r, xc - BOGIE), fa), b = this.net.place(SPINE, xc + BOGIE, rescueOffset(this.net, r, xc + BOGIE), fb);
       const dx = b.x - a.x, dz = b.z - a.z;
       m.position.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2); m.rotation.y = Math.atan2(-dz, dx); m.updateMatrix();
     });

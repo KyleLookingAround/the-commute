@@ -14,7 +14,7 @@ const { onCourses } = await import('../../src/render/landmarks.ts');
 const RADIUS = { building: 42, cinema: 26, church: 28, market: 24, depot: 40 };   // each kind's footprint, as drawn
 
 export default async function ({ ok, root }) {
-  const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def), c = net.corridor('main');
+  const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def), c = net.spine;
   const marks = def.landmarks ?? [], byId = id => marks.find(m => m.id === id);
   const sOf = ll => { const p = projectLatLon(ll.lat, ll.lon, def.origin); return c.nearest(p.x, p.z); };
   const river = byId('mersey')?.at ? sOf(byId('mersey').at) : null;

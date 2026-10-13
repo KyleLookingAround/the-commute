@@ -13,3 +13,4 @@ Short records of decisions that shape the code or the way of working, so later c
 | [ADR-2026-10-08-layers-and-seeded-sim](ADR-2026-10-08-layers-and-seeded-sim.md) | Four layers, a pure seeded sim, and a bot from the first line |
 | [ADR-2026-10-08-no-save-compatibility-before-release](ADR-2026-10-08-no-save-compatibility-before-release.md) | No save compatibility before the first release |
 | [ADR-2026-10-08-network-and-kits](ADR-2026-10-08-network-and-kits.md) | The line is a corridor in real coordinates; stations are data kits with upgrade-gated parts |
+| [ADR-2026-10-13-network-as-a-graph](ADR-2026-10-13-network-as-a-graph.md) | The network is a graph of corridors joined at junctions, measured in chainage, with services as routes of legs |

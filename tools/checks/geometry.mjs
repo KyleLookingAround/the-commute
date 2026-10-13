@@ -159,7 +159,7 @@ export default async function ({ ok, root, kits: given }) {
     const reachOut = 120;
 
     // ---- every track a service runs on, through the station ----
-    for (const svc of services) for (const [dir, id] of [[1, svc.tracks.north], [-1, svc.tracks.south]]) {
+    for (const svc of services) for (const [dir, id] of [1, -1].map(d => [d, net.route(svc).track(st.at, d)])) {
       const [r0, r1] = serviceRange(net, svc);
       for (const cars of lengths(svc)) for (let s = Math.max(r0, st.at + umin - reachOut); s <= Math.min(r1, st.at + umax + reachOut); s += STEP) {
         const bs = bodies(svc, s, dir, cars, null);
@@ -238,7 +238,7 @@ export default async function ({ ok, root, kits: given }) {
       }
       // passengers stand back from the track the renderer was told is there: the station's own face each way
       if (P.def.v === undefined && P.def.track === undefined && kind !== 'turn') {
-        const id = v.def.tracks[dout > 0 ? 'north' : 'south'], told = net.offsetAt(id, st.s), t = vAt(id, (face.u0 + face.u1) / 2);
+        const id = net.route(v.def).track(st.s, dout), told = net.offsetAt(id, st.s), t = vAt(id, (face.u0 + face.u1) / 2);
         if (t !== null && Math.abs(told - t) > 0.2) edgeBad.push(`${where}: passengers are told the track is at v ${told.toFixed(2)}, it's at ${t.toFixed(2)}`);
       }
       // the data's v is where the drawing has it

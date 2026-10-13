@@ -59,7 +59,7 @@ export function bridgesOf(c: Corridor, def: NetworkGeoDef): [number, number][] {
 }
 
 export function buildLandmarks(scene: THREE.Scene, net: Network, def: NetworkGeoDef, groundY: (x: number, z: number) => number): void {
-  const c = net.corridor('main');
+  const c = net.spine;
   const marks = (def.landmarks ?? []) as Mark[], byId = (id: string) => marks.find(m => m.id === id);
   const along = (m: Mark | undefined): number | null => m && m.at ? c.nearest(...xz(def, m.at)) : null;
   const river = along(byId('mersey')), m60 = along(byId('m60'));

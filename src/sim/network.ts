@@ -1,9 +1,12 @@
-// Track network: corridors (centreline polylines in local metres), tracks offset across a corridor, and stations at a
-// distance along a corridor. The sim only ever talks in "distance along a corridor"; the renderer asks the network for
-// world positions. A track's offset changes along the line: each track has an open-line offset, and the layout list
-// moves it around a station (Stockport's tracks spread round two wide islands) or along a stretch, easing in and out.
-// Branching lines later become extra corridors joined at junctions.
-import type { CorridorDef, Frame, LatLon, NetworkDef, NetworkGeoDef, RoadDef, ServiceDef, Station, StationPoint, TrackDef, XZ } from './types.ts';
+// Track network as a graph: corridors (each a real line's centreline, a polyline in local metres) joined at junctions,
+// tracks offset across a corridor, stations at a distance along a corridor, and services routed across it all as legs
+// of corridor and track. Distances along the line are chainage: every corridor is drawn towards Manchester, and its
+// chainage runs on from the corridor it meets at a junction, so a route's distances grow towards Manchester all the way
+// along it and a distance with its corridor names one place (docs/decisions/ADR-2026-10-13-network-as-a-graph.md).
+// The sim only ever talks in distances along a corridor; the renderer asks the network for world positions. A track's
+// offset changes along the line: each track has an open-line offset, and the layout list moves it around a station
+// (Stockport's tracks spread round two wide islands) or along a stretch, easing in and out.
+import type { CorridorDef, Frame, JunctionDef, LatLon, NetworkDef, NetworkGeoDef, RoadDef, ServiceDef, Station, StationPoint, TrackDef, XZ } from './types.ts';
 
 export const NORTH = -1; // trains heading north (towards Manchester) move towards lower z, so "north" is -1 along z,
                          // but along a corridor we measure s increasing in the direction the corridor is drawn (south to north).
@@ -20,24 +23,27 @@ export const newFrame = (): Frame => ({ x: 0, z: 0, heading: 0, dx: 0, dz: 0, nx
 export class Corridor {
   id: string;
   pts: { x: number; z: number }[];
+  /** Each point's chainage: the corridor's start's, then on along it. */
   cum: number[];
   length: number;
+  /** The chainage at its start and its end. */
+  start: number; end: number;
   constructor(def: CorridorDef) {
     this.id = def.id;
     this.pts = def.points.map(p => ({ x: p[0], z: p[1] }));
-    this.cum = [0];
+    this.cum = [def.base ?? 0];
     for (let i = 1; i < this.pts.length; i++) {
       const a = this.pts[i - 1]!, b = this.pts[i]!;
       this.cum.push(this.cum[i - 1]! + Math.hypot(b.x - a.x, b.z - a.z));
     }
-    this.length = this.cum[this.cum.length - 1]!;
+    this.start = this.cum[0]!; this.end = this.cum[this.cum.length - 1]!; this.length = this.end - this.start;
     // each point's direction: its two segments' averaged (the ends take their one segment's)
     const seg = (i: number): [number, number] => { const a = this.pts[Math.max(0, Math.min(i, this.pts.length - 2))]!, b = this.pts[Math.max(1, Math.min(i + 1, this.pts.length - 1))]!, l = Math.hypot(b.x - a.x, b.z - a.z) || 1; return [(b.x - a.x) / l, (b.z - a.z) / l]; };
     this.dirs = this.pts.map((_, i) => { const p = seg(i - 1), q = seg(i), x = p[0] + q[0], z = p[1] + q[1], l = Math.hypot(x, z) || 1; return [x / l, z / l]; });
   }
   /** The direction at each point, between its segments', so offsets turn smoothly round the corners. */
   private dirs: [number, number][];
-  // Position and heading at distance s, offset laterally (positive = right of travel when heading along +s).
+  // Position and heading at chainage s, offset laterally (positive = right of travel when heading along +s).
   at(s: number, offset = 0, out: Frame = newFrame()): Frame {
     const i = this._seg(s);
     const a = this.pts[i]!, b = this.pts[i + 1]!;
@@ -57,11 +63,11 @@ export class Corridor {
   }
   _seg(s: number): number {
     const c = this.cum; let lo = 0, hi = c.length - 2;
-    if (s <= 0) return 0; if (s >= this.length) return hi;
+    if (s <= this.start) return 0; if (s >= this.end) return hi;
     while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (c[mid]! <= s) lo = mid; else hi = mid - 1; }
     return lo;
   }
-  // Nearest s to a point (for placing stations from coordinates)
+  // Nearest chainage to a point (for placing stations from coordinates)
   nearest(x: number, z: number): number {
     let best = 0, bestD = Infinity;
     for (let i = 0; i < this.pts.length - 1; i++) {
@@ -84,18 +90,61 @@ export const STRAIGHT_EASE = 150;
 /** A station's straight stretch: from s0 to s1 along its corridor the line is drawn along the frame F (at s = at). */
 interface Straight { corridor: string; s0: number; s1: number; at: number; F: Frame }
 
+/** A junction: a named point on a corridor (its chainage s there), and the corridors that start or end at it. */
+export interface Junction { id: string; name: string; corridor: string; s: number; x: number; z: number; joins: string[] }
+/** One leg of a service's route: along a corridor on a pair of tracks (the one its trains take towards Manchester and
+ * the one back), from chainage s0 to s1, where it meets the legs either side at junctions (the route's ends: none). */
+export interface RouteLeg { corridor: string; north: string; south: string; s0: number; s1: number }
+/** A service's way through the graph: its legs in order towards Manchester. Chainage runs on through the junctions, so
+ * a distance along the route is the chainage, and the leg it falls in says which corridor and track that is. */
+export class Route {
+  legs: RouteLeg[];
+  /** Where its trains come on: where the first leg's track towards Manchester begins. */
+  start: number;
+  constructor(legs: RouteLeg[], start: number) { this.legs = legs; this.start = start; }
+  /** The leg that holds chainage s: the one given if it still does (a train passes from leg to leg at the junctions). */
+  legAt(s: number, hint = 0): number {
+    const L = this.legs, h = L[hint];
+    if (h && s >= h.s0 && s <= h.s1) return hint;
+    for (let k = 0; k < L.length; k++) if (s <= L[k]!.s1) return k;
+    return L.length - 1;
+  }
+  leg(s: number, hint = 0): RouteLeg { return this.legs[this.legAt(s, hint)]!; }
+  /** The track a train on the route runs at s, heading dir (+1 towards Manchester). */
+  track(s: number, dir: number, hint = 0): string { const l = this.leg(s, hint); return dir > 0 ? l.north : l.south; }
+  /** Whether the route runs along a corridor. */
+  uses(corridor: string): boolean { return this.legs.some(l => l.corridor === corridor); }
+}
+
+/** The corridor the drawing calls the spine: the corridors the ground is laid along, end to end, as one. */
+export const SPINE = 'spine';
+
 export class Network {
   def: NetworkDef;
   corridors: Record<string, Corridor>;
+  /** The spine's corridors joined into one, chainage from 0: the ground, the trees, the masts and the signals are laid
+   * along it, and a place on it is the same place on the corridor it's on. */
+  spine: Corridor;
+  spineOf: Set<string>;
+  junctions: Junction[];
   tracks: TrackDef[];
   stations: Station[];
   byId: Record<string, Station>;
   /** Each track's offset profile along its corridor: keys between which it eases; empty runs at its open-line offset. */
   private keys: Record<string, Key[]>;
   private straights: Straight[];
+  private routes = new Map<string, Route>();
   constructor(def: NetworkDef) {
     this.def = def;
-    this.corridors = Object.fromEntries(def.corridors.map(c => [c.id, new Corridor(c)]));
+    const built = graph(def.corridors, def.junctions ?? [], def.spine ?? def.corridors.map(c => c.id).slice(0, 1));
+    this.corridors = Object.fromEntries(built.map(c => [c.id, new Corridor(c)]));
+    const spine = def.spine ?? built.slice(0, 1).map(c => c.id);
+    this.spineOf = new Set(spine);
+    this.spine = new Corridor({ id: SPINE, base: 0, points: spine.flatMap((id, k) => (built.find(c => c.id === id)?.points ?? []).slice(k ? 1 : 0)) });
+    this.junctions = (def.junctions ?? []).map(j => ({
+      id: j.id, name: j.name, corridor: j.corridor, x: j.x, z: j.z, s: this.corridor(j.corridor).nearest(j.x, j.z),
+      joins: [j.corridor, ...def.corridors.filter(c => c.from === j.id || c.to === j.id).map(c => c.id)].filter((c, k, a) => a.indexOf(c) === k),
+    }));
     this.tracks = def.tracks;                // [{ id, corridor, offset }]
     this.stations = def.stations.map((s, i) => {
       const c = this.corridor(s.corridor);
@@ -124,8 +173,26 @@ export class Network {
   pointS(p: StationPoint): number { return this.station(p.station).at + p.u; }
   /** Where a track begins and ends along its corridor. */
   extent(trackId: string): [number, number] {
-    const t = this.track(trackId);
-    return [t.start ? this.pointS(t.start) : 0, t.end ? this.pointS(t.end) : this.corridor(t.corridor).length];
+    const t = this.track(trackId), c = this.corridor(t.corridor);
+    return [t.start ? this.pointS(t.start) : c.start, t.end ? this.pointS(t.end) : c.end];
+  }
+  junction(id: string): Junction { const j = this.junctions.find(j => j.id === id); if (!j) throw new Error(`no junction "${id}"`); return j; }
+  /** A service's route through the graph: its tracks each way, leg by leg, joined where their corridors meet. */
+  route(def: ServiceDef): Route {
+    let r = this.routes.get(def.id); if (r) return r;
+    const { north, south } = def.tracks;
+    if (!north.length || north.length !== south.length) throw new Error(`${def.id}: a track each way for every leg`);
+    const legs: RouteLeg[] = north.map((n, k) => {
+      const c = this.track(n).corridor; if (this.track(south[k]!).corridor !== c) throw new Error(`${def.id}: leg ${k}'s tracks are on two corridors`);
+      return { corridor: c, north: n, south: south[k]!, s0: -Infinity, s1: Infinity };
+    });
+    for (let k = 1; k < legs.length; k++) {
+      const a = legs[k - 1]!.corridor, b = legs[k]!.corridor, j = this.junctions.find(j => j.joins.includes(a) && j.joins.includes(b));
+      if (!j) throw new Error(`${def.id}: no junction joins ${a} and ${b}`);
+      legs[k - 1]!.s1 = legs[k]!.s0 = j.s;
+    }
+    r = new Route(legs, this.extent(north[0]!)[0]); this.routes.set(def.id, r);
+    return r;
   }
   /** The stretches of a track's corridor the layout list moves it in, in order: [s0, s1, offset, ease]. */
   private spans(t: TrackDef): [number, number, number, number][] {
@@ -169,9 +236,9 @@ export class Network {
    * straight stretch, where it follows the station's frame (u = s - at, v = offset) and eases back either side. Only the
    * drawing: the sim measures along the corridor. */
   place(corridorId: string, s: number, offset = 0, out: Frame = newFrame()): Frame {
-    const f = this.corridor(corridorId).at(s, offset, out), E = STRAIGHT_EASE;
+    const spine = corridorId === SPINE, f = (spine ? this.spine : this.corridor(corridorId)).at(s, offset, out), E = STRAIGHT_EASE;
     for (const z of this.straights) {
-      if (z.corridor !== corridorId || s <= z.s0 - E || s >= z.s1 + E) continue;
+      if ((spine ? !this.spineOf.has(z.corridor) : z.corridor !== corridorId) || s <= z.s0 - E || s >= z.s1 + E) continue;
       const w = s < z.s0 ? smooth((s - z.s0 + E) / E) : s > z.s1 ? smooth((z.s1 + E - s) / E) : 1, u = s - z.at, F = z.F;
       f.x += (F.x + F.dx * u + F.nx * offset - f.x) * w; f.z += (F.z + F.dz * u + F.nz * offset - f.z) * w;
       const dx = f.dx + (F.dx - f.dx) * w, dz = f.dz + (F.dz - f.dz) * w, n = Math.hypot(dx, dz);
@@ -222,16 +289,60 @@ export function smoothPolyline(points: XZ[], subdivisions = 6): XZ[] {
   return out;
 }
 
+/** The corridors as the graph has them: each cut at the junction it starts or ends at (its waypoints run a little past,
+ * so its curve there is the uncut line's), with its chainage at its start (`base`): the spine's from 0, end to end, and
+ * every other corridor's running on to or from the junction where it meets another. */
+function graph(defs: CorridorDef[], junctions: JunctionDef[], spine: string[]): CorridorDef[] {
+  const at = (id: string) => { const j = junctions.find(j => j.id === id); if (!j) throw new Error(`no junction "${id}"`); return j; };
+  const cut = defs.map(c => {
+    let points = c.points;
+    if (c.from) points = trim(points, at(c.from), true);
+    if (c.to) points = trim(points, at(c.to), false);
+    return { ...c, points };
+  });
+  const len = (c: CorridorDef) => { let l = 0; for (let i = 1; i < c.points.length; i++) l += Math.hypot(c.points[i]![0] - c.points[i - 1]![0], c.points[i]![1] - c.points[i - 1]![1]); return l; };
+  const base = new Map<string, number>();
+  let s = 0; for (const id of spine) { const c = cut.find(c => c.id === id); if (!c) throw new Error(`no corridor "${id}" for the spine`); base.set(id, s); s += len(c); }
+  // the rest from where they meet a corridor already placed: a junction's chainage is its point's on its own corridor
+  const chain = (j: JunctionDef): number | undefined => {
+    const c = cut.find(c => c.id === j.corridor), b = c && base.get(c.id); if (!c || b === undefined) return undefined;
+    return new Corridor({ ...c, base: b }).nearest(j.x, j.z);
+  };
+  for (let more = true; more;) {
+    more = false;
+    for (const c of cut) {
+      if (base.has(c.id)) continue;
+      const to = c.to ? chain(at(c.to)) : undefined, from = c.from ? chain(at(c.from)) : undefined;
+      const b = to !== undefined ? to - len(c) : from;
+      if (b !== undefined) { base.set(c.id, b); more = true; }
+    }
+  }
+  return cut.map(c => ({ ...c, base: base.get(c.id) ?? 0 }));
+}
+/** A polyline cut at the point on it nearest p: what's after it (from the point on), or what's before it. */
+function trim(points: XZ[], p: { x: number; z: number }, after: boolean): XZ[] {
+  let best = 0, t = 0, bestD = Infinity;
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i]!, b = points[i + 1]!, L2 = (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2 || 1e-9;
+    const u = Math.max(0, Math.min(1, ((p.x - a[0]) * (b[0] - a[0]) + (p.z - a[1]) * (b[1] - a[1])) / L2));
+    const d = (a[0] + (b[0] - a[0]) * u - p.x) ** 2 + (a[1] + (b[1] - a[1]) * u - p.z) ** 2;
+    if (d < bestD) { bestD = d; best = i; t = u; }
+  }
+  const a = points[best]!, b = points[best + 1]!, q: XZ = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  return after ? [q, ...points.slice(t >= 1 ? best + 2 : best + 1)] : [...points.slice(0, t <= 0 ? best : best + 1), q];
+}
+
 // Build a Network from a geographic definition: corridors given as [lat, lon] waypoints, stations as lat/lon.
 // Waypoints are smoothed into a curve; station s is the nearest point on their corridor.
 export function fromGeo(def: NetworkGeoDef): Network {
   const origin = def.origin;
-  const corridors = def.corridors.map(c => ({ id: c.id, points: smoothPolyline(c.waypoints.map(([lat, lon]): XZ => { const p = projectLatLon(lat, lon, origin); return [p.x, p.z]; }), c.subdivisions || 8) }));
+  const corridors = def.corridors.map(c => ({ id: c.id, from: c.from, to: c.to, points: smoothPolyline(c.waypoints.map(([lat, lon]): XZ => { const p = projectLatLon(lat, lon, origin); return [p.x, p.z]; }), c.subdivisions || 8) }));
   const stations = def.stations.map(s => { const p = projectLatLon(s.lat, s.lon, origin); return { ...s, x: p.x, z: p.z }; });
+  const junctions = (def.junctions ?? []).map(j => { const p = projectLatLon(j.lat, j.lon, origin); return { id: j.id, name: j.name, corridor: j.corridor, note: j.note, x: p.x, z: p.z }; });
   const roads = (def.roads ?? []).map(r => {
     const points = r.points.map(([lat, lon]): XZ => { const p = projectLatLon(lat, lon, origin); return [p.x, p.z]; });
     let length = 0; for (let i = 1; i < points.length; i++) length += Math.hypot(points[i]![0] - points[i - 1]![0], points[i]![1] - points[i - 1]![1]);
     return { from: r.from, to: r.to, points, length };
   });
-  return new Network({ ...def, corridors, stations, roads });
+  return new Network({ ...def, corridors, stations, roads, junctions });
 }

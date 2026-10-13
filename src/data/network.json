@@ -4,11 +4,12 @@
     "lat": 53.40545,
     "lon": -2.163044
   },
-  "note": "Corridor waypoints and station positions from an OpenStreetMap export (tools/osm-to-network.mjs, 8 October 2026): the shortest rail path from Davenport to Piccadilly, resampled every 60 m, on one track of the four-track line, with the Hazel Grove line (11 October 2026, the same way) put in front of it from 400 m beyond Hazel Grove, so the line runs on past the last platform. Landmarks are still by hand. Each station's access (its car park's and bus link's pools beyond a walk) is from tools/census-to-network.mjs (12 October 2026): straight-line distances from Census 2021 Output Areas times a road factor of 1.3, at 8 m/s driving and 5 m/s by bus, half of each area's residents driving and half by bus (docs/DESIGN.md, Homes and draw, Pools); the car parks' spaces and the stages' prices are game choices.",
+  "note": "Corridor waypoints and station positions from an OpenStreetMap export (tools/osm-to-network.mjs, 8 October 2026): the shortest rail path from Davenport to Piccadilly, resampled every 60 m, on one track of the four-track line, with the Hazel Grove line (11 October 2026, the same way) put in front of it from 400 m beyond Hazel Grove, so the line runs on past the last platform; cut into two corridors at Edgeley Junction (13 October 2026, `corridorNote`). Landmarks are still by hand. Each station's access (its car park's and bus link's pools beyond a walk) is from tools/census-to-network.mjs (12 October 2026): straight-line distances from Census 2021 Output Areas times a road factor of 1.3, at 8 m/s driving and 5 m/s by bus, half of each area's residents driving and half by bus (docs/DESIGN.md, Homes and draw, Pools); the car parks' spaces and the stages' prices are game choices.",
   "corridors": [
     {
-      "id": "main",
-      "name": "Stockport to Piccadilly (via Heaton Chapel)",
+      "id": "hazel-grove",
+      "name": "The Hazel Grove line, from beyond Hazel Grove to Edgeley Junction",
+      "to": "edgeley",
       "waypoints": [
         [53.37541, -2.117957],
         [53.375636, -2.118521],
@@ -69,6 +70,18 @@
         [53.39396, -2.162076],
         [53.394317, -2.163092],
         [53.394703, -2.163741],
+        [53.395314, -2.164413],
+        [53.396043, -2.16476],
+        [53.39671, -2.164826],
+        [53.397301, -2.16461]
+      ],
+      "subdivisions": 2
+    },
+    {
+      "id": "main",
+      "name": "Edgeley Junction to Piccadilly (via Stockport and Heaton Chapel)",
+      "from": "edgeley",
+      "waypoints": [
         [53.395314, -2.164413],
         [53.396043, -2.16476],
         [53.39671, -2.164826],
@@ -173,13 +186,28 @@
       "subdivisions": 2
     }
   ],
+  "corridorNote": "Each corridor is one real line's centreline, drawn towards Manchester, so distances along every one of them grow towards Piccadilly. The OpenStreetMap path the line was first drawn from is cut at Edgeley Junction: the Hazel Grove line runs up to it and the line to Piccadilly on from it. Each corridor's waypoints run a couple past the junction it starts or ends at, so its curve there is the same as the uncut line's, and it's cut at the junction's point (`from`, `to`). Distances along the line (chainage) run on through the junctions: from 0 at the start of the spine (the corridors the ground is laid along, end to end), and along any other corridor so they meet the line it joins at the junction's own chainage.",
+  "spine": ["hazel-grove", "main"],
+  "junctions": [
+    { "id": "edgeley", "name": "Edgeley Junction", "corridor": "main", "lat": 53.39662476, "lon": -2.16482657,
+      "note": "Where the Hazel Grove (Buxton) line leaves the line to Crewe and curves sharply east: Wikipedia (Buxton line, read 13 October 2026) puts it half a mile south of Stockport, and the corridor from OpenStreetMap starts its curve east here, 1000 m south of the station's middle (785 m south of its platforms), where the four main lines already began. Edgeley Junction No. 2, where the Mid-Cheshire line leaves westwards, is close by (from memory); the Crewe line goes on south from here." },
+    { "id": "heaton-norris", "name": "Heaton Norris Junction", "corridor": "main", "lat": 53.41334655, "lon": -2.16908164,
+      "note": "Just north of the viaduct, where the Stockport to Stalybridge line (Reddish South and Denton) leaves eastwards: from memory." },
+    { "id": "slade-lane", "name": "Slade Lane Junction", "corridor": "main", "lat": 53.45012958, "lon": -2.19513388,
+      "note": "In Longsight, where the Styal line leaves southwards for Manchester Airport and Wilmslow (Wikipedia, Styal line, read 13 October 2026): placed where the OpenStreetMap tracks part (the layout note), 600 m north of Levenshulme." },
+    { "id": "ardwick", "name": "Ardwick Junction", "corridor": "main", "lat": 53.47029677, "lon": -2.21247337,
+      "note": "By Ardwick station, where the lines to Ashburys (the Hope Valley line, and the Marple line through Reddish North) part from the line to Longsight: from memory, 100 m south of the station's middle." }
+  ],
+  "junctionNote": "Junctions are named points on a corridor where other corridors start or end; the ones with no line beyond them yet are where the lines out of Stockport and Manchester will join (docs/ROADMAP.md, phase 5).",
   "tracks": [
-    { "id": "down-slow", "corridor": "main", "offset": 0, "start": { "station": "stockport", "u": -1000 }, "use": "stopping services towards Manchester" },
-    { "id": "down-fast", "corridor": "main", "offset": 4.4, "start": { "station": "stockport", "u": -1000 }, "use": "expresses towards Manchester" },
-    { "id": "up-fast", "corridor": "main", "offset": 9.2, "start": { "station": "stockport", "u": -1000 }, "use": "expresses towards Stockport and London" },
-    { "id": "up-slow", "corridor": "main", "offset": 13.8, "start": { "station": "stockport", "u": -1000 }, "use": "stopping services towards Stockport" },
-    { "id": "branch-north", "corridor": "main", "offset": 0, "end": { "station": "stockport", "u": 150 }, "use": "the Hazel Grove line towards Stockport" },
-    { "id": "branch-south", "corridor": "main", "offset": 4.4, "end": { "station": "stockport", "u": 150 }, "use": "the Hazel Grove line towards Hazel Grove" }
+    { "id": "down-slow", "corridor": "main", "offset": 0, "use": "stopping services towards Manchester" },
+    { "id": "down-fast", "corridor": "main", "offset": 4.4, "use": "expresses towards Manchester" },
+    { "id": "up-fast", "corridor": "main", "offset": 9.2, "use": "expresses towards Stockport and London" },
+    { "id": "up-slow", "corridor": "main", "offset": 13.8, "use": "stopping services towards Stockport" },
+    { "id": "branch-north", "corridor": "main", "offset": 0, "end": { "station": "stockport", "u": 150 }, "use": "the Hazel Grove line towards Stockport, from Edgeley Junction" },
+    { "id": "branch-south", "corridor": "main", "offset": 4.4, "end": { "station": "stockport", "u": 150 }, "use": "the Hazel Grove line towards Hazel Grove, as far as Edgeley Junction" },
+    { "id": "hazel-grove-north", "corridor": "hazel-grove", "offset": 0, "use": "the Hazel Grove line towards Stockport" },
+    { "id": "hazel-grove-south", "corridor": "hazel-grove", "offset": 4.4, "use": "the Hazel Grove line towards Hazel Grove" }
   ],
   "trackNote": "Offsets are where each track runs across the corridor, 1.25 times the real spacing from the OpenStreetMap tracks so the trains, drawn 1.3 times real width, pass clear of each other. On the open line the corridor follows the westmost track. The layout list moves the tracks where the corridor follows another track and around the stations; they ease between layouts over `ease` metres.",
   "ease": 200,
@@ -189,10 +217,10 @@
     { "station": "stockport", "u0": -220, "u1": 150, "ease": 320, "offsets": { "branch-north": 77.9, "branch-south": 77.9 },
       "note": "The Hazel Grove line turns round in platform 1, crossing over the main lines on the way in; it eases over a longer run as it has further to go." },
     { "station": "stockport", "u0": -1000, "u1": -660, "offsets": { "down-slow": 0, "down-fast": 4.4, "up-fast": 0, "up-slow": 4.4 },
-      "note": "South of Stockport the corridor follows the two-track Hazel Grove line; the four main lines start here on top of it, as if the Crewe pair had just joined at Edgeley, and spread out towards the station." },
+      "note": "The four main lines begin at Edgeley Junction, where the Crewe line will join them; until it's drawn they start on top of the Hazel Grove line's two tracks and spread out towards the station." },
     { "corridor": "main", "s0": 6192, "s1": 10392, "offsets": { "down-slow": -4.6, "down-fast": 0, "up-fast": 5, "up-slow": 9.8 },
       "note": "From the crossover north of the viaduct to Slade Lane junction the corridor follows the second track from the west. Heaton Chapel and Levenshulme are in this stretch." },
-    { "station": "hazel-grove", "u0": -400, "u1": 200, "offsets": { "branch-north": -4.4, "branch-south": 0 },
+    { "station": "hazel-grove", "u0": -400, "u1": 200, "offsets": { "hazel-grove-north": -4.4, "hazel-grove-south": 0 },
       "note": "Through Hazel Grove the corridor follows the eastern track; it crosses to the western one north of the platforms." },
     { "station": "piccadilly", "u0": -360, "u1": 60, "offsets": { "down-slow": 0, "up-slow": 0, "down-fast": -6.75, "up-fast": -6.75 },
       "note": "The stopper turns round in platform 5, so both its tracks run into it; the expresses come into platform 6 alongside." }
@@ -229,11 +257,11 @@
         { "id": "11", "v": -76.6, "path": [[39, -76.6], [-160, -76.6], [-560, -6.8]], "upgrade": "platforms" },
         { "id": "12", "v": -81, "path": [[37, -81], [-140, -81], [-560, -6.8]], "upgrade": "platforms" }
       ] },
-    { "id": "davenport", "straight": [-150, 80], "name": "Davenport", "corridor": "main", "lat": 53.390734, "lon": -2.1521585, "miles": -1.25, "catchment": 160, "draw": 310, "ceiling": 290, "access": { "drive": 63, "driveTime": 829, "driveR": 7310, "bus": 0, "busTime": 0, "busR": 0 }, "note": "Census 2021 (tools/census-to-network.mjs, 12 October 2026): 13,992 residents whose best trip in is from here, 3,661 working within a walk; draw: local shops and schools", "price": 80000, "kit": "davenport", "retail": "Sandwich bar", "stop": -20,
+    { "id": "davenport", "straight": [-150, 80], "name": "Davenport", "corridor": "hazel-grove", "lat": 53.390734, "lon": -2.1521585, "miles": -1.25, "catchment": 160, "draw": 310, "ceiling": 290, "access": { "drive": 63, "driveTime": 829, "driveR": 7310, "bus": 0, "busTime": 0, "busR": 0 }, "note": "Census 2021 (tools/census-to-network.mjs, 12 October 2026): 13,992 residents whose best trip in is from here, 3,661 working within a walk; draw: local shops and schools", "price": 80000, "kit": "davenport", "retail": "Sandwich bar", "stop": -20,
       "grow": { "crossing": { "name": "Footbridge" }, "platform2": { "name": "Second platform" }, "building": { "name": "Booking office" } }, "needs": { "station": "stockport", "upgrade": "platforms" } },
-    { "id": "woodsmoor", "straight": [-100, 85], "name": "Woodsmoor", "corridor": "main", "lat": 53.3861409, "lon": -2.1412433, "miles": -2, "catchment": 130, "draw": 750, "ceiling": 230, "access": { "drive": 23, "driveTime": 1034, "driveR": 7630, "bus": 0, "busTime": 0, "busR": 0 }, "note": "Census 2021 (tools/census-to-network.mjs, 12 October 2026): 11,398 residents whose best trip in is from here, 8,837 working within a walk; draw: Stepping Hill Hospital, a walk up the road", "price": 110000, "kit": "woodsmoor", "retail": "Coffee cart", "stop": -20,
+    { "id": "woodsmoor", "straight": [-100, 85], "name": "Woodsmoor", "corridor": "hazel-grove", "lat": 53.3861409, "lon": -2.1412433, "miles": -2, "catchment": 130, "draw": 750, "ceiling": 230, "access": { "drive": 23, "driveTime": 1034, "driveR": 7630, "bus": 0, "busTime": 0, "busR": 0 }, "note": "Census 2021 (tools/census-to-network.mjs, 12 October 2026): 11,398 residents whose best trip in is from here, 8,837 working within a walk; draw: Stepping Hill Hospital, a walk up the road", "price": 110000, "kit": "woodsmoor", "retail": "Coffee cart", "stop": -20,
       "grow": { "crossing": { "name": "Steps to Moorland Road" }, "platform2": { "name": "Second platform" } } },
-    { "id": "hazel-grove", "straight": [-95, 210], "name": "Hazel Grove", "corridor": "main", "lat": 53.3774667, "lon": -2.1221506, "miles": -3, "catchment": 170, "draw": 410, "ceiling": 260, "access": { "drive": 110, "driveTime": 651, "driveR": 6290, "bus": 13, "busTime": 349, "busR": 1500 }, "note": "Census 2021 (tools/census-to-network.mjs, 12 October 2026): 14,943 residents whose best trip in is from here, 4,821 working within a walk; draw: the A6 shops and the retail parks", "price": 200000, "kit": "hazel-grove", "retail": "Newsagent", "stop": 70,
+    { "id": "hazel-grove", "straight": [-95, 210], "name": "Hazel Grove", "corridor": "hazel-grove", "lat": 53.3774667, "lon": -2.1221506, "miles": -3, "catchment": 170, "draw": 410, "ceiling": 260, "access": { "drive": 110, "driveTime": 651, "driveR": 6290, "bus": 13, "busTime": 349, "busR": 1500 }, "note": "Census 2021 (tools/census-to-network.mjs, 12 October 2026): 14,943 residents whose best trip in is from here, 4,821 working within a walk; draw: the A6 shops and the retail parks", "price": 200000, "kit": "hazel-grove", "retail": "Newsagent", "stop": 70,
       "grow": { "crossing": { "name": "Footbridge" }, "platform2": { "name": "Second platform" }, "building": { "name": "Station building" }, "taxi": { "name": "Taxi rank" }, "carpark": { "name": "Car park", "spaces": 40, "price": 16000 }, "carpark2": { "name": "Car park extension", "spaces": 40, "price": 18000 }, "bus": { "name": "Bus stop on the A6", "desc": "Buses along the A6 bring people from beyond a walk", "price": 2000 } } }
   ],
   "landmarks": [
@@ -271,16 +299,16 @@
   ],
   "platformNote": "Which platform each service uses (12 October 2026). The owner: trains from Stockport to Manchester use platforms 3 and 4, both of them. Wikipedia (Stockport railway station, Manchester Piccadilly station, read 12 October 2026): at Stockport platform 4 is the northbound stoppers', 3 the northbound main-line trains (Avanti West Coast, 3 an hour, and CrossCountry, 2 an hour, to Piccadilly), 2 the southbound main-line trains (to London, Bristol and Bournemouth), 1 southbound stoppers and signalled for trains to Manchester, 0 southbound towards Hazel Grove and Buxton, 3a the weekly train to Stalybridge; at Piccadilly platform 1 is on the north side (the kit's +v) and 13 and 14 on the south, 5 to 9 are the longest and mostly Avanti's and CrossCountry's, 10 to 12 shorter, for local trains including the Buxton line. Game choices: the stopper turns at Stockport in 4, 3 and the bay 0, and at Piccadilly in 5, 11, 12 and 4, each unit its own first choice so every platform built has trains; the Hazel Grove line turns in Stockport's 1; the expresses use 3 north and 2 south at Stockport (running through until those are built) and 6 and 7 at Piccadilly (5 while the player owns it without the shed). A through station's platforms are the halt's (1) and the second platform (2), which aren't their real numbers everywhere. The expresses' destinations south: Avanti's London Euston, CrossCountry's Bristol Temple Meads (some go to Bournemouth); one of each every two clock hours, Avanti's from 06:30 to 22:30 and CrossCountry's from 07:30 to 21:30 as they come on south of Stockport (`first`, `every` and `last` in `through`, clock hours): not their real frequency, which the clock running six to twelve times faster than the trains would make a train every few minutes, but their real day, the first about 06:00 and the last about 23:00 (Wikipedia's timetable notes), so the night is quiet.",
   "services": [
-    { "id": "stopper", "name": "Northern stopping service", "operator": "northern", "tracks": { "north": "down-slow", "south": "up-slow" }, "calls": "all", "cars": 2, "hours": { "first": 5.5, "last": 23.5 },
+    { "id": "stopper", "name": "Northern stopping service", "operator": "northern", "tracks": { "north": ["down-slow"], "south": ["up-slow"] }, "calls": "all", "cars": 2, "hours": { "first": 5.5, "last": 23.5 },
       "route": ["stockport", "heaton-chapel", "levenshulme", "ardwick", "piccadilly"],
       "platforms": { "stockport": { "turn": ["4", "3", "0"] }, "piccadilly": { "turn": ["5", "11", "12", "4"] } } },
-    { "id": "hazel-grove", "name": "Hazel Grove line", "operator": "northern", "tracks": { "north": "branch-north", "south": "branch-south" }, "calls": "all", "cars": 2, "hours": { "first": 5.5, "last": 23.5 },
+    { "id": "hazel-grove", "name": "Hazel Grove line", "operator": "northern", "tracks": { "north": ["hazel-grove-north", "branch-north"], "south": ["hazel-grove-south", "branch-south"] }, "calls": "all", "cars": 2, "hours": { "first": 5.5, "last": 23.5 },
       "route": ["hazel-grove", "woodsmoor", "davenport", "stockport"], "home": "stockport",
       "platforms": { "stockport": { "turn": ["1"] } } },
-    { "id": "avanti", "name": "Avanti West Coast", "operator": "avanti", "tracks": { "north": "down-fast", "south": "up-fast" }, "calls": ["stockport", "piccadilly"], "cars": 9,
+    { "id": "avanti", "name": "Avanti West Coast", "operator": "avanti", "tracks": { "north": ["down-fast"], "south": ["up-fast"] }, "calls": ["stockport", "piccadilly"], "cars": 9,
       "route": ["stockport", "piccadilly"], "through": { "south": "London Euston", "first": 6.5, "every": 2, "last": 22.5 },
       "platforms": { "stockport": { "north": ["3"], "south": ["2"] }, "piccadilly": { "turn": ["6", "7", "5"] } } },
-    { "id": "crosscountry", "name": "CrossCountry", "operator": "crosscountry", "tracks": { "north": "down-fast", "south": "up-fast" }, "calls": ["stockport", "piccadilly"], "cars": 5,
+    { "id": "crosscountry", "name": "CrossCountry", "operator": "crosscountry", "tracks": { "north": ["down-fast"], "south": ["up-fast"] }, "calls": ["stockport", "piccadilly"], "cars": 5,
       "route": ["stockport", "piccadilly"], "through": { "south": "Bristol Temple Meads", "first": 7.5, "every": 2, "last": 21.5 },
       "platforms": { "stockport": { "north": ["3"], "south": ["2"] }, "piccadilly": { "turn": ["7", "6", "5"] } } }
   ],

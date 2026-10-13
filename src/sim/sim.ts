@@ -7,7 +7,7 @@
 import { rand, freshSeed } from './random.ts';
 import { BASE, DAY, clockAt, clockText, hourAt, simAtHour } from './day.ts';
 import { SAVE_VERSION } from './save.ts';
-import type { Network } from './network.ts';
+import type { Network, Route } from './network.ts';
 import { journeys, cycle, runTime, waitWeight, type Journey } from './journeys.ts';
 import { freshWeather, stepWeather, feel, weatherKey } from './weather.ts';
 import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
@@ -124,12 +124,13 @@ export function demandCurve(h: number): number {
   return v;
 }
 
-/** A passenger service as the sim runs it: its route as station indices south to north, and its home if it only runs
- * as far as stations are owned from there. The first service is the main line, whose units the line upgrades buy.
+/** A passenger service as the sim runs it: its route as station indices south to north, its way through the graph
+ * (path: its legs of corridor and track), and its home if it only runs as far as stations are owned from there. The
+ * first service is the main line, whose units the line upgrades buy.
  * plats: its platforms (indices into the station's `plats`) at the stations its data lists. An express runs through
  * from off the map (src/sim/expresses.ts): portal is where it comes on and goes off, along the corridor. */
 export interface Svc {
-  id: string; route: number[]; home: number | null; def: ServiceDef; tracks: { north: string; south: string };
+  id: string; route: number[]; home: number | null; def: ServiceDef; path: Route;
   plats: Map<number, { north?: number[]; south?: number[]; turn?: number[] }>;
   express: { south: string; first: number; every: number; last: number; portal: number } | null;
 }
@@ -165,7 +166,7 @@ export class Sim {
     this.S = network.stations;              // [{ id, name, s, miles, catchment, price, retail, index }]
     this.g = state || Sim.fresh(network);
     this.fx = effects(network.def.contract, this.g.perks);
-    this.svcs = network.services().map(s => ({ id: s.def.id, route: s.route, home: s.home, def: s.def, tracks: s.def.tracks, plats: new Map(), express: null }));
+    this.svcs = network.services().map(s => ({ id: s.def.id, route: s.route, home: s.home, def: s.def, path: network.route(s.def), plats: new Map(), express: null }));
     if (!this.svcs.length || this.svcs[0]!.def.through) throw new Error('network.json names no passenger service first');
     this.fixedEnds = new Set(this.local().filter(v => v.home === null).flatMap(v => [v.route[0]!, v.route[v.route.length - 1]!]));
     this.plats = this.S.map((st, i) => st.platforms?.map(def => ({ def, ways: (def.ways ?? ['north', 'south']).map(w => w === 'north' ? 0 : 1) as (0 | 1)[] }))
@@ -177,7 +178,7 @@ export class Sim {
         v.plats.set(i, { north: ix(P.north), south: ix(P.south), turn: ix(P.turn) });
       }
       const th = v.def.through;
-      if (th) v.express = { ...th, portal: network.extent(v.tracks.north)[0] + v.def.cars * TUNING.carPitch / 2 };
+      if (th) v.express = { ...th, portal: v.path.start + v.def.cars * TUNING.carPitch / 2 };
     }
     this.rates = new Float64Array(this.S.length); this.crowding = new Float64Array(this.svcs.length * 2); this.trainsEachWay = new Float64Array(this.svcs.length * 2);
     this.growth = new Float64Array(this.S.length);
@@ -478,8 +479,8 @@ export class Sim {
     for (const o of this.g.trains) if (o !== tr && o.state !== 'away' && o.dir === tr.dir && this.trackOf(o) === track) { const d = (o.s - tr.s) * tr.dir; if (d > 0 && d < gap) gap = d; }
     return gap - TUNING.separation;
   }
-  /** The track a train runs on, by its service and direction. */
-  trackOf(tr: Train): string { const t = this.svc(tr.svc).tracks; return tr.dir > 0 ? t.north : t.south; }
+  /** The track a train runs on: its route's, where it is, the way it's heading. */
+  trackOf(tr: Train): string { return this.svc(tr.svc).path.track(tr.s, tr.dir); }
   /** Run a train towards `target` (s along the line) for dt, as far as the train ahead and its signal allow; where it
    * hasn't a platform yet at `stop`, it claims one from `claim` metres out and stands at its signal, approach metres
    * short, until it has. Returns whether it has arrived. */

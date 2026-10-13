@@ -22,12 +22,56 @@ test("network: each service's stations sit on the corridor in order, roughly the
   assert.ok(total > 8500 && total < 11000, `Stockport to Piccadilly should be about 9.5 km, got ${total.toFixed(0)}`);
   assert.ok(branch > 4000 && branch < 5000, `Hazel Grove to Stockport should be about 4.5 km, got ${branch.toFixed(0)}`);
   // the origin is the station node from the map, which sits a few metres off the track the corridor follows
-  const p = n.corridor('main').at(n.station('stockport').s);
+  const p = n.spine.at(n.station('stockport').s);
   assert.ok(Math.hypot(p.x, p.z) < 40, `origin is Stockport: the corridor passes ${Math.hypot(p.x, p.z).toFixed(1)} m from it`);
 });
 
+test('network: the Hazel Grove line meets the line to Piccadilly at Edgeley Junction, chainage running on through it', () => {
+  const n = net(), j = n.junction('edgeley'), hg = n.corridor('hazel-grove'), main = n.corridor('main');
+  assert.equal(j.corridor, 'main');
+  assert.deepEqual([...j.joins].sort(), ['hazel-grove', 'main']);
+  assert.ok(Math.abs(hg.end - j.s) < 1e-6 && Math.abs(main.start - j.s) < 1e-6, 'one ends and the other starts at the junction\'s chainage');
+  const a = hg.at(hg.end), b = main.at(main.start);
+  assert.ok(Math.hypot(a.x - b.x, a.z - b.z) < 1e-6, 'at the same point');
+  assert.ok(Math.abs(a.heading - b.heading) < 0.05, 'heading the same way');
+  // half a mile south of Stockport (Wikipedia, Buxton line): within a few hundred metres of the platforms' south end
+  const st = n.station('stockport'); assert.ok(st.at - j.s > 700 && st.at - j.s < 1100, `${(st.at - j.s).toFixed(0)} m south of Stockport`);
+  // the spine is the two end to end, so the ground is laid along both as it was along the one line
+  for (const s of [10, 2000, j.s - 1, j.s + 1, 9000, n.spine.end - 10]) {
+    const c = s < j.s ? hg : main, p = c.at(s, 6), q = n.spine.at(s, 6);
+    assert.ok(Math.hypot(p.x - q.x, p.z - q.z) < 0.01, `the spine is the corridor at ${s.toFixed(0)}`);
+  }
+});
+
+test('network: the future junctions are named points along the line to Piccadilly, in order from Stockport', () => {
+  const n = net(), at = (id: string) => n.junction(id).s;
+  const ids = ['edgeley', 'heaton-norris', 'slade-lane', 'ardwick'];
+  for (const id of ids) assert.equal(n.junction(id).corridor, 'main');
+  for (let k = 1; k < ids.length; k++) assert.ok(at(ids[k]!) > at(ids[k - 1]!), `${ids[k]} beyond ${ids[k - 1]}`);
+  assert.ok(at('heaton-norris') > n.station('stockport').s && at('heaton-norris') < n.station('heaton-chapel').s, 'Heaton Norris between Stockport and Heaton Chapel');
+  assert.ok(at('slade-lane') > n.station('levenshulme').s && at('ardwick') < n.station('piccadilly').s, 'Slade Lane past Levenshulme, Ardwick short of Piccadilly');
+});
+
+test('network: a service is a route of legs of corridor and track, passing from one to the next at a junction', () => {
+  const n = net(), hg = def.services!.find(v => v.id === 'hazel-grove')!, r = n.route(hg), j = n.junction('edgeley');
+  assert.deepEqual(r.legs.map(l => l.corridor), ['hazel-grove', 'main']);
+  assert.equal(r.legs[0]!.s1, j.s); assert.equal(r.legs[1]!.s0, j.s);
+  assert.equal(r.track(n.station('davenport').s, 1), 'hazel-grove-north');
+  assert.equal(r.track(n.station('stockport').s, -1), 'branch-south');
+  // every leg's tracks run on into the next's at the junction, at the same place across the line
+  for (const v of def.services!) {
+    const R = n.route(v);
+    for (let k = 1; k < R.legs.length; k++) for (const way of ['north', 'south'] as const) {
+      const a = n.trackAt(R.legs[k - 1]![way], R.legs[k]!.s0), b = n.trackAt(R.legs[k]![way], R.legs[k]!.s0);
+      assert.ok(Math.hypot(a.x - b.x, a.z - b.z) < 0.05, `${v.id}: ${way} tracks meet at the junction`);
+    }
+  }
+  // the expresses come on where the fast lines begin, at Edgeley Junction, as they did
+  const av = n.route(def.services!.find(v => v.id === 'avanti')!); assert.ok(Math.abs(av.start - j.s) < 1e-6);
+});
+
 test('network: track offsets are perpendicular to the corridor', () => {
-  const n = net(), c = n.corridor('main');
+  const n = net(), c = n.spine;
   const a = c.at(5000, 0), b = c.at(5000, 19);
   assert.ok(Math.abs(Math.hypot(b.x - a.x, b.z - a.z) - 19) < 1e-6);
   assert.ok(Math.abs((b.x - a.x) * a.dx + (b.z - a.z) * a.dz) < 1e-6, 'offset is perpendicular to travel');
@@ -46,7 +90,7 @@ test('tracks: trains stand just clear of the platform their passengers wait on, 
     const k = kit(st.kit);
     for (const dir of ['north', 'south'] as const) {
       const svc = n.boardingService(st.id, dir); if (!svc) throw new Error(`${st.id}: no service boards ${dir}`);
-      const tv = n.offsetAt(svc.tracks[dir], st.s), fv = k.faces[dir].v, side = Math.sign(fv - tv);
+      const tv = n.offsetAt(n.route(svc).track(st.s, dir === 'north' ? 1 : -1), st.s), fv = k.faces[dir].v, side = Math.sign(fv - tv);
       // the platform the face stands on: the one whose edge nearest the track is between the track and the face
       // the platforms a station grows (its halt and later stages), not the extensions beyond their ends
       const edges = k.parts.filter(p => p.type === 'platform' && p.v0 !== undefined && p.v1 !== undefined && ![p.upgrade ?? []].flat().includes('extend'))
@@ -63,7 +107,7 @@ test('tracks: a main-line train turning round at either end stays on the track i
   const n = net();
   if (!stopper) throw new Error('no stopper');
   for (const st of [n.station('stockport'), n.station('piccadilly')])
-    assert.equal(n.offsetAt(stopper.tracks.north, st.s), n.offsetAt(stopper.tracks.south, st.s), `${st.id}: both directions in one platform`);
+    assert.equal(n.offsetAt(n.route(stopper).track(st.s, 1), st.s), n.offsetAt(n.route(stopper).track(st.s, -1), st.s), `${st.id}: both directions in one platform`);
 });
 
 test('tracks: on the open line and through the stations the tracks there keep clear of each other', () => {
@@ -79,7 +123,7 @@ test('tracks: on the open line and through the stations the tracks there keep cl
 });
 
 test('tracks: no track steps sideways anywhere along the line', () => {
-  const n = net(), L = n.corridor('main').length;
+  const n = net(), L = n.spine.length;
   for (const t of n.tracks) {
     let prev = n.offsetAt(t.id, 0);
     for (let s = 1; s <= L; s++) { const o = n.offsetAt(t.id, s); assert.ok(Math.abs(o - prev) < 0.6, `${t.id} jumps ${(o - prev).toFixed(2)} m at ${s} m`); prev = o; }

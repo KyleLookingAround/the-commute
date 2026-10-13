@@ -15,6 +15,8 @@
 //
 //    It stitches the rail ways into a graph, finds the shortest path between the two station nodes, and prints
 //    a `waypoints` array (lat, lon) to paste into the corridor in network.json, plus the station lat/lons it saw
+//    (the corridor for one line, drawn towards Manchester: run it from the far end to the junction, and keep a couple
+//    of waypoints past the junction a corridor starts or ends at, which the network cuts it at; `corridorNote`)
 //    and every railway=platform way near the path (useful for station kits).
 //
 // This is a first pass: it picks one track of a multi-track line as the centreline. That is fine for the

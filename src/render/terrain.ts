@@ -86,7 +86,7 @@ export class Terrain {
     this.bounds = { x0, z0, x1, z1 };
     {
       // for each 200 m cell, the stretches of line that can hold the nearest point to anywhere in it
-      const c = net.corridor('main'), cell = 200, w = Math.ceil((x1 - x0) / cell), h = Math.ceil((z1 - z0) / cell), cells: number[][] = [], half = cell * Math.SQRT1_2;
+      const c = net.spine, cell = 200, w = Math.ceil((x1 - x0) / cell), h = Math.ceil((z1 - z0) / cell), cells: number[][] = [], half = cell * Math.SQRT1_2;
       const P = c.pts, nSeg = P.length - 1, d = new Float64Array(nSeg);
       for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
         const x = x0 + (i + 0.5) * cell, z = z0 + (j + 0.5) * cell; let m = Infinity;
@@ -102,7 +102,7 @@ export class Terrain {
     this.railDm = data.rail.dm; this.railStep = data.rail.step;
     const d = data.datum; this.datum = { ...d, v: decodeGrid(d.dm, d.w, d.h) };
     // the land: every track and its cess, then each station's pad
-    const c = net.corridor('main'), n = Math.ceil(c.length / BAND_STEP) + 1;
+    const c = net.spine, n = Math.ceil(c.length / BAND_STEP) + 1;
     this.lo = new Float32Array(n).fill(Infinity); this.hi = new Float32Array(n).fill(-Infinity); this.padLo = new Uint8Array(n); this.padHi = new Uint8Array(n);
     // a point of railway land at (x, z), r across: widen the land where the point is nearest the line
     // (the strip lays its rows square to the line, so a point is marked both where it's nearest the line and where a
@@ -148,7 +148,7 @@ export class Terrain {
    * that can be nearest from the point's cell. */
   nearest(x: number, z: number): number {
     const L = this.locator, i = Math.floor((x - L.x0) / L.cell), j = Math.floor((z - L.z0) / L.cell);
-    const c = this.net.corridor('main');
+    const c = this.net.spine;
     if (i < 0 || j < 0 || i >= L.w || j >= L.h) return c.nearest(x, z);
     const pts = c.pts, cum = c.cum; let best = 0, bestD = Infinity;
     for (const k of L.cells[j * L.w + i]!) {
@@ -164,7 +164,7 @@ export class Terrain {
    * round a bend's outside the line's nearest point is a corner), and whether it's past either end. (One object,
    * filled again on each call: read it at once.) */
   locate(x: number, z: number): { s: number; o: number; past: boolean } {
-    const c = this.net.corridor('main'), s = this.nearest(x, z); c.at(s, 0, LOC_F);
+    const c = this.net.spine, s = this.nearest(x, z); c.at(s, 0, LOC_F);
     const ax = x - LOC_F.x, az = z - LOC_F.z, o = ax * LOC_F.nx + az * LOC_F.nz, along = ax * LOC_F.dx + az * LOC_F.dz;
     LOC.s = s; LOC.past = (s < 0.01 || s > c.length - 0.01) && Math.abs(along) > 1;
     LOC.o = Math.abs(along) > 0.01 ? Math.sign(o) * Math.hypot(ax, az) : o;
@@ -215,7 +215,7 @@ export class Terrain {
   }
   /** The ground beside the line, drawn: `o` across at s (outside the land), and the step at the land's edge. */
   beside(s: number, o: number, fr = FRAME): number {
-    const [lo, hi] = this.band(s), c = this.net.corridor('main');
+    const [lo, hi] = this.band(s), c = this.net.spine;
     c.at(s, this.realOffset(o, lo, hi), fr);
     const x = fr.x, z = fr.z; c.at(s, o, fr);
     return this.raw(x, z) - this.datumAt(fr.x, fr.z);
@@ -332,7 +332,7 @@ export class TerrainLayer {
     this.files = files;
     this.material = new THREE.MeshLambertMaterial({ vertexColors: true });
     this.buildBase();
-    const c = t.net.corridor('main');
+    const c = t.net.spine;
     for (let s0 = 0; s0 < c.length - 1; s0 += CHUNK) {
       const s1 = Math.min(c.length, s0 + CHUNK), p = c.at((s0 + s1) / 2);
       const coarse = this.strip(s0, s1, ROW_COARSE, OUT_COARSE), mesh = new THREE.Mesh(coarse, this.material);
@@ -385,7 +385,7 @@ export class TerrainLayer {
   }
   /** The strip from s0 to s1: rows across the line every `row` m, the railway's land and each side out to STRIP m. */
   strip(s0: number, s1: number, row: number, OUT: number[]): THREE.BufferGeometry {
-    const t = this.t, c = t.net.corridor('main'), rows = Math.max(1, Math.ceil((s1 - s0) / row));
+    const t = this.t, c = t.net.spine, rows = Math.max(1, Math.ceil((s1 - s0) / row));
     // per side: the land's edge (yard), the wall's foot, its top, the ground (each wall vertex twice, so colours change
     // crisply), then the columns out and the skirt
     const perSide = 2 + 2 + 2 + (OUT.length - 2) + 1, cols = 2 * perSide;
@@ -438,7 +438,7 @@ export class TerrainLayer {
   /** The base mesh over the whole map, in chunks: sunk well under the strip near the line, and easing to the far
    * ground's level at the map's edge. */
   private buildBase(): void {
-    const t = this.t, c = t.net.corridor('main'), b = t.bounds, G = BASE_GRID, k = new THREE.Color();
+    const t = this.t, c = t.net.spine, b = t.bounds, G = BASE_GRID, k = new THREE.Color();
     const nx = Math.floor((b.x1 - b.x0) / G), nz = Math.floor((b.z1 - b.z0) / G), fr = { ...FRAME };
     const EASE = 1200;
     for (let ci = 0; ci < nx; ci += BASE_CHUNK) for (let cj = 0; cj < nz; cj += BASE_CHUNK) {

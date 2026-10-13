@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { MAT, PAL } from './scene.ts';
 import { GHOST, riseBy, settle } from './stations.ts';
 import { yawFor } from './world.ts';
-import type { Network } from '../sim/network.ts';
+import { SPINE, type Network } from '../sim/network.ts';
 
 const SITE = 440;            // metres between signals: eight mast spans, so each stands halfway between two masts
 const FIRST = 57.5;          // the first site, halfway between the first two masts (world.ts puts them at 30, 85, ...)
@@ -63,7 +63,7 @@ export class Lineside {
 
   constructor(scene: THREE.Scene, net: Network) {
     this.net = net;
-    const c = net.corridor('main');
+    const c = net.spine;
     // across the line, the outermost tracks running at s, or null where there are none
     const span = (s: number): [number, number] | null => {
       let lo = Infinity, hi = -Infinity;
@@ -78,7 +78,7 @@ export class Lineside {
       sig.push([s, w[0] - OUT, -1], [s, w[1] + OUT, 1]);
       const sb = s + BOARD_AHEAD, wb = k % 2 === 0 && clear(sb) ? span(sb) : null;
       if (wb) board.push([sb, wb[0] - OUT, -1], [sb, wb[1] + OUT, 1]);
-      const m = net.place('main', s); this.sites.push({ s, x: m.x, z: m.z, board: !!wb });
+      const m = net.place(SPINE, s); this.sites.push({ s, x: m.x, z: m.z, board: !!wb });
     }
 
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
@@ -87,7 +87,7 @@ export class Lineside {
     const place = (spots: Spot[], geo: THREE.BufferGeometry, mat: THREE.Material | THREE.Material[], y: number, ahead: number, into: THREE.Group) => {
       const inst = new THREE.InstancedMesh(geo, mat, Math.max(1, spots.length)); inst.count = spots.length;
       spots.forEach(([s, off, face], i) => {
-        const p = net.place('main', s + face * ahead, off);
+        const p = net.place(SPINE, s + face * ahead, off);
         e.set(0, yawFor(p) + (face < 0 ? Math.PI : 0), 0); q.setFromEuler(e); v.set(p.x, y, p.z); m4.compose(v, q, one); inst.setMatrixAt(i, m4);
       });
       into.add(inst);
@@ -137,7 +137,7 @@ export class Lineside {
     let best: Site | null = null, d = Infinity;
     for (const st of this.sites) { const dd = Math.hypot(st.x - x, st.z - z) - (st.board ? 300 : 0); if (dd < d) { d = dd; best = st; } }
     if (!best) return null;
-    const a = this.net.place('main', best.s - 4, -3), b = this.net.place('main', best.s + 16, 17);
+    const a = this.net.place(SPINE, best.s - 4, -3), b = this.net.place(SPINE, best.s + 16, 17);
     return into.makeEmpty().expandByPoint(this.pt.set(a.x, 0, a.z)).expandByPoint(this.pt.set(b.x, 6, b.z));
   }
 

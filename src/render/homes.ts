@@ -34,7 +34,7 @@ export class HomesLayer {
   private zero = new THREE.Matrix4().makeScale(0, 0, 0);
 
   constructor(scene: THREE.Scene, net: Network, world: World) {
-    const c = net.corridor('main'), st = net.stations.map(s => net.stationFrame(s.id));
+    const c = net.spine, st = net.stations.map(s => net.stationFrame(s.id));
     const taken: number[] = [];   // x, z, r of every plot so far
     const clear = (x: number, z: number, r: number): boolean => {
       for (const f of st) if (Math.hypot(x - f.x, z - f.z) < STATION_CLEAR + r) return false;

@@ -4,15 +4,21 @@
 // A tap on the line between two stations (one the camera's picker found nothing at) opens its section's card. Only the
 // view: it reads the sim's sections and changes nothing. Fetched just after the start, so it isn't in the script before
 // the first frame; it looks at the sim a few times a second, not every frame.
+// An electrified section (one the real line runs without wires, wired since) shows masts outside its outer tracks
+// every MAST metres with an arm over them and a contact wire over each track, as the wired lines' (src/render/world.ts),
+// rising into place when bought; its card's stage ghosts them.
 import * as THREE from 'three';
-import type { Network } from '../sim/network.ts';
+import { newFrame, type Network } from '../sim/network.ts';
 import type { Sim } from '../sim/sim.ts';
 import { PAL, MAT } from './scene.ts';
-import { GHOST } from './stations.ts';
+import { GHOST, riseBy, settle } from './stations.ts';
 
 /** Points along a section every STEP metres; the ballast reaches EDGE beyond its outer tracks; boards stand INSET in
  * from its ends and OUT beyond its outer track. A tap within TAP_PX of the line on screen is on it. */
 const STEP = 20, EDGE = 2.2, INSET = 40, OUT = 3.4, TAP_PX = 22;
+/** Masts every MAST metres on the same grid as the wired lines' (30 m on from a line's start), MAST_OUT outside the
+ * outer track, the arm ARM long; the contact wire WIRE_Y up, drawn in WIRE_STEP pieces. */
+const MAST = 55, MAST_OUT = 3.2, ARM = 3, WIRE_Y = 5.4, WIRE_STEP = 10;
 
 function token(name: string, fallback: string): THREE.Color {
   const v = typeof getComputedStyle === 'function' ? getComputedStyle(document.documentElement).getPropertyValue(`--map-${name}`).trim() : '';
@@ -43,12 +49,20 @@ export class SectionLayer {
   private root = new THREE.Group(); private drawn = new Map<string, Drawn>(); private key = '';
   private ballast: THREE.MeshLambertMaterial; private ghostOf: string | null = null;
   private v = new THREE.Vector3();
+  /** Each electrified section's masts and wires (or its ghost, under the key `ghost`), and how far each is through
+   * rising into place. */
+  private wires = new Map<string, THREE.Group>(); private wireKey = ''; private wireGhost: string | null = null;
+  private rising = new Map<string, number>(); private wireMat: THREE.LineBasicMaterial; private last = 0;
+  private timer: ReturnType<typeof setInterval>;
   constructor(scene: THREE.Scene, net: Network, sim: () => Sim, camera: THREE.Camera, canvas: HTMLCanvasElement) {
     this.net = net; this.sim = sim; this.camera = camera; this.canvas = canvas;
     this.ballast = new THREE.MeshLambertMaterial({ color: token('ballast-new', '#b9ad9b'), polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    this.wireMat = new THREE.LineBasicMaterial({ color: token('wire', '#8c93a3') });
     this.root.name = 'sections'; scene.add(this.root);
-    this.sync(); setInterval(() => this.sync(), 250);
+    this.sync(); this.timer = setInterval(() => this.sync(), 250);
   }
+  /** Stop looking at the sim (for the checks, which make a layer of their own). */
+  stop(): void { clearInterval(this.timer); }
   /** How many sections show their renewed track, and how many stand as a ghost (for the checks). */
   stats(): { shown: number; ghosts: number } { let shown = 0, ghosts = 0; for (const d of this.drawn.values()) if (d.group.visible) { if (d.ghost) ghosts++; else shown++; } return { shown, ghosts }; }
   /** Ghost a section's next line speed step (null: none). Returns the box round it, to frame. */
@@ -78,8 +92,77 @@ export class SectionLayer {
     return best;
   }
 
+  /** Ghost a section's electrification (null: none). Returns the box round it, to frame. */
+  previewWires(id: string | null): THREE.Box3 | null {
+    this.wireGhost = id; this.syncWires();
+    const g = id ? this.wires.get('ghost') : null;
+    return g ? new THREE.Box3().setFromObject(g) : null;
+  }
+  /** How many sections show bought masts and wires (for the checks). */
+  wired(): number { let n = 0; for (const [k, g] of this.wires) if (k !== 'ghost' && g.visible) n++; return n; }
+
+  /** Bring the map up to date with the sections' wires: a group for each electrified section (rising into place if
+   * it's new since the last look) and the ghost. */
+  private syncWires(): void {
+    const sim = this.sim(), ids = sim.secs.filter(x => sim.sectionAt(x.id)!.wiresBought).map(x => x.id), key = ids.join() + '|' + this.wireGhost;
+    if (key === this.wireKey) return;
+    const first = this.wireKey === ''; this.wireKey = key;
+    for (const [k, g] of this.wires) if (k === 'ghost' || !ids.includes(k)) { this.root.remove(g); this.wires.delete(k); }
+    for (const id of ids) if (!this.wires.has(id)) { const g = this.mastsFor(id, false); if (g) { this.wires.set(id, g); if (!first) { this.rising.set(id, 0); g.scale.y = 0.01; } } }
+    const gh = this.wireGhost, x = gh ? sim.sectionAt(gh) : null;
+    if (gh && x && !x.wired) { const g = this.mastsFor(gh, true); if (g) this.wires.set('ghost', g); }
+    if (this.rising.size) { this.last = performance.now(); requestAnimationFrame(() => this.rise()); }
+  }
+  /** One frame of the newly electrified sections' masts rising into place. */
+  private rise(): void {
+    const now = performance.now(), dt = Math.min(0.5, (now - this.last) / 1000); this.last = now;
+    for (const [k, r] of this.rising) {
+      const n = riseBy(r, dt), g = this.wires.get(k);
+      if (g) g.scale.y = Math.max(0.01, settle(n));
+      if (n >= 1) this.rising.delete(k); else this.rising.set(k, n);
+    }
+    if (this.rising.size) requestAnimationFrame(() => this.rise());
+  }
+  /** A section's masts, arms and contact wires where its line has none, as one group (instanced), or as a ghost. */
+  private mastsFor(id: string, ghost: boolean): THREE.Group | null {
+    const net = this.net, x = this.sim().secs.find(q => q.id === id); if (!x) return null;
+    const line = net.lineOf(x.corridor), tracks = net.tracks.filter(t => net.onLine(t.corridor, line));
+    const spots: [number, number, number][] = [], wire: number[] = [], box = new THREE.Box3();
+    const pa = newFrame(), pb = newFrame();
+    for (let s = line.start + 30 + Math.ceil((x.s0 - line.start - 30) / MAST) * MAST; s <= x.s1; s += MAST) {
+      let lo = Infinity, hi = -Infinity;
+      for (const t of tracks) { if (net.wired(t.corridor, s)) continue; const [e0, e1] = net.extent(t.id); if (s < e0 || s > e1) continue; const o = net.offsetAt(t.id, s); lo = Math.min(lo, o); hi = Math.max(hi, o); }
+      if (lo > hi) continue;
+      spots.push([s, lo - MAST_OUT, 1], [s, hi + MAST_OUT, -1]);
+    }
+    for (const t of tracks) {
+      if (t.corridor !== x.corridor) continue;
+      const [e0, e1] = net.extent(t.id), a = Math.max(e0, x.s0), b = Math.min(e1, x.s1);
+      for (let s = a; s < b; s += WIRE_STEP) { if (net.wired(t.corridor, s)) continue; net.trackAt(t.id, s, pa); net.trackAt(t.id, Math.min(b, s + WIRE_STEP), pb); wire.push(pa.x, WIRE_Y, pa.z, pb.x, WIRE_Y, pb.z); }
+    }
+    if (!spots.length && !wire.length) return null;
+    const group = new THREE.Group(), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), one = new THREE.Vector3(1, 1, 1);
+    const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.2, 0.25, 7.5, 6, 1, true), ghost ? GHOST : MAT.steel, Math.max(1, spots.length));
+    const arms = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 0.3, 6), ghost ? GHOST : MAT.steel, Math.max(1, spots.length));
+    spots.forEach(([s, off, inward], i) => {
+      const p = net.place(line.id, s, off); e.set(0, Math.atan2(-p.dz, p.dx), 0); q.setFromEuler(e);
+      poles.setMatrixAt(i, m4.compose(this.v.set(p.x, 3.75, p.z), q, one));
+      const pa2 = net.place(line.id, s, off + inward * ARM); arms.setMatrixAt(i, m4.compose(this.v.set(pa2.x, 6.8, pa2.z), q, one));
+      box.expandByPoint(this.v.set(p.x, 0, p.z)).expandByPoint(this.v.set(p.x, 7.5, p.z));
+    });
+    poles.count = arms.count = spots.length;
+    poles.computeBoundingSphere(); arms.computeBoundingSphere();
+    poles.castShadow = arms.castShadow = !ghost;
+    const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(wire), 3));
+    group.add(poles, arms, new THREE.LineSegments(wg, ghost ? GHOST : this.wireMat));
+    group.userData['box'] = box;
+    this.root.add(group);
+    return group;
+  }
+
   /** Bring the map up to date with the sections' line speeds (and the ghost), when either changed. */
   private sync(): void {
+    this.syncWires();
     const sim = this.sim(), key = sim.secs.map(x => sim.sectionAt(x.id)!.level).join() + '|' + this.ghostOf;
     if (key === this.key) return;
     this.key = key;

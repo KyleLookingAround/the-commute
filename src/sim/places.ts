@@ -50,6 +50,9 @@ export const SECTION_SPEED = { id: 'speed', name: 'Line speed', perMile: 3300, s
  * blocks, so trains follow closer: Network.closer) and its signal failures held off `holds` of the time (TUNING's
  * resignalHolds, six in ten). */
 export const SECTION_SIGNALS = { id: 'signals', name: 'Resignalling', perMile: 5000, desc: 'New colour-light signals at closer spacing: trains follow closer, signals fail less' } as const;
+/** A section's electrification, where the real line has no wires: one stage, `perMile` pounds a mile; its trains
+ * accelerate as electric units do through it (TUNING.accel, not accelDiesel). */
+export const SECTION_WIRES = { id: 'wires', name: 'Electrification', perMile: 8000, desc: 'Masts and wires: trains accelerate harder through it' } as const;
 /** Which kind of place each of those stages is on. */
 export const LINE_PLACE: Record<Exclude<LineUpgradeId, 'timetable'>, 'route' | 'depot'> = { units: 'route', cars: 'route', spare: 'depot' };
 

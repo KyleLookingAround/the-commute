@@ -15,7 +15,7 @@ import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
 import { stepExpress, nextSlot, EXPRESS_UNITS } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
 import { effects, type Effects } from './contract.ts';
-import { places, build, derive, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, type Places, type Upgrade } from './places.ts';
+import { places, build, derive, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, type Places, type Upgrade } from './places.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
 // a station's stages and the line's, now stages of places (src/sim/places.ts); here too, where the view finds them
@@ -23,7 +23,7 @@ export { UPGRADES, LINE_UPGRADES, type Upgrade, type LineUpgrade } from './place
 
 export const TUNING = {
   fareBase: 1.5, farePerMile: 0.6, fareMult: 13.5,   // 6x the old 6x clock's fare, then 12 to 13.5 when homes and draw came from the census (Stockport draws less than guessed)
-  seatsPerCar: 75, accel: 1.0, brake: 1.1, vmax: 33.5, vmaxFast: 40,
+  seatsPerCar: 75, accel: 1.0, accelDiesel: 0.7, brake: 1.1, vmax: 33.5, vmaxFast: 40,
   // the timetable (docs/DESIGN.md, Timetable): a stop is planned at dwell and a turnaround at turnaround, but a train
   // can do them in dwellMin and turnMin when nobody's about, so a late one makes time up (the rest of a turnaround is
   // recovery); it never leaves early, and stays while people are still getting on and off, up to overrun past the least
@@ -147,9 +147,10 @@ export class Sim {
   /** Each section of line (the line between stations): its place, where it runs along its corridor, the line speed it
    * starts at (mph: the game's 75 on the stopper's line, so the opening is as it was; elsewhere its real speed where
    * that's lower) and how many SECTION_SPEED steps take it to the top. */
-  secs: { id: string; corridor: string; s0: number; s1: number; base: number; steps: number; miles: number }[];
-  /** Line speeds between two stops, by service and stops, worked out as needed and forgotten when a section changes. */
-  private speeds = new Map<number, number>();
+  secs: { id: string; corridor: string; s0: number; s1: number; base: number; steps: number; miles: number; wired: boolean }[];
+  /** Line speeds between two stops, and the share of the way under wires, by service and stops, worked out as needed
+   * and forgotten when a section changes. */
+  private speeds = new Map<number, { speed: number; wired: number }>();
   /** Each corridor's signal sites and each track's blocks as the resignalled sections have them, worked out as needed
    * and forgotten when one is resignalled. */
   private siteCache = new Map<string, number[]>(); private blockCache = new Map<string, Blocks>();
@@ -177,8 +178,10 @@ export class Sim {
     const nth = new Map<string, number>();
     this.secs = this.P.all.filter(p => p.kind === 'section').map(p => {
       const k = nth.get(p.corridor!) ?? 0; nth.set(p.corridor!, k + 1);
-      const real = network.def.sections?.[p.corridor!]?.mph[k], base = stopperLine.has(p.id) ? 75 : Math.min(75, real ?? 75);
-      return { id: p.id, corridor: p.corridor!, s0: Math.min(p.s0!, p.s1!), s1: Math.max(p.s0!, p.s1!), base, steps: Math.max(0, Math.ceil((SECTION_SPEED.top - base) / SECTION_SPEED.step)), miles: Math.abs(p.s1! - p.s0!) / 1609.34 };
+      const data = network.def.sections?.[p.corridor!], real = data?.mph[k], base = stopperLine.has(p.id) ? 75 : Math.min(75, real ?? 75);
+      // wired from the start where most of it is under wires on the real line
+      const wired = (data?.wired[k] ?? 1) >= 0.5;
+      return { id: p.id, corridor: p.corridor!, s0: Math.min(p.s0!, p.s1!), s1: Math.max(p.s0!, p.s1!), base, steps: Math.max(0, Math.ceil((SECTION_SPEED.top - base) / SECTION_SPEED.step)), miles: Math.abs(p.s1! - p.s0!) / 1609.34, wired };
     });
     this.rates = new Float64Array(this.S.length); this.crowding = new Float64Array(this.svcs.length * 2); this.trainsEachWay = new Float64Array(this.svcs.length * 2);
     this.growth = new Float64Array(this.S.length);
@@ -212,15 +215,18 @@ export class Sim {
   vmax(): number { return (this.g.line.timetable ? TUNING.vmaxFast : TUNING.vmax) * feel(this.g).speed; }
   /** A section of line as it stands: its line speed now and where it started (mph), steps built of how many, its length,
    * and its next step's price (undefined once it's at the top). */
-  sectionAt(id: string): { mph: number; base: number; level: number; steps: number; miles: number; price: number | undefined; signals: boolean; signalsPrice: number | undefined } | null {
+  sectionAt(id: string): { mph: number; base: number; level: number; steps: number; miles: number; price: number | undefined; signals: boolean; signalsPrice: number | undefined; wired: boolean; wiresBought: boolean; wiresPrice: number | undefined } | null {
     const x = this.secs.find(q => q.id === id); if (!x) return null;
     const level = Math.min(x.steps, this.g.places[id]?.[SECTION_SPEED.id] ?? 0), mile = (perMile: number) => this.cost(Math.max(1000, Math.round(perMile * x.miles / 500) * 500));
     const signals = this.resignalled(id);
     return {
       mph: Math.min(SECTION_SPEED.top, x.base + SECTION_SPEED.step * level), base: x.base, level, steps: x.steps, miles: x.miles, price: level < x.steps ? mile(SECTION_SPEED.perMile) : undefined,
       signals, signalsPrice: signals ? undefined : mile(SECTION_SIGNALS.perMile),
+      wired: this.wiredSec(x), wiresBought: !x.wired && this.wiredSec(x), wiresPrice: this.wiredSec(x) ? undefined : mile(SECTION_WIRES.perMile),
     };
   }
+  /** Whether a section of line is under wires: from the start where the real line is, or once electrified. */
+  private wiredSec(x: { id: string; wired: boolean }): boolean { return x.wired || (this.g.places[x.id]?.[SECTION_WIRES.id] ?? 0) > 0; }
   /** Whether a section of line has been resignalled. */
   resignalled(id: string): boolean { return (this.g.places[id]?.[SECTION_SIGNALS.id] ?? 0) > 0; }
   /** Whether chainage s on any of these corridors lies in a resignalled section. */
@@ -247,12 +253,18 @@ export class Sim {
   /** How fast a service's trains run between two of its stops (station indices), as the timetable plans it and they
    * drive it: the run's length over the time it takes through each section at its own line speed (the game's line
    * speed where it runs beyond any section), in the weather. */
-  runSpeed(v: Svc, a: number, b: number): number {
+  runSpeed(v: Svc, a: number, b: number): number { return this.run(v, a, b).speed * feel(this.g).speed; }
+  /** How hard a service's trains accelerate between two of its stops: an electric unit's TUNING.accel under wires, a
+   * diesel's accelDiesel where there are none, by the share of the way that's wired. */
+  runAccel(v: Svc, a: number, b: number): number { const w = this.run(v, a, b).wired; return TUNING.accelDiesel + (TUNING.accel - TUNING.accelDiesel) * w; }
+  /** A run between two stops: its speed (the run's length over the time through each section at its own line speed,
+   * the game's line speed beyond any section) and the share of it under wires (wired beyond any section). */
+  private run(v: Svc, a: number, b: number): { speed: number; wired: number } {
     const k = (this.svcs.indexOf(v) * 128 + a) * 128 + b;
-    let sp = this.speeds.get(k);
-    if (sp === undefined) {
+    let r = this.speeds.get(k);
+    if (r === undefined) {
       const sa = this.station(a).s, sb = this.station(b).s, lo = Math.min(sa, sb), hi = Math.max(sa, sb);
-      let t = 0, d = 0;
+      let t = 0, d = 0, bare = 0;
       for (const L of v.path.legs) {
         const x0 = Math.max(lo, L.s0), x1 = Math.min(hi, L.s1); if (x1 <= x0) continue;
         for (const x of this.secs) {
@@ -260,12 +272,13 @@ export class Sim {
           const y0 = Math.max(x0, x.s0), y1 = Math.min(x1, x.s1); if (y1 <= y0) continue;
           const lvl = Math.min(x.steps, this.g.places[x.id]?.[SECTION_SPEED.id] ?? 0);
           t += (y1 - y0) / (TUNING.vmax * Math.min(SECTION_SPEED.top, x.base + SECTION_SPEED.step * lvl) / 75); d += y1 - y0;
+          if (!this.wiredSec(x)) bare += y1 - y0;
         }
       }
-      sp = hi > lo ? (hi - lo) / (t + (hi - lo - d) / TUNING.vmax) : TUNING.vmax;
-      this.speeds.set(k, sp);
+      r = hi > lo ? { speed: (hi - lo) / (t + (hi - lo - d) / TUNING.vmax), wired: 1 - bare / (hi - lo) } : { speed: TUNING.vmax, wired: 1 };
+      this.speeds.set(k, r);
     }
-    return sp * feel(this.g).speed;
+    return r;
   }
   /** The timetabled turnaround at the end of a run, recovery included. */
   turnaround(): number { return TUNING.turnaround + (this.g.line.timetable ? TUNING.recoveryFast : 0); }
@@ -474,7 +487,7 @@ export class Sim {
     if (i !== null) {
       this.onDepart?.(tr, i, tr.late);
       if (tr.late > 300) g.stats.late++;
-      const j = tr.next, run = runTime(Math.abs(this.station(j).s - this.station(i).s), this.runSpeed(this.svc(tr.svc), i, j), TUNING.accel, TUNING.brake);
+      const j = tr.next, v = this.svc(tr.svc), run = runTime(Math.abs(this.station(j).s - this.station(i).s), this.runSpeed(v, i, j), this.runAccel(v, i, j), TUNING.brake);
       tr.due += run + (this.isEnd(tr, j) ? this.turnaround() : TUNING.dwell);
     }
   }
@@ -551,7 +564,7 @@ export class Sim {
   /** Run a train towards `target` (s along the line) for dt, as far as the train ahead and its signal allow; where it
    * hasn't a platform yet at `stop`, it claims one from `claim` metres out and stands at its signal, approach metres
    * short, until it has. Returns whether it has arrived. */
-  move(tr: Train, dt: number, target: number, stop: number | null, limit: number): boolean {
+  move(tr: Train, dt: number, target: number, stop: number | null, limit: number, accel: number = TUNING.accel): boolean {
     let rem = Math.abs(target - tr.s);
     if (stop !== null && tr.bound < 0 && rem < TUNING.claim) {
       if (this.claim(tr, stop, rem < TUNING.approach)) { target = this.stopAt(tr, stop, tr.bound); rem = Math.abs(target - tr.s); }
@@ -559,7 +572,7 @@ export class Sim {
     // it can go as far as the train ahead allows, and no further than its signal while it has no platform
     const held = stop !== null && tr.bound < 0 && rem >= TUNING.approach;
     const room = Math.min(held ? Math.min(this.clear(tr), rem - TUNING.approach) : this.clear(tr), this.signalRoom(tr, rem));
-    tr.v = Math.min(limit, tr.v + TUNING.accel * dt, cautionLimit(this, TUNING, tr));
+    tr.v = Math.min(limit, tr.v + accel * dt, cautionLimit(this, TUNING, tr));
     tr.v = Math.max(0.5, Math.min(tr.v, Math.sqrt(2 * TUNING.brake * Math.max(rem, 0))));
     // a train closing on the one ahead, or on a red signal, brakes to stand behind it
     if (room < rem) tr.v = Math.min(tr.v, Math.sqrt(2 * TUNING.brake * Math.max(room, 0)));
@@ -646,7 +659,8 @@ export class Sim {
     if (tr.next === null) tr.next = this.nextStop(tr);
     const i = tr.next, last = this.isEnd(tr, i);
     const target = tr.bound >= 0 ? this.stopAt(tr, i, tr.bound) : this.station(i).s;
-    if (this.move(tr, dt, target, i, this.runSpeed(this.svc(tr.svc), tr.pfAt >= 0 ? tr.pfAt : i, i))) {
+    const v = this.svc(tr.svc), from = tr.pfAt >= 0 ? tr.pfAt : i;
+    if (this.move(tr, dt, target, i, this.runSpeed(v, from, i), this.runAccel(v, from, i))) {
       if (last) tr.dir = tr.dir > 0 ? -1 : 1;      // reverse first so boarding uses the departure direction
       this.standAt(tr, i);
       this.callAt(tr, i);
@@ -660,7 +674,7 @@ export class Sim {
    * waits and platforms, the line's units and speed, and the weather and season. */
   journeyKey(): number {
     const g = this.g; let h = g.line.units * 7 + g.line.timetable + 97 * weatherKey(g);
-    for (const x of this.secs) h = (Math.imul(h, 31) + (g.places[x.id]?.[SECTION_SPEED.id] ?? 0)) | 0;
+    for (const x of this.secs) h = (Math.imul(h, 31) + (g.places[x.id]?.[SECTION_SPEED.id] ?? 0) + (this.wiredSec(x) ? 16 : 0)) | 0;
     for (let i = 0; i < this.S.length; i++) {
       const u = g.ups[i] ?? {};
       h = (Math.imul(h, 31) + (g.owned[i] ? 1 : 0) + (u.crossing ? 2 : 0) + (u.lifts ? 4 : 0) + (u.canopy ? 8 : 0) + (u.platform2 ? 16 : 0) + (u.platforms ? 32 : 0)) | 0;
@@ -845,7 +859,7 @@ export class Sim {
     const p = this.P.byId.get(id); if (!p) return undefined;
     if (stage === undefined) return p.kind === 'station' ? this.stationPrice(p.station!) : p.kind === 'stop' && p.stop ? this.cost(p.stop.price) : undefined;
     if (p.kind === 'station') { const u = UPGRADES.find(x => x.id === stage && !x.stop); return u ? this.upgradePrice(p.station!, u) : undefined; }
-    if (p.kind === 'section') { const x = this.sectionAt(id); return stage === SECTION_SPEED.id ? x?.price : stage === SECTION_SIGNALS.id ? x?.signalsPrice : undefined; }
+    if (p.kind === 'section') { const x = this.sectionAt(id); return stage === SECTION_SPEED.id ? x?.price : stage === SECTION_SIGNALS.id ? x?.signalsPrice : stage === SECTION_WIRES.id ? x?.wiresPrice : undefined; }
     const u = this.lineStage(stage);
     return u && this.P.stagesFor(this.net, id).includes(u) ? this.linePrice(u.id) : undefined;
   }

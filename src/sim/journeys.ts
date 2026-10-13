@@ -40,7 +40,7 @@ function run(sim: Sim, T: Tuning, svc: number, d: 0 | 1): Run {
   for (const i of order.slice(1)) {
     if (!calls(i)) continue;
     const s = sim.station(i).s;
-    t += runTime(Math.abs(s - at), sim.runSpeed(v, prev, i), T.accel, T.brake); at = s; prev = i;
+    t += runTime(Math.abs(s - at), sim.runSpeed(v, prev, i), sim.runAccel(v, prev, i), T.brake); at = s; prev = i;
     arr.set(i, t);
     if (i !== last) { t += T.dwell; dep.set(i, t); }
   }

@@ -41,7 +41,7 @@ if (args.includes('--fair')) WEATHER.felt = false;
  * (docs/design/buying.md, The bot); then each station's way across and second platform (trains both ways), its
  * booking office and barriers, then cheap wins, a taxi rank where people have been giving up (a dozen or more), a spare
  * unit once a train has failed, and a section's line speed once there's money to spare (the stopper's line first), then
- * its resignalling once the stopper's line is raised. */
+ * its resignalling once the stopper's line is raised, and wires where a line it owns has none. */
 /** The stations whose car park has filled, this run (the bot's memory: it builds the second stage there). */
 const full = new Set();
 export function act(sim) {
@@ -77,6 +77,11 @@ export function act(sim) {
   if (g.cash > 60000 && g.line.timetable) {
     const pick = P.all.filter(p => p.kind === 'section' && sim.canBuy(p.id, 'signals')).map(p => p.id).sort(first('signals'))[0];
     if (pick && sim.buy(pick, 'signals')) return 'signals:' + pick.slice('section:'.length);
+  }
+  // and wires where a line it owns has none, the cheapest first
+  if (g.cash > 60000) {
+    const pick = P.all.filter(p => p.kind === 'section' && sim.canBuy(p.id, 'wires')).map(p => p.id).sort((a, b) => sim.price(a, 'wires') - sim.price(b, 'wires'))[0];
+    if (pick && sim.buy(pick, 'wires')) return 'wires:' + pick.slice('section:'.length);
   }
   if (g.cash > 45000) {
     const pick = P.all.filter(p => p.kind === 'section' && sim.canBuy(p.id, 'speed')).map(p => p.id).sort(first('speed'))[0];

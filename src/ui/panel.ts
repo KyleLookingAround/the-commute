@@ -72,9 +72,9 @@ export interface Handlers {
   saves: (i: number | null, id: string) => string | null;
   /** Open the renewal sheet (once the whole line is owned). */
   renew: () => void;
-  /** Show a section of line on the map with a stage (its next line speed step, or its resignalling) as a ghost, or
+  /** Show a section of line on the map with a stage (its next line speed step, its resignalling or its wires) as a ghost, or
    * what it built (bought); null stops. */
-  showSection: (id: string | null, bought?: boolean, stage?: 'speed' | 'signals') => void;
+  showSection: (id: string | null, bought?: boolean, stage?: 'speed' | 'signals' | 'wires') => void;
 }
 
 /** A stage on the open card, as its card, the Buy bar and the timer read it. */
@@ -363,11 +363,12 @@ export class UI {
       return { id: u.id, stage, saves: this.on.saves(null, u.id), opens: lvl + 1 < u.max ? [step(u, lvl + 1)] : [], built };
     }), k => this.on.showLine(k, true));
   }
-  /** A section of line: its line speed and length, and once it's the player's (both ends owned) its next line speed
-   * step, 15 mph faster, and its resignalling (the line between stations). */
+  /** A section of line: its line speed, length and wires, and once it's the player's (both ends owned) its next line
+   * speed step, 15 mph faster, its resignalling and, where it has no wires, its electrification (the line between
+   * stations). */
   private sectionCard(id: string): void {
     const sim = this.sim, x = sim.sectionAt(id), panel = this.els.panel;
-    panel.innerHTML = this.stats([['xSpeed', 'Line speed'], ['xLen', 'Length']]) + `<p class="blurb">Comes with the stations at its ends.</p>`;
+    panel.innerHTML = this.stats([['xSpeed', 'Line speed'], ['xLen', 'Length'], ['xWires', 'Wires']]) + `<p class="blurb">Comes with the stations at its ends.</p>`;
     if (!x || !sim.owns(id)) return;
     const price = x.price, name = 'Line speed', next = Math.min(90, x.mph + 15);
     const stage: Stage | null = price === undefined ? null : {
@@ -380,10 +381,16 @@ export class UI {
       buy: () => { if (!sim.buy(id, 'signals')) return false; this.toast(`${sim.P.get(id).name}: resignalled`); this.on.showSection(id, true, 'signals'); return true; },
       pick: on => this.on.showSection(on ? id : null, false, 'signals'),
     };
+    const wp = x.wiresPrice, wires: Stage | null = wp === undefined ? null : {
+      name: 'Electrification', adds: 'Masts and wires: trains accelerate harder through it', price: wp, can: () => sim.canBuy(id, 'wires'),
+      buy: () => { if (!sim.buy(id, 'wires')) return false; this.toast(`${sim.P.get(id).name}: wired`); this.on.showSection(id, true, 'wires'); return true; },
+      pick: on => this.on.showSection(on ? id : null, false, 'wires'),
+    };
     this.stageCards([
       { id: 'speed', stage, saves: null, opens: [], built: x.level ? `${name} ${x.mph} mph` : null },
       { id: 'signals', stage: signals, saves: null, opens: [], built: x.signals ? 'Resignalled' : null },
-    ], k => this.on.showSection(id, true, k === 'signals' ? 'signals' : 'speed'));
+      { id: 'wires', stage: wires, saves: null, opens: [], built: x.wiresBought ? 'Wired' : null },
+    ], k => this.on.showSection(id, true, k === 'signals' || k === 'wires' ? k : 'speed'));
   }
   /** A bus stop or bus station: what it does, and its figures once it's the player's. */
   private stopCard(id: string): void {
@@ -439,7 +446,7 @@ export class UI {
     } else if (p?.kind === 'depot') {
       set('dSpare', g.line.spare ? 'Ready' : 'None'); set('dFails', num(g.trouble.fails)); set('dBus', num(g.trouble.bused));
     } else if (p?.kind === 'section') {
-      const x = sim.sectionAt(id); set('xSpeed', x ? `${x.mph} mph` : '–'); set('xLen', x ? `${x.miles.toFixed(1)} mi` : '–');
+      const x = sim.sectionAt(id); set('xSpeed', x ? `${x.mph} mph` : '–'); set('xLen', x ? `${x.miles.toFixed(1)} mi` : '–'); set('xWires', x ? (x.wired ? 'Electric' : 'Diesel') : '–');
     } else if (p?.kind === 'stop') {
       const S = sim.state(p.station!); set('sBus', num(S.bus)); set('sWait', `${S.waiting} waiting`);
     } else if (!p) {

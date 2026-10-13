@@ -75,3 +75,18 @@ test('sections: a resignalled section\'s signals fail less often', () => {
   const plain = run(false), resignalled = run(true);
   assert.ok(resignalled < 0.75 * plain, `${plain} signal failures -> ${resignalled}`);
 });
+
+test('sections: the lines out run diesel where the real line has no wires, and electrifying a section speeds its runs', () => {
+  const sim = fresh(), k = sec(sim, 'Romiley', 'Bredbury'), marple = sim.svcs.find(v => v.id === 'marple')!;
+  for (const x of sim.P.stopperSections) assert.ok(sim.sectionAt(x)!.wired && sim.sectionAt(x)!.wiresPrice === undefined, `${x} starts wired and offers none`);
+  const x = sim.sectionAt(k)!;
+  assert.ok(!x.wired && x.wiresPrice !== undefined, 'Romiley – Bredbury starts unwired');
+  assert.ok(Math.abs(x.wiresPrice! - 8000 * x.miles) <= 500, `wires cost about £8,000 a mile (${x.wiresPrice})`);
+  const rom = net.station('romiley').index, bre = net.station('bredbury').index;
+  assert.ok(Math.abs(sim.runAccel(marple, bre, rom) - 0.7) < 1e-9, 'its trains accelerate as diesels through it');
+  assert.ok(!sim.canBuy(k, 'wires'), 'not before its stations are owned');
+  for (const i of [rom, bre]) sim.grant(sim.P.station[i]!);
+  const before = sim.runAccel(marple, bre, rom);
+  assert.ok(sim.buy(k, 'wires') && sim.sectionAt(k)!.wired && sim.sectionAt(k)!.wiresBought && !sim.canBuy(k, 'wires'));
+  assert.ok(sim.runAccel(marple, bre, rom) > before && Math.abs(sim.runAccel(marple, bre, rom) - 1) < 1e-9, 'and as electric units once wired');
+});

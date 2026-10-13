@@ -300,8 +300,10 @@ export class BuildingsLayer {
   private async load(key: string): Promise<void> {
     if (this.placed.has(key)) return;
     this.placed.set(key, []);
-    const res = await fetch(this.files[key]!); if (!res.ok) return;
-    const { pieces } = decodeWorld(key, await res.text());
+    // offline, a square never seen fails to fetch: leave it to try again, as the terrain's fine tiles do
+    let text: string;
+    try { const res = await fetch(this.files[key]!); if (!res.ok) return; text = await res.text(); } catch { this.placed.delete(key); return; }
+    const { pieces } = decodeWorld(key, text);
     const [i, j] = key.split('_').map(Number) as [number, number];
     if (this.terrain) await this.terrain.ensure((i + 0.5) * SQUARE, (j + 0.5) * SQUARE, SQUARE * 0.75);
     this.add(key, pieces);

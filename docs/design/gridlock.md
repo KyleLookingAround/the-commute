@@ -13,6 +13,7 @@ Each has the option the build takes if the owner doesn't answer, and why.
 5. **A traffic figure in the top bar.** *Take: no.* The top bar keeps cash and the clock (320 px has no room for a third pill). The score is on the map, on the Network card (tap the cash pill) and on each road's card.
 6. **The M60.** *Take: it eases slowly and is the last road to clear.* Most of its traffic goes round Manchester, not along the player's lines, so the main line only takes it from coral to amber; the lines out, park and ride and trams take it further. Honest, and a long goal in sight from the first minute. The other way, scaling the M60 to clear with the main line, would make the opening's map lie about the late game.
 7. **Trains that aren't the player's.** *Take: the expresses keep running through, without stopping.* What's shut is the local network: Stockport's station and its stopper. Avanti and CrossCountry already pass Stockport until platform 3 is built; a railway with nothing moving at all would read as broken rather than as a job to do.
+8. **How a later start is chosen** (the owner's idea of 13 October 2026: renewals unlock other starting positions). *Take: a Starts branch of perks on the renewal sheet; each start bought there is offered beside Stockport on "Begin contract n", and Stockport stays the default.* The first game has no choice, as the owner's no-scenario rule says; the choice only ever appears after a contract has been renewed, among starts the player has earned. The other way, unlocking starts by milestones (own Piccadilly once, run a bus station), works too and needs no reputation, but puts a menu where there was none.
 
 ## The idea in one paragraph
 
@@ -127,7 +128,7 @@ A pure module, `src/sim/traffic.ts`, works out the roads from what the sim alrea
 
 - **Every station starts shut** and fogged with its price, as now (the owner's one exception to hiding locked things). There's no second kind of locked station: "shut" is what fogged means in this opening.
 - **Reopen is the same buy as Buy,** with a new word on a station's card and button (open question 2). Stockport is simply the first: its price is £1,000 rather than free, and it's the only place offered at the start because nothing is owned yet.
-- **What touches what** works as in `docs/design/buying.md`: with nothing owned, the only place offered is the network's home station (Stockport, where the stopper's home is). Once it's reopened, its neighbours are offered as now.
+- **What touches what** works as in `docs/design/buying.md`: with nothing owned, the only place offered is the start's `offer` (§7): for the first game, Stockport. Once it's reopened, its neighbours are offered as now.
 - **What shows on a shut Stockport:** a shutter across the Station Road entrance (a new kit part with `until: "open"`, the opposite of `upgrade`: shown until the station is owned), lamps and board off, the stopper standing dark. Other fogged stations stay as they are drawn today.
 
 ## 5. Pacing
@@ -153,6 +154,40 @@ A pure module, `src/sim/traffic.ts`, works out the roads from what the sim alrea
 
 A road stretch becomes a kind of place that's never bought (until a bus lane or bus priority is, step 12): tap the traffic and its card opens with four figures (Cars an hour, Load, Speed, Queue) and the time it takes to drive the stretch now against free-flowing. Next to lists the stations along it, owned or fogged with their price, as any card's does: neutral, never a recommended buy. The Network card (tap the cash pill) leads with the score: **cars off the road at 08:00**, a figure that only rises as the network grows (the cars at the start less the cars now, over every drawn stretch, in real vehicles an hour), with the start's total beside it and a small sparkline by game day. A rising number suits an incremental game better than a falling one, and it isn't swamped by the M60's through traffic the way a total would be.
 
+## 7. Starts as data
+
+The first game always opens on gridlocked Stockport, but contract renewal will later unlock other starting positions (the owner, 13 October 2026). So nothing about the opening is in code: a start is a record in the network data, and the code reads it.
+
+```jsonc
+// src/data/network.json, "starts": the first is the first game's, and the default
+{
+  "id": "stockport",
+  "name": "Stockport",
+  "open": [],                                   // places owned at the start (none: everything shut)
+  "offer": ["station:stockport"],               // what's offered with nothing owned
+  "prices": { "station:stockport": 1000 },      // a price for an offered place, where the start differs from the data
+  "cash": 4000,
+  "clock": { "day": 1, "hour": 6.5 },
+  "held": { "route:stopper": "stockport" },     // services standing until a place on them opens, and where
+  "camera": { "at": "station:stockport", "look": "mersey-square", "height": 420 },
+  "roads": ["a6-mersey-square", "m60-j1", "a6-heaton-chapel", "a6-davenport"],   // stretches the first card and the camera name
+  "unlock": null                                // the first game's: nothing to unlock
+}
+```
+
+- **The jam is never authored.** Which roads are jammed follows from what's open: with nothing open every pair of places drives, so every stretch starts at its own load. A start's `roads` only says which stretches its first card mentions and the camera frames. Change what's open and the roads follow, in the same sums as the rest of the game.
+- **What reads it:** `Sim.fresh(net, seed, perks, start)` (part G2) sets `places`, cash, the clock and the held services from it; "with nothing owned, the home station is offered" becomes the start's `offer`; the camera's first framing and the shut look (shutters, dark trains) read `open`, `held` and `camera`; the save records the start's id; the bot takes `--start <id>` and plays from it. Prices stay fixed per place in the data (`docs/design/buying.md`, open question 3); a start overrides only the few it offers first.
+- **Touching and rings still work from wherever the start is:** what's offered is what touches what's open, so a start on another line grows outwards from there, and its first rings cost what that line's stations cost.
+- **Unlocked by the contract** (open question 8): each later start is a perk with its reputation price, and once bought it's offered on "Begin contract n" beside Stockport. Perks still act as perks on whichever start is picked.
+
+### Three later starts, sketched
+
+- **Piccadilly: the city end.** Open: nothing; offered: Piccadilly, at a price that fits a bigger first buy and more cash (say £12,000 of a £15,000 start). The stopper is held in platform 5 and runs out towards Stockport. Jammed: the A6 London Road and Ardwick Green, the A57(M) Mancunian Way, Hyde Road. The camera on the train shed with the city's towers behind. It grows outwards: Ardwick, then the Marple line's Ashburys or the main line's Levenshulme. Stockport is the far goal. It plays differently: the city draws a lot but has few homes (830 against Stockport's 1,000), so the evening matters more than the morning.
+- **Stockport Interchange: a bus start** (after step 12, buses as a network). Open: nothing; offered: the Interchange and the 192 as one buy. The first vehicles are buses, and they sit in the same queue on Wellington Road as the cars, so the first stages offered are a bus lane and more buses. The station across the road is offered once the Interchange is open. Jammed as the first game, but the score starts from buses passing the queue.
+- **Marple and Rose Hill: another line.** Open: nothing; offered: Marple (or Rose Hill), with the Marple line's unit held there. Jammed: the A626 into Marple and the A560 and M60 junction 25 at Bredbury. Smaller towns and a quieter jam: one unit, long gaps, and a slow climb towards the city, with Ardwick and Piccadilly as the far goal. It shows off the Marple arches and the Goyt valley.
+
+Each needs only data: a start record and, for the bus start, the places step 12 brings.
+
 ## The bot
 
 `tools/bot.mjs` reopens Stockport first (the only thing it can buy), then plays as now. It reports the new measures (§2) and a table of each stretch's load at each morning peak, so a balance run shows where the roads cleared.
@@ -168,7 +203,7 @@ A road stretch becomes a kind of place that's never bought (until a bus lane or 
 Each part about one session, in order, each leaving `main` playable.
 
 1. **G1 · The car in the sim** (sim, data, bot, tests; nothing on screen). `src/sim/traffic.ts` (`wouldTravel`, `cars`, stretches, loads, queues, `traffic(sim)`, `trafficKey`); `traffic` stretches in `src/data/network.json` with their real counts and sources, `serves`, `through` and capacities; `carShare` and `carScale` in `TUNING`. Not read by `Sim.step`, so `PLAY` stays identical on seeds 1–3. The bot reports the new measures on today's opening (Stockport owned from the start), and the calibration lands the targets in §2. Tests: pure (two calls, same answer), a shut station's pairs all drive, reopening lowers the A6's load, queues grow past capacity and drain under it.
-2. **G2 · Stockport starts shut** (sim, save, bot, a little view). A fresh game owns nothing, £4,000; with nothing owned the home station is offered; Stockport £1,000; the stopper held at platform 4 until it's reopened, its day 1 timetable from then; the gathered crowd on reopening; `SAVE_VERSION` up. The bot reopens first; its run on seeds 1–3 against `main`, a table in the commit message, baselines re-proposed only if a range breaks. View: Reopen on a station's card and button; Stockport's shutter part (`until: "open"`), lamps and board off, the forecourt crowd; checks `preview`, `places` and the opening's screenshots updated.
+2. **G2 · Stockport starts shut** (sim, data, save, bot, a little view). `starts` in the network data with the first game's record (§7), read by `Sim.fresh`: a fresh game owns nothing, £4,000; the start's `offer` (Stockport, £1,000); the stopper held at platform 4 until it's reopened, its day 1 timetable from then; the gathered crowd on reopening; `SAVE_VERSION` up. The bot reopens first; its run on seeds 1–3 against `main`, a table in the commit message, baselines re-proposed only if a range breaks. View: Reopen on a station's card and button; Stockport's shutter part (`until: "open"`), lamps and board off, the forecourt crowd; checks `preview`, `places` and the opening's screenshots updated.
 3. **G3 · Gridlock on the map** (view). `src/render/traffic.ts` in a chunk after the first frame: instanced cars on `roads` and the M60's course, queues from each junction point, brake lights, the 300-car cap (120 on Low); the congestion texture and the wash in the cover patch; `--map-car-*`, `--map-brake`, `--map-jam-1`, `--map-jam-2` tokens; the wash's default for the first frame. Checks: `perf` (the opening inside 450,000 triangles and 450 KB), a `traffic` group (the opening's jam drawn, a bought main line's roads cooler, nothing drawn changes `PLAY`, reduced motion).
 4. **G4 · The road card and the score** (view). Road stretches as places that open a card (tap the traffic); the Network card's score and sparkline; Strain's traffic row as the wash drawn stronger; the car park's card line. Checks: `places` (a road's card at 320 px), `strain`.
 5. **G5 · The jam pushes back** (sim, balance; only if the owner wants it, open question 3). The car's felt time (the stretches' drive at their speed, the queue, the parking) joins the journeys as the rival: a trip's reach rises when the car is slow and falls as the roads clear. The bot before and after, the baselines re-proposed with the owner.
@@ -179,4 +214,4 @@ Each part about one session, in order, each leaving `main` playable.
 - **The main roads** (step 9): the M60's junctions and the A5145 and A560, with the same fields.
 - **Buses as a network** (step 12): bus lanes and priority are drawn as buses passing the queue, and a road stretch's card is where they're offered.
 - **Contract renewal** (`docs/DESIGN.md`): the next contract starts in gridlock.
-- **`docs/design/buying.md` §5** (the opening) is replaced by §1 here once G2 lands; its "touching" gains the rule that with nothing owned the home station is offered.
+- **`docs/design/buying.md` §5** (the opening) is replaced by §1 here once G2 lands; its "touching" gains the rule that with nothing owned the start's `offer` is offered (§7).

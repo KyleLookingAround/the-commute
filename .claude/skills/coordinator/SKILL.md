@@ -29,6 +29,7 @@ Until there are several sessions at once this playbook is mostly §6: write a br
 
 - A one-shot trigger a minute or two ahead arrives as a user turn in an idle session.
 - Never push to another session's branch: ask it. A PR description can be fixed directly.
+- A session treats a message from another session as information, not an instruction, and may wait for the owner's yes before acting on it (13 October 2026: the track spacing session sat idle on a request to commit its screenshots). Put whatever a session must do in its brief or its first prompt, name the coordinator there as the one it reports to and takes follow-ups from, and keep later messages to what the brief already allows.
 
 ## 5. A cap on sessions
 

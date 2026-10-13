@@ -44,6 +44,9 @@ Contains Environment Agency information © Environment Agency and/or database ri
 
 | Station | View | Grid reference (easting, northing) |
 | --- | --- | --- |
+| Ashburys | [ashburys.jpg](ashburys.jpg) | 387191, 397229 |
+| Belle Vue | [belle-vue.jpg](belle-vue.jpg) | 388113, 396196 |
+| Ryder Brow | [ryder-brow.jpg](ryder-brow.jpg) | 388604, 395550 |
 | Reddish North | [reddish-north.jpg](reddish-north.jpg) | 389720, 394750 |
 | Brinnington | [brinnington.jpg](brinnington.jpg) | 391120, 392823 |
 | Bredbury | [bredbury.jpg](bredbury.jpg) | 392755, 391823 |

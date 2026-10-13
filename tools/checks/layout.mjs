@@ -2,7 +2,8 @@
 // 1440×900. At each: the page loads with no errors, the map fills the screen, the sheet is in view at its peek (portrait)
 // or docked to the left (from 600 px wide or in landscape) with the strip (a card a station) in view, nothing scrolls
 // sideways, every tap target is at least 44 px on touch (40 px otherwise), and the cash and clock show over the map. Picking a card (Booking hall at Stockport) frames its ghost in the open
-// map, above the sheet sunk to its peek with the Buy bar in portrait, beside the docked sheet otherwise. One page per size; a screenshot of each goes to build/check/ for a human to look at.
+// map, above the sheet sunk to its peek with the Buy bar in portrait, beside the docked sheet otherwise. Heaton Chapel,
+// off the open map at the start, stands at its edge with its price (an edge marker). One page per size; a screenshot of each goes to build/check/ for a human to look at.
 import { join } from 'node:path';
 import { reveal } from '../reveal.mjs';
 import { readFileSync } from 'node:fs';
@@ -31,6 +32,10 @@ export default async function ({ ok, open, out }) {
     const small = await page.evaluate(min => [...document.querySelectorAll('button')].filter(b => b.getClientRects().length).map(b => { const r = b.getBoundingClientRect(); return [b.textContent.trim().slice(0, 24) || b.getAttribute('aria-label'), Math.round(r.width), Math.round(r.height)]; }).filter(([, bw, bh]) => bw < min || bh < min), min);
     ok(`layout: at ${w}×${h} every ${touch ? 'tap target' : 'control'} is at least ${min} px`, !small.length, small.slice(0, 4).map(s => `${s[0]} ${s[1]}×${s[2]}`).join(', '));
     await page.screenshot({ path: join(out, `layout-${w}x${h}.png`), fullPage: false }).catch(() => {});
+    // Heaton Chapel, off the open map at the start, waits at its edge with its price
+    const e = await page.evaluate(() => { const o = window.__view.open(); return [...document.querySelectorAll('.edge')].filter(b => b.getClientRects().length).map(b => { const r = b.getBoundingClientRect(); return { t: b.textContent, inOpen: r.left >= o.x - 0.5 && r.right <= o.x + o.w + 0.5 && r.top >= o.y - 0.5 && r.bottom <= o.y + o.h + 0.5 }; }); });
+    const hc = e.find(m => /Heaton Chapel/.test(m.t));
+    ok(`layout: at ${w}×${h} the next station, off the open map, waits at its edge with its price`, !!hc && /£9,000/.test(hc.t) && hc.inOpen, JSON.stringify(e));
     // pick a card: its ghost stands in the open map
     const sel = await reveal(page, '[data-pick="building"]');
     const at = await page.evaluate(s => { const b = document.querySelector(s)?.getBoundingClientRect(); return b ? [b.x + b.width / 2, b.y + Math.min(b.height / 2, 20)] : null; }, sel);

@@ -42,6 +42,7 @@ import type { Els } from './ui/panel.ts';
 import { wireSaves, wireStartOver } from './ui/saves.ts';
 import { ContractSheet } from './ui/contract.ts';
 import { Sheet } from './ui/sheet.ts';
+import { EdgeMarkers } from './ui/edges.ts';
 import { careerEmpty, freshCareer, reputation } from './sim/contract.ts';
 import * as store from './app/storage.ts';
 import { GAME_PER_REAL, awaySeconds } from './app/clock.ts';
@@ -253,12 +254,25 @@ const lblKey: number[] = built.map(() => NaN);
 const v3 = new THREE.Vector3();
 /** Labels hide above this line, where the stage's own controls (and the minutes view's key, while it shows) sit. */
 let labelTop = 64;
+// edge markers for the next stations to buy, when they're off the open map: which they are and what they say, refreshed
+// with the panels (not every frame)
+const edges = new EdgeMarkers(el('edges'), built.length, i => ui.select(i));
+const edgeHtml: (string | null)[] = built.map(() => null), edgeLabel: string[] = built.map(() => '');
+function nextStations(): void {
+  sim.S.forEach((s, i) => {
+    const next = !sim.g.owned[i] && (i === 0 || !!sim.g.owned[i - 1]) && !sim.stationNeeds(i);
+    edgeHtml[i] = next ? `<em>${s.name.replace('Manchester ', '')}</em><b>${fmt(sim.stationPrice(i))}</b>` : null;
+    edgeLabel[i] = next ? `${s.name}, ${fmt(sim.stationPrice(i))}: open it` : '';
+  });
+}
 function labels(): void {
   const w = canvas.clientWidth, h = canvas.clientHeight;
   built.forEach((b, i) => {
     const d = lbls[i]; if (!d) return;
     b.label.getWorldPosition(v3); v3.project(camera);
-    const top = (1 - v3.y) / 2 * h;
+    const top = (1 - v3.y) / 2 * h, html = edgeHtml[i];
+    if (html) edges.place(i, html, edgeLabel[i] ?? '', (v3.x + 1) / 2 * w, top, v3.z > 1, rig.cover.left, labelTop, w, h - rig.cover.bottom);
+    else edges.hide(i);
     // off screen, or in the top band where the stage's own controls sit
     if (v3.z > 1 || Math.abs(v3.x) > 1.1 || Math.abs(v3.y) > 1.1 || top < labelTop) { d.style.display = 'none'; return; }
     d.style.display = ''; d.style.left = ((v3.x + 1) / 2 * w) + 'px'; d.style.top = top + 'px';
@@ -322,6 +336,8 @@ plaque();
 // tapping the map: a train to ride alongside, a station to fly to and open
 const picker = new Picker(camera, canvas, built, trains.meshes);
 rig.onTap = (x, y) => {
+  // an edge marker first: the map keeps the gestures that start on one, and its tap opens the station
+  const r = canvas.getBoundingClientRect(), mark = edges.hit(x - r.left, y - r.top); if (mark >= 0) { ui.select(mark); return; }
   const hit = picker.pick(x, y); if (!hit) return;
   if (hit.kind === 'train') { const m = trains.meshes[hit.i]; if (m) rig.ride(m); } else ui.select(hit.i);
 };
@@ -374,7 +390,7 @@ if (saved && saved.at) {
   if (away) { const c0 = sim.g.cash, b0 = sim.g.stats.boarded; sim.advance(away); ui.toast(`While you were away: ${fmt(sim.g.cash - c0)} from ${(sim.g.stats.boarded - b0).toLocaleString('en-GB')} passengers`); }
   if (saved.selected) ui.selected = saved.selected;
 }
-ui.setSpeed(1); ui.buildAll(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null);
+nextStations(); ui.setSpeed(1); ui.buildAll(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null);
 sheet.fit(); void document.fonts?.ready.then(() => sheet.fit());
 document.documentElement.dataset['sim'] = 'ready';   // the checks wait for this
 { const [x, z] = stationXZ(ui.selected); Object.assign(rig.o, { tx: x, ty: 2, tz: z, r: 230, th: 5.5, ph: 1.2 }, window.__orbit ?? {}); }
@@ -408,7 +424,7 @@ function frame(now: number): void {
   // the rise takes about a second however slow the frames, so it gets the frame's real time
   syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt, sim); trains.sync(sim, dtGame); pax.sync(sim.g, dtGame); labels();
   life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim);
-  uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); followGlide(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
+  uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); nextStations(); followGlide(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
   const t2 = performance.now();
   renderer.info.reset(); renderer.render(scene, camera);

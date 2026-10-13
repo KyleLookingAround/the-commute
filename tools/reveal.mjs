@@ -18,6 +18,8 @@ export async function reveal(page, sel) {
     if (e.closest('#panel') && document.getElementById('panel').hidden) { click('tabStation'); await wait(); }
     if (e.closest('#linePanel') && document.getElementById('linePanel').hidden) { click('tabLine'); await wait(); }
     if (e.closest('.sh-body') && sheet?.dataset.at === 'peek') { click('sheetHandle'); await wait(); }
+    // a slow page may still be easing the sheet to its height: wait until it stands there
+    for (let k = 0; k < 40 && sheet && sheet.style.height && Math.abs(sheet.offsetHeight - parseFloat(sheet.style.height)) > 1; k++) await new Promise(r => setTimeout(r, 100));
     e = document.querySelector(sel); e?.scrollIntoView({ block: 'center' }); await wait();
     return sel;
   }, sel);

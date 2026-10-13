@@ -190,9 +190,25 @@ The figures on the platforms (`src/render/passengers.ts`) are dressed by what th
 
 Made in the browser with the Web Audio API (`src/render/sound.ts`), so there are no recordings to license, and changing nothing in the game: it reads the sim and the drawn trains every tenth of a second. A soft bed of distant town is always there (softer at night); trains near where the camera looks rumble by their speed, brake into a platform with a hiss and a squeal, beep their doors, and wind up their motors pulling out; when a train is within 650 m of the owned station under the camera, the speakers chime three notes and murmur a few words (a voice's shape, not speech); birds trill by day and stop at night; rain hisses and patters (Weather and seasons, above). It follows the camera: everything within about 320 m of where it looks, fading out until at whole-line zoom only the bed is left. Browsers allow sound only after a tap, so it starts on the player's first tap or key; muted, it makes nothing. The volume is gentle at the top of the slider (half of full scale).
 
+## The interface
+
+Direction A of the redesign (`docs/design/redesign.md`), the platform sheet. The map fills the screen. Cash and clock are pills over its top left, settings a round button top right. The map views (Line, Mins and Light, whose button opens the light's slider in a popover) and the compass stack on the right edge just above the sheet, and hide while it's raised.
+
+**The sheet** (`src/ui/sheet.ts`) holds the rest. In portrait it rises from the bottom at three heights:
+
+- **Peek:** the open station's name and waiting count, the speed buttons, the strip's slider and the strip (a chip a station: the waiting count, or fogged with the price, and a meter on the next to buy).
+- **Half** (58% of the screen, two thirds under 600 px tall): a Station | Line switch and that panel's cards.
+- **Full.**
+
+Only its handle (the station's name, a button: Raise, Lower) and header drag it; it snaps to the nearest height, Esc lowers it a step, and with reduced motion it jumps. From 600 px wide, or in landscape, it docks to the left as a side panel (340, 360 or 400 px; `--sheet-w`) with everything in it. It tells the camera how much of the screen it covers (`OrbitRig.cover`), and the camera draws where it looks in the middle of the rest, so focus and fly-tos frame into the open map.
+
+Tapping a station (chip or map) opens it at half height. The station panel leads with Waiting, Boarded, Revenue and Gave up, the rest behind More, then its cards (one column, two on a desktop) and the Built chips. Picking a card in portrait sinks the sheet to its peek with a **Buy bar** (the card's name, what it adds, put it back, and Buy or how much to go), so its ghost stands in open map. Docked, the card stays in view with its own Buy.
+
+**Edge markers** (`src/ui/edges.ts`): the next station to buy, when it's off the open map, waits at the open map's edge with its name and price and an arrow towards it; a tap opens it.
+
 ## Settings
 
-A settings sheet opens from the stage's ⚙ button (`src/ui/settings.ts`): sound on or off and its volume, the weather (Rain and shine, or Fair weather: Weather and seasons, above), and graphics for older phones: High, Low, or one by one shadows, fewer people (a third of the platform figures, none throwing a shadow) and sharp (drawing at the screen's full pixel ratio; off draws one pixel per CSS pixel, the biggest saving on a phone). Low turns shadows and sharp off and fewer people on. The settings are kept on the device under their own `localStorage` key, `the-commute-prefs-v1` (`src/app/prefs.ts`), never in the save, so starting over keeps them. The far detail the brief also named (the towns and stations further out) is drawn by files other sessions own, so it isn't a setting yet.
+A settings sheet opens from the settings button top right (`src/ui/settings.ts`): over the whole screen from the bottom on a phone, centred on wider screens, in two columns on a landscape phone. It holds sound on or off and its volume, the weather (Rain and shine, or Fair weather: Weather and seasons, above), and graphics for older phones: High, Low, or one by one shadows, fewer people (a third of the platform figures, none throwing a shadow) and sharp (drawing at the screen's full pixel ratio; off draws one pixel per CSS pixel, the biggest saving on a phone). Low turns shadows and sharp off and fewer people on. The settings are kept on the device under their own `localStorage` key, `the-commute-prefs-v1` (`src/app/prefs.ts`), never in the save, so starting over keeps them. Under Screen is full screen (`src/ui/fullscreen.ts`, hidden where the browser has none); under Your game, Save to file, Load from file and Start over (`src/ui/saves.ts`), with the line saying the game is ready offline; under About, how it plays and the credits. The far detail the brief also named (the towns and stations further out) is drawn by files other sessions own, so it isn't a setting yet.
 
 ## Performance
 

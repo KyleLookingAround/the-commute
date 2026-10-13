@@ -25,7 +25,7 @@ Respect the owner's preferences in the project notes.
 
 ## Known findings
 
-From the redesign's directions (12 October 2026, `docs/design/redesign.md`); stage 2 of the redesign fixes them, so a review before then needn't raise them again:
+From the redesign's directions (12 October 2026, `docs/design/redesign.md`); stage 2 of the redesign (the platform sheet, 13 October 2026, `docs/DESIGN.md`, The interface) fixed them, and the `contrast` and `layout` check groups hold the fixes:
 
 - On a phone the panels sit below the map: buying scrolls the map away, and a card's ghost appears off screen.
 - The title and ticker take about 180 px of a 390 phone; the map's views sit top right, the hardest reach; the light slider holds the bottom left, the easiest.

@@ -5,6 +5,7 @@
 // - the reload loads from the device, the game starts and runs, with no errors, and the settings sheet's quiet line
 //   says it's ready offline;
 // - a fine tile fetched online loads offline; one never seen fails quietly (the terrain keeps its base tiles).
+// - nothing under design/ (the redesign's directions page) is in the worker's list.
 // - A new build's worker installs while the game is open but waits, not taking over mid-game, and takes over on the
 //   next load, its older cache gone. (The new build is faked by serving dist/sw.js with another stamp.)
 import { createServer } from 'node:http';
@@ -34,6 +35,8 @@ export default async function ({ ok, root, url: shared, browser }) {
   const stamp = (sw.match(/const STAMP = '([^']+)'/) || [])[1];
   const tiles = JSON.parse((sw.match(/const TILES = (\[.*?\]);/) || [, '[]'])[1]);
   ok('offline: the build fills in the worker\'s stamp and lists', stamp && stamp !== 'dev' && /const PRECACHE = \[.*"\.\/".*\]/.test(sw) && tiles.length > 1, `stamp ${stamp}, ${tiles.length} tiles`);
+  const pre = JSON.parse((sw.match(/const PRECACHE = (\[.*?\]);/) || [, '[]'])[1]);
+  ok('offline: the worker keeps nothing from the redesign\'s directions page (design/)', pre.length > 1 && !pre.some(f => /(^|\/)design\//.test(f)), pre.filter(f => /design\//.test(f)).slice(0, 3).join(', '));
 
   const ctx = await (await browser).newContext({ viewport: { width: 1280, height: 800 } });
   await ctx.addInitScript(() => { window.__seed = 1; window.__offline = true; });

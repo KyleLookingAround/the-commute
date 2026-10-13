@@ -1,10 +1,16 @@
-// The time-of-day control: the slider tracks the game's clock, sliding it locks the light to that hour and shows the
+// The time-of-day control, in the Light popover from the map views: tapping Light opens it, the slider tracks the game's clock, sliding it locks the light to that hour and shows the
 // "Live" button, pressing the button releases the lock, and none of it touches the sim's own clock (the
 // ticker keeps the game's time). One desktop page, one phone page.
 export default async function ({ ok, open }) {
   for (const [w, h, touch] of [[1280, 800, false], [390, 844, true]]) {
     const { ctx, page, errs } = await open({ width: w, height: h }, { touch });
     await page.waitForTimeout(600);
+    const shut = await page.evaluate(() => document.getElementById('lightPop').hidden);
+    const lb = await page.evaluate(() => { const r = document.getElementById('vLight').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
+    if (touch) await page.touchscreen.tap(...lb); else await page.mouse.click(...lb);
+    await page.waitForTimeout(300);
+    const pop = await page.evaluate(() => { const p = document.getElementById('lightPop'), s = document.getElementById('hour').getBoundingClientRect(); return !p.hidden && p.contains(document.getElementById('hour')) && s.width > 40 && s.left >= 0 && s.right <= innerWidth; });
+    ok(`daylight: at ${w}×${h} the slider is in the Light popover, shut until Light is tapped`, shut && pop, `shut ${shut}, open and in view ${pop}`);
     const before = await page.evaluate(() => ({ lbl: document.getElementById('hourLbl').textContent, live: document.getElementById('hourLive').hidden, clock: document.getElementById('clock').textContent }));
     await page.evaluate(() => { const s = document.getElementById('hour'); s.value = '23'; s.dispatchEvent(new Event('input', { bubbles: true })); });
     await page.waitForTimeout(400);

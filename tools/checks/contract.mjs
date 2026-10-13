@@ -6,6 +6,7 @@
 // discounted price on the strip, the unit stabled in the sidings, and the plaque by Stockport's entrance with a line
 // for the contract renewed. Start over then offers the career too, and its default (tap again) starts only the run
 // again: the career, the perks and the plaque stay. No errors. A screenshot of the plaque goes to build/shots/plaque.png.
+import { reveal } from '../reveal.mjs';
 import { register } from 'tsx/esm/api';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,7 +26,7 @@ export default async function ({ ok, open, root }) {
   const perk = id => def.contract.perks.find(p => p.id === id);
   mkdirSync(join(root, 'build/shots'), { recursive: true });
   for (const [w, h, touch] of [[320, 640, true], [1280, 800, false]]) {
-    const tap = (page, sel) => touch ? page.locator(sel).tap({ timeout: 60000 }) : page.locator(sel).click({ timeout: 60000 });
+    const tap = async (page, sel) => { sel = await reveal(page, sel); return touch ? page.locator(sel).tap({ timeout: 60000 }) : page.locator(sel).click({ timeout: 60000 }); };
     const look = page => page.evaluate(() => window.__view?.contract?.() ?? null);
     // a new game: nothing to renew
     {
@@ -42,7 +43,6 @@ export default async function ({ ok, open, root }) {
     await page.waitForFunction(() => /\d/.test(document.getElementById('lRep')?.textContent ?? ''), null, { timeout: 30000 }).catch(() => {});
     const shown = Number(await page.locator('#lRep').textContent().catch(() => 'NaN'));
     ok(`contract: at ${w}×${h} owning Piccadilly offers "Renew the contract" with the reputation it would bank`, shown >= rep && shown < rep + 20, `★ ${shown} (the save's ${rep})`);
-    await page.locator('#renew').scrollIntoViewIfNeeded();
     await tap(page, '#renew');
     await page.waitForFunction(() => document.getElementById('contract')?.open, null, { timeout: 30000 }).catch(() => {});
     const sheet = await page.evaluate(() => {
@@ -84,7 +84,7 @@ export default async function ({ ok, open, root }) {
       await page.screenshot({ path: join(root, 'build/shots/plaque.png') });
     }
     // Start over: offers the career too; tapping again starts only the run again
-    await page.locator('#reset').scrollIntoViewIfNeeded();
+    await reveal(page, '#reset');
     // both taps in the page: Start over stays armed three seconds, which an emulated tap on a slow page can outlast
     const offered = await page.evaluate(() => { document.getElementById('reset').click(); return !document.getElementById('resetAll').hidden; });
     await page.evaluate(() => document.getElementById('reset').click());

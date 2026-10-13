@@ -41,6 +41,7 @@ import { UI, fmt } from './ui/panel.ts';
 import type { Els } from './ui/panel.ts';
 import { wireSaves, wireStartOver } from './ui/saves.ts';
 import { ContractSheet } from './ui/contract.ts';
+import { Sheet } from './ui/sheet.ts';
 import { careerEmpty, freshCareer, reputation } from './sim/contract.ts';
 import * as store from './app/storage.ts';
 import { GAME_PER_REAL, awaySeconds } from './app/clock.ts';
@@ -61,7 +62,7 @@ declare global {
      * times the camera has framed something (a card's parts, a Built chip's, a train). */
     __view?: { perf?: () => { calls: number; triangles: number; geometries: number; textures: number; programs: number; meshes: number; casters: number; first: number; frames: number; sim: number; sync: number; draw: number }; reach?: () => { now: number[]; target: number[]; ghosts: number; minutes: boolean }; homes?: () => { shown: number[]; room: number[]; rising: number }; preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean }; life?: () => { cases: number; bikes: number; figures: number; shadows: boolean; ratio: number; heard: { running: boolean; brakes: number; departs: number; calls: number; birds: number }; pools: number; lamplight: number; works: [number, number] | null; beacons: number; expresses: number };
       camera?: () => import('./render/camera.ts').Orbit & { above: number; fromLine: number; flying: boolean; riding: number; moves: number; compass: boolean; along: number };
-      spot?: (kind: 'station' | 'train', i: number) => [number, number] | null; under?: (x: number, y: number) => [number, number] | null;
+      spot?: (kind: 'station' | 'train', i: number) => [number, number] | null; open?: () => { x: number; y: number; w: number; h: number }; under?: (x: number, y: number) => [number, number] | null;
       weather?: () => { now: string; rain: number; snow: number; fog: number; cover: number; wet: number; settle: number; season: number; falling: boolean; brollies: number; trees: number; fogFar: number; patter: number } };
   }
 }
@@ -155,6 +156,8 @@ Object.assign(view, { camera: () => {
     v3.project(camera); if (v3.z > 1 || Math.abs(v3.x) > 1 || Math.abs(v3.y) > 1) return null;
     return [r.left + (v3.x + 1) / 2 * r.width, r.top + (1 - v3.y) / 2 * r.height];
   },
+  // the map's open part, beside or above the sheet, in client pixels
+  open: () => { const r = canvas.getBoundingClientRect(); return { x: r.left + rig.cover.left, y: r.top, w: r.width - rig.cover.left, h: r.height - rig.cover.bottom }; },
   under: (x: number, y: number) => { const v = new THREE.Vector3(); return rig.ground(x, y, v) ? [v.x, v.z] : null; },
 });
 // the weather as drawn: the spell and its shares, what's falling, umbrellas up, the trees, how far the fog lets you see
@@ -227,6 +230,15 @@ const settings = new Settings(el<HTMLButtonElement>('vSet'), prefs, p => {
 fullScreen(el<HTMLButtonElement>('vFull'));
 playOffline(() => settings.offlineReady());
 
+// ---- the sheet: over the map's bottom in portrait, docked to its left on wider screens; the camera frames beside it ----
+const app = el('sheet').parentElement!, sheet = new Sheet(el('sheet'), el<HTMLButtonElement>('sheetHandle'), el('sheetGrip'));
+sheet.onCover = (left, bottom) => { rig.cover.left = left; rig.cover.bottom = bottom; app.style.setProperty('--cover-l', `${left}px`); app.style.setProperty('--cover-b', `${bottom}px`); };
+sheet.onMove = at => { app.dataset['sheet'] = sheet.docked ? 'docked' : at; };
+sheet.fit(); sheet.onMove(sheet.at);
+// the Light button opens the light's slider in a popover
+const vLight = el<HTMLButtonElement>('vLight'), lightPop = el('lightPop');
+vLight.addEventListener('click', () => { const on = lightPop.hidden; lightPop.hidden = !on; vLight.setAttribute('aria-expanded', String(on)); });
+
 // ---- labels ----
 const lblBox = el('lbls');
 const lbls = built.map(() => { const d = document.createElement('div'); d.className = 'lbl'; lblBox.appendChild(d); return d; });
@@ -251,7 +263,7 @@ function labels(): void {
 
 // ---- ui ----
 const els: Els = {
-  cash: el('cash'), clock: el('clock'), sp1: el('sp1'), sp3: el('sp3'), sp10: el('sp10'), vLine: el('vLine'),
+  shName: el('shName'), shSub: el('shSub'), cash: el('cash'), clock: el('clock'), sp1: el('sp1'), sp3: el('sp3'), sp10: el('sp10'), vLine: el('vLine'),
   toast: el('toast'), strip: el('strip'), panel: el('panel'), linePanel: el('linePanel'), reset: el('reset'),
   hour: el('hour'), hourLbl: el('hourLbl'), hourLive: el('hourLive'),
 };
@@ -265,7 +277,7 @@ function lineView(): void { const m = lineMiddle(); rig.focus(m.x, m.z, 10500, 0
 const ui = new UI(sim, els, {
   speed: s => { speed = s; ui.setSpeed(s); },
   viewLine: lineView,
-  focusStation: i => { const [x, z] = stationXZ(i); rig.focus(x, z, net.stations[i]?.id === 'piccadilly' ? 360 : 230); },
+  focusStation: i => { if (sheet.at === 'peek') sheet.to('half'); const [x, z] = stationXZ(i); rig.focus(x, z, net.stations[i]?.id === 'piccadilly' ? 360 : 230); },
   changed: () => persist(),
   preview: (i, id) => preview(i, id),
   built: (i, id) => showBuilt(i, id),
@@ -275,7 +287,7 @@ const ui = new UI(sim, els, {
   saves: (i, id) => savingText(sim, i, id),
   lockHour: h => { lockHour = h; ui.setLight(lockHour ?? sim.hour(), lockHour !== null); },
   reset: () => { startRun(); const [x, z] = stationXZ(0); rig.focus(x, z); },
-  renew: () => sheet.open(career, sim.g, net.stations.map(s => s.id)),
+  renew: () => renewal.open(career, sim.g, net.stations.map(s => s.id)),
 });
 /** Start a run again from Stockport as a halt, with the career's perks: what was bought folds back down on the map. */
 function startRun(): void {
@@ -289,7 +301,7 @@ function plaque(): void {
 }
 // renewing the contract: the sheet banks the reputation and buys perks; beginning the next contract keeps the career,
 // starts the run again, and the whole line is in view as its stages fold down and the halts stand ready
-const sheet = new ContractSheet(networkDef.contract ?? { branches: [], perks: [] }, c => {
+const renewal = new ContractSheet(networkDef.contract ?? { branches: [], perks: [] }, c => {
   career = c; store.saveCareer(career); startRun(); lineView();
   ui.toast(`Contract ${career.renewals + 1} begins at Stockport`);
 });
@@ -354,6 +366,7 @@ if (saved && saved.at) {
   if (saved.selected) ui.selected = saved.selected;
 }
 ui.setSpeed(1); ui.buildAll(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null);
+sheet.fit(); void document.fonts?.ready.then(() => sheet.fit());
 document.documentElement.dataset['sim'] = 'ready';   // the checks wait for this
 { const [x, z] = stationXZ(ui.selected); Object.assign(rig.o, { tx: x, ty: 2, tz: z, r: 230, th: 5.5, ph: 1.2 }, window.__orbit ?? {}); }
 

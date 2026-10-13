@@ -40,6 +40,9 @@ export class OrbitRig {
   onTap: ((x: number, y: number) => void) | null = null;
   /** Counts the player's own moves, for the checks. */
   moves = 0;
+  /** How much of the canvas the page's sheet covers, in pixels at its left and bottom: where the camera looks is
+   * drawn in the middle of the rest, so focus and fly-tos frame into the open map. */
+  cover = { left: 0, bottom: 0 };
   private canvas: HTMLCanvasElement;
   private keys = new Set<string>();
   private ptrs = new Map<number, Ptr>();
@@ -216,8 +219,16 @@ export class OrbitRig {
     this.clampAim();
     if (!this.tween) this.clampLine();
     this.place();
-    this.camera.far = Math.max(3000, o.r * 3.5); this.camera.updateProjectionMatrix();
+    this.camera.far = Math.max(3000, o.r * 3.5); this.offset(); this.camera.updateProjectionMatrix();
     const fog = this.scene.fog; if (fog instanceof THREE.Fog) { fog.near = Math.max(200, o.r * 0.9); fog.far = Math.max(1600, o.r * 3.4); }
+  }
+  /** Shift the picture so the middle of the open map (beside or above the sheet) is where the camera looks. */
+  private offset(): void {
+    const w = this.canvas.clientWidth, h = this.canvas.clientHeight, cam = this.camera, v = cam.view;
+    const x = -Math.min(this.cover.left, w * 0.8) / 2, y = Math.min(this.cover.bottom, h * 0.8) / 2;
+    if ((!x && !y) || !w || !h) { if (v?.enabled) cam.clearViewOffset(); return; }
+    if (v?.enabled && v.fullWidth === w && v.fullHeight === h && v.offsetX === x && v.offsetY === y && v.width === w && v.height === h) return;
+    cam.setViewOffset(w, h, x, y, w, h);
   }
   private clampAim(): void { const o = this.o; o.ph = Math.max(PH_MIN, Math.min(PH_MAX, o.ph)); o.r = Math.max(R_MIN, Math.min(R_MAX, o.r)); }
   /** Keep where the camera looks within reach of the line, sliding along it rather than stopping dead. */

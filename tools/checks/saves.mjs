@@ -3,6 +3,7 @@
 // as the game; Load from file opens the picker, a file that isn't a save (or is from a newer version) says so in a
 // toast and leaves the game as it was; a good save asks once (the button says so), and the second tap loads it: the page
 // shows its money, caught up for the time since it was written, and the device keeps it. No requests leave the page.
+import { reveal } from '../reveal.mjs';
 import { register } from 'tsx/esm/api';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -20,13 +21,13 @@ export default async function ({ ok, open, root, url }) {
   for (const [w, h, touch] of [[320, 640, true], [1280, 800, false]]) {
     const { ctx, page, errs } = await open({ width: w, height: h }, { touch });
     const away = []; page.on('request', r => { if (!r.url().startsWith(url) && !/^(blob|data):/.test(r.url()) && !/fonts\.(googleapis|gstatic)/.test(r.url())) away.push(r.url()); });
-    const tap = sel => touch ? page.locator(sel).tap({ timeout: 60000 }) : page.locator(sel).click({ timeout: 60000 });
+    const tap = async sel => { sel = await reveal(page, sel); return touch ? page.locator(sel).tap({ timeout: 60000 }) : page.locator(sel).click({ timeout: 60000 }); };
     // sizes
+    await reveal(page, '#saveFile');
     const boxes = await page.evaluate(() => ['saveFile', 'loadFile', 'reset'].map(id => { const r = document.getElementById(id).getBoundingClientRect(); return [id, r.width, r.height, r.right - innerWidth]; }));
     const small = boxes.filter(([, bw, bh, right]) => bw < 44 || bh < 44 || right > 0);
     ok(`saves: at ${w}×${h} the save buttons are tap-sized and fit`, !small.length, JSON.stringify(small.length ? small : boxes.map(b => b.slice(0, 3).map(x => typeof x === 'number' ? Math.round(x) : x))));
     // save to file
-    await page.locator('#saveFile').scrollIntoViewIfNeeded();
     const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), tap('#saveFile')]);
     const name = dl.suggestedFilename(), text = readFileSync(await dl.path(), 'utf8');
     let saved = null; try { saved = JSON.parse(text); } catch { /* reported below */ }

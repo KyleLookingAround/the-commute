@@ -4,6 +4,7 @@
 // about a second; the extra unit's card says it cuts the wait. The Minutes control shades the ground by minutes to
 // Manchester and shows its key, and turns it off again. Screenshots of the glow before and after, and of the minutes
 // view, go to build/shots/reach-*.png. One phone page (320 px, touch) and one desktop page.
+import { reveal } from '../reveal.mjs';
 import { register } from 'tsx/esm/api';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -31,7 +32,8 @@ export default async function ({ ok, open, root }) {
     await p.reload(); await p.waitForSelector('html[data-sim="ready"]', { timeout: 15000 }).catch(() => {});
     await p.waitForTimeout(1500);
     const tap = async sel => {
-      const r = await p.evaluate(s => { const e = document.querySelector(s); if (!e) return null; e.scrollIntoView({ block: 'center' }); const b = e.getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; }, sel);
+      sel = await reveal(p, sel);
+      const r = await p.evaluate(s => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; }, sel);
       if (!r) return false;
       if (touch) await p.touchscreen.tap(r[0], r[1]); else await p.mouse.click(r[0], r[1]);
       return true;

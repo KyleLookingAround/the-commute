@@ -1,5 +1,4 @@
 /* The settings sheet (src/ui/settings.ts) and the stage's button that opens it. Every colour and size from tokens.css. */
-.views .vset{width:var(--touch);padding:0;font-size:var(--text-lg);line-height:1}
 .settings{width:min(420px,calc(100vw - 2 * var(--s-4)));max-height:calc(100dvh - 2 * var(--s-4));overflow:auto;padding:var(--s-4);border-radius:var(--r);background:var(--surface);color:var(--ink);border:1px solid var(--line-strong);font-family:var(--display)}
 .settings::backdrop{background:var(--scrim)}
 .set-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2)}

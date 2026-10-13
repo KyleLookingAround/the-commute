@@ -19,36 +19,49 @@
 <link rel="stylesheet" href="./src/ui/styles/page.css">
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>The <span>Commute</span></h1>
-    <div class="ticker">
-      <div class="tk cash" id="cash">£3,000</div>
-      <div class="tk" id="clock">Day 1 · 06:30</div>
-      <div class="tk speed"><button id="sp1" aria-pressed="true">1×</button><button id="sp3" aria-pressed="false">3×</button><button id="sp10" aria-pressed="false">10×</button></div>
-    </div>
-  </header>
-
+<div class="app">
   <div class="stage">
     <canvas id="gl" aria-label="3D view of the line from Stockport to Manchester Piccadilly. Drag to move, pinch or scroll to zoom, twist with two fingers or right-drag to turn. Arrow keys move, Q and E turn, plus and minus zoom."></canvas>
     <div class="lbls" id="lbls"></div>
-    <div class="views"><button id="vMins" aria-pressed="false">Minutes</button><button id="vLine">Whole line</button><button id="vSet" class="vset" aria-label="Settings">⚙</button><button id="vFull" class="vfull" aria-label="Full screen" hidden></button></div>
-    <div class="mins" id="minsKey" hidden><b>Minutes to Manchester</b><span><i style="background:var(--map-mins-1)"></i>&lt;20</span><span><i style="background:var(--map-mins-2)"></i>20–30</span><span><i style="background:var(--map-mins-3)"></i>30–40</span><span><i style="background:var(--map-mins-4)"></i>40–50</span></div>
-    <div class="daylight"><input id="hour" type="range" min="0" max="24" step="0.25" value="6.5" aria-label="Time of day for the light"><span id="hourLbl">06:30</span><button id="hourLive" hidden>Live</button></div>
-    <button class="north" id="vNorth" aria-label="North up" hidden><span id="vNeedle">N</span></button>
     <div class="toast" id="toast" hidden></div>
   </div>
 
-  <input class="glide" id="glide" type="range" step="10" aria-label="Glide along the line, from Hazel Grove to Manchester">
-  <div class="strip" id="strip"></div>
-  <div class="panel" id="panel"></div>
-  <div class="panel" id="linePanel"></div>
+  <header class="top">
+    <div class="pill cash" id="cash">£3,000</div>
+    <div class="pill" id="clock">Day 1 · 06:30</div>
+    <span class="top-gap"></span>
+    <button id="vFull" class="rb vfull" aria-label="Full screen" hidden></button>
+    <button id="vSet" class="rb vset" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg></button>
+  </header>
+  <div class="mins" id="minsKey" hidden><b>Minutes to Manchester</b><span><i style="background:var(--map-mins-1)"></i>&lt;20</span><span><i style="background:var(--map-mins-2)"></i>20–30</span><span><i style="background:var(--map-mins-3)"></i>30–40</span><span><i style="background:var(--map-mins-4)"></i>40–50</span></div>
 
-  <div class="foot">
-    <p>Passengers arrive by the real demand curve, wait on your platforms and pay a fare when they board. Full platforms and long waits lose them. Buy the next station up the line to lift the fog: it starts as a halt, one platform for trains towards Manchester, and grows as you build it a way across, a second platform and a booking office. Progress saves on this device and catches up while you're away.</p>
-    <div class="saves"><button id="saveFile">Save to file</button><button id="loadFile">Load from file</button><input id="loadPick" class="pick-file" type="file" tabindex="-1" aria-hidden="true"><button id="reset">Start over</button><button id="resetAll" hidden>Career too</button></div>
-    <p class="credits">The line, its tracks and its stations are drawn from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a> (ODbL); station details from photographs on geograph.org.uk. Where people live and work: contains Office for National Statistics data © Crown copyright and database right 2021 and NaPTAN data from the Department for Transport; the lie of the land contains Environment Agency information © Environment Agency and/or database right (<a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener">Open Government Licence</a>).</p>
-  </div>
+  <nav class="views" aria-label="Map views">
+    <button id="vLine" class="rb lb"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 16c4 0 5-8 9-8s5 8 9 8"/><circle cx="3" cy="16" r="1.6"/><circle cx="21" cy="16" r="1.6"/></svg><small>Line</small></button>
+    <button id="vMins" class="rb lb" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg><small>Mins</small></button>
+    <button id="vLight" class="rb lb" aria-expanded="false" aria-controls="lightPop"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg><small>Light</small></button>
+    <button class="rb north" id="vNorth" aria-label="North up" hidden><span id="vNeedle">N</span></button>
+  </nav>
+  <div class="daylight" id="lightPop" role="group" aria-label="Light" hidden><input id="hour" type="range" min="0" max="24" step="0.25" value="6.5" aria-label="Time of day for the light"><span id="hourLbl">06:30</span><button id="hourLive" hidden>Live</button></div>
+
+  <section class="sheet" id="sheet" data-at="peek" aria-label="Stations and the line">
+    <div class="sh-grip" id="sheetGrip">
+      <button class="sh-handle" id="sheetHandle" aria-expanded="false"><i aria-hidden="true"></i><b id="shName">Stockport</b><small id="shSub"></small></button>
+      <div class="seg speed" role="group" aria-label="Speed"><button id="sp1" aria-pressed="true">1×</button><button id="sp3" aria-pressed="false">3×</button><button id="sp10" aria-pressed="false">10×</button></div>
+    </div>
+    <div class="sh-peek">
+      <input class="glide" id="glide" type="range" step="10" aria-label="Glide along the line, from Hazel Grove to Manchester">
+      <div class="strip" id="strip"></div>
+    </div>
+    <div class="sh-body" id="sheetBody">
+      <div class="panel" id="panel"></div>
+      <div class="panel" id="linePanel"></div>
+      <div class="foot">
+        <p>Passengers arrive by the real demand curve, wait on your platforms and pay a fare when they board. Full platforms and long waits lose them. Buy the next station up the line to lift the fog: it starts as a halt, one platform for trains towards Manchester, and grows as you build it a way across, a second platform and a booking office. Progress saves on this device and catches up while you're away.</p>
+        <div class="saves"><button id="saveFile">Save to file</button><button id="loadFile">Load from file</button><input id="loadPick" class="pick-file" type="file" tabindex="-1" aria-hidden="true"><button id="reset">Start over</button><button id="resetAll" hidden>Career too</button></div>
+        <p class="credits">The line, its tracks and its stations are drawn from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a> (ODbL); station details from photographs on geograph.org.uk. Where people live and work: contains Office for National Statistics data © Crown copyright and database right 2021 and NaPTAN data from the Department for Transport; the lie of the land contains Environment Agency information © Environment Agency and/or database right (<a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener">Open Government Licence</a>).</p>
+      </div>
+    </div>
+  </section>
 </div>
 <script type="module" src="./src/main.ts"></script>
 </body>

@@ -21,6 +21,8 @@ const milesFrom = (miles: number): string => `${Math.abs(miles)} mi${miles < 0 ?
 
 /** The page's elements the UI writes to, by id. */
 export interface Els {
+  /** The sheet's header: the open station's name, and its waiting count or price. */
+  shName: HTMLElement; shSub: HTMLElement;
   cash: HTMLElement; clock: HTMLElement; sp1: HTMLButtonElement; sp3: HTMLButtonElement; sp10: HTMLButtonElement; vLine: HTMLButtonElement;
   toast: HTMLElement; strip: HTMLElement; panel: HTMLElement; linePanel: HTMLElement; reset: HTMLButtonElement;
   hour: HTMLInputElement; hourLbl: HTMLElement; hourLive: HTMLButtonElement;
@@ -98,6 +100,7 @@ export class UI {
   }
   buildPanel(): void {
     const i = this.selected, s = this.sim.station(i), g = this.g, panel = this.els.panel;
+    if (this.els.shName.textContent !== s.name) this.els.shName.textContent = s.name;
     if (!g.owned[i]) {
       const blocked = i > 0 && !g.owned[i - 1], needs = this.sim.stationNeeds(i);
       const label = blocked ? 'Buy the stations before it first' : needs ? `Needs ${needs.station.name}'s ${needs.name}` : `Buy as a halt · ${fmt(this.sim.stationPrice(i))}`;
@@ -243,6 +246,8 @@ export class UI {
     // a fast-forward mark while the night races by, so the player knows why the time leapt
     const fast = pace(g.t) >= 3, ck = `Day ${g.day} · ${this.sim.clock()}${fast ? ' »' : ''}`;
     if (this.els.clock.textContent !== ck) { this.els.clock.textContent = ck; this.els.clock.title = fast ? 'The night passes quickly' : ''; }
+    const i = this.selected, sub = `${milesFrom(this.sim.station(i).miles)} · ${g.owned[i] ? `${g.st[i]?.waiting ?? 0} waiting` : fmt(this.sim.stationPrice(i))}`;
+    if (this.els.shSub.textContent !== sub) this.els.shSub.textContent = sub;
     this.updateStrip(); this.updatePanel(); this.updateLinePanel();
   }
 }

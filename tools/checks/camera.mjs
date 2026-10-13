@@ -5,7 +5,7 @@
 // the map is dragged; holding a key off sideways for seconds keeps the camera within reach of the line. On a phone page
 // (touch, 360 px): one finger slides, two fingers pinch in towards themselves, twist to turn and drag up together to
 // tilt; a double tap zooms in where it lands; the compass shows while north isn't up and a tap puts it back. With
-// reduced motion, Whole line is there at once. Throughout, the camera is never below the ground nor far from the line.
+// reduced motion, Whole line is there at once. Gestures land on the open map, beside or above the sheet. Throughout, the camera is never below the ground nor far from the line.
 export default async function ({ ok, open }) {
   const cam = page => page.evaluate(() => window.__view.camera());
   const settle = page => page.waitForFunction(() => !window.__view.camera().flying, null, { timeout: 20000 }).catch(() => {});
@@ -17,7 +17,7 @@ export default async function ({ ok, open }) {
   {
     const { ctx, page, errs } = await open({ width: 1280, height: 800 });
     await page.waitForTimeout(500);
-    const box = await page.evaluate(() => { const r = document.getElementById('gl').getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+    const box = await page.evaluate(() => window.__view.open());
     const at = (fx, fy) => [box.x + box.w * fx, box.y + box.h * fy];
     // slide
     const [ax, ay] = at(0.5, 0.6), [bx, by] = at(0.3, 0.45);
@@ -92,7 +92,7 @@ export default async function ({ ok, open }) {
       for (let k = 1; k <= n; k++) { await touch('touchMove', from.map((p, j) => [p[0] + (to[j][0] - p[0]) * k / n, p[1] + (to[j][1] - p[1]) * k / n])); await page.waitForTimeout(16); }
       await touch('touchEnd', []); await page.waitForTimeout(80);
     };
-    const box = await page.evaluate(() => { const r = document.getElementById('gl').getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+    const box = await page.evaluate(() => window.__view.open());
     const at = (fx, fy) => [box.x + box.w * fx, box.y + box.h * fy];
     const under = p => page.evaluate(([x, y]) => window.__view.under(x, y), p);
     // one finger slides

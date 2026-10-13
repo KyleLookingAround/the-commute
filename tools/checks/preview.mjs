@@ -4,12 +4,14 @@
 // it makes its parts rise into place (window.__view.rising) and settle within about a second, and its name moves to
 // the Built line, where tapping its chip frames what it built (window.__view.framed counts framings) with no ghost.
 // One phone page (320 px, touch) and one desktop page.
+import { reveal } from '../reveal.mjs';
 export default async function ({ ok, open }) {
   for (const [w, h, touch] of [[320, 568, true], [1280, 800, false]]) {
     const { ctx, page, errs } = await open({ width: w, height: h }, { touch, steady: 50 });
     await page.waitForTimeout(600);
     const tap = async sel => {
-      const r = await page.evaluate(s => { const e = document.querySelector(s); if (!e) return null; e.scrollIntoView({ block: 'center' }); const b = e.getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; }, sel);
+      sel = await reveal(page, sel);
+      const r = await page.evaluate(s => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; }, sel);
       if (!r) return false;
       if (touch) await page.touchscreen.tap(r[0], r[1]); else await page.mouse.click(r[0], r[1]);
       return true;

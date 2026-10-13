@@ -143,6 +143,7 @@ Past the plausible the network goes science fiction, still a model railway in da
 ## Throughout
 
 - Phones first: portrait and landscape down to 320 px, tablets and big screens; a performance budget that grows with the map.
+- A visual audit at the end of each phase (the owner, 13 October 2026): screenshots of everything fully upgraded and the areas around and between the stations, at day, night and in weather, on a phone and a desktop (`node tools/shots.mjs --audit`, `docs/briefs/visual-audit.md`), each looked at; whatever doesn't look right is written up in `docs/audits/` and becomes a step of the next phase. Phases 3 and 4: being audited.
 - A release at the end of each phase from the second on: What's new, save fixtures, and saves migrated.
 - Balance with the bot after any pacing or economy change; baselines moved on purpose, with the reason.
 - Everything bought shows on the map; locked stations stand fogged with their price; locked upgrades stay hidden.

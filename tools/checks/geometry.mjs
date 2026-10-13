@@ -30,7 +30,7 @@ const { Sim, UPGRADES } = await import('../../src/sim/sim.ts');
 
 const EDGE = 1.68, EDGE_TOL = 0.1;   // platform edge from the track's centreline
 const HALF = 1.51;                  // a body's half width as drawn, real, with the riders in its windows
-const Y0 = 0.65, Y1 = 5.2;          // a body's underframe to its roof, as drawn
+const Y0 = 0.5, Y1 = 4.35;          // a body's underframe to its roof (and the beacons on it), as drawn
 const ON = 0.05;                    // how far a car's bogies may stray from its track's centreline
 const CARS = [2, 4, 6];             // the unit lengths the line can run
 const STEP = 1;                     // metres between sampled positions along the line

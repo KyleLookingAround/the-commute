@@ -3,7 +3,7 @@
 // out. The train may stand at another platform than the face they wait on (Stockport's stoppers use 3 and 4 by turns,
 // Piccadilly's turn in the bays): then they go by the stairs (or along a terminus's concourse) to that platform, and
 // those getting off step out onto it and leave the same way. All of it is cosmetic and runs in game time: the sim only says how many are waiting on each face, and the
-// figures catch up with that number. Figures are about 1.4 times life size so a queue reads from the stock zoom.
+// figures catch up with that number. Figures are life size (about 1.75 m).
 // The sim's lost count shows too: someone who gives up shrugs before walking out, and when a full platform turns people
 // away a few come in at the stairs, see the crowd, shrug and go back. The station earning most has a gold coin turning
 // slowly over its name.
@@ -22,8 +22,10 @@ import { clockAt } from '../sim/day.ts';
 import type { GameState, PlatformDef, Train } from '../sim/types.ts';
 import network from '../data/network.json';
 
-const geo = new THREE.CylinderGeometry(0.34, 0.42, 2.0, 7); geo.translate(0, 1.0, 0);
-const head = new THREE.SphereGeometry(0.36, 7, 6); head.translate(0, 2.3, 0);
+// figures, and what they carry, are drawn at LIFE times these sizes (they were 1.5 times life, to read from far out)
+const LIFE = 1 / 1.5;
+const geo = new THREE.CylinderGeometry(0.34, 0.42, 2.0, 7); geo.translate(0, 1.0, 0).scale(LIFE, LIFE, LIFE);
+const head = new THREE.SphereGeometry(0.36, 7, 6); head.translate(0, 2.3, 0).scale(LIFE, LIFE, LIFE);
 const m4 = new THREE.Matrix4(), col = new THREE.Color();
 const WALK = 1.6;             // metres a game second
 const AMBLE = 0.6;            // the pace of a waiting figure shuffling to a new spot
@@ -40,13 +42,13 @@ const coinMat = new THREE.MeshLambertMaterial({ color: PAL.coin, emissive: PAL['
 // from a tilted view), and never lower than the tallest roof
 const COIN_LIFT = 0.045, COIN_FLOOR = 24;
 const q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), camUp = new THREE.Vector3(), camAt = new THREE.Vector3();
-// a suitcase on its wheels beside a student, and a bike wheeled beside a cyclist (along the platform), both 1.4 times
-// life like the figures
-const caseGeo = new THREE.BoxGeometry(0.7, 1.0, 0.42); caseGeo.translate(0, 0.55, 0);
+// a suitcase on its wheels beside a student, and a bike wheeled beside a cyclist (along the platform), life size like
+// the figures
+const caseGeo = new THREE.BoxGeometry(0.7, 1.0, 0.42); caseGeo.translate(0, 0.55, 0).scale(LIFE, LIFE, LIFE);
 const bikeGeo = (() => {
   const wheel = (x: number) => new THREE.CylinderGeometry(0.48, 0.48, 0.08, 12).rotateX(Math.PI / 2).translate(x, 0.48, 0);
   const bar = (w: number, h: number, x: number, y: number) => new THREE.BoxGeometry(w, h, 0.09).translate(x, y, 0);
-  return mergeGeometries([wheel(-0.78), wheel(0.78), bar(1.5, 0.09, 0, 0.9), bar(0.09, 0.55, -0.25, 0.7), bar(0.09, 0.5, 0.62, 1.1), bar(0.12, 0.09, 0.62, 1.36)]);
+  return mergeGeometries([wheel(-0.78), wheel(0.78), bar(1.5, 0.09, 0, 0.9), bar(0.09, 0.55, -0.25, 0.7), bar(0.09, 0.5, 0.62, 1.1), bar(0.12, 0.09, 0.62, 1.36)]).scale(LIFE, LIFE, LIFE);
 })();
 // a pool of lamplight on the platform under each lamp: flat, brighter in the middle where a smaller disc overlaps it,
 // added to what's under it so it reads as light
@@ -56,7 +58,7 @@ const POOL_Y = 1.04, MAX_POOLS = 96;
 /** A kit's lamp: where it stands and what has to be bought (and not yet bought) for it to stand. */
 interface Lamp { u: number; v: number; needs: string[]; until: string | undefined }
 // an umbrella: a shallow canopy over the head, bright, its colour from the instance
-const brollyGeo = new THREE.ConeGeometry(1.0, 0.42, 8, 1, true); brollyGeo.translate(0, 2.98, 0);
+const brollyGeo = new THREE.ConeGeometry(1.0, 0.42, 8, 1, true); brollyGeo.translate(0, 2.98, 0).scale(LIFE, LIFE, LIFE);
 const brollyMat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
 const caseMat = new THREE.MeshLambertMaterial({ color: 0xffffff }), bikeMat = new THREE.MeshLambertMaterial({ color: PAL.bike });
 

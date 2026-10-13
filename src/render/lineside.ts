@@ -113,11 +113,11 @@ export class Lineside {
       into.add(inst);
       return inst;
     };
-    // a signal: a post, a head a little larger than life so it reads on the map, and its green lamp on the face
+    // a signal: a post, a head its real size, and its green lamp on the face
     place(sig, new THREE.CylinderGeometry(0.14, 0.18, 4.6, 6), MAT.steel, 2.3, 0, this.fresh);
-    place(sig, new THREE.BoxGeometry(0.6, 2.2, 1.1), new THREE.MeshLambertMaterial({ color: PAL.signal }), 4.9, 0, this.fresh);
+    place(sig, new THREE.BoxGeometry(0.45, 1.3, 0.6), new THREE.MeshLambertMaterial({ color: PAL.signal }), 4.6, 0, this.fresh);
     // the lamp glows, so it throws no shadow (noShadow), and is a plain few-sided ball: there are over a hundred
-    this.lamps = place(sig, new THREE.SphereGeometry(0.42, 8, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }), 4.4, 0.35, this.fresh);
+    this.lamps = place(sig, new THREE.SphereGeometry(0.2, 8, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }), 4.4, 0.25, this.fresh);
     this.lamps.userData['noShadow'] = true;
     this.shows = sig.map(() => -1);
     for (let i = 0; i < sig.length; i++) this.lamps.setColorAt(i, this.colours[2]!);

@@ -340,11 +340,3 @@ function nearRing(cs: number[], x: number, z: number, r: number): boolean {
   }
   return false;
 }
-
-/** The world tiles' URLs as the build emits them, by square (i_j); none outside a build (the checks read them from disk). */
-export function worldFiles(): Record<string, string> {
-  try {
-    const found = import.meta.glob('../data/world/*.txt', { query: '?url', import: 'default', eager: true });
-    return Object.fromEntries(Object.entries(found).map(([path, url]) => [path.replace(/^.*\//, '').replace('.txt', ''), url]));
-  } catch { return {}; }
-}

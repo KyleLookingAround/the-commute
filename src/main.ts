@@ -140,8 +140,8 @@ const view = {
   // point the camera (for the checks' screenshots)
   look: (o: Partial<import('./render/camera.ts').Orbit>) => { Object.assign(rig.o, o); },
   // the real buildings as drawn: what was read, drawn and left out; loadAll fetches every square (and the fine terrain) now
-  buildings: () => ({ ...world.buildings.stats, squares: world.buildings.squares.size }),
-  loadBuildings: () => world.buildings.loadAll(),
+  buildings: () => world.buildings.layer.then(l => ({ ...l.stats, squares: l.squares.size })),
+  loadBuildings: () => world.buildings.layer.then(l => l.loadAll()),
   access: () => ({ cars: built.map(b => b.live.parks.reduce((a, f) => a + f.mesh.count, 0)), buses: links.count }),
   trouble: () => ({ hazards: trains.hazards.count, cautions: trains.posts.count, buses: buses.count, spare: trains.spare.visible }),
   // life as drawn: suitcases and bikes beside the figures, figures drawn, and what the sound has started

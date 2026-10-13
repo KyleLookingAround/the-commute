@@ -3,8 +3,8 @@ import * as THREE from 'three';
 import { MAT, PAL } from './scene.ts';
 import { byCell } from './cells.ts';
 import { bridgesOf, buildLandmarks, onCourses, viaductOf } from './landmarks.ts';
-import { Terrain, TerrainLayer, fineFiles, kitFiles, setTerrain } from './terrain.ts';
-import { BuildingsLayer, worldFiles } from './buildings.ts';
+import { Terrain, TerrainLayer, fineFiles, kitFiles, setTerrain, worldFiles } from './terrain.ts';
+import type { BuildingsLayer } from './buildings.ts';
 import { SPINE, newFrame } from '../sim/network.ts';
 import type { Network } from '../sim/network.ts';
 import type { NetworkGeoDef } from '../sim/types.ts';
@@ -19,7 +19,11 @@ export const yawFor = (p: { dx: number; dz: number }): number => Math.atan2(-p.d
  * land, the river, the M60, the town in the viaduct's valley, the roads and the houses already drawn, on ground level
  * enough to build on (for homes that grow, src/render/homes.ts); terrain: the ground itself; buildings: the real ones
  * (src/render/buildings.ts). */
-export interface World { groundY: (x: number, z: number) => number; yawFor: typeof yawFor; ground: THREE.MeshLambertMaterial; buildable: (x: number, z: number, r: number) => boolean; terrain: TerrainLayer; buildings: BuildingsLayer }
+export interface World { groundY: (x: number, z: number) => number; yawFor: typeof yawFor; ground: THREE.MeshLambertMaterial; buildable: (x: number, z: number, r: number) => boolean; terrain: TerrainLayer; buildings: Buildings }
+
+/** The real buildings (src/render/buildings.ts), whose script is fetched after the page's own, so the first frame never
+ * waits on it: which squares have them from the start, the layer once it's in. */
+export interface Buildings { real: (x: number, z: number) => boolean; blocked: (x: number, z: number, r: number) => boolean; layer: Promise<BuildingsLayer>; ready: Promise<void>; setLow: (low: boolean) => void }
 
 export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef): World {
   const c = net.spine;
@@ -38,8 +42,13 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   const ground = layer.material;
   const groundY = (x: number, z: number): number => terrain.groundY(x, z);
   // the real buildings, where there are tiles for them: the made-up houses keep out of those squares
-  const buildings = new BuildingsLayer(terrain, worldFiles(), net, kitFiles(), layer);
-  scene.add(buildings.group);
+  const files = worldFiles(), squares = new Set(Object.keys(files));
+  let real: BuildingsLayer | null = null, low = false;
+  const loaded = import('./buildings.ts').then(m => { real = new m.BuildingsLayer(terrain, files, net, kitFiles(), layer); real.setLow(low); scene.add(real.group); return real; });
+  const buildings: Buildings = {
+    real: (x, z) => squares.has(`${Math.floor(x / 1000)}_${Math.floor(z / 1000)}`), blocked: (x, z, r) => !!real?.blocked(x, z, r),
+    layer: loaded, ready: loaded.then(l => l.ready), setLow: v => { low = v; real?.setLow(v); },
+  };
 
   // ---- the far ground: one flat field out to the horizon at the level the terrain eases to, so it never shows an edge ----
   // drawn first (after the sky) and without depth: one quad this big loses depth tests to the terrain above it from some

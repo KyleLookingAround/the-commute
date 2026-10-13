@@ -522,6 +522,13 @@ export function fineFiles(): Record<string, string> {
     return Object.fromEntries(Object.entries(found).map(([path, url]) => [path.replace(/^.*\//, '').replace('.txt', ''), url]));
   } catch { return {}; }
 }
+/** The world tiles' URLs as the build emits them, by square (i_j); none outside a build (the checks read them from disk). */
+export function worldFiles(): Record<string, string> {
+  try {
+    const found = import.meta.glob('../data/world/*.txt', { query: '?url', import: 'default', eager: true });
+    return Object.fromEntries(Object.entries(found).map(([path, url]) => [path.replace(/^.*\//, '').replace('.txt', ''), url]));
+  } catch { return {}; }
+}
 /** The station kits by name, for the pads they stand on (empty outside a build). */
 export function kitFiles(): Record<string, KitDef> {
   try {

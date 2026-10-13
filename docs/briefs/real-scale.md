@@ -59,3 +59,7 @@ The session pushes to `main` once the rules, tests and the groups above pass, th
 ## Cost budget
 
 - Estimate: about $35. It touches every kit, the tools and the tiles, but most of it is mechanical.
+
+## Running alongside
+
+The owner asked for this to start at once, alongside the pick-up session that's building buying, rethought (parts 13b to 13e: the place card, finding places, the folds, Strain). That session owns `src/ui/`, `src/sim/places.ts`, `src/sim/sim.ts` and `src/sim/save.ts`. This one owns `src/data/kits/`, the offsets in `src/data/network.json`, `src/render/` (except anything the buying card draws), `src/sim/layout.ts`, `tools/`, and the terrain and world tiles. If you need a change in the other session's files, ask the coordinator. Run `git pull --rebase origin main` before every push. The perf budgets are shared: real scale should lower the triangle count, and if it does, don't spend the room.

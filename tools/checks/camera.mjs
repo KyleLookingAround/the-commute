@@ -9,6 +9,9 @@
 export default async function ({ ok, open }) {
   const cam = page => page.evaluate(() => window.__view.camera());
   const settle = page => page.waitForFunction(() => !window.__view.camera().flying, null, { timeout: 20000 }).catch(() => {});
+  // a tap on a button at its middle: page.click can wait out its 30 s on "scrolling into view" while software-rendered
+  // frames take seconds
+  const press = async (page, sel) => { const c = await page.evaluate(s => { const r = document.querySelector(s).getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }, sel); await page.mouse.click(c[0], c[1]); };
   const near = (a, b, tol) => !!a && !!b && Math.hypot(a[0] - b[0], a[1] - b[1]) < tol;
   const lows = [];
   const watch = async (page, what) => { const c = await cam(page); if (c.above < 3.9 || c.fromLine > Math.max(300, c.r * 0.35) + 1) lows.push(`${what}: ${c.above.toFixed(1)} m up, ${c.fromLine.toFixed(0)} m off the line at r ${c.r.toFixed(0)}`); return c; };
@@ -52,7 +55,7 @@ export default async function ({ ok, open }) {
     await page.waitForTimeout(150); const after = await watch(page, 'slider');
     ok('camera: dragging the strip\'s slider glides the camera down the line', Math.hypot(after.tx - before.tx, after.tz - before.tz) > 3000 && after.fromLine < 50 && after.th === before.th, `moved ${Math.hypot(after.tx - before.tx, after.tz - before.tz).toFixed(0)} m, ${after.fromLine.toFixed(0)} m off the line`);
     // tap a station's label to fly there and open its panel
-    await page.click('#vLine'); await page.waitForTimeout(300); await settle(page); await page.waitForTimeout(200);
+    await press(page, '#vLine'); await page.waitForTimeout(300); await settle(page); await page.waitForTimeout(200);
     const i = 2, spot = await page.evaluate(i => window.__view.spot('station', i), i);
     if (spot) await page.mouse.click(spot[0], spot[1] - 10);
     await page.waitForTimeout(300); const mid = await cam(page); await settle(page);
@@ -63,11 +66,13 @@ export default async function ({ ok, open }) {
     
     let tr = null;
     for (let k = 0; k < 12 && !tr; k++) tr = await page.evaluate(() => { for (let j = 0; j < 20; j++) { const p = window.__view.spot('train', j); if (p && p[1] > 120) return [j, ...p]; } return null; });
-    if (!tr) { await page.click('#vLine'); await settle(page); tr = await page.evaluate(() => { for (let j = 0; j < 20; j++) { const p = window.__view.spot('train', j); if (p && p[1] > 120) return [j, ...p]; } return null; }); }
+    if (!tr) { await press(page, '#vLine'); await settle(page); tr = await page.evaluate(() => { for (let j = 0; j < 20; j++) { const p = window.__view.spot('train', j); if (p && p[1] > 120) return [j, ...p]; } return null; }); }
     if (tr) await page.mouse.click(tr[1], tr[2]);
     await page.waitForTimeout(1500);
     const r1 = await cam(page), tp = await page.evaluate(j => window.__view.spot('train', j), tr?.[0] ?? 0);
-    await page.waitForTimeout(800); const r2 = await cam(page);
+    // the train moves on, and the camera with it (slowly while frames take seconds: the sim steps a tenth of a second a frame)
+    await page.waitForFunction(([x, z]) => { const c = window.__view.camera(); return Math.hypot(c.tx - x, c.tz - z) > 5; }, [r1.tx, r1.tz], { timeout: 20000 }).catch(() => {});
+    const r2 = await cam(page);
     await page.mouse.move(...at(0.5, 0.5)); await page.mouse.down(); await page.mouse.move(...at(0.45, 0.5), { steps: 3 }); await page.mouse.up();
     const r3 = await watch(page, 'ride');
     ok('camera: tapping a train rides alongside it until the map is dragged', !!tr && r1.riding === tr[0] && r2.riding === tr[0] && Math.hypot(r2.tx - r1.tx, r2.tz - r1.tz) > 5 && r3.riding === -1 && !!tp,

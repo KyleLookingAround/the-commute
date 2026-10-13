@@ -51,7 +51,7 @@ export class OrbitRig {
   private two = { d: 0, a: 0, mx: 0, my: 0, sx: 0, sy: 0, sd: 0, sa: 0, lock: '' as '' | 'tilt' | 'pinch' };
   private multi = false;
   private lastTap = { t: 0, x: 0, y: 0 };
-  private v = new THREE.Vector3(); private hitA = new THREE.Vector3(); private hitB = new THREE.Vector3();
+  private v = new THREE.Vector3(); private box = new THREE.Box3(); private hitA = new THREE.Vector3(); private hitB = new THREE.Vector3();
   constructor(camera: THREE.PerspectiveCamera, canvas: HTMLCanvasElement, scene: THREE.Scene) {
     this.camera = camera; this.scene = scene; this.canvas = canvas;
     this.o = { tx: 0, ty: 2, tz: 0, r: 230, th: 5.5, ph: 1.2 };
@@ -204,9 +204,10 @@ export class OrbitRig {
       o.r += tw.lift * Math.sin(Math.PI * tw.t);
       if (tw.t >= 1) this.tween = null;
     }
+    // a unit's group stands at the origin and its cars move within it, so it rides with the middle of what it holds
     if (this.riding) {
       if (!this.riding.visible) this.riding = null;
-      else { this.riding.getWorldPosition(this.v); const k = 1 - Math.exp(-Math.min(0.5, realDt) * 5); o.tx += (this.v.x - o.tx) * k; o.tz += (this.v.z - o.tz) * k; o.ty += (Math.max(2, this.v.y + 2) - o.ty) * k; }
+      else { this.box.setFromObject(this.riding).getCenter(this.v); const k = 1 - Math.exp(-Math.min(0.5, realDt) * 5); o.tx += (this.v.x - o.tx) * k; o.tz += (this.v.z - o.tz) * k; o.ty += (Math.max(2, this.v.y + 2) - o.ty) * k; }
     }
     if (this.keys.size) {
       const kk = this.keys; let f = 0, s = 0;

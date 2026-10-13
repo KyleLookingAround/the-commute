@@ -142,15 +142,16 @@ const partBuilders: Builders = {
   canopy(gp, p) {
     // after Stockport's platform 4: slim columns along the platform's edges, a wide roof with a valance, a ridge above
     const w = p.v1 - p.v0, cv = (p.v0 + p.v1) / 2, L = p.u1 - p.u0, cu = (p.u0 + p.u1) / 2;
-    for (let u = p.u0 + 6; u < p.u1 - 3; u += 10) for (const s of [-1, 1]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 5.2, 8), MAT.column); c.position.set(u, 3.6, cv + s * (w / 2 - 1.3)); gp.add(c); }
-    // each half of the roof falls towards its edge, never further than keeps the eaves above a train (5.2 m drawn)
+    for (let u = p.u0 + 6; u < p.u1 - 3; u += 10) for (const s of [-1, 1]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 4.2, 8), MAT.column); c.position.set(u, 3.1, cv + s * (w / 2 - 1.3)); gp.add(c); }
+    // each half of the roof falls towards its edge, never further than keeps the eaves above a train (4 m drawn, and
+    // its beacons)
     const half = (w / 2 + 1.6) / 2, tilt = Math.min(0.22, 0.9 / half);
-    for (const s of [-1, 1]) { const r = box(gp, L - 4, 0.3, w / 2 + 1.6, MAT.canopy, cu, 6.5, cv + s * (w / 4 + 0.3)); r.rotation.x = s * tilt; }
-    for (const s of [-1, 1]) box(gp, L - 4, 0.9, 0.15, MAT.timber, cu, 5.9, cv + s * (w / 2 + 1.5));
-    box(gp, L - 4, 0.5, 0.5, MAT.steel, cu, 7.3, cv);
+    for (const s of [-1, 1]) { const r = box(gp, L - 4, 0.3, w / 2 + 1.6, MAT.canopy, cu, 5.5, cv + s * (w / 4 + 0.3)); r.rotation.x = s * tilt; }
+    for (const s of [-1, 1]) box(gp, L - 4, 0.9, 0.15, MAT.timber, cu, 4.9, cv + s * (w / 2 + 1.5));
+    box(gp, L - 4, 0.5, 0.5, MAT.steel, cu, 6.3, cv);
   },
   lamps(gp, p) {
-    for (let u = p.u0; u <= p.u1; u += p.every || 30) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 8), MAT.glow); l.userData['noShadow'] = true; l.position.set(u, 5.4, p.v); gp.add(l); const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 5.2, 6), MAT.steel); pole.position.set(u, 2.6, p.v); gp.add(pole); }
+    for (let u = p.u0; u <= p.u1; u += p.every || 30) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 8), MAT.glow); l.userData['noShadow'] = true; l.position.set(u, 5.1, p.v); gp.add(l); const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 4.0, 6), MAT.steel); pole.position.set(u, 3.0, p.v); gp.add(pole); }
   },
   box(gp, p) { boxUV(gp, p, matFor(p.mat, MAT.concrete)); },
   windows(gp, p) {
@@ -177,7 +178,7 @@ const partBuilders: Builders = {
     for (const tv of p.towers) box(gp, 10, 5, 4.5, MAT.concrete, p.u, 3.5, tv);
   },
   lattice(gp, p) {
-    // the deck clears the trains (5.2 m drawn) and the wires, between plate girders with a lattice parapet on top
+    // the deck clears the trains (4 m drawn) and the wires, between plate girders with a lattice parapet on top
     const w = p.v1 - p.v0, cv = (p.v0 + p.v1) / 2;
     box(gp, 2.8, 0.25, w, MAT.rust, p.u, DECK_Y - 0.12, cv);
     for (const s of [-1, 1]) {

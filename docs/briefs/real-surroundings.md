@@ -71,3 +71,22 @@ The session pushes each part to `main` once the rules, tests and its check group
 
 - Estimate: about $35 (a new tool over two sources, a new drawing layer with levels of detail, the ground cover, homes on real gaps, a check group, and screenshots at every size for each part).
 - Past twice the estimate: say why in the commit message and stop at the part you're on, leaving `main` playable.
+
+## Handed on
+
+What landed (13 October 2026), all four parts for today's line, `docs/DESIGN.md` (The surroundings):
+
+- 4f8efbe, eb6ebd0: the pilot at Levenshulme and Heaton Chapel, the tool, the drawing layer (loaded after the first frame), the `world` check group.
+- dbdb163: today's line, 52 squares: 60,631 buildings as 44,082 pieces, 18,552 of them outlined from the LIDAR where OSM has none (Davenport, Woodsmoor and parts of Hazel Grove and Stockport); the stand-in houses and Stockport's made-up streets gone, the landmarks kept.
+- e108deb: a square that can't be fetched offline waits and tries again (with the Buxton line session's 8d6f5ad).
+- 72715fa: 112,649 trees and clumps from the LIDAR, taking the seasons; the ground's cover from OSM painted on the terrain; homes that grow take the real gaps first (shares in DESIGN.md, Homes that grow); `--bridges`.
+- Screenshots: `real-surroundings/pilot-*` (the pilot, before and after) and `real-surroundings/final-*` (the same views with everything in).
+
+What's left:
+
+- The lines beyond today's (the Buxton, Marple and Rose Hill lines): run `node tools/osm-to-world.mjs --corridor 900 --from <id> --to <id>` for their squares; the stand-in houses and lineside trees give way square by square. Today's line takes 1.95 MB of the world check's 2 MB, so the lines out need a budget of their own.
+- Bridges over the line: `real-surroundings/bridges.md` lists every one the LIDAR shows against the kits'. No road bridge on the open line is drawn (Bramhall Lane at Davenport and Moorland Road at Woodsmoor among them): for the audit fix.
+- OSM's missing buildings are outlined from the LIDAR; a rerun of the tool picks up OSM's as they're mapped.
+- The streets are ground paint only; the A6 and main roads steps draw them as roads. The stand-in roads along the line are left as they were.
+- Hedges along field edges: none on today's line; for the lines out's open stretches.
+- The perf group's busy save is at 532,000 of its 550,000 triangles: the next thing drawn will need room made.

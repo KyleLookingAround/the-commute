@@ -24,6 +24,7 @@ const SHADOW = 400;      // and its chunks cast shadows this near
 const TREE_NEAR = 550;   // a chunk's trees this near are drawn one by one with their trunks; further off, only the big
 const TREE_BIG = 8;      // clumps (spread 8 m or more) as plainer crowns
 const FAR_LOW = 1600;    // on Low, nothing further than this
+const FAR_ALL = 9000;    // and on any setting nothing further than this (the whole network in view)
 const RAIL_MARGIN = 4;   // metres kept clear beyond the railway's land
 const RAIL_REACH = 300;  // the land (80 m at its widest) and its slopes (the terrain's strip, 150 m) lie within this of the line
 const KIT_MARGIN = 3;
@@ -395,7 +396,7 @@ export class BuildingsLayer {
     for (const sq of this.drawn) {
       const d = sq.d, near = d < NEAR;
       const full = near && sq.chunks.every(ch => ch.mesh);
-      const show = !(this.low && d > FAR_LOW);
+      const show = !(this.low && d > FAR_LOW) && d < FAR_ALL;
       sq.far.visible = !full && show;
       for (const ch of sq.chunks) {
         if (!ch.mesh) continue;

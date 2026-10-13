@@ -17,7 +17,10 @@ interface Fly { from: Orbit; to: Orbit; t: number; dur: number; lift: number; ke
 interface Ptr { x: number; y: number; x0: number; y0: number; t0: number }
 /** The angle a into -pi..pi. */
 export const wrapPi = (a: number): number => a - Math.round(a / (Math.PI * 2)) * Math.PI * 2;
-const R_MIN = 40, R_MAX = 9000, PH_MIN = 0.1, PH_MAX = 1.5;
+// R_MAX holds the whole network on a phone held upright (Whole line, fitAll); far off, the map leaves out the kits and
+// the real buildings and trees (KIT_FAR in src/main.ts, FAR_ALL in src/render/buildings.ts)
+const R_MIN = 40, R_MAX = 24000, PH_MIN = 0.1, PH_MAX = 1.5;
+const FIT_X = 90, FIT_Y = 40;   // pixels kept clear round each point fitAll holds: half a name's width, and its height
 /** How far from the line the camera may look: a few hundred metres close in, more when zoomed out to see the line. */
 const nearLimit = (r: number) => Math.max(300, r * 0.35);
 const KEY_PAN: Record<string, [number, number]> = { ArrowUp: [0, 1], KeyW: [0, 1], ArrowDown: [0, -1], KeyS: [0, -1], ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0] };
@@ -51,7 +54,7 @@ export class OrbitRig {
   private two = { d: 0, a: 0, mx: 0, my: 0, sx: 0, sy: 0, sd: 0, sa: 0, lock: '' as '' | 'tilt' | 'pinch' };
   private multi = false;
   private lastTap = { t: 0, x: 0, y: 0 };
-  private v = new THREE.Vector3(); private box = new THREE.Box3(); private hitA = new THREE.Vector3(); private hitB = new THREE.Vector3();
+  private fitCam = new THREE.PerspectiveCamera(); private v = new THREE.Vector3(); private box = new THREE.Box3(); private hitA = new THREE.Vector3(); private hitB = new THREE.Vector3();
   constructor(camera: THREE.PerspectiveCamera, canvas: HTMLCanvasElement, scene: THREE.Scene) {
     this.camera = camera; this.scene = scene; this.canvas = canvas;
     this.o = { tx: 0, ty: 2, tz: 0, r: 230, th: 5.5, ph: 1.2 };
@@ -175,6 +178,46 @@ export class OrbitRig {
   frame(b: THREE.Box3, near = 70): void {
     const cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2, size = Math.max(b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z);
     this.fly({ tx: cx, ty: Math.min(6, (b.min.y + b.max.y) / 2), tz: cz, r: Math.max(near, Math.min(600, size * 1.5)), th: this.o.th, ph: Math.min(this.o.ph, 1.05) });
+  }
+  /** Fly to the nearest view that holds every point (x, z on the ground, and the half-width in pixels of the name
+   * drawn centred on it, FIT_X if not given) on the open map, beside or above the sheet, with room for its name
+   * (FIT_Y up) and clear of the top bar: the middle of their extent, from whichever of eight turns and three tilts
+   * needs the least distance (see below for the ties and a screen too narrow for the names). */
+  fitAll(pts: [number, number, number?][]): void {
+    if (!pts.length) return;
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const [x, z] of pts) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+    const tx = (x0 + x1) / 2, tz = (z0 + z1) / 2, cam = this.fitCam.copy(this.camera), v = this.v;
+    const w = this.canvas.clientWidth || 1, h = this.canvas.clientHeight || 1;
+    // the open map in the picture's -1..1, less room for each name either side (centred on its point) and above
+    const left = Math.min(this.cover.left, w * 0.8), yb = -1 + 2 * (Math.min(this.cover.bottom, h * 0.8) + FIT_Y) / h, yt = 1 - 2 * (FIT_Y + 60) / h;
+    /** How many of the points a view holds, each with half its name's width beside it (or `only` pixels). */
+    const held = (r: number, th: number, ph: number, only?: number): number => {
+      cam.position.set(tx + r * Math.sin(ph) * Math.sin(th), 2 + r * Math.cos(ph), tz + r * Math.sin(ph) * Math.cos(th));
+      cam.lookAt(tx, 2, tz); cam.far = r * 4; cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+      let n = 0;
+      for (const [x, z, name = FIT_X] of pts) {
+        const half = only ?? name; v.set(x, 0, z).project(cam);
+        if (v.z < 1 && v.x >= -1 + 2 * (left + half) / w && v.x <= 1 - 2 * half / w && v.y >= yb && v.y <= yt) n++;
+      }
+      return n;
+    };
+    // the nearest view holding them all with their names, the turn nearest the camera's own unless another is nearer
+    // by a seventh; failing that (a narrow screen), holding all the points, whose names give way where they overlap
+    // (src/main.ts); failing that, the view at R_MAX holding most
+    let best: Orbit | null = null, all = false, most = -1;
+    for (const only of [undefined, 24]) {
+      for (let k = 0; k < 8; k++) for (const ph of [0.5, 0.7, 0.9]) {
+        const th = this.o.th + wrapPi(k * Math.PI / 4 - this.o.th), n = held(R_MAX, th, ph, only);
+        if (n < pts.length) { if (!all && n > most) { most = n; best = { tx, ty: 2, tz, r: R_MAX, th, ph }; } continue; }
+        let lo = 500, hi = R_MAX;
+        for (let q = 0; q < 16; q++) { const mid = (lo + hi) / 2; if (held(mid, th, ph, only) === pts.length) hi = mid; else lo = mid; }
+        const turn = Math.abs(wrapPi(th - this.o.th)), was = best ? Math.abs(wrapPi(best.th - this.o.th)) : Infinity;
+        if (!all || !best || hi < best.r * (turn < was - 0.01 ? 1.15 : turn > was + 0.01 ? 0.85 : 1)) { best = { tx, ty: 2, tz, r: hi, th, ph }; all = true; }
+      }
+      if (all) break;
+    }
+    this.fly(best ?? { tx, ty: 2, tz, r: R_MAX, th: this.o.th, ph: 0.7 });
   }
   /** Put north back up the screen. */
   north(): void { this.fly({ ...this.o, th: 0 }); }

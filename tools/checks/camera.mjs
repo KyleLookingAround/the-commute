@@ -5,7 +5,8 @@
 // the map is dragged; holding a key off sideways for seconds keeps the camera within reach of the line. On a phone page
 // (touch, 360 px): one finger slides, two fingers pinch in towards themselves, twist to turn and drag up together to
 // tilt; a double tap zooms in where it lands; the compass shows while north isn't up and a tap puts it back. With
-// reduced motion, Whole line is there at once. Gestures land on the open map, beside or above the sheet. Throughout, the camera is never below the ground nor far from the line.
+// reduced motion, Whole line is there at once, with every station on the screen. Gestures land on the open map, beside
+// or above the sheet. Throughout, the camera is never below the ground nor far from the line.
 export default async function ({ ok, open }) {
   const cam = page => page.evaluate(() => window.__view.camera());
   const settle = page => page.waitForFunction(() => !window.__view.camera().flying, null, { timeout: 20000 }).catch(() => {});
@@ -140,7 +141,9 @@ export default async function ({ ok, open }) {
     await page.waitForTimeout(300);
     await page.evaluate(() => document.getElementById('vLine').click()); await page.waitForTimeout(120);
     const t8 = await cam(page);
-    ok('camera: with reduced motion Whole line is there at once', !t8.flying && t8.r > 8000, `flying ${t8.flying}, r ${t8.r.toFixed(0)}`);
+    // every station on the screen: the view is fitted to the whole network's extent
+    const off = await page.evaluate(() => Array.from(document.querySelectorAll('#lbls .lbl'), (_, i) => window.__view.spot('station', i)).filter(p => !p).length);
+    ok('camera: with reduced motion Whole line is there at once, with every station on the screen', !t8.flying && t8.r > 4000 && off === 0, `flying ${t8.flying}, r ${t8.r.toFixed(0)}, ${off} off the screen`);
     await ctx.close();
   }
   ok('camera: never below the ground nor far from the line', !lows.length, lows.slice(0, 3).join('; '));

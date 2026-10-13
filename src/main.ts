@@ -36,6 +36,7 @@ import { BusLayer } from './render/buses.ts';
 import { LinkLayer } from './render/links.ts';
 import { TrainLayer } from './render/trains.ts';
 import { PassengerLayer } from './render/passengers.ts';
+import { cullCells } from './render/cells.ts';
 import { OrbitRig, wrapPi } from './render/camera.ts';
 import { Picker } from './render/pick.ts';
 import { ReachLayer, withBought, savingText } from './render/reach.ts';
@@ -237,6 +238,13 @@ let prefs = loadPrefs();
 const sound = new Sound(prefs.sound, prefs.volume);
 sound.listen(document);
 const stationsXZ = net.stations.map((_, i) => stationXZ(i));
+/** Further than this from the camera (the whole network in view) a kit is a few pixels across: it's left out and its
+ * name stands for it, so a frame of the whole line stays quick. */
+const KIT_FAR = 9000;
+function farKits(): void {
+  const c = camera.position;
+  for (let i = 0; i < built.length; i++) { const p = stationsXZ[i]!, g = built[i]!.group, on = Math.hypot(c.x - p[0], c.y, c.z - p[1]) < KIT_FAR; if (g.visible !== on) g.visible = on; }
+}
 /** Apply the graphics settings: shadows (every material is rebuilt with or without them), fewer figures, sharpness. */
 function graphics(p: Prefs, was: Prefs | null): void {
   if (!was || was.shadows !== p.shadows) {
@@ -300,7 +308,9 @@ function labels(): void {
     // off screen, or in the top band where the stage's own controls sit
     lblOn[i] = false;
     if (v3.z > 1 || Math.abs(v3.x) > 1.1 || Math.abs(v3.y) > 1.1 || top < labelTop) { d.style.display = 'none'; return; }
-    lblOn[i] = true; lblX[i] = (v3.x + 1) / 2 * w; lblY[i] = top; lblZ[i] = v3.z;
+    // a name whose point is on the open map near its side slides in to stay whole (its width known once its text is)
+    const half = lblW[i]! / 2, x = (v3.x + 1) / 2 * w, lo = rig.cover.left + half + 4, hi = w - half - 4;
+    lblOn[i] = true; lblX[i] = x >= rig.cover.left && x < lo ? lo : x <= w && x > hi ? hi : x; lblY[i] = top; lblZ[i] = v3.z;
     d.style.left = lblX[i] + 'px'; d.style.top = top + 'px';
     // the text only when it changes (ownership, or the price with it), so a frame makes no strings; -1 for owned
     const owned = !!sim.g.owned[i], key = owned ? -1 : sim.stationPrice(i);
@@ -333,7 +343,14 @@ function lineMiddle(): { x: number; z: number } {
   const byS = [...net.stations].sort((p, q) => p.s - q.s), a = stationXZ(byS[0]!.index), b = stationXZ(byS[byS.length - 1]!.index);
   return { x: (a[0] + b[0]) / 2, z: (a[1] + b[1]) / 2 };
 }
-function lineView(): void { const m = lineMiddle(); rig.focus(m.x, m.z, 10500, 0.9, 1.05); }
+/** Whole line: every station on the open map with its name, as near as they'll all fit (a name's half-width from its
+ * text: the labels' monospace, about 7.7 px a character, and their padding). */
+function lineView(): void {
+  rig.fitAll(net.stations.map(st => {
+    const [x, z] = stationXZ(st.index), text = sim.g.owned[st.index] ? st.name : `${st.name} · ${fmt(sim.stationPrice(st.index))}`;
+    return [x, z, (text.length * 7.7 + 18) / 2];
+  }));
+}
 const ui = new UI(sim, els, {
   speed: s => { speed = s; ui.setSpeed(s); },
   viewLine: lineView,
@@ -452,7 +469,7 @@ function frame(now: number): void {
   const dtGame = dt * GAME_PER_REAL * speed;
   sim.advance(dtGame);
   const t1 = performance.now();
-  resize(); rig.update(dt, realDt); pointNorth();
+  resize(); rig.update(dt, realDt); pointNorth(); farKits(); cullCells(camera.position);
   // the light follows the season: a long summer day, an early winter dusk
   const light = lighting(solarHour(lockHour ?? sim.hour(), yearAt(sim.g.t)), rig.o);
   sky.update(light.horizon, light.daylight, camera, dt);

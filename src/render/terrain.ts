@@ -368,6 +368,7 @@ const ROW_FINE = 4, ROW_COARSE = 16;   // metres between the strip's rows
 const CHUNK = 240;                     // metres of line a strip chunk covers
 const NEAR = 1300;                     // a chunk this near the camera is drawn fine
 const BASE_GRID = 48, BASE_CHUNK = 64; // the base mesh's spacing, and its chunks' size in cells
+const BASE_FAR = 6000, BASE_STEP = 4;   // a base chunk this far from the camera is drawn with every fourth row and column
 // metres out from the land's edge to each of the strip's columns (the first two the wall's foot and top)
 const OUT_FINE = [0, 0.4, 2.5, 4, 6, 8, 10.5, 13.5, 17, 21, 26, 32, 39, 47, 57, 69, 83, 100, 120, STRIP];
 const OUT_COARSE = [0, 0.4, 6, 13.5, 26, 47, 83, STRIP];
@@ -396,6 +397,8 @@ export class TerrainLayer {
   private col = palette(); private last = -1;
   /** The base mesh's chunks: they take shadows but cast none (the page sets every mesh casting at start; the first frame unsets these). */
   private baseMeshes: THREE.Mesh[] = [];
+  /** Each base chunk's full and far geometry, and its middle. */
+  private baseLods: { mesh: THREE.Mesh; full: THREE.BufferGeometry; far: THREE.BufferGeometry; x: number; z: number }[] = [];
   constructor(readonly t: Terrain, private bands: Bands, files: Record<string, string> = {}) {
     this.files = files;
     this.material = new THREE.MeshLambertMaterial({ vertexColors: true });
@@ -423,6 +426,11 @@ export class TerrainLayer {
         if ((ch.dirty || !ch.fine) && built < 3) { ch.fine?.dispose(); ch.fine = this.strip(ch.g, ch.s0, ch.s1, ROW_FINE, OUT_FINE); ch.dirty = false; built++; }
       }
       const g = near && ch.fine ? ch.fine : ch.coarse; if (ch.mesh.geometry !== g) ch.mesh.geometry = g;
+    }
+    // the base mesh: far chunks plainer (the whole network in view)
+    for (const b of this.baseLods) {
+      const g = Math.hypot(at.x - b.x, at.y, at.z - b.z) - BASE_CHUNK * BASE_GRID * 0.7 < BASE_FAR ? b.full : b.far;
+      if (b.mesh.geometry !== g) b.mesh.geometry = g;
     }
   }
   /** Every chunk of the strip as it's drawn fine, built now (for the checks). */
@@ -564,6 +572,17 @@ export class TerrainLayer {
       const nrm = g.getAttribute('normal');
       for (let v = 0; v < w * h; v++) if (nrm.getY(v) < 0.85 && col[v * 3]! !== this.col.yard.r) { col[v * 3] = this.col.bank.r; col[v * 3 + 1] = this.col.bank.g; col[v * 3 + 2] = this.col.bank.b; }
       const m = new THREE.Mesh(g, this.material); m.receiveShadow = true; this.group.add(m); this.baseMeshes.push(m);
+      // the far one: the same vertices, every BASE_STEP-th row and column (and the last), so it costs no more memory
+      const rows = (n: number) => { const o: number[] = []; for (let q = 0; q < n - 1; q += BASE_STEP) o.push(q); o.push(n - 1); return o; };
+      const ri = rows(w), rj = rows(h), fidx: number[] = [];
+      for (let j = 0; j < rj.length - 1; j++) for (let i = 0; i < ri.length - 1; i++) {
+        const a = rj[j]! * w + ri[i]!, b2 = rj[j]! * w + ri[i + 1]!, c = rj[j + 1]! * w + ri[i]!, d = rj[j + 1]! * w + ri[i + 1]!;
+        fidx.push(a, c, b2, b2, c, d);
+      }
+      const far = new THREE.BufferGeometry();
+      for (const name of ['position', 'color', 'normal']) far.setAttribute(name, g.getAttribute(name));
+      far.setIndex(fidx); far.boundingSphere = g.boundingSphere;
+      this.baseLods.push({ mesh: m, full: g, far, x: cx, z: cz });
     }
   }
 }

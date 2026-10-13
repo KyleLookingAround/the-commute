@@ -1,8 +1,10 @@
 // The page at the six sizes the project notes name: 320×568, 568×320, 390×844, 844×390 (phones, touch), 768×1024 and
 // 1440×900. At each: the page loads with no errors, the map fills the screen, the sheet is in view at its peek (portrait)
 // or docked to the left (from 600 px wide or in landscape) with the strip (a card a station) in view, nothing scrolls
-// sideways, every tap target is at least 44 px on touch (40 px otherwise), and the cash and clock show over the map. One page per size; a screenshot of each goes to build/check/ for a human to look at.
+// sideways, every tap target is at least 44 px on touch (40 px otherwise), and the cash and clock show over the map. Picking a card (Booking hall at Stockport) frames its ghost in the open
+// map, above the sheet sunk to its peek with the Buy bar in portrait, beside the docked sheet otherwise. One page per size; a screenshot of each goes to build/check/ for a human to look at.
 import { join } from 'node:path';
+import { reveal } from '../reveal.mjs';
 import { readFileSync } from 'node:fs';
 
 // a card for every station on the line, bought or not
@@ -29,6 +31,18 @@ export default async function ({ ok, open, out }) {
     const small = await page.evaluate(min => [...document.querySelectorAll('button')].filter(b => b.getClientRects().length).map(b => { const r = b.getBoundingClientRect(); return [b.textContent.trim().slice(0, 24) || b.getAttribute('aria-label'), Math.round(r.width), Math.round(r.height)]; }).filter(([, bw, bh]) => bw < min || bh < min), min);
     ok(`layout: at ${w}×${h} every ${touch ? 'tap target' : 'control'} is at least ${min} px`, !small.length, small.slice(0, 4).map(s => `${s[0]} ${s[1]}×${s[2]}`).join(', '));
     await page.screenshot({ path: join(out, `layout-${w}x${h}.png`), fullPage: false }).catch(() => {});
+    // pick a card: its ghost stands in the open map
+    const sel = await reveal(page, '[data-pick="building"]');
+    const at = await page.evaluate(s => { const b = document.querySelector(s)?.getBoundingClientRect(); return b ? [b.x + b.width / 2, b.y + Math.min(b.height / 2, 20)] : null; }, sel);
+    if (at) { if (touch) await page.touchscreen.tap(...at); else await page.mouse.click(...at); }
+    await page.waitForFunction(() => (window.__view?.preview ?? 0) > 0 && !window.__view.camera().flying, null, { timeout: 60000 }).catch(() => {});
+    await page.waitForTimeout(400);
+    const g = await page.evaluate(() => ({ spot: window.__view.spot('ghost', 0), open: window.__view.open(), at: document.getElementById('sheet').dataset.at, bar: !document.getElementById('buybar').hidden, name: document.getElementById('barName').textContent }));
+    const inOpen = !!g.spot && g.spot[0] >= g.open.x && g.spot[0] <= g.open.x + g.open.w && g.spot[1] >= g.open.y && g.spot[1] <= g.open.y + g.open.h;
+    const gbad = [!at && 'no Booking hall card', !inOpen && `the ghost's middle ${g.spot?.map(Math.round)} is not in the open map ${JSON.stringify(g.open)}`,
+      !docked && g.at !== 'peek' && `the sheet stayed ${g.at}`, !docked && !(g.bar && /Booking hall/.test(g.name)) && 'no Buy bar for Booking hall', docked && g.bar && 'a Buy bar beside a docked sheet'].filter(Boolean);
+    ok(`layout: at ${w}×${h} a picked card's ghost stands in the open map${docked ? '' : ', the sheet sunk to its peek with a Buy bar'}`, !gbad.length, gbad.join('; '));
+    await page.screenshot({ path: join(out, `layout-${w}x${h}-ghost.png`) }).catch(() => {});
     await ctx.close();
   }
 }

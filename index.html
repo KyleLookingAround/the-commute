@@ -49,12 +49,14 @@
       <div class="seg speed" role="group" aria-label="Speed"><button id="sp1" aria-pressed="true">1×</button><button id="sp3" aria-pressed="false">3×</button><button id="sp10" aria-pressed="false">10×</button></div>
     </div>
     <div class="sh-peek">
+      <div class="buybar" id="buybar" hidden><div class="bb-what"><b id="barName"></b><small id="barAdds"></small></div><button class="bb-x" id="barClose" aria-label="Put it back">✕</button><button class="bb-buy" id="barBuy">Buy</button></div>
       <input class="glide" id="glide" type="range" step="10" aria-label="Glide along the line, from Hazel Grove to Manchester">
       <div class="strip" id="strip"></div>
     </div>
+    <div class="sh-tabs" role="tablist" aria-label="Show"><button id="tabStation" role="tab" aria-selected="true" aria-controls="panel">Station</button><button id="tabLine" role="tab" aria-selected="false" aria-controls="linePanel">Line</button></div>
     <div class="sh-body" id="sheetBody">
       <div class="panel" id="panel"></div>
-      <div class="panel" id="linePanel"></div>
+      <div class="panel" id="linePanel" hidden></div>
       <div class="foot">
         <p>Passengers arrive by the real demand curve, wait on your platforms and pay a fare when they board. Full platforms and long waits lose them. Buy the next station up the line to lift the fog: it starts as a halt, one platform for trains towards Manchester, and grows as you build it a way across, a second platform and a booking office. Progress saves on this device and catches up while you're away.</p>
         <div class="saves"><button id="saveFile">Save to file</button><button id="loadFile">Load from file</button><input id="loadPick" class="pick-file" type="file" tabindex="-1" aria-hidden="true"><button id="reset">Start over</button><button id="resetAll" hidden>Career too</button></div>

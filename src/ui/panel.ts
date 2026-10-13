@@ -1,9 +1,16 @@
-// Station strip, station panel, line panel, ticker and toasts. Plain DOM, rebuilt on actions and lightly refreshed on a timer.
+// The sheet's contents: its header (the open station), the strip of station chips, the Station and Line tabs with
+// their panels, the Buy bar, and the cash, clock and toasts over the map. Plain DOM, rebuilt on actions and lightly
+// refreshed on a timer. Picking a card in portrait sinks the sheet to its peek, where the Buy bar holds it, so its
+// ghost stands in open map.
 import { UPGRADES, LINE_UPGRADES } from '../sim/sim.ts';
 import { pace } from '../sim/day.ts';
 import { renewable, reputation } from '../sim/contract.ts';
 import type { Sim } from '../sim/sim.ts';
 import type { GameState } from '../sim/types.ts';
+import type { At } from './sheet.ts';
+
+/** What the UI needs of the sheet (src/ui/sheet.ts). */
+export interface SheetLike { at: At; docked: boolean; to: (at: At) => void; fit: () => void }
 
 export const fmt = (n: number): string => '£' + Math.floor(n).toLocaleString('en-GB');
 
@@ -22,7 +29,9 @@ const milesFrom = (miles: number): string => `${Math.abs(miles)} mi${miles < 0 ?
 /** The page's elements the UI writes to, by id. */
 export interface Els {
   /** The sheet's header: the open station's name, and its waiting count or price. */
-  shName: HTMLElement; shSub: HTMLElement;
+  shName: HTMLElement; shSub: HTMLElement; tabStation: HTMLButtonElement; tabLine: HTMLButtonElement;
+  /** The Buy bar: the picked card's name, what it adds, put it back, and Buy. */
+  buybar: HTMLElement; barName: HTMLElement; barAdds: HTMLElement; barClose: HTMLButtonElement; barBuy: HTMLButtonElement;
   cash: HTMLElement; clock: HTMLElement; sp1: HTMLButtonElement; sp3: HTMLButtonElement; sp10: HTMLButtonElement; vLine: HTMLButtonElement;
   toast: HTMLElement; strip: HTMLElement; panel: HTMLElement; linePanel: HTMLElement; reset: HTMLButtonElement;
   hour: HTMLInputElement; hourLbl: HTMLElement; hourLive: HTMLButtonElement;
@@ -57,8 +66,21 @@ export class UI {
   /** The line upgrade card chosen, shown on the map, or null. */
   linePicked: string | null;
   toastTimer: ReturnType<typeof setTimeout> | undefined;
-  constructor(sim: Sim, els: Els, on: Handlers) {
-    this.sim = sim; this.els = els; this.on = on; this.selected = 0; this.picked = null; this.linePicked = null; this.toastTimer = undefined;
+  readonly sheet: SheetLike;
+  /** Which panel the sheet shows below the header. */
+  tab: 'station' | 'line' = 'station';
+  /** The station panel's More stats are open (kept as stations change). */
+  more = false;
+  constructor(sim: Sim, els: Els, on: Handlers, sheet: SheetLike) {
+    this.sim = sim; this.els = els; this.on = on; this.selected = 0; this.picked = null; this.linePicked = null; this.toastTimer = undefined; this.sheet = sheet;
+    els.tabStation.addEventListener('click', () => this.setTab('station'));
+    els.tabLine.addEventListener('click', () => this.setTab('line'));
+    els.barClose.addEventListener('click', () => { this.pick(null); this.pickLine(null); });
+    // the bar's Buy is the picked card's own
+    els.barBuy.addEventListener('click', () => {
+      const sel = this.picked !== null ? `[data-up="${this.picked}"]` : this.linePicked !== null ? `[data-lup="${this.linePicked}"]` : null;
+      if (sel) document.querySelector<HTMLButtonElement>(sel)?.click();
+    });
     els.sp1.addEventListener('click', () => on.speed(1)); els.sp3.addEventListener('click', () => on.speed(3)); els.sp10.addEventListener('click', () => on.speed(10));
     els.vLine.addEventListener('click', () => on.viewLine());
     els.hour.addEventListener('input', () => on.lockHour(+els.hour.value));
@@ -79,14 +101,44 @@ export class UI {
     this.els.hourLive.hidden = !locked;
   }
   setSpeed(s: number): void { this.els.sp1.setAttribute('aria-pressed', String(s === 1)); this.els.sp3.setAttribute('aria-pressed', String(s === 3)); this.els.sp10.setAttribute('aria-pressed', String(s === 10)); }
-  select(i: number): void { this.pick(null); this.pickLine(null); this.selected = i; this.buildStrip(); this.buildPanel(); this.on.focusStation(i); }
+  select(i: number): void { this.pick(null); this.pickLine(null); this.selected = i; this.buildStrip(); this.buildPanel(); this.setTab('station'); this.on.focusStation(i); }
+  /** Show the station's panel or the line's, raising the sheet from its peek to show it. */
+  setTab(t: 'station' | 'line'): void {
+    this.tab = t; const st = t === 'station';
+    this.els.panel.hidden = !st; this.els.linePanel.hidden = st;
+    this.els.tabStation.setAttribute('aria-selected', String(st)); this.els.tabLine.setAttribute('aria-selected', String(!st));
+    if (this.sheet.at === 'peek') this.sheet.to('half');
+  }
+  /** The Buy bar shows the picked card while the sheet is sunk to its peek (portrait only: docked, the card shows). */
+  updateBar(): void {
+    const { buybar, barName, barAdds, barBuy } = this.els, g = this.g, sim = this.sim, i = this.selected;
+    let name = '', adds = '', price = 0, can = false, id = '';
+    if (this.picked !== null) {
+      const u = UPGRADES.find(u => u.id === this.picked);
+      if (u) { id = u.id; name = sim.upgradeName(i, u); adds = sim.upgradeDesc(i, u); price = sim.upgradePrice(i, u); can = sim.canBuyUpgrade(i, u.id); }
+    } else if (this.linePicked !== null) {
+      const u = LINE_UPGRADES.find(u => u.id === this.linePicked), p = u ? sim.linePrice(u.id) : undefined;
+      if (u && p !== undefined) { id = u.id; name = u.max > 1 ? `${u.name} ${g.line[u.id] + 1} of ${u.max}` : u.name; adds = p ? u.desc : 'The unit waiting in Stockport’s sidings goes into service'; price = p; can = g.cash >= p; }
+    }
+    const show = !!id && !this.sheet.docked && this.sheet.at === 'peek';
+    if (buybar.hidden === show) { buybar.hidden = !show; this.els.buybar.parentElement?.classList.toggle('buying', show); this.sheet.fit(); }
+    if (!show) return;
+    if (barName.textContent !== name) barName.textContent = name;
+    if (barAdds.textContent !== adds) barAdds.textContent = adds;
+    const txt = can ? `Buy · ${price ? fmt(price) : 'Free'}` : `${fmt(price - g.cash)} to go`;
+    if (barBuy.textContent !== txt) barBuy.textContent = txt;
+    barBuy.disabled = !can; barBuy.dataset['for'] = id;
+  }
 
   buildAll(): void { this.buildStrip(); this.buildPanel(); this.buildLinePanel(); }
   buildStrip(): void {
     const { strip } = this.els, g = this.g; strip.innerHTML = '';
     this.sim.S.forEach((s, i) => {
+      // a chip: the name and the waiting count, or fogged with the price; the next station to buy fills a meter
+      const next = !g.owned[i] && (i === 0 || !!g.owned[i - 1]) && !this.sim.stationNeeds(i);
       const b = document.createElement('button'); b.className = 'card' + (g.owned[i] ? '' : ' lock'); b.setAttribute('aria-pressed', String(i === this.selected));
-      b.innerHTML = `<div class="mi">${milesFrom(s.miles)}</div><div class="nm">${s.name}</div><div class="st" data-st="${i}"></div>`;
+      b.innerHTML = `<span class="nm">${s.name.replace('Manchester ', '')}</span><span class="st" data-st="${i}"></span>${next ? `<meter min="0" max="${this.sim.stationPrice(i)}" value="0" data-sm="${i}"></meter>` : ''}`;
+      b.setAttribute('aria-label', `${s.name}, ${milesFrom(s.miles)}`);
       b.addEventListener('click', () => this.select(i)); strip.appendChild(b);
     });
     this.updateStrip();
@@ -97,6 +149,7 @@ export class UI {
       const i = +(el.dataset['st'] ?? -1), S = g.st[i], s = this.sim.S[i]; if (!S || !s) return;
       const txt = g.owned[i] ? `${S.waiting} waiting` : fmt(this.sim.stationPrice(i)); if (el.textContent !== txt) el.textContent = txt;
     });
+    this.els.strip.querySelectorAll<HTMLMeterElement>('[data-sm]').forEach(m => { const v = String(Math.max(0, Math.floor(g.cash))); if (m.getAttribute('value') !== v) m.setAttribute('value', v); });
   }
   buildPanel(): void {
     const i = this.selected, s = this.sim.station(i), g = this.g, panel = this.els.panel;
@@ -104,8 +157,7 @@ export class UI {
     if (!g.owned[i]) {
       const blocked = i > 0 && !g.owned[i - 1], needs = this.sim.stationNeeds(i);
       const label = blocked ? 'Buy the stations before it first' : needs ? `Needs ${needs.station.name}'s ${needs.name}` : `Buy as a halt · ${fmt(this.sim.stationPrice(i))}`;
-      panel.innerHTML = `<h2>${s.name} <small>${milesFrom(s.miles)} from Stockport · locked</small></h2>
-        <p class="blurb">${BLURB[s.id] || ''}</p>
+      panel.innerHTML = `<p class="blurb">${BLURB[s.id] || ''}</p>
         <button class="buy" id="buyStation" ${this.sim.canBuyStation(i) ? '' : 'disabled'}>${label}</button>`;
       panel.querySelector('#buyStation')?.addEventListener('click', () => { if (this.sim.buyStation(i)) { this.toast(`${s.name} is yours. Trains now call here.`); this.buildStrip(); this.buildPanel(); this.buildLinePanel(); this.on.changed(); } });
       return;
@@ -114,9 +166,11 @@ export class UI {
     // there's a car park or bus link
     const b = this.sim.ups(i), cab = (this.sim.state(i).cabs.length ? '<div><small>By cab</small><b id="pCab"></b></div>' : '')
       + (b.carpark ? '<div><small>By car</small><b id="pCar"></b></div>' : '') + (b.bus ? '<div><small>By bus</small><b id="pBus"></b></div>' : '');
-    panel.innerHTML = `<h2>${s.name} <small>${milesFrom(s.miles)}</small></h2>
-      <div class="stats"><div><small>Homes</small><b id="pHomes"></b></div><div><small>Waiting</small><b id="pWait"></b></div><div><small>Boarded</small><b id="pBoard"></b></div><div><small>Arrived</small><b id="pOff"></b></div><div><small>Revenue</small><b id="pRev"></b></div><div><small>Gave up</small><b id="pLost"></b></div><div><small>Changed</small><b id="pChg"></b></div>${cab}</div>
+    // the four that matter now in a row; the rest behind More
+    panel.innerHTML = `<div class="stats four"><div><small>Waiting</small><b id="pWait"></b></div><div><small>Boarded</small><b id="pBoard"></b></div><div><small>Revenue</small><b id="pRev"></b></div><div><small>Gave up</small><b id="pLost"></b></div></div>
+      <details class="more"${this.more ? ' open' : ''}><summary>More</summary><div class="stats"><div><small>Homes</small><b id="pHomes"></b></div><div><small>Arrived</small><b id="pOff"></b></div><div><small>Changed</small><b id="pChg"></b></div>${cab}</div></details>
       <div class="ups" id="ups"></div>`;
+    panel.querySelector('details')?.addEventListener('toggle', e => { this.more = (e.target as HTMLDetailsElement).open; });
     // what can be built next, a card each, and what's built, in one line; the rest stays hidden until it's reachable
     const ups = panel.querySelector('#ups'), bought = this.sim.ups(i), sim = this.sim, done: [string, string][] = [];
     for (const u of sim.visibleUpgrades(i)) {
@@ -136,7 +190,7 @@ export class UI {
       d.querySelector('.pick')?.addEventListener('click', () => this.pick(this.picked === u.id ? null : u.id));
       d.querySelector('.buyup')?.addEventListener('click', () => {
         if (!sim.buyUpgrade(i, u.id)) return;
-        this.picked = null; this.toast(`${name} built at ${s.name}`); this.buildPanel(); this.buildLinePanel(); this.on.built(i, u.id); this.on.changed();
+        this.picked = null; this.toast(`${name} built at ${s.name}`); this.buildPanel(); this.buildLinePanel(); this.updateBar(); this.on.built(i, u.id); this.on.changed();
       });
       ups?.appendChild(d);
     }
@@ -154,13 +208,15 @@ export class UI {
   pick(id: string | null): void {
     if (this.picked === id) return;
     if (id !== null && this.linePicked !== null) { this.linePicked = null; this.markLinePicked(); }
-    this.picked = id; this.markPicked(); this.on.preview(this.selected, id);
+    this.picked = id; this.markPicked(); this.on.preview(this.selected, id); this.sink(id);
   }
+  /** A card picked in portrait sinks the sheet to its peek, where the Buy bar holds it, so its ghost is in open map. */
+  private sink(id: string | null): void { if (id !== null && !this.sheet.docked) this.sheet.to('peek'); this.updateBar(); }
   /** Choose a line upgrade card (or none): the map shows what it's about. */
   pickLine(id: string | null): void {
     if (this.linePicked === id) return;
     if (id !== null) this.pick(null);
-    this.linePicked = id; this.markLinePicked(); this.on.showLine(id);
+    this.linePicked = id; this.markLinePicked(); this.on.showLine(id); this.sink(id);
   }
   markPicked(): void { mark(this.els.panel, 'pick', this.picked); }
   markLinePicked(): void { mark(this.els.linePanel, 'lpick', this.linePicked); }
@@ -205,7 +261,7 @@ export class UI {
       d.querySelector('.pick')?.addEventListener('click', () => this.pickLine(this.linePicked === u.id ? null : u.id));
       d.querySelector('.buyup')?.addEventListener('click', () => {
         if (!sim.buyLine(u.id)) return;
-        this.linePicked = null; this.toast(`${step(u, lvl)}: done`); this.buildLinePanel(); this.on.showLine(u.id, true); this.on.changed();
+        this.linePicked = null; this.toast(`${step(u, lvl)}: done`); this.buildLinePanel(); this.updateBar(); this.on.showLine(u.id, true); this.on.changed();
       });
       holder?.appendChild(d);
     }
@@ -248,7 +304,7 @@ export class UI {
     if (this.els.clock.textContent !== ck) { this.els.clock.textContent = ck; this.els.clock.title = fast ? 'The night passes quickly' : ''; }
     const i = this.selected, sub = `${milesFrom(this.sim.station(i).miles)} · ${g.owned[i] ? `${g.st[i]?.waiting ?? 0} waiting` : fmt(this.sim.stationPrice(i))}`;
     if (this.els.shSub.textContent !== sub) this.els.shSub.textContent = sub;
-    this.updateStrip(); this.updatePanel(); this.updateLinePanel();
+    this.updateStrip(); this.updatePanel(); this.updateLinePanel(); this.updateBar();
   }
 }
 /** A card's line saying what it saves in minutes, from the reach, or nothing. */

@@ -3,7 +3,8 @@
 // draws its parts on the map as a ghost (window.__view.preview counts them), tapping it again clears the ghost; buying
 // it makes its parts rise into place (window.__view.rising) and settle within about a second, and its name moves to
 // the Built line, where tapping its chip frames what it built (window.__view.framed counts framings) with no ghost.
-// One phone page (320 px, touch) and one desktop page.
+// On the phone, picking a card sinks the sheet to its peek with a Buy bar (its Buy is the bar's). One phone page (320 px,
+// touch) and one desktop page.
 import { reveal } from '../reveal.mjs';
 export default async function ({ ok, open }) {
   for (const [w, h, touch] of [[320, 568, true], [1280, 800, false]]) {
@@ -23,7 +24,9 @@ export default async function ({ ok, open }) {
     ok(`preview: at ${w}×${h} each reachable upgrade is a card with its price, and one out of reach says how much to go`, !bad1.length, bad1.join('; '));
 
     await tap('[data-pick="crossing"]'); await page.waitForFunction(() => (window.__view?.preview ?? 0) > 0, null, { timeout: 60000 }).catch(() => {});
-    const on = await page.evaluate(() => ({ n: window.__view?.preview ?? 0, sel: !!document.querySelector('.ucard.sel[data-card="crossing"]') }));
+    const on = await page.evaluate(() => ({ n: window.__view?.preview ?? 0, sel: !!document.querySelector('.ucard.sel[data-card="crossing"]'), at: document.getElementById('sheet').dataset.at, bar: !document.getElementById('buybar').hidden && document.getElementById('barName').textContent }));
+    const sunk = touch && w < 600 ? on.at === 'peek' && /Subway/.test(on.bar || '') : on.at === 'docked' && !on.bar;
+    ok(`preview: at ${w}×${h} picking a card ${touch && w < 600 ? 'sinks the sheet to its peek with a Buy bar' : 'leaves the docked sheet as it is'}`, sunk, JSON.stringify(on));
     await tap('[data-pick="crossing"]'); await page.waitForFunction(() => window.__view?.preview === 0, null, { timeout: 60000 }).catch(() => {});
     const off = await page.evaluate(() => ({ n: window.__view?.preview ?? -1, sel: !!document.querySelector('.ucard.sel') }));
     ok(`preview: at ${w}×${h} tapping a card draws its parts as a ghost on the map, and tapping it again clears it`, on.n > 0 && on.sel && off.n === 0 && !off.sel, `on ${JSON.stringify(on)}, off ${JSON.stringify(off)}`);

@@ -62,7 +62,7 @@ declare global {
      * times the camera has framed something (a card's parts, a Built chip's, a train). */
     __view?: { perf?: () => { calls: number; triangles: number; geometries: number; textures: number; programs: number; meshes: number; casters: number; first: number; frames: number; sim: number; sync: number; draw: number }; reach?: () => { now: number[]; target: number[]; ghosts: number; minutes: boolean }; homes?: () => { shown: number[]; room: number[]; rising: number }; preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean }; life?: () => { cases: number; bikes: number; figures: number; shadows: boolean; ratio: number; heard: { running: boolean; brakes: number; departs: number; calls: number; birds: number }; pools: number; lamplight: number; works: [number, number] | null; beacons: number; expresses: number };
       camera?: () => import('./render/camera.ts').Orbit & { above: number; fromLine: number; flying: boolean; riding: number; moves: number; compass: boolean; along: number };
-      spot?: (kind: 'station' | 'train', i: number) => [number, number] | null; open?: () => { x: number; y: number; w: number; h: number }; under?: (x: number, y: number) => [number, number] | null;
+      spot?: (kind: 'station' | 'train' | 'ghost', i: number) => [number, number] | null; open?: () => { x: number; y: number; w: number; h: number }; under?: (x: number, y: number) => [number, number] | null;
       weather?: () => { now: string; rain: number; snow: number; fog: number; cover: number; wet: number; settle: number; season: number; falling: boolean; brollies: number; trees: number; fogFar: number; patter: number } };
   }
 }
@@ -148,11 +148,16 @@ Object.assign(view, { camera: () => {
   const p = camera.position, n = net.place(SPINE, mainLine.nearest(rig.o.tx, rig.o.tz), 0, newFrame());
   return { ...rig.o, above: p.y - groundAt(p.x, p.z), fromLine: Math.hypot(rig.o.tx - n.x, rig.o.tz - n.z), flying: !!rig.tween, riding: rig.riding ? trains.meshes.indexOf(rig.riding as THREE.Group) : -1, moves: rig.moves, compass: !compass.hidden, along: +glide.value };
 },
-  // where a station's label or a train stands on the screen, in client pixels (null off it), and the ground under a point
-  spot: (kind: 'station' | 'train', i: number) => {
-    const r = canvas.getBoundingClientRect(), o = kind === 'station' ? built[i]?.label : trains.meshes[i];
-    if (!o || (kind === 'train' && !o.visible)) return null;
-    if (kind === 'station') o.getWorldPosition(v3); else new THREE.Box3().setFromObject(o).getCenter(v3);
+  // where a station's label, a train or the middle of the last ghost framed stands on the screen, in client pixels (null
+  // off it), and the ground under a point
+  spot: (kind: 'station' | 'train' | 'ghost', i: number) => {
+    const r = canvas.getBoundingClientRect();
+    if (kind === 'ghost') { if (partBox.isEmpty()) return null; partBox.getCenter(v3); }
+    else {
+      const o = kind === 'station' ? built[i]?.label : trains.meshes[i];
+      if (!o || (kind === 'train' && !o.visible)) return null;
+      if (kind === 'station') o.getWorldPosition(v3); else new THREE.Box3().setFromObject(o).getCenter(v3);
+    }
     v3.project(camera); if (v3.z > 1 || Math.abs(v3.x) > 1 || Math.abs(v3.y) > 1) return null;
     return [r.left + (v3.x + 1) / 2 * r.width, r.top + (1 - v3.y) / 2 * r.height];
   },
@@ -233,7 +238,9 @@ playOffline(() => settings.offlineReady());
 // ---- the sheet: over the map's bottom in portrait, docked to its left on wider screens; the camera frames beside it ----
 const app = el('sheet').parentElement!, sheet = new Sheet(el('sheet'), el<HTMLButtonElement>('sheetHandle'), el('sheetGrip'));
 sheet.onCover = (left, bottom) => { rig.cover.left = left; rig.cover.bottom = bottom; app.style.setProperty('--cover-l', `${left}px`); app.style.setProperty('--cover-b', `${bottom}px`); };
-sheet.onMove = at => { app.dataset['sheet'] = sheet.docked ? 'docked' : at; };
+// (the UI is made further down: until then there's no Buy bar to show)
+let uiMade = false;
+sheet.onMove = at => { app.dataset['sheet'] = sheet.docked ? 'docked' : at; if (uiMade) ui.updateBar(); };
 sheet.fit(); sheet.onMove(sheet.at);
 // the Light button opens the light's slider in a popover
 const vLight = el<HTMLButtonElement>('vLight'), lightPop = el('lightPop');
@@ -263,7 +270,8 @@ function labels(): void {
 
 // ---- ui ----
 const els: Els = {
-  shName: el('shName'), shSub: el('shSub'), cash: el('cash'), clock: el('clock'), sp1: el('sp1'), sp3: el('sp3'), sp10: el('sp10'), vLine: el('vLine'),
+  shName: el('shName'), shSub: el('shSub'), tabStation: el('tabStation'), tabLine: el('tabLine'),
+  buybar: el('buybar'), barName: el('barName'), barAdds: el('barAdds'), barClose: el('barClose'), barBuy: el('barBuy'), cash: el('cash'), clock: el('clock'), sp1: el('sp1'), sp3: el('sp3'), sp10: el('sp10'), vLine: el('vLine'),
   toast: el('toast'), strip: el('strip'), panel: el('panel'), linePanel: el('linePanel'), reset: el('reset'),
   hour: el('hour'), hourLbl: el('hourLbl'), hourLive: el('hourLive'),
 };
@@ -277,7 +285,7 @@ function lineView(): void { const m = lineMiddle(); rig.focus(m.x, m.z, 10500, 0
 const ui = new UI(sim, els, {
   speed: s => { speed = s; ui.setSpeed(s); },
   viewLine: lineView,
-  focusStation: i => { if (sheet.at === 'peek') sheet.to('half'); const [x, z] = stationXZ(i); rig.focus(x, z, net.stations[i]?.id === 'piccadilly' ? 360 : 230); },
+  focusStation: i => { const [x, z] = stationXZ(i); rig.focus(x, z, net.stations[i]?.id === 'piccadilly' ? 360 : 230); },
   changed: () => persist(),
   preview: (i, id) => preview(i, id),
   built: (i, id) => showBuilt(i, id),
@@ -288,11 +296,12 @@ const ui = new UI(sim, els, {
   lockHour: h => { lockHour = h; ui.setLight(lockHour ?? sim.hour(), lockHour !== null); },
   reset: () => { startRun(); const [x, z] = stationXZ(0); rig.focus(x, z); },
   renew: () => renewal.open(career, sim.g, net.stations.map(s => s.id)),
-});
+}, sheet);
+uiMade = true;
 /** Start a run again from Stockport as a halt, with the career's perks: what was bought folds back down on the map. */
 function startRun(): void {
   store.wipe(); sim = new Sim(net, Sim.fresh(net, runSeed(), career.perks)); preview(null, null);
-  ui.sim = sim; ui.selected = 0; ui.picked = null; ui.linePicked = null; ui.buildAll(); plaque(); persist();
+  ui.sim = sim; ui.selected = 0; ui.picked = null; ui.linePicked = null; ui.buildAll(); ui.updateBar(); plaque(); persist();
 }
 /** The plaque by Stockport's entrance: the contract's number and a line for each renewed, once one has been. */
 function plaque(): void {

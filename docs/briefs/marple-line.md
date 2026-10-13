@@ -50,3 +50,16 @@ The session pushes each part to `main` once the rules, tests and its check group
 
 - Estimate: about $35 (a corridor and a junction from OpenStreetMap and the LIDAR, nine small station kits, census figures, a new service with two legs, the ground, and the balance).
 - Past twice the estimate: say why in the commit message and stop at the part you're on, leaving `main` playable.
+
+## Handed on
+
+Built 13 October 2026: the Marple line's and the Rose Hill branch's corridors, junctions and ground, with every line out laid like the spine (92ce2fc); then Ashburys, Belle Vue, Ryder Brow, Reddish North, Brinnington, Bredbury, Romiley, Marple and Rose Hill Marple as kits, with census figures, prices after Hazel Grove beside the Buxton line, the Marple and Rose Hill services out of Piccadilly, replacement buses' roads, and the bot's late-game baselines (the commit after it). The whole brief is done; what's left:
+
+- **Real buildings** along the Marple line and the Rose Hill branch, from the real surroundings' tool; they have stand-in houses today.
+- **Piccadilly's throat:** the real Hope Valley lines run beside the Longsight lines into platforms 1 to 4; here the Marple lines join the slow lines at Ardwick Junction and the line towards Manchester crosses the fast and up lines on the flat. Once Piccadilly is re-laid, give them their own pair in.
+- **Platform 5 at Piccadilly:** the Marple and Rose Hill trains turn in 1 and 2 once Piccadilly's platforms stage is built, and in the stopper's 5 before then, which the bot never builds, so over 16 sim hours more give up and the worst late running rises (9.5 to 17 minutes against 4 to 10.5). Left as the pressure the platforms stage relieves; the buying rethink may want the bot to see it.
+- **Frequency and speed:** one unit each, calling everywhere, at the line's 75 mph where the real line is 30 to 60 mph (the line between stations, step 11), and no trains beyond Marple (through running, step 4); a second unit is the owner's call.
+- **The rescue on a line out** is drawn from Piccadilly along the failed train's own track (view only), not from Stockport's sidings.
+- **Not looked at on screen:** the screenshots tool hung under this machine's load, so the nine kits were checked by the geometry and kits groups and their own clearance runs, not by eye. Worth a look at platform level, particularly Ashburys (only the Marple pair drawn), Brinnington (moved about 5 m across to OpenStreetMap's tracks) and Marple (the road bridge at the south end, as OpenStreetMap and the view from above have it, though the photo index says north).
+- **Romiley Junction** (the line from Woodley and Hyde) isn't marked: no line comes in there yet.
+- **The life group locally:** at 7284253 it stops once its 1280×800 page tries to tap 10× (`page.click: Timeout 30000ms`), where main passes; the button isn't covered at the start, so it's likely slower frames with the Marple line drawn under this machine's software rendering. If the Publish run's shard fails it too, look there first: what the extra kits, signals and ground cost at that size.

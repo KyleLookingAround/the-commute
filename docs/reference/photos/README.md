@@ -11,12 +11,27 @@ Photographs of the real stations, from several angles, for anyone building or ch
 
 ## Licences and credits
 
-- Every photo is freely licensed and credited in its station's `index.md`. Those from geograph.org.uk are © their photographers under [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/); reuse them with the photographer's name, the licence and a link to the source page.
+- Every photo is freely licensed and credited in its station's `index.md`. Those from geograph.org.uk are © their photographers under [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/); reuse them with the photographer's name, the licence and a link to the source page. Those from Wikimedia Commons carry the licence their `index.md` row gives (CC BY-SA 2.0, 3.0 or 4.0, CC BY, or public domain), with the same credit.
 - Only freely licensed photos are kept (CC BY, CC BY-SA, public domain). Where a licence was unclear, the photo was left out.
 
 ## Stations
 
-Today's line and the Buxton line are listed by their own section once added; the rest of phase 5:
+### Today's line
+
+| Station | Station photos | Round it |
+| --- | --- | --- |
+| [Stockport](stockport/index.md) | 8 | 6, and the Interchange, the town centre and the viaduct in `areas/` |
+| [Heaton Chapel](heaton-chapel/index.md) | 8 | 6 |
+| [Levenshulme](levenshulme/index.md) | 8 | 5 |
+| [Ardwick](ardwick/index.md) | 8 | 6 |
+| [Manchester Piccadilly](piccadilly/index.md) | 8 | 10, in `areas/piccadilly-approach` |
+| [Davenport](davenport/index.md) | 8 | 6 |
+| [Woodsmoor](woodsmoor/index.md) | 8 | 5 |
+| [Hazel Grove](hazel-grove/index.md) | 8 | 6 |
+
+The Buxton line beyond Hazel Grove is listed here once added.
+
+The other lines of phase 5:
 
 ### The Marple line
 
@@ -68,6 +83,11 @@ The bigger places have folders of their own under `areas/`, each with up to ten 
 
 | Area | Photos |
 | --- | --- |
+| [Stockport Interchange](areas/stockport-interchange/index.md): the bus station, Viaduct Park, the Helix, the flats and the link to the station | 10 |
+| [Stockport town centre](areas/stockport-town-centre/index.md): Mersey Square, the Plaza, Merseyway, Market Place, the Town Hall, Stockport Exchange, the Pyramid | 10 |
+| [Stockport Viaduct](areas/stockport-viaduct/index.md) | 10 |
+| [Piccadilly approach](areas/piccadilly-approach/index.md): Station Approach, Gateway House, London Road, Fairfield Street, the car park | 10 |
+| [The A6 beside the line](areas/a6/index.md), from Hazel Grove to Piccadilly, with the 192 | 12 |
 | [Marple town centre](areas/marple/index.md) | 10 |
 | [Wilmslow town centre](areas/wilmslow/index.md) | 10 |
 | [Manchester Airport station and its transport interchange](areas/manchester-airport-interchange/index.md) | 10 |

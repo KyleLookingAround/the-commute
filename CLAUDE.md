@@ -1,6 +1,6 @@
 # The Commute
 
-Station tycoon on one 3D map of the line from Stockport to Manchester Piccadilly: run Stockport, earn the fares, buy the next station up the line, and watch every purchase appear on the map. It's a static site: TypeScript built by Vite, a Three.js scene of the real line with stations built from data kits, HTML panels, and a pure simulation that runs the same in a test, in the bot and on the page. GitHub Actions publishes `dist/` to GitHub Pages on every push to `main` that can change it.
+Public transport tycoon on one 3D map of the real line from Stockport to Manchester Piccadilly and the network round it: run Stockport station, earn the fares, buy the next station up the line, then the line itself, the buses and the trams, and watch every purchase appear on the map. It's a static site: TypeScript built by Vite, a Three.js scene of the real line with stations built from data kits, HTML panels, and a pure simulation that runs the same in a test, in the bot and on the page. GitHub Actions publishes `dist/` to GitHub Pages on every push to `main` that can change it.
 
 These notes are the short core every session needs. The details live with their topic:
 
@@ -93,4 +93,5 @@ From the owner's other games and the brief for this one.
 - The player buys every upgrade themselves: no managers, advisor or recommended buys, at least for now (the owner, 11 October 2026).
 - Saves stay on the device.
 - It stays an incremental upgrade game: buy the next thing, unlock the next station.
+- All public transport is the game, not stations alone: the railway and the line between stations, buses, trams and the ways to reach them, with the car as the rival (the owner, 13 October 2026; `docs/decisions/ADR-2026-10-13-all-public-transport.md`).
 - Colourful and alive, not bleak: a model railway in daylight, with a real sky and a day that visibly turns.

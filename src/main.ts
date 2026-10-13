@@ -433,7 +433,7 @@ function frame(now: number): void {
   const dtGame = dt * GAME_PER_REAL * speed;
   sim.advance(dtGame);
   const t1 = performance.now();
-  resize(); rig.update(dt); pointNorth();
+  resize(); rig.update(dt, realDt); pointNorth();
   // the light follows the season: a long summer day, an early winter dusk
   const light = lighting(solarHour(lockHour ?? sim.hour(), yearAt(sim.g.t)), rig.o);
   sky.update(light.horizon, light.daylight, camera, dt);

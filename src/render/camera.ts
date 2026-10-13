@@ -193,10 +193,12 @@ export class OrbitRig {
     this.tween = { from: { ...o }, to, t: 0, dur: 0.7 + Math.min(1.1, dist / 5000), lift: Math.max(0, Math.min(6000, dist * 0.6 - Math.max(o.r, to.r))), keys };
   }
 
-  update(dt: number): void {
+  /** realDt: the frame's real time, uncapped, so a flight takes its time however slow the frames (under software
+   * rendering a frame can take seconds); everything else moves by dt. */
+  update(dt: number, realDt = dt): void {
     const o = this.o;
     if (this.tween) {
-      const tw = this.tween; tw.t = Math.min(1, tw.t + dt / tw.dur); const e = tw.t * tw.t * (3 - 2 * tw.t);
+      const tw = this.tween; tw.t = Math.min(1, tw.t + realDt / tw.dur); const e = tw.t * tw.t * (3 - 2 * tw.t);
       for (const k of tw.keys) o[k] = tw.from[k] + (tw.to[k] - tw.from[k]) * e;
       o.r += tw.lift * Math.sin(Math.PI * tw.t);
       if (tw.t >= 1) this.tween = null;

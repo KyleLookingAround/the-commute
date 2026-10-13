@@ -1,6 +1,6 @@
 // Everything bought shows on the map: at every station, each upgrade it offers has a kit part gated on it (alone, or with
 // others it needs), and every platform has a departure board (one at least for the halt, one with the second platform
-// where it's offered); and the hipped roofs on Davenport's, Hazel Grove's and Heaton Chapel's booking offices. No browser.
+// where it's offered); every station's kit is one the page loads (src/main.ts); and the hipped roofs on Davenport's, Hazel Grove's and Heaton Chapel's booking offices. No browser.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';
@@ -20,6 +20,9 @@ export default async function ({ ok, root }) {
     const bad = [!boards.some(g => !g.length) && 'no board on the halt', st.grow?.platform2 && !boards.some(g => g.includes('platform2')) && 'no board on the second platform'].filter(Boolean);
     ok(`kits: ${st.name} has departure boards on its platforms`, !bad.length, bad.join('; '));
   }
+  // the page builds the stations from the kits src/main.ts imports: one missing there and the page won't start
+  const main = readFileSync(join(root, 'src/main.ts'), 'utf8'), unlisted = net.stations.filter(st => !main.includes(`./data/kits/${st.kit}.json`)).map(st => st.kit);
+  ok('kits: the page loads every station\'s kit', !unlisted.length, unlisted.length ? 'not in src/main.ts: ' + unlisted.join(', ') : '');
   // the hipped roofs the photos show, on the buildings they're over, rather than flat ones
   const flat = [];
   for (const id of ['davenport', 'hazel-grove', 'heaton-chapel']) {

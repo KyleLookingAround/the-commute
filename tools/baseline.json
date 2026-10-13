@@ -28,6 +28,19 @@
     "by car": [300, 650],
     "by bus link": [100, 260]
   },
+  "long": {
+    "note": "The late game, proposed 13 October 2026 when the Buxton line came (docs/ROADMAP.md, phase 5 step 2): the bot on seeds 1-3 for 16 sim hours (about seven game days), held to these ranges when run with --hours 16. The 8-hour run never reaches Hazel Grove, so it plays exactly as before (every measure identical to main on seeds 1-3); over 16 hours Hazel Grove comes at 8.4-9.3 h as before, then Middlewood at 10.3-10.5 h, Disley at 12.2-12.5 h and New Mills Newtown at 14.8-15.0 h, priced on from Hazel Grove's 200,000 at 280,000, 380,000 and 500,000. They fill the late game's quiet: the longest stretch with nothing to buy falls from 4.9, 2.6 and 3.0 h to 1.1, 1.6 and 1.4 h, and the longest daytime one from 2.0 h to 1.1-1.5 h. The branch's one unit runs further as each is bought, so its trains come less often: earned a game day 2% under main (341,000 against 353,000 on average), the new stations small (Middlewood 34 homes, Disley 50, New Mills Newtown 9, most of New Mills taking New Mills Central).",
+    "hours": 16,
+    "ranges": {
+      "owns:piccadilly": [4.5, 8],
+      "owns:hazel-grove": [7.5, 10.5],
+      "owns:middlewood": [9.5, 11.5],
+      "owns:disley": [11.3, 13.5],
+      "owns:new-mills-newtown": [13.8, 16],
+      "longest quiet hours": [0.5, 2.0],
+      "longest daytime quiet": [0.3, 1.8]
+    }
+  },
   "contract": {
     "note": "Contract renewal (docs/DESIGN.md, Contract renewal), proposed 12 October 2026: the bot on seeds 1-3 with --runs 2 renews as soon as it owns Piccadilly, banks the reputation and buys perks in its order (tools/bot.mjs, PERKS), then plays the same seed again with them. A first run banks 62, 62, 64 and buys Framework contractor, Signposting and A unit in the sidings; the second run reaches Piccadilly at 4.08, 4.07, 4.82 h against 5.82, 5.92, 5.85 (26% sooner, the brief's target being about a quarter), Heaton Chapel at 0.25 h against 0.63 and Levenshulme at 0.98 against 1.93. A run with no perks plays exactly as before. Renewing as soon as it can banks less each time (quicker runs carry fewer people), so five contracts in a row level off at 3.6 h to Piccadilly (39% sooner) with Heaton Chapel at 0.17 h.",
     "runs": 2,

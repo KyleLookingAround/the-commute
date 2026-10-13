@@ -171,15 +171,16 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (runCount > 1) { contracts(); process.exit(0); }
   const runs = seeds.map(s => play(s));
   for (const r of runs) { delete r.sim; console.log(`SEED ${r.seed}`); console.log('REACHED ' + JSON.stringify(r.reached)); console.log('MEASURES ' + JSON.stringify(r.measures)); console.log('PEAKS ' + JSON.stringify(r.peaks)); console.log('PLATFORMS ' + JSON.stringify(Object.fromEntries(Object.entries(r.used).sort()))); console.log('PLAY ' + r.play); }
-  const keys = Object.keys(baseline.ranges);
+  // a run as long as the baseline's long one (the late game) is held to its ranges, the rest to the 8-hour ones
+  const ranges = baseline.long && hours === baseline.long.hours ? baseline.long.ranges : baseline.ranges, keys = Object.keys(ranges);
   console.log(`\n| Milestone or measure (${hours} game hours) | Range | ${runs.map(r => 'seed ' + r.seed).join(' | ')} | Mean | Band |`);
   console.log(`| --- | --- | ${runs.map(() => '---').join(' | ')} | --- | --- |`);
   let off = 0;
   for (const k of keys) {
     const vals = runs.map(r => r.reached[k] !== undefined ? r.reached[k] : r.measures[k]);
     const nums = vals.filter(v => typeof v === 'number'), mean = nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : undefined;
-    const b = band(mean, baseline.ranges[k]); if (b === 'off') off++;
-    console.log(`| ${k} | ${baseline.ranges[k].join('–')} | ${vals.map(v => v === undefined ? 'none' : v).join(' | ')} | ${mean === undefined ? 'none' : +mean.toFixed(1)} | ${b} |`);
+    const b = band(mean, ranges[k]); if (b === 'off') off++;
+    console.log(`| ${k} | ${ranges[k].join('–')} | ${vals.map(v => v === undefined ? 'none' : v).join(' | ')} | ${mean === undefined ? 'none' : +mean.toFixed(1)} | ${b} |`);
   }
   // the peaks, mean of the seeds: who gave up at each station (and how many of them took a cab), and how late
   // main-line trains left their stops

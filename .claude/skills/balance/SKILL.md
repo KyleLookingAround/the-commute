@@ -42,7 +42,7 @@ Make the change and run the same three seeds into `build/after.log`.
 
 ## Baselines
 
-`tools/baseline.json` holds the ranges. They are **proposed**, not yet agreed: its note says when and why each was set, and the owner agrees ranges when the pacing is settled. Hours are sim hours.
+`tools/baseline.json` holds the ranges: `ranges` for the 8-hour run, and `long` for the late game (`--hours 16`: when the bot reaches the Buxton line's stations, and the longest quiet stretches). They are **proposed**, not yet agreed: its note says when and why each was set, and the owner agrees ranges when the pacing is settled. Hours are sim hours.
 
 | Milestone or measure | Range | Seeds 1, 2, 3 (12 October 2026, shorter days and quick nights: 8 sim hours are 3.42 game days) |
 | --- | --- | --- |

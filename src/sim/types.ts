@@ -76,6 +76,8 @@ export interface Access { drive: number; driveTime: number; driveR: number; bus:
 export interface ServiceDef {
   id: string; name: string; operator: string; tracks: { north: string[]; south: string[] };
   calls: string | string[]; cars: number; scenery?: boolean; route?: string[]; home?: string;
+  /** Where its calling pattern or route comes from, and what's a game choice. */
+  note?: string;
   /** The platforms it uses at each station, preferred first; a station not listed: whichever face is its way. A `turn`
    * list is shared out by unit (the first unit the first platform, the second the next), so each one built is used. */
   platforms?: Record<string, ServicePlatforms | undefined>;

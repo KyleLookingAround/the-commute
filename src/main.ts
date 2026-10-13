@@ -9,6 +9,9 @@ import kitPiccadilly from './data/kits/piccadilly.json';
 import kitDavenport from './data/kits/davenport.json';
 import kitWoodsmoor from './data/kits/woodsmoor.json';
 import kitHazelGrove from './data/kits/hazel-grove.json';
+import kitMiddlewood from './data/kits/middlewood.json';
+import kitDisley from './data/kits/disley.json';
+import kitNewMills from './data/kits/new-mills-newtown.json';
 import { SPINE, fromGeo, newFrame } from './sim/network.ts';
 import { Sim, TUNING } from './sim/sim.ts';
 import type { NetworkGeoDef } from './sim/types.ts';
@@ -77,6 +80,7 @@ const networkDef: NetworkGeoDef = {
 const kits: Record<string, Kit> = {
   stockport: kitStockport as Kit, 'heaton-chapel': kitHeaton as Kit, levenshulme: kitLevenshulme as Kit, ardwick: kitArdwick as Kit, piccadilly: kitPiccadilly as Kit,
   davenport: kitDavenport as Kit, woodsmoor: kitWoodsmoor as Kit, 'hazel-grove': kitHazelGrove as Kit,
+  middlewood: kitMiddlewood as Kit, disley: kitDisley as Kit, 'new-mills-newtown': kitNewMills as Kit,
 };
 const net = fromGeo(networkDef);
 

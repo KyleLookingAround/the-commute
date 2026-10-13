@@ -380,7 +380,21 @@ test('halt: a bought station is one platform one way, until its second platform'
 test('halt: Piccadilly as a halt is the platform trains leave from, and offers only its own stages', () => {
   const sim = new Sim(net()), pic = sim.net.station('piccadilly').index;
   assert.equal(sim.haltDir(pic), 1);
-  assert.deepEqual(sim.visibleUpgrades(pic).filter(u => u.stage).map(u => u.id), ['building', 'taxi', 'carpark']);
+  // the car park waits on the concourse (the folds, docs/design/buying.md)
+  assert.deepEqual(sim.visibleUpgrades(pic).filter(u => u.stage).map(u => u.id), ['building', 'taxi']);
+});
+
+test('the folds: the kiosk comes with the booking office at the price of both, the car park waits on the booking office and longer platforms on the second platform', () => {
+  const sim = new Sim(net(), Sim.fresh(net(), 3)), shown = () => sim.visibleUpgrades(0).map(u => u.id);
+  sim.g.cash = 1e6;
+  assert.ok(!shown().includes('kiosk') && !shown().includes('carpark') && !shown().includes('extend'), shown().join(','));
+  const before = sim.g.cash; assert.ok(sim.buyUpgrade(0, 'building'));
+  assert.equal(before - sim.g.cash, 4500, 'the booking hall with its kiosk');
+  assert.ok(sim.ups(0).kiosk, 'the kiosk is built with it');
+  assert.ok(!sim.buyUpgrade(0, 'kiosk'), 'and is no stage of its own');
+  assert.ok(shown().includes('carpark') && !shown().includes('extend'));
+  assert.ok(sim.buyUpgrade(0, 'crossing') && sim.buyUpgrade(0, 'platform2'));
+  assert.ok(shown().includes('extend'));
 });
 
 test('taxi rank: some who give up take a cab while one is in, earning a cut; the rest are lost; cabs come back', () => {

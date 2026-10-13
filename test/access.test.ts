@@ -29,7 +29,9 @@ test('access: no pool travels until a car park or bus link is built, and nothing
 
 test('access: a car park fills over the morning, charges each car, turns the rest away once full, and empties by night', () => {
   const sim = built(), S = sim.state(0), cash = sim.g.cash;
-  assert.ok(sim.buyUpgrade(0, 'carpark'));
+  // the car park waits on the booking hall (the folds, docs/design/buying.md)
+  assert.ok(!sim.buyUpgrade(0, 'carpark'), 'not before the booking hall');
+  assert.ok(sim.buyUpgrade(0, 'building') && sim.buyUpgrade(0, 'carpark'));
   assert.equal(parked(S), 0, 'it opens empty');
   const cap = spaces(sim, 0); assert.ok(cap > 0);
   // from 06:30 to midday by the clock
@@ -56,6 +58,6 @@ test('access: the Interchange brings people by bus and its buses reach further',
 });
 
 test('access: the same seed gives the same game with car parks and buses', () => {
-  const run = () => { const sim = built(7); sim.buyUpgrade(0, 'carpark'); sim.buyUpgrade(0, 'bus'); sim.advance(3600); return JSON.stringify(sim.g); };
+  const run = () => { const sim = built(7); sim.buyUpgrade(0, 'building'); sim.buyUpgrade(0, 'carpark'); sim.buyUpgrade(0, 'bus'); sim.advance(3600); return JSON.stringify(sim.g); };
   assert.equal(run(), run());
 });

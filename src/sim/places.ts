@@ -18,19 +18,20 @@ export interface Upgrade { id: UpgradeId; name: string | null; price: number; de
 /** A stage bought more than once, on a route or a depot: its price each time, up to max. */
 export interface LineUpgrade { id: LineUpgradeId; name: string; prices: number[]; desc: string; max: number }
 
-// a station's stages, in the order it grows: a bought station is a halt (one platform, one line) and these build it up
+// a station's stages, in the order it grows: a bought station is a halt (one platform, one line) and these build it up.
+// The kiosk is folded into the booking office (docs/design/buying.md, Today's upgrades, mapped): it comes with it, at
+// the price of both, and `derive` reads it as built once the booking office is, so the kits' kiosks still show
 export const UPGRADES: Upgrade[] = [
   { id: 'crossing', name: null, price: 2000, desc: 'The far side walks across, not round: 5 min off their walk', stage: true },
   { id: 'platform2', name: null, price: 3500, desc: 'Trains call both ways, so the crowd going home too', requires: ['crossing'], stage: true },
-  { id: 'building', name: null, price: 3000, desc: '90% of fares collected (82% at a halt)', stage: true },
+  { id: 'building', name: null, price: 4500, desc: '90% of fares collected (82% at a halt), and +£0.35 per boarding passenger at its kiosk', stage: true },
   { id: 'taxi', name: null, price: 1200, desc: 'Cabs take some who’d give up on the train: a cut of each fare', stage: true },
-  { id: 'carpark', name: null, price: 4000, desc: 'Drivers from beyond a walk park and ride, while there are spaces: a charge a car', stage: true },
+  { id: 'carpark', name: null, price: 4000, desc: 'Drivers from beyond a walk park and ride, while there are spaces: a charge a car', requires: ['building'], stage: true },
   { id: 'carpark2', name: null, price: 7000, desc: 'More spaces, so the car park fills later', requires: ['carpark'], stage: true },
   { id: 'bus', name: null, price: 3000, desc: 'Buses bring people from beyond a walk', stage: true, stop: true },
-  { id: 'kiosk', name: 'Kiosk', price: 1500, desc: '+£0.35 per boarding passenger' },
   { id: 'canopy', name: 'Canopy', price: 2500, desc: 'Waiting in the dry feels a quarter shorter' },
   { id: 'barriers', name: 'Ticket barriers', price: 4000, desc: 'Collect every fare', requires: ['building'] },
-  { id: 'extend', name: 'Platform extension', price: 5000, desc: 'Platform holds 320 instead of 150' },
+  { id: 'extend', name: 'Platform extension', price: 5000, desc: 'Platform holds 320 instead of 150', requires: ['platform2'] },
   { id: 'lifts', name: 'Lifts', price: 6000, desc: 'Step-free: 3 min off the far side’s walk, 1 off everyone’s', requires: ['crossing'] },
   { id: 'retail', name: null, price: 9000, desc: '+£0.80 per boarding passenger', requires: ['building'] },
   { id: 'platforms', name: null, price: 30000, desc: '+20% catchment', requires: ['platform2', 'building'], stage: true },
@@ -198,13 +199,15 @@ export function build(g: GameState, id: string, stage?: string): void {
 }
 
 /** Work out, from `places`, what the rest of the sim and the view read (GameState.owned, ups and line), as fixed
- * values that aren't saved: each station owned, its stages built and `bus` once the stop by it is, and the stopper's and
+ * values that aren't saved: each station owned, its stages built (the kiosk with the booking office) and `bus` once the stop by it is, and the
+ * stopper's and
  * the sidings' stages. Called whenever `places` changes. */
 export function derive(g: GameState, P: Places): GameState {
   const owned = Object.freeze(P.station.map(id => id in g.places));
   const ups = Object.freeze(P.station.map((id, i) => {
     const r = g.places[id], o: Partial<Record<UpgradeId, boolean>> = {};
     if (r) for (const k in r) if (r[k]) o[k as UpgradeId] = true;
+    if (o.building) o.kiosk = true;
     const s = P.stopOf[i]; if (s && s in g.places) o.bus = true;
     return Object.freeze(o);
   }));

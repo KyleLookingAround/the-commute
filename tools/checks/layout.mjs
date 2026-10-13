@@ -21,7 +21,7 @@ export default async function ({ ok, open, out }) {
       const box = s => { const e = document.querySelector(s); if (!e || !e.getClientRects().length) return null; const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, r: b.right, b: b.bottom }; };
       const de = document.documentElement;
       return { stage: box('.stage'), strip: box('.strip'), sheet: box('#sheet'), at: document.getElementById('sheet')?.dataset.at, cards1: box('#strip .card'), cash: (document.getElementById('cash') || {}).textContent, clock: (document.getElementById('clock') || {}).textContent,
-        sw: de.scrollWidth, cw: de.clientWidth, canvas: !!document.querySelector('canvas'), cards: document.querySelectorAll('.card').length };
+        sw: de.scrollWidth, cw: de.clientWidth, canvas: !!document.querySelector('canvas'), cards: document.querySelectorAll('#strip .card .st[data-st]').length };
     });
     const docked = w >= 600 || w > h, inView = b => !!b && b.x >= -0.5 && b.y >= -0.5 && b.r <= w + 0.5 && b.b <= h + 0.5;
     const bad = [!m.stage && 'no stage', m.stage && (Math.abs(m.stage.x) > 0.5 || Math.abs(m.stage.y) > 0.5 || Math.abs(m.stage.r - w) > 0.5 || Math.abs(m.stage.b - h) > 0.5) && 'the map does not fill the screen',

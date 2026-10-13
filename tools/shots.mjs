@@ -264,7 +264,8 @@ async function auditShots(only) {
   await shoot('', { save: day, size: small, ui: async page => {
     await page.waitForTimeout(3000); await snap(page, 'full-game-peek');
     await tap(page, '#sheetHandle'); await snap(page, 'full-game-half');
-    await page.evaluate(() => document.getElementById('tabLine')?.click()); await page.waitForTimeout(1000); await snap(page, 'full-game-line');
+    await page.evaluate(() => document.querySelector('#strip [data-place="route:stopper"]')?.click()); await page.waitForTimeout(1000); await snap(page, 'full-game-line');
+    await page.evaluate(() => document.getElementById('cash')?.click()); await page.waitForTimeout(1000); await snap(page, 'full-game-network');
     await tap(page, '#renew'); await snap(page, 'contract');
   } });
   said('ui');

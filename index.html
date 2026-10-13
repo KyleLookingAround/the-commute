@@ -28,7 +28,7 @@
   </div>
 
   <header class="top">
-    <div class="pill cash" id="cash">£3,000</div>
+    <button class="pill cash" id="cash" title="The network">£3,000</button>
     <div class="pill" id="clock">Day 1 · 06:30</div>
     <span class="top-gap"></span>
     <button id="vSet" class="rb vset" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg></button>
@@ -43,7 +43,7 @@
   </nav>
   <div class="daylight" id="lightPop" role="group" aria-label="Light" hidden><input id="hour" type="range" min="0" max="24" step="0.25" value="6.5" aria-label="Time of day for the light"><span id="hourLbl">06:30</span><button id="hourLive" hidden>Live</button></div>
 
-  <section class="sheet" id="sheet" data-at="peek" aria-label="Stations and the line">
+  <section class="sheet" id="sheet" data-at="peek" aria-label="Places">
     <div class="sh-grip" id="sheetGrip">
       <button class="sh-handle" id="sheetHandle" aria-expanded="false"><i aria-hidden="true"></i><b id="shName">Stockport</b><small id="shSub"></small></button>
       <div class="seg speed" role="group" aria-label="Speed"><button id="sp1" aria-pressed="true">1×</button><button id="sp3" aria-pressed="false">3×</button><button id="sp10" aria-pressed="false">10×</button></div>
@@ -53,10 +53,8 @@
       <input class="glide" id="glide" type="range" step="10" aria-label="Glide along the line, from Hazel Grove to Manchester">
       <div class="strip" id="strip"></div>
     </div>
-    <div class="sh-tabs" role="tablist" aria-label="Show"><button id="tabStation" role="tab" aria-selected="true" aria-controls="panel">Station</button><button id="tabLine" role="tab" aria-selected="false" aria-controls="linePanel">Line</button></div>
     <div class="sh-body" id="sheetBody">
       <div class="panel" id="panel"></div>
-      <div class="panel" id="linePanel" hidden></div>
     </div>
   </section>
 </div>

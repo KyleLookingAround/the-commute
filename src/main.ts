@@ -51,9 +51,9 @@ import { fullScreen } from './ui/fullscreen.ts';
 import { playOffline } from './app/offline.ts';
 import { loadPrefs, savePrefs, type Prefs } from './app/prefs.ts';
 import { UI, fmt } from './ui/panel.ts';
+import type { ContractSheet } from './ui/contract.ts';
 import type { Els } from './ui/panel.ts';
 import { wireSaves, wireStartOver } from './ui/saves.ts';
-import { ContractSheet } from './ui/contract.ts';
 import { Sheet } from './ui/sheet.ts';
 import { EdgeMarkers } from './ui/edges.ts';
 import { careerEmpty, freshCareer, reputation } from './sim/contract.ts';
@@ -229,6 +229,23 @@ function showLine(id: string | null, bought = false): void {
   sim.g.trains.forEach((tr, j) => { if (tr.svc !== main?.id) return; if (k < 0 || (id === 'units' && bought ? j > k : Math.abs(tr.s - home) < Math.abs(sim.g.trains[k]!.s - home))) k = j; });
   const m = trains.meshes[k]; if (m) frameBox(trainBox.setFromObject(m));
 }
+/** Put the camera on a place that isn't a station: a train service's unit nearest its home, the unit in the sidings
+ * (or Stockport, with none there), the bays of a bus stop. */
+function focusPlace(id: string): void {
+  preview(null, null);
+  const p = sim.P.byId.get(id); if (!p) return;
+  if (p.kind === 'stop') { const b = built[p.station!], box = b ? partsBox(b, sim.ups(p.station!), 'bus', partBox) : null; if (box) frameBox(box, 60); return; }
+  if (p.kind === 'depot') {
+    const u = trains.spare.visible ? trains.spare : trains.stabled.visible ? trains.stabled : null;
+    if (u) frameBox(trainBox.setFromObject(u), 60); else { const [x, z] = stationXZ(p.station!); rig.focus(x, z); }
+    return;
+  }
+  if (p.kind !== 'route') return;
+  const v = sim.svc(p.svc!), home = sim.station(v.home ?? v.route[0]!).s;
+  let k = -1;
+  sim.g.trains.forEach((tr, j) => { if (tr.svc === v.id && (k < 0 || Math.abs(tr.s - home) < Math.abs(sim.g.trains[k]!.s - home))) k = j; });
+  const m = trains.meshes[k]; if (m?.visible) frameBox(trainBox.setFromObject(m));
+}
 const sky = new Sky(scene, sun, lineMiddle());
 const weather = new WeatherLayer(scene, net, world);
 if (window.__weather) weather.settled(window.__weather);
@@ -332,9 +349,9 @@ function labels(): void {
 
 // ---- ui ----
 const els: Els = {
-  shName: el('shName'), shSub: el('shSub'), tabStation: el('tabStation'), tabLine: el('tabLine'),
+  shName: el('shName'), shSub: el('shSub'),
   buybar: el('buybar'), barName: el('barName'), barAdds: el('barAdds'), barClose: el('barClose'), barBuy: el('barBuy'), cash: el('cash'), clock: el('clock'), sp1: el('sp1'), sp3: el('sp3'), sp10: el('sp10'), vLine: el('vLine'),
-  toast: el('toast'), strip: el('strip'), panel: el('panel'), linePanel: el('linePanel'), reset: el('reset'),
+  toast: el('toast'), strip: el('strip'), panel: el('panel'), reset: el('reset'),
   hour: el('hour'), hourLbl: el('hourLbl'), hourLive: el('hourLive'),
 };
 function stationXZ(i: number): [number, number] { const st = net.stations[i]; if (!st) throw new Error(`no station ${i}`); const f = net.stationFrame(st.id); return [f.x, f.z]; }
@@ -355,6 +372,7 @@ const ui = new UI(sim, els, {
   speed: s => { speed = s; ui.setSpeed(s); },
   viewLine: lineView,
   focusStation: i => { const [x, z] = stationXZ(i); rig.focus(x, z, net.stations[i]?.id === 'piccadilly' ? 360 : 230); },
+  focusPlace: id => focusPlace(id),
   changed: () => persist(),
   preview: (i, id) => preview(i, id),
   built: (i, id) => showBuilt(i, id),
@@ -364,13 +382,13 @@ const ui = new UI(sim, els, {
   saves: (i, id) => savingText(sim, i, id),
   lockHour: h => { lockHour = h; ui.setLight(lockHour ?? sim.hour(), lockHour !== null); },
   reset: () => { startRun(); const [x, z] = stationXZ(0); rig.focus(x, z); },
-  renew: () => renewal.open(career, sim.g, net.stations.map(s => s.id)),
+  renew: () => void contractSheet().then(c => c.open(career, sim.g, net.stations.map(s => s.id))),
 }, sheet);
 uiMade = true;
 /** Start a run again from Stockport as a halt, with the career's perks: what was bought folds back down on the map. */
 function startRun(): void {
   store.wipe(); sim = new Sim(net, Sim.fresh(net, runSeed(), career.perks)); preview(null, null);
-  ui.sim = sim; ui.selected = 0; ui.picked = null; ui.linePicked = null; ui.buildAll(); ui.updateBar(); plaque(); persist();
+  ui.sim = sim; ui.selected = 0; ui.open = null; ui.picked = null; ui.buildAll(); ui.updateBar(); plaque(); persist();
 }
 /** The plaque by Stockport's entrance: the contract's number and a line for each renewed, once one has been. */
 function plaque(): void {
@@ -378,23 +396,31 @@ function plaque(): void {
   plaqueLines += setPlaque(career.renewals ? `Contract No. ${career.renewals + 1}` : null, career.contracts.map(k => `No. ${k.n} · day ${k.day} · ★ ${k.rep}`));
 }
 // renewing the contract: the sheet banks the reputation and buys perks; beginning the next contract keeps the career,
-// starts the run again, and the whole line is in view as its stages fold down and the halts stand ready
-const renewal = new ContractSheet(networkDef.contract ?? { branches: [], perks: [] }, c => {
+// starts the run again, and the whole line is in view as its stages fold down and the halts stand ready. The sheet is
+// fetched when it's first opened, to keep it out of the script before the first frame
+let renewal: Promise<ContractSheet> | null = null;
+const contractSheet = () => renewal ??= import('./ui/contract.ts').then(m => new m.ContractSheet(networkDef.contract ?? { branches: [], perks: [] }, c => {
   career = c; store.saveCareer(career); startRun(); lineView();
   ui.toast(`Contract ${career.renewals + 1} begins at Stockport`);
-});
+}));
 wireStartOver(el('reset'), el('resetAll'), {
   hasCareer: () => !careerEmpty(career),
   all: () => { store.wipeCareer(); career = freshCareer(); startRun(); const [x, z] = stationXZ(0); rig.focus(x, z); },
 });
 plaque();
-// tapping the map: a train to ride alongside, a station to fly to and open
-const picker = new Picker(camera, canvas, built, trains.meshes);
+// tapping the map: a train to ride alongside and open its service, a unit in the sidings to open the depot, a station
+// (or the bays of the bus stop by it) to fly to and open
+const picker = new Picker(camera, canvas, built, trains.meshes, [trains.spare, trains.stabled]);
 rig.onTap = (x, y) => {
   // an edge marker first: the map keeps the gestures that start on one, and its tap opens the station
   const r = canvas.getBoundingClientRect(), mark = edges.hit(x - r.left, y - r.top); if (mark >= 0) { ui.select(mark); return; }
   const hit = picker.pick(x, y); if (!hit) return;
-  if (hit.kind === 'train') { const m = trains.meshes[hit.i]; if (m) rig.ride(m); } else ui.select(hit.i);
+  if (hit.kind === 'train') {
+    const m = trains.meshes[hit.i], tr = sim.g.trains[hit.i]; if (m) rig.ride(m);
+    if (tr && sim.owns(`route:${tr.svc}`)) ui.show(`route:${tr.svc}`, false);
+  } else if (hit.kind === 'depot') { if (sim.P.sidings) ui.show(sim.P.sidings); }
+  else if (hit.kind === 'stop') { const s = sim.P.stopOf[hit.i]; if (s) ui.show(s); else ui.select(hit.i); }
+  else ui.select(hit.i);
 };
 // the compass: shows once north isn't up, and puts it back
 const compass = el<HTMLButtonElement>('vNorth'), needle = el('vNeedle');

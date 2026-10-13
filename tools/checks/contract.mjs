@@ -1,5 +1,5 @@
-// Contract renewal. On a 320 px phone (touch) and a desktop page: a new game's line panel offers no renewal; a save
-// with Piccadilly owned offers "Renew the contract" with the reputation it would bank (as the sim reckons it), and its
+// Contract renewal. On a 320 px phone (touch) and a desktop page: a new game's Network card (the cash pill) offers no
+// renewal; a save with Piccadilly owned offers "Renew the contract" with the reputation it would bank (as the sim reckons it), and its
 // sheet fits the page with tap-sized buttons, shows the next perk in each branch but none beyond it, and buys perks
 // with the reputation to spend. Beginning the next contract keeps the career on the device, folds what was bought back
 // down on the map, and starts the run again from Stockport as a halt with the perks in effect: the starting cash, a
@@ -31,6 +31,7 @@ export default async function ({ ok, open, root }) {
     // a new game: nothing to renew
     {
       const { ctx, page, errs } = await open({ width: w, height: h }, { touch });
+      await tap(page, '#cash'); await page.waitForSelector('#panel[data-place="network"]', { timeout: 30000 }).catch(() => {});
       const hidden = await page.evaluate(() => !document.getElementById('renew') && !document.getElementById('contract')?.open);
       const c = await look(page);
       ok(`contract: at ${w}×${h} a new game offers no renewal, and no plaque stands`, hidden && c?.plaque === -1 && !c?.stabled && !errs.length, errs[0] ?? JSON.stringify(c));
@@ -38,7 +39,8 @@ export default async function ({ ok, open, root }) {
     }
     // a steady frame clock, so the second-long fold takes the same frames however slow the machine
     const { ctx, page, errs } = await open({ width: w, height: h }, { touch, save, steady: 50 });
-    // offered, with the reputation it would bank
+    // offered on the Network card, with the reputation it would bank
+    await tap(page, '#cash');
     await page.waitForSelector('#renew', { timeout: 30000 }).catch(() => {});
     await page.waitForFunction(() => /\d/.test(document.getElementById('lRep')?.textContent ?? ''), null, { timeout: 30000 }).catch(() => {});
     const shown = Number(await page.locator('#lRep').textContent().catch(() => 'NaN'));

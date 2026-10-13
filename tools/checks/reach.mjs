@@ -1,7 +1,7 @@
 // The reach on the map. In a new game only Stockport glows (window.__view.reach gives each station's glow) and the
 // minutes view is off. With money to spend, at Stockport: the subway's card says how many minutes it saves and for how
 // many homes, and tapping it draws a ghost ring where the reach would be; buying it widens the glow, easing out over
-// about a second; the extra unit's card says it cuts the wait. The Minutes control shades the ground by minutes to
+// about a second; the extra unit's card, on the stopper's, says it cuts the wait. The Minutes control shades the ground by minutes to
 // Manchester and shows its key, and turns it off again. Screenshots of the glow before and after, and of the minutes
 // view, go to build/shots/reach-*.png. One phone page (320 px, touch) and one desktop page.
 import { reveal } from '../reveal.mjs';
@@ -71,8 +71,9 @@ export default async function ({ ok, open, root }) {
     ok(`reach: at ${w}×${h} the subway's card says what it saves, its preview draws a ghost ring, and buying it widens the glow over about a second`, !bad1.length, bad1.join('; '));
     // the extra unit waits on platform 3; its card is there once that's built
     await tap('[data-pick="platform2"]'); await tap('[data-up="platform2"]');
-    await p.waitForFunction(() => /\d/.test(document.querySelector('[data-lcard="units"] [data-saves]')?.textContent || ''), null, { timeout: 15000 }).catch(() => {});
-    const unit = await p.evaluate(() => document.querySelector('[data-lcard="units"] [data-saves]')?.textContent || '');
+    await tap('#strip [data-place="route:stopper"]');
+    await p.waitForFunction(() => /\d/.test(document.querySelector('[data-card="units"] [data-saves]')?.textContent || ''), null, { timeout: 15000 }).catch(() => {});
+    const unit = await p.evaluate(() => document.querySelector('[data-card="units"] [data-saves]')?.textContent || '');
     ok(`reach: at ${w}×${h} the extra unit's card says it cuts the wait`, /^\d+ min less waiting for about [\d,]+ homes$/.test(unit), `"${unit}"`);
 
     await tap('#vLine'); await keep(); await tap('#vMins');

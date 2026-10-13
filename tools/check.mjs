@@ -73,7 +73,7 @@ if (unknown.length) { console.log(`no check group "${unknown[0]}"; the groups ar
 // From the Publish run for 03240af (13 October 2026), with the real surroundings and the lines out in.
 const MINUTES = {
   camera: 15.4, reach: 11, contract: 11, layout: 8.7, line: 8.1, saves: 7.1, homes: 4.7, preview: 4.4, access: 4.2,
-  weather: 3.8, life: 3.3, fullscreen: 3, offline: 2.7, trouble: 2.2, daylight: 2.1, perf: 1.7, contrast: 0.9,
+  weather: 3.8, places: 3.5, life: 3.3, fullscreen: 3, offline: 2.7, trouble: 2.2, daylight: 2.1, perf: 1.7, contrast: 0.9,
 };
 const shardOf = new Map(), load = shard ? Array(shard[1]).fill(0) : [];
 if (shard) for (const g of [...groups].sort((a, b) => (MINUTES[b] ?? 1) - (MINUTES[a] ?? 1) || a.localeCompare(b))) {

@@ -15,3 +15,4 @@ Short records of decisions that shape the code or the way of working, so later c
 | [ADR-2026-10-08-network-and-kits](ADR-2026-10-08-network-and-kits.md) | The line is a corridor in real coordinates; stations are data kits with upgrade-gated parts |
 | [ADR-2026-10-13-network-as-a-graph](ADR-2026-10-13-network-as-a-graph.md) | The network is a graph of corridors joined at junctions, measured in chainage, with services as routes of legs |
 | [ADR-2026-10-13-all-public-transport](ADR-2026-10-13-all-public-transport.md) | The game is all public transport, not stations alone |
+| [ADR-2026-10-13-buying-a-growing-network](ADR-2026-10-13-buying-a-growing-network.md) | Buying is a growing network, with the network's problems shown on the map |

@@ -159,7 +159,7 @@ Object.assign(view, { camera: () => {
 });
 // the weather as drawn: the spell and its shares, what's falling, umbrellas up, the trees, how far the fog lets you see
 Object.assign(view, { weather: () => ({ now: sim.g.weather.now, ...weather.look, season: Math.floor(weather.look.year * 4) % 4, falling: weather.falling(), brollies: pax.layers.reduce((n, L) => n + L.brollies.count, 0),
-  trees: weather.trees.count, fogFar: scene.fog instanceof THREE.Fog ? scene.fog.far : 0, patter: sound.heard.patter }) });
+  trees: weather.treeCount, fogFar: scene.fog instanceof THREE.Fog ? scene.fog.far : 0, patter: sound.heard.patter }) });
 const partBox = new THREE.Box3();
 /** Preview an upgrade at a station on the map (or stop), and put the camera on what it adds. */
 function preview(i: number | null, id: string | null): void {
@@ -230,6 +230,7 @@ playOffline(() => settings.offlineReady());
 // ---- labels ----
 const lblBox = el('lbls');
 const lbls = built.map(() => { const d = document.createElement('div'); d.className = 'lbl'; lblBox.appendChild(d); return d; });
+const lblKey: number[] = built.map(() => NaN);
 const v3 = new THREE.Vector3();
 /** Labels hide above this line, where the stage's own controls (and the minutes view's key, while it shows) sit. */
 let labelTop = 64;
@@ -242,8 +243,9 @@ function labels(): void {
     // off screen, or in the top band where the stage's own controls sit
     if (v3.z > 1 || Math.abs(v3.x) > 1.1 || Math.abs(v3.y) > 1.1 || top < labelTop) { d.style.display = 'none'; return; }
     d.style.display = ''; d.style.left = ((v3.x + 1) / 2 * w) + 'px'; d.style.top = top + 'px';
-    const s = b.station, owned = !!sim.g.owned[i], txt = owned ? s.name : `${s.name} · <b>${fmt(sim.stationPrice(i))}</b>`;
-    if (d.innerHTML !== txt) d.innerHTML = txt; d.classList.toggle('lock', !owned);
+    // the text only when it changes (ownership, or the price with it), so a frame makes no strings; -1 for owned
+    const owned = !!sim.g.owned[i], key = owned ? -1 : sim.stationPrice(i);
+    if (lblKey[i] !== key) { const s = b.station; lblKey[i] = key; d.innerHTML = owned ? s.name : `${s.name} · <b>${fmt(key)}</b>`; d.classList.toggle('lock', !owned); }
   });
 }
 

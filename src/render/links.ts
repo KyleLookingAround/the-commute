@@ -67,18 +67,22 @@ export class LinkLayer {
   count = 0;
   private readonly links: (Link | null)[];
   private readonly body: THREE.InstancedMesh; private readonly band: THREE.InstancedMesh; private readonly glass: THREE.InstancedMesh;
+  /** A bus's parts (made once, so a frame makes no arrays). */
+  private readonly parts: THREE.InstancedMesh[];
   constructor(scene: THREE.Scene, built: { live: object }[]) {
     this.links = built.map(b => links.get(b.live) ?? null);
     const mk = (geo: THREE.BufferGeometry, mat: THREE.Material) => { const m = new THREE.InstancedMesh(geo, mat, MAX_BUSES); m.count = 0; m.frustumCulled = false; scene.add(m); return m; };
     this.body = mk(BODY, lam(PAL['link-bus'])); this.band = mk(BAND, lam(PAL['link-band'])); this.glass = mk(GLASS, MAT.glass);
+    this.parts = [this.body, this.band, this.glass];
     this.body.castShadow = true;
   }
   /** Each frame: where every built link's buses are, from the sim's clock. A bay sees a bus every `every` sim seconds
    * (twelve minutes by the clock, five in the peaks): it drives in along the bays, stands a while, and pulls away. */
   sync(sim: Sim): void {
     const g = sim.g; let n = 0;
-    this.links.forEach((L, i) => {
-      if (!L || !g.owned[i] || !g.ups[i]?.bus) return;
+    for (let i = 0; i < this.links.length; i++) {
+      const L = this.links[i];
+      if (!L || !g.owned[i] || !g.ups[i]?.bus) continue;
       const bays = L.p.bays ?? 1, busy = Math.min(1, demandCurve(sim.hour()) / 1.1), every = 120 - 70 * busy;
       for (let b = 0; b < bays && n < MAX_BUSES; b++) {
         // through its cycle: driving in (0-0.15), standing (to 0.75), pulling out (to 0.9), then gone
@@ -92,8 +96,8 @@ export class LinkLayer {
         pos.copy(v3); pos.y += 0.1; m4.compose(pos, qt, one);
         this.body.setMatrixAt(n, m4); this.band.setMatrixAt(n, m4); this.glass.setMatrixAt(n, m4); n++;
       }
-    });
-    for (const im of [this.body, this.band, this.glass]) { im.count = n; im.instanceMatrix.needsUpdate = true; }
+    }
+    for (const im of this.parts) { im.count = n; im.instanceMatrix.needsUpdate = true; }
     this.count = n;
   }
 }

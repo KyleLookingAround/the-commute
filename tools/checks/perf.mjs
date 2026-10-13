@@ -13,9 +13,9 @@ import { register } from 'tsx/esm/api';
 
 const BUDGET = {
   entryKB: 450,            // gzipped script loaded before the first frame (the entry chunk and what it imports at once)
-  calls: { open: 600, busy: 1400 },              // draw calls a frame, shadows included
-  triangles: { open: 950000, busy: 1050000 },   // triangles a frame, shadows included
-  geometries: 800, textures: 16, programs: 40,
+  calls: { open: 450, busy: 800 },              // draw calls a frame, shadows included
+  triangles: { open: 450000, busy: 550000 },   // triangles a frame, shadows included
+  geometries: 400, textures: 16, programs: 40,
 };
 const FRAMES = 6;   // frames to time on each page
 

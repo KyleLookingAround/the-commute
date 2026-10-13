@@ -110,12 +110,15 @@ export class BusLayer {
   private readonly seen = new Map<number, number>(); private readonly leaving: Leaving[] = []; private lastT = -1;
   private readonly body: THREE.InstancedMesh; private readonly band: THREE.InstancedMesh;
   private readonly glass: THREE.InstancedMesh; private readonly boards: THREE.InstancedMesh; private readonly walkers: THREE.InstancedMesh;
+  /** A bus's parts, which all move together (made once, so a frame makes no arrays). */
+  private readonly parts: THREE.InstancedMesh[];
   constructor(scene: THREE.Scene, private readonly net: Network, built: { live: object; group: THREE.Group }[]) {
     this.stops = built.map(b => stops.get(b.live) ?? null);
     const mk = (geo: THREE.BufferGeometry, mat: THREE.Material, n: number) => { const m = new THREE.InstancedMesh(geo, mat, n); m.count = 0; m.frustumCulled = false; scene.add(m); return m; };
     this.body = mk(BODY, lam(PAL.bus), MAX_BUSES); this.band = mk(BAND, lam(PAL['bus-band']), MAX_BUSES);
     this.glass = mk(GLASS, MAT.glass, MAX_BUSES); this.boards = mk(BOARD, board(), MAX_BUSES);
     this.walkers = mk(PERSON, lam(PAL.pax), MAX_WALKERS);
+    this.parts = [this.body, this.band, this.glass, this.boards];
     this.body.castShadow = true;
     // the depots, from the network data's landmarks
     this.depots = (net.def.landmarks ?? []).filter(l => l.kind === 'depot' && l.lat !== undefined && l.lon !== undefined)
@@ -224,7 +227,7 @@ export class BusLayer {
       if (!way || share >= 1) { this.leaving.splice(k, 1); continue; }
       if (n < MAX_BUSES) this.place(n++, this.at(way, 1 - share), true);
     }
-    for (const im of [this.body, this.band, this.glass, this.boards]) { im.count = n; im.instanceMatrix.needsUpdate = true; }
+    for (const im of this.parts) { im.count = n; im.instanceMatrix.needsUpdate = true; }
     this.count = n;
     this.walkers.count = w; this.walkers.instanceMatrix.needsUpdate = true;
   }
@@ -232,7 +235,7 @@ export class BusLayer {
   private place(n: number, p: typeof where, against = false): void {
     const s = against ? -1 : 1, dx = p.dx * s, dz = p.dz * s;
     qt.setFromAxisAngle(up, Math.atan2(dx, dz)); pos.set(p.x - dx * LEN / 2, p.y + 0.1, p.z - dz * LEN / 2); m4.compose(pos, qt, one);
-    for (const im of [this.body, this.band, this.glass, this.boards]) im.setMatrixAt(n, m4);
+    for (const im of this.parts) im.setMatrixAt(n, m4);
   }
   /** People walking between a standing bus's door and the station's way out: out to it while it loads, and both ways
    * where it sets down and loads for the trip back. */

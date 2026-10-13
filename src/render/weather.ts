@@ -6,6 +6,7 @@
 // in spring, deep green in summer, gold in autumn, bare in winter; and the day's length and the sun's height follow the
 // season (solarHour). The fair-weather setting draws every spell as a sunny or cloudy one; the seasons still turn.
 import * as THREE from 'three';
+import { byCell, type Split } from './cells.ts';
 import { PAL, MAT } from './scene.ts';
 import type { Sky } from './sky.ts';
 import type { World } from './world.ts';
@@ -107,9 +108,9 @@ export interface Look { rain: number; snow: number; fog: number; cover: number; 
 
 export class WeatherLayer {
   readonly look: Look = { rain: 0, snow: 0, fog: 0, cover: 0, wet: 0, settle: 0, year: 0 };
-  /** The trees along the line: trunks and crowns, a crown's colour from the season. */
-  readonly trees: THREE.InstancedMesh;
-  private readonly crowns: THREE.InstancedMesh;
+  /** The trees along the line: trunks and crowns, a crown's colour from the season, split by square (cells.ts). */
+  readonly treeCount: number;
+  private readonly crowns: Split;
   private readonly rain: Fall; private readonly snowFall: Fall;
   private readonly tree: { x: number; y: number; z: number; h: number; k: number }[] = [];
   private fair = false; private low = false;
@@ -143,13 +144,16 @@ export class WeatherLayer {
     }
     const trunk = new THREE.CylinderGeometry(0.35, 0.5, 1, 6); trunk.translate(0, 0.5, 0);
     const crown = new THREE.IcosahedronGeometry(1, 1);
-    this.trees = new THREE.InstancedMesh(trunk, new THREE.MeshLambertMaterial({ color: PAL.trunk }), this.tree.length);
-    this.crowns = new THREE.InstancedMesh(crown, new THREE.MeshLambertMaterial({ color: 0xffffff }), this.tree.length);
+    const trees = new THREE.InstancedMesh(trunk, new THREE.MeshLambertMaterial({ color: PAL.trunk }), this.tree.length);
+    const crowns = new THREE.InstancedMesh(crown, new THREE.MeshLambertMaterial({ color: 0xffffff }), this.tree.length);
     this.tree.forEach((t, i) => {
-      this.m4.compose(this.v.set(t.x, t.y, t.z), this.q, this.s.set(1, t.h * 0.55, 1)); this.trees.setMatrixAt(i, this.m4);
-      this.crowns.setColorAt(i, PAL['leaf-summer']);
+      this.m4.compose(this.v.set(t.x, t.y, t.z), this.q, this.s.set(1, t.h * 0.55, 1)); trees.setMatrixAt(i, this.m4);
+      this.m4.compose(this.v.set(t.x, t.y + t.h * 0.62, t.z), this.q, this.s.setScalar(t.h * 0.36)); crowns.setMatrixAt(i, this.m4);
+      crowns.setColorAt(i, PAL['leaf-summer']);
     });
-    for (const m of [this.trees, this.crowns]) { m.castShadow = true; m.receiveShadow = true; scene.add(m); }
+    for (const m of [trees, crowns]) { m.castShadow = true; m.receiveShadow = true; }
+    this.treeCount = trees.count; this.crowns = byCell(crowns);
+    scene.add(byCell(trees).group, this.crowns.group);
   }
 
   /** Start with the ground already wet or snowy, as if the spell had gone on a while (a check's or a screenshot's). */
@@ -221,15 +225,16 @@ export class WeatherLayer {
     if (Math.abs(L.year - this.treeYear) < 0.004 && Math.abs(L.settle - this.treeSnow) < 0.05) return;
     this.treeYear = L.year; this.treeSnow = L.settle;
     const y = L.year * 4, i = Math.floor(y) % 4, f = y - Math.floor(y), t = f < 0.75 ? 0 : (f - 0.75) / 0.25;
+    const { meshes, mesh, slot } = this.crowns;
     this.tree.forEach((tr, n) => {
-      const h = hash(tr.k, 11);
+      const h = hash(tr.k, 11), m = meshes[mesh[n]!]!, j = slot[n]!;
       this.leaf(i, h, this.col); this.leaf((i + 1) % 4, h, this.col2); this.col.lerp(this.col2, t).lerp(PAL.snow, 0.6 * L.settle);
-      this.crowns.setColorAt(n, this.col);
+      m.setColorAt(j, this.col);
       // bare in winter: a smaller, thinner crown of twigs
       const bare = (i === 3 ? 1 - t : 0) + (i === 2 ? t : 0), r = tr.h * (0.36 - 0.12 * bare);
-      this.m4.compose(this.v.set(tr.x, tr.y + tr.h * 0.62, tr.z), this.q, this.s.set(r, r * (1.1 - 0.2 * bare), r)); this.crowns.setMatrixAt(n, this.m4);
+      this.m4.compose(this.v.set(tr.x, tr.y + tr.h * 0.62, tr.z), this.q, this.s.set(r, r * (1.1 - 0.2 * bare), r)); m.setMatrixAt(j, this.m4);
     });
-    this.crowns.instanceMatrix.needsUpdate = true; if (this.crowns.instanceColor) this.crowns.instanceColor.needsUpdate = true;
+    for (const m of meshes) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.computeBoundingSphere(); }
   }
   /** A tree's crown in a season: some in blossom in spring, gold or rust in autumn, twigs in winter. h: the tree's own. */
   private leaf(season: number, h: number, out: THREE.Color): THREE.Color {

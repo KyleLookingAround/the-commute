@@ -6,6 +6,7 @@
 // a card chosen in the panel previews its parts as a ghost, and buying it makes them rise into place.
 // The kit format (what src/data/kits/*.json holds) is typed here too, next to the builders that read it.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { MAT, PAL, box, boxUV, matFor } from './scene.ts';
 import { yawFor } from './world.ts';
 import { buildBoard, buildCarPark, buildCycles, buildShop, emptyLive, type Live } from './life.ts';
@@ -417,9 +418,39 @@ export function buildStations(scene: THREE.Scene, net: Network, kits: Record<str
       } else put(fixed);
     }
     const gated = [...gates.values()];
+    // what life moves or changes stays as it is; the rest is folded together
+    const keep = new Set<THREE.Object3D>();
+    for (const o of [...live.boards.map(x => x.mesh), ...live.shops.map(x => x.shutter)]) o.traverse(q => keep.add(q));
+    for (const into of [fixed, scenery, ...gated.map(gt => gt.group)]) mergeStill(into, keep);
     const label = new THREE.Object3D(); label.position.set(0, 14, 0); gp.add(label);
     return { station: st, kit, group: gp, fixed, gated, label, lockedNow: null, rise: 1, fold: 0, live };
   });
+}
+
+/** Fold a group's still parts into one mesh for each material (and shape of geometry): a station is hundreds of boxes,
+ * each its own draw call, twice over with shadows. Only opaque meshes shown from the start and not in `keep` (what the
+ * station's life moves or changes); instanced and transparent ones, whose draw order matters, stay as they are. The
+ * group's own visibility, scale and materials (the ghost, the fog while locked) still apply to what's folded. */
+function mergeStill(into: THREE.Group, keep: Set<THREE.Object3D>): void {
+  into.updateMatrixWorld(true);
+  const inv = into.matrixWorld.clone().invert(), rel = new THREE.Matrix4();
+  const lists = new Map<string, { mat: THREE.Material; geos: THREE.BufferGeometry[]; from: THREE.Mesh[] }>();
+  into.traverse(o => {
+    if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh || keep.has(o) || Array.isArray(o.material) || o.material.transparent) return;
+    for (let p: THREE.Object3D | null = o; p && p !== into; p = p.parent) if (!p.visible) return;
+    const g = o.geometry as THREE.BufferGeometry, names = Object.keys(g.attributes).sort().join();
+    if (g.morphAttributes && Object.keys(g.morphAttributes).length) return;
+    const key = `${o.material.uuid}|${g.index ? 'i' : 'n'}|${names}`;
+    let list = lists.get(key); if (!list) { list = { mat: o.material, geos: [], from: [] }; lists.set(key, list); }
+    list.geos.push(g.clone().applyMatrix4(rel.multiplyMatrices(inv, o.matrixWorld))); list.from.push(o);
+  });
+  for (const { mat, geos, from } of lists.values()) {
+    if (from.length < 2) continue;
+    const merged = mergeGeometries(geos); if (!merged) continue;
+    for (const o of from) o.removeFromParent();
+    into.add(new THREE.Mesh(merged, mat));
+  }
+  for (const g of lists.values()) if (g.from.length < 2) g.geos.forEach(x => x.dispose());
 }
 
 // ---- the preview and the rise ----

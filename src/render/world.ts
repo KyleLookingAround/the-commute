@@ -1,6 +1,7 @@
 // Ground, towns, roads, permanent way and landmarks, all laid out along the network's corridors.
 import * as THREE from 'three';
 import { MAT, PAL } from './scene.ts';
+import { byCell } from './cells.ts';
 import { bridgesOf, buildLandmarks, onCourses, viaductOf } from './landmarks.ts';
 import { Terrain, TerrainLayer, fineFiles, kitFiles, setTerrain } from './terrain.ts';
 import { newFrame } from '../sim/network.ts';
@@ -43,7 +44,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   const unit = new THREE.BoxGeometry(1, 1, 1);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v3 = new THREE.Vector3(), sc = new THREE.Vector3();
   // a road along the line on the ground, each piece tilted to the slope; none down into the viaduct's valley
-  function ribbon(offset: number, width: number, height: number, y: number, mat: THREE.Material): THREE.InstancedMesh {
+  function ribbon(offset: number, width: number, height: number, y: number, mat: THREE.Material): void {
     const inst = new THREE.InstancedMesh(unit, mat, segs.length); inst.count = 0;
     for (const sg of segs) {
       if (valley && sg.s1 > valley.s0 - 100 && sg.s0 < valley.s1 + 100) continue;
@@ -52,7 +53,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       e.set(0, yawFor(mid), Math.atan2(yb - ya, len)); q.setFromEuler(e); v3.set(mid.x, (ya + yb) / 2 + y, mid.z); sc.set(Math.hypot(len, yb - ya) + 0.6, height, width);
       m4.compose(v3, q, sc); inst.setMatrixAt(inst.count++, m4);
     }
-    scene.add(inst); return inst;
+    scene.add(byCell(inst).group);
   }
   // a track's ballast and rails, short pieces so they follow it into a station's layout and across the crossovers
   const STEP = 20, nStep = Math.ceil(c.length / STEP);
@@ -69,7 +70,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       e.set(0, Math.atan2(-(bz - az), bx - ax), 0); q.setFromEuler(e); v3.set((ax + bx) / 2, y, (az + bz) / 2); sc.set(len + 0.3, height, width);
       m4.compose(v3, q, sc); inst.setMatrixAt(inst.count++, m4);
     }
-    scene.add(inst);
+    scene.add(byCell(inst).group);
   }
   for (const t of net.tracks) { trackRibbon(t.id, 0, 3.4, 0.5, -0.25, MAT.ballast); for (const dx of [-0.72, 0.72]) trackRibbon(t.id, dx, 0.1, 0.16, 0.08, MAT.rail); }
   ribbon(-95, 12, 0.2, 0.1, MAT.road); ribbon(126, 12, 0.2, 0.1, MAT.road);
@@ -89,7 +90,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
         const pa2 = net.place('main', s, off + inward * 3); v3.set(pa2.x, 6.8, pa2.z); m4.compose(v3, q, sc); arms.setMatrixAt(k, m4); k++;
       }
     }
-    poles.count = arms.count = k; scene.add(poles); scene.add(arms);
+    poles.count = arms.count = k; scene.add(byCell(poles).group, byCell(arms).group);
     for (const t of net.tracks) {
       const [e0, e1] = net.extent(t.id);
       for (let s = e0; s < e1; s += STEP) { net.trackAt(t.id, s, pa); net.trackAt(t.id, Math.min(e1, s + STEP), pb); wire.push(pa.x, 5.4, pa.z, pb.x, 5.4, pb.z); }
@@ -135,7 +136,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       col.setHSL(0.04 + seed(k, 9) * 0.06, city ? PAL['tower-sat'] : PAL['house-sat'], (city ? PAL['tower-light'] : PAL['house-light']) + seed(k, 10) * 0.15); inst.setColorAt(n, col);
       n++;
     }
-    inst.count = n; scene.add(inst);
+    inst.count = n; scene.add(byCell(inst).group);
   })();
 
   // ---- the landmarks: the viaduct, the river and the M60 under it, the Pyramid, the town, the city's skyline ----

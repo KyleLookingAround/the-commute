@@ -150,7 +150,7 @@ const partBuilders: Builders = {
     box(gp, L - 4, 0.5, 0.5, MAT.steel, cu, 7.3, cv);
   },
   lamps(gp, p) {
-    for (let u = p.u0; u <= p.u1; u += p.every || 30) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 8), MAT.glow); l.position.set(u, 5.4, p.v); gp.add(l); const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 5.2, 6), MAT.steel); pole.position.set(u, 2.6, p.v); gp.add(pole); }
+    for (let u = p.u0; u <= p.u1; u += p.every || 30) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 8), MAT.glow); l.userData['noShadow'] = true; l.position.set(u, 5.4, p.v); gp.add(l); const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 5.2, 6), MAT.steel); pole.position.set(u, 2.6, p.v); gp.add(pole); }
   },
   box(gp, p) { boxUV(gp, p, matFor(p.mat, MAT.concrete)); },
   windows(gp, p) {
@@ -467,7 +467,7 @@ function mergeStill(into: THREE.Group, keep: Set<THREE.Object3D>): void {
     if (from.length < 2) continue;
     const merged = mergeGeometries(geos); if (!merged) continue;
     for (const o of from) o.removeFromParent();
-    into.add(new THREE.Mesh(merged, mat));
+    const m = new THREE.Mesh(merged, mat); if (from.every(o => o.userData['noShadow'])) m.userData['noShadow'] = true; into.add(m);
   }
   for (const g of lists.values()) if (g.from.length < 2) g.geos.forEach(x => x.dispose());
 }
@@ -505,7 +505,7 @@ function ghost(gate: Gate, on: boolean): void {
   gate.group.traverse(o => {
     if (!(o instanceof THREE.Mesh)) return;
     if (on) { o.userData['own'] = o.material; o.material = GHOST; o.castShadow = false; }
-    else if (o.userData['own']) { o.material = o.userData['own']; o.castShadow = true; }
+    else if (o.userData['own']) { o.material = o.userData['own']; o.castShadow = !o.userData['noShadow']; }
   });
 }
 /** Show what buying `id` at a station would add, as a ghost, or clear the preview (null). Returns how many gates show. */

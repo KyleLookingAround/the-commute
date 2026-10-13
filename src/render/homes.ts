@@ -113,6 +113,8 @@ export class HomesLayer {
       for (let j = 0; j < m.count; j++) m.setMatrixAt(j, this.zero);
       m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true; scene.add(m);
     }
+    // the window bands lie on the walls, whose shadow is theirs
+    this.bands.castShadow = false; this.bands.userData['noShadow'] = true;
     this.shown = net.stations.map(() => 0);
   }
 

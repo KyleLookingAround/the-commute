@@ -120,8 +120,9 @@ const homes = new HomesLayer(scene, net, world);
 void world.buildings.ready.then(() => homes.replan());
 const built = buildStations(scene, net, kits);
 const lineside = new Lineside(scene, net);
-// everything on the ground so far throws and takes shadows; the sky, added after, does neither
-scene.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = true; o.receiveShadow = true; } });
+// everything on the ground so far throws and takes shadows (but what glows, or lies flat on a wall, marked noShadow);
+// the sky, added after, does neither
+scene.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = !o.userData['noShadow']; o.receiveShadow = true; } });
 const life = new StationLife(built, sim);
 const taxis = new TaxiLayer(built);
 const trains = new TrainLayer(scene, net, networkDef.services ?? []);

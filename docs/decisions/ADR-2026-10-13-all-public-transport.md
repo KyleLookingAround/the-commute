@@ -17,7 +17,7 @@ Until now nearly everything the player buys is at a station: fourteen kinds of s
 - **The game is all public transport.** The player builds the network the real Bee Network is becoming: trains and the infrastructure between stations, bus routes and bus stations, trams, and the links between them. The car is the rival, not another mode to run.
 - **What stays:**
   - It stays an incremental upgrade game: buy the next thing, unlock the next place.
-  - The opening is unchanged: Stockport station as a halt, the fares, the next station up the line. The other modes arrive as the game goes on.
+  - The opening is open to redesign (the owner, 13 October 2026, superseding "the opening is unchanged"): `docs/briefs/gridlock-opening.md` designs a start on a gridlocked network with the car as the visible rival. Until that design is built, the opening stays as it is. The other modes arrive as the game goes on.
   - Everything bought shows on the map; locked things are hidden except fogged places with their price.
   - The player buys every upgrade: no managers or recommended buys.
   - Real places, real layouts and real routes, with a `note` where from memory.

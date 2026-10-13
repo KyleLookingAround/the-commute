@@ -10,7 +10,7 @@ The coordinator session that ran from 03:55 (session_01Dpn37g4zPrvw69VrGCSGjv) h
 
 ## The owner's direction tonight
 
-- **All public transport is the game** (`docs/decisions/ADR-2026-10-13-all-public-transport.md`): the railway and the line between stations, buses, trams and the ways to reach them, with the car as the rival. The opening is unchanged, and the 192 is the player's first bus route.
+- **All public transport is the game** (`docs/decisions/ADR-2026-10-13-all-public-transport.md`): the railway and the line between stations, buses, trams and the ways to reach them, with the car as the rival. The opening may now change (the owner, 13 October 2026: see `docs/briefs/gridlock-opening.md`), and the 192 is the player's first bus route.
 - **Buying is a growing network** (`docs/decisions/ADR-2026-10-13-buying-a-growing-network.md`, the owner chose options 1 and 2): every buyable thing is a place that grows in stages, offered when it touches what's owned, and fogged with its price. The map shows where the network hurts (Strain), never a recommended buy. The design is `docs/design/buying.md`, with mockups at https://kylelookingaround.github.io/the-commute/design/buying/. The owner has the link and its six open questions; the build takes the design's recommendations unless they answer.
 - **Real surroundings:** real buildings, trees and ground cover from OpenStreetMap and the Environment Agency's LIDAR (`docs/briefs/real-surroundings.md`).
 - **Views from above:** of every station (`docs/reference/aerial/`, `tools/aerial-views.mjs`), from the LIDAR surface model, since no free colour aerial photography covers the line.

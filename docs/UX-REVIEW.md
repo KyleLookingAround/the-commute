@@ -33,6 +33,14 @@ From the redesign's directions (12 October 2026, `docs/design/redesign.md`); sta
 - Locked text is 3.6:1 and borders 1.4:1 against their surfaces; captions are 10 px.
 - The station panel leads with seven stats (Homes first) before any card.
 
+From the buying design (13 October 2026, `docs/design/buying.md`), for phase 5 step 13 to fix:
+
+- The strip of station chips is one line long: it can't show bus stops, routes or two lines out, and the Station | Line switch splits one network into two panels.
+- The line panel mixes the trains, the timetable, the spare unit and the contract.
+- A train can't be tapped, though it's the thing a player watches most.
+- The edge marker only knows the next station up the line.
+- A halt's card opens with eight stages at once; the opening reads better with one a ladder.
+
 ## 3. Change
 
 - Pick one to three improvements a player would feel most for the least risk, each a small PR with before and after screenshots described.

@@ -194,8 +194,8 @@ export class OrbitRig {
   }
 
   /** realDt: the frame's real time, so a flight takes about its time however slow the frames (under software
-   * rendering a frame can take seconds), but at most half a second a frame, so it's still seen on its way; everything
-   * else moves by dt. */
+   * rendering a frame can take seconds), but at most half a second a frame, so it's still seen on its way; riding a train
+   * keeps up with it the same way; everything else moves by dt. */
   update(dt: number, realDt = dt): void {
     const o = this.o;
     if (this.tween) {
@@ -206,7 +206,7 @@ export class OrbitRig {
     }
     if (this.riding) {
       if (!this.riding.visible) this.riding = null;
-      else { this.riding.getWorldPosition(this.v); const k = 1 - Math.exp(-dt * 5); o.tx += (this.v.x - o.tx) * k; o.tz += (this.v.z - o.tz) * k; o.ty += (Math.max(2, this.v.y + 2) - o.ty) * k; }
+      else { this.riding.getWorldPosition(this.v); const k = 1 - Math.exp(-Math.min(0.5, realDt) * 5); o.tx += (this.v.x - o.tx) * k; o.tz += (this.v.z - o.tz) * k; o.ty += (Math.max(2, this.v.y + 2) - o.ty) * k; }
     }
     if (this.keys.size) {
       const kk = this.keys; let f = 0, s = 0;

@@ -29,3 +29,12 @@ export function loadPrefs(): Prefs {
 export function savePrefs(p: Prefs): boolean {
   try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); return true; } catch { return false; }
 }
+
+/** The map views left on, kept like the settings but under a key of their own, so the settings sheet never writes over
+ * them: strain, the problems layer. */
+export interface Views { strain: boolean }
+export const VIEWS_KEY = 'the-commute-views-v1';
+export function loadViews(): Views {
+  try { const s = JSON.parse(localStorage.getItem(VIEWS_KEY) ?? '{}') as Partial<Record<keyof Views, unknown>>; return { strain: s.strain === true }; } catch { return { strain: false }; }
+}
+export function saveViews(v: Views): void { try { localStorage.setItem(VIEWS_KEY, JSON.stringify(v)); } catch { /* the device won't keep it: off next time */ } }

@@ -91,6 +91,8 @@ export class UI {
   readonly sheet: SheetLike;
   /** A station card's More stats are open (kept as stations change). */
   more = false;
+  /** What's wrong now at a place, for the top of its card (Strain, src/ui/strain.ts, once it's read), or null. */
+  wrong: ((id: string) => string | null) | null = null;
   /** The open card's stages, by id. */
   private stages = new Map<string, Stage>();
   constructor(sim: Sim, els: Els, on: Handlers, sheet: SheetLike) {
@@ -262,6 +264,7 @@ export class UI {
       else this.lineCard(id);
       this.nextTo(id);
     }
+    panel.insertAdjacentHTML('afterbegin', '<p class="wrong" id="wrong" hidden></p>');
     this.list();
     this.markPicked();
     this.updateStrip(); this.updatePanel();
@@ -394,7 +397,8 @@ export class UI {
   updatePanel(): void {
     const g = this.g, sim = this.sim, id = this.at, panel = this.els.panel;
     const set = (k: string, v: string) => { const el = panel.querySelector('#' + k); if (el && el.textContent !== v) el.textContent = v; };
-    const p = id === NETWORK ? null : sim.P.get(id);
+    const p = id === NETWORK ? null : sim.P.get(id), w = this.wrong?.(id) ?? null, wl = panel.querySelector<HTMLElement>('#wrong');
+    if (wl) { if (wl.hidden !== !w) wl.hidden = !w; if (w && wl.textContent !== w) wl.textContent = w; }
     if (p?.kind === 'station' && !g.owned[p.station!]) { const b = panel.querySelector<HTMLButtonElement>('#buyPlace'); if (b) b.disabled = !sim.canBuyStation(p.station!); return; }
     if (p?.kind === 'stop' && !sim.owns(id)) { const b = panel.querySelector<HTMLButtonElement>('#buyPlace'); if (b) b.disabled = !sim.canBuy(id); return; }
     if (p?.kind === 'station') {

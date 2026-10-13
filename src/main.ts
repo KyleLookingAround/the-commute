@@ -440,6 +440,10 @@ rig.onTap = (x, y) => {
   else if (hit.kind === 'stop') { const s = sim.P.stopOf[hit.i]; if (s) ui.show(s); else ui.select(hit.i); }
   else ui.select(hit.i);
 };
+// Strain, where the network hurts (src/ui/strain.ts): read from just after the start, its glows fetched when the view
+// is first turned on, so neither is in the script before the first frame
+void import('./ui/strain.ts').then(m => m.wireStrain({ sim: () => sim, ui, rig, view, button: el('vStrain'),
+  map: { scene, net, built, camera, canvas, ground: world.ground, labels: lblBox, sim: () => sim, reduced: rig.reduced } }));
 // the compass: shows once north isn't up, and puts it back
 const compass = el<HTMLButtonElement>('vNorth'), needle = el('vNeedle');
 compass.addEventListener('click', () => rig.north());

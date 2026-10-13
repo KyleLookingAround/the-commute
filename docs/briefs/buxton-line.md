@@ -48,3 +48,14 @@ The session pushes each part to `main` once the rules, tests and its check group
 
 - Estimate: about $30 (a corridor and terrain from LIDAR and coordinates, three or more station kits from photographs, census figures, the service extended, and the balance).
 - Past twice the estimate: say why in the commit message and stop at the part you're on, leaving `main` playable.
+
+## Handed on
+
+Built 13 October 2026: the corridor and terrain to beyond New Mills Newtown (9417082, ab36625), and Middlewood, Disley and New Mills Newtown with the service running on to the furthest owned (2d398f9). What's left:
+
+- **Further out:** Furness Vale, Whaley Bridge and on to Buxton. Stopped at New Mills Newtown because the terrain would reach about 1.9 of its 2 MB; the far tiles need a way to load later first.
+- **The Hazel Grove Chord**, just beyond Hazel Grove, as a junction for the Hope Valley line's Sheffield trains (OpenStreetMap has it; the corridor no longer runs along it).
+- **The real surroundings** along the new stretch, from the real-surroundings tool; until then it has a scatter of stand-in houses.
+- **The branch's frequency:** one unit runs the branch however far it reaches, so each new station makes its trains come less often (earned a game day 2% under main over 16 sim hours). The owner's call was to leave it.
+- **The whole-line view** (Whole line) frames the line between its first and last stations, now New Mills Newtown and Piccadilly, at the camera's 9,000 m limit, so the three new stations sit off screen in it. With the extra kits in view, a frame under software rendering takes about 3 s locally (1,072 draw calls, 1.15 million triangles at r 9,000), so a flight there outlasts the camera check's 20 s wait. Locally the camera group's "tapping a station on the map flies there" fails at 2d398f9 and on main (203352d), though CI's run 99 passed it. Worth a look: frame the whole line by its extent, and draw far kits more simply or leave them out at that distance.
+- **Through trains to Manchester** (phase 5 step 4).

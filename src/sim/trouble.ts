@@ -4,7 +4,7 @@
 // random numbers.
 // When a failed train stops its line for long enough, rail replacement buses carry people between the stations either
 // side along the road (`roads` in the network data), slower than the train. A spare unit standing by rescues a failed
-// one sooner; the faster timetable's new signals fail less often.
+// one sooner; a resignalled section's new signals fail less often.
 import type { Sim, Tuning } from './sim.ts';
 import { later } from './day.ts';
 import type { Bus, Train, Trouble } from './types.ts';
@@ -47,8 +47,6 @@ function start(sim: Sim, T: Tuning): void {
     tb.fail = { train: tr.id, from: g.t, until: g.t + fix * (0.75 + 0.5 * sim.rand()), a: ab.a, b: ab.b, d: tr.dir > 0 ? 0 : 1 };
     tb.fails++;
   } else {
-    // the faster timetable's new signals mostly hold
-    if (g.line.timetable && sim.rand() < T.resignalHolds) { tb.next = later(g.t, after(sim, T)); return; }
     // a stretch between two stations on a route, on the corridors its legs there run along (across a junction, both)
     const pairs: [number, number, string[]][] = [];
     for (const v of sim.local()) {
@@ -61,6 +59,8 @@ function start(sim: Sim, T: Tuning): void {
     }
     if (!pairs.length) { tb.next = g.t + 120; return; }
     const [s0, s1, on] = pairs[Math.floor(sim.rand() * pairs.length)]!;
+    // a resignalled section's new signals mostly hold
+    if (sim.resignalledAt(on, (s0 + s1) / 2) && sim.rand() < T.resignalHolds) { tb.next = later(g.t, after(sim, T)); return; }
     tb.caution = { s0, s1, on, from: g.t, until: g.t + T.signalFor * (0.75 + 0.5 * sim.rand()) };
     tb.signals++;
   }

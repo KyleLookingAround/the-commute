@@ -3,7 +3,7 @@
 // each drawn by the season from the weather's own seeded random numbers, so the same seed gives the same weather and
 // the weather never shifts anything else the game draws. People feel it through the door-to-door journey: rain makes
 // the walk and an open platform's wait feel longer (a canopy and lifts matter more), leaves on the line in autumn
-// slow the trains a little (less with the faster timetable's new signals), and snow slows everything and keeps a few
+// slow the trains a little (less with the faster timetable), and snow slows everything and keeps a few
 // at home. Gentle on purpose: a wet day is a reason a canopy pays, never a wrecked game.
 import { rand } from './random.ts';
 import { clockAt, hourAt, simAt } from './day.ts';

@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { fromGeo } from '../src/sim/network.ts';
+import { fromGeo, LAYOUT } from '../src/sim/network.ts';
 import { Sim } from '../src/sim/sim.ts';
 import type { NetworkGeoDef } from '../src/sim/types.ts';
 
@@ -41,4 +41,37 @@ test('sections: a step is offered once both ends are owned, raises the line spee
   assert.equal(sim.g.line.timetable, 0, 'the new signals come once the whole stopper\'s line is raised');
   for (const s of sim.P.stopperSections) sim.grant(s, 'speed');
   assert.equal(sim.g.line.timetable, 1);
+});
+
+test('sections: resignalling re-lays its signal sites closer, no block shorter than a train and its overlap', () => {
+  const sim = fresh(), k = sec(sim, 'Heaton Chapel', 'Levenshulme'), x = sim.secs.find(q => q.id === k)!;
+  const inside = (a: number[]) => a.filter(s => s >= x.s0 && s <= x.s1);
+  const before = inside(sim.sites(x.corridor)), blocks0 = sim.blocks('down-slow').at.length;
+  assert.ok(!sim.canBuy(k, 'signals'), 'not before its stations are owned');
+  assert.ok(sim.buyStation(net.station('heaton-chapel').index) && sim.buyStation(net.station('levenshulme').index));
+  const price = sim.price(k, 'signals')!;
+  assert.ok(Math.abs(price - 5000 * x.miles) <= 500, `it costs about £5,000 a mile (${price})`);
+  assert.ok(sim.buy(k, 'signals') && sim.resignalled(k) && !sim.canBuy(k, 'signals'), 'bought once');
+  const after = inside(sim.sites(x.corridor));
+  assert.ok(after.length > before.length, `${before.length} sites -> ${after.length}`);
+  assert.equal(after[0], before[0]); assert.equal(after[after.length - 1], before[before.length - 1], 'the run\'s ends stay where they were');
+  const B = sim.blocks('down-slow');
+  assert.ok(B.at.length > blocks0, 'the slow line has more blocks');
+  for (let i = 1; i < B.at.length; i++) assert.ok(B.at[i]! - B.at[i - 1]! >= LAYOUT.block - 1e-6, `block ${i} is ${B.at[i]! - B.at[i - 1]!} m`);
+});
+
+test('sections: a resignalled section\'s signals fail less often', () => {
+  // the same game twice to the same hour, the stopper's whole line resignalled in one: fewer signal failures there
+  const run = (resignal: boolean) => {
+    let n = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      const sim = new Sim(net, Sim.fresh(net, seed)); sim.g.cash = 1e7;
+      if (resignal) for (const k of sim.P.stopperSections) sim.grant(k, 'signals');
+      for (let t = 0; t < 30 * 3600; t++) sim.step(1);
+      n += sim.g.trouble.signals;
+    }
+    return n;
+  };
+  const plain = run(false), resignalled = run(true);
+  assert.ok(resignalled < 0.75 * plain, `${plain} signal failures -> ${resignalled}`);
 });

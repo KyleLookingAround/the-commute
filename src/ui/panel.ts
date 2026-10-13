@@ -72,8 +72,9 @@ export interface Handlers {
   saves: (i: number | null, id: string) => string | null;
   /** Open the renewal sheet (once the whole line is owned). */
   renew: () => void;
-  /** Show a section of line on the map with its next line speed step as a ghost, or what it built (bought); null stops. */
-  showSection: (id: string | null, bought?: boolean) => void;
+  /** Show a section of line on the map with a stage (its next line speed step, or its resignalling) as a ghost, or
+   * what it built (bought); null stops. */
+  showSection: (id: string | null, bought?: boolean, stage?: 'speed' | 'signals') => void;
 }
 
 /** A stage on the open card, as its card, the Buy bar and the timer read it. */
@@ -363,7 +364,7 @@ export class UI {
     }), k => this.on.showLine(k, true));
   }
   /** A section of line: its line speed and length, and once it's the player's (both ends owned) its next line speed
-   * step, 15 mph faster (the line between stations). */
+   * step, 15 mph faster, and its resignalling (the line between stations). */
   private sectionCard(id: string): void {
     const sim = this.sim, x = sim.sectionAt(id), panel = this.els.panel;
     panel.innerHTML = this.stats([['xSpeed', 'Line speed'], ['xLen', 'Length']]) + `<p class="blurb">Comes with the stations at its ends.</p>`;
@@ -374,7 +375,15 @@ export class UI {
       buy: () => { if (!sim.buy(id, 'speed')) return false; this.toast(`${sim.P.get(id).name}: ${next} mph`); this.on.showSection(id, true); return true; },
       pick: on => this.on.showSection(on ? id : null),
     };
-    this.stageCards([{ id: 'speed', stage, saves: null, opens: [], built: x.level ? `${name} ${x.mph} mph` : null }], () => this.on.showSection(id, true));
+    const sp = x.signalsPrice, signals: Stage | null = sp === undefined ? null : {
+      name: 'Resignalling', adds: 'New signals closer together: trains follow closer, and signals fail less often', price: sp, can: () => sim.canBuy(id, 'signals'),
+      buy: () => { if (!sim.buy(id, 'signals')) return false; this.toast(`${sim.P.get(id).name}: resignalled`); this.on.showSection(id, true, 'signals'); return true; },
+      pick: on => this.on.showSection(on ? id : null, false, 'signals'),
+    };
+    this.stageCards([
+      { id: 'speed', stage, saves: null, opens: [], built: x.level ? `${name} ${x.mph} mph` : null },
+      { id: 'signals', stage: signals, saves: null, opens: [], built: x.signals ? 'Resignalled' : null },
+    ], k => this.on.showSection(id, true, k === 'signals' ? 'signals' : 'speed'));
   }
   /** A bus stop or bus station: what it does, and its figures once it's the player's. */
   private stopCard(id: string): void {

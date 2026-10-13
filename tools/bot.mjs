@@ -40,7 +40,8 @@ if (args.includes('--fair')) WEATHER.felt = false;
  * most homes and draw per pound, counting the price of what it waits on elsewhere, which it builds first
  * (docs/design/buying.md, The bot); then each station's way across and second platform (trains both ways), its
  * booking office and barriers, then cheap wins, a taxi rank where people have been giving up (a dozen or more), a spare
- * unit once a train has failed, and a section's line speed once there's money to spare (the stopper's line first). */
+ * unit once a train has failed, and a section's line speed once there's money to spare (the stopper's line first), then
+ * its resignalling once the stopper's line is raised. */
 /** The stations whose car park has filled, this run (the bot's memory: it builds the second stage there). */
 const full = new Set();
 export function act(sim) {
@@ -71,9 +72,14 @@ export function act(sim) {
   if (g.line.cars < 1 && g.cash > 25000 && line('cars')) return 'cars';
   // line speed by section once there's money to spare: a step on the stopper's own line first, then the rest, the
   // cheapest first (docs/briefs/line-between-stations.md)
+  // and once the stopper's line is all raised and there's more to spare, resignalling the same way
+  const mine = new Set(P.stopperSections), first = stage => (a, b) => (mine.has(b) ? 1 : 0) - (mine.has(a) ? 1 : 0) || sim.price(a, stage) - sim.price(b, stage);
+  if (g.cash > 60000 && g.line.timetable) {
+    const pick = P.all.filter(p => p.kind === 'section' && sim.canBuy(p.id, 'signals')).map(p => p.id).sort(first('signals'))[0];
+    if (pick && sim.buy(pick, 'signals')) return 'signals:' + pick.slice('section:'.length);
+  }
   if (g.cash > 45000) {
-    const steps = P.all.filter(p => p.kind === 'section' && sim.canBuy(p.id, 'speed')).map(p => p.id);
-    const mine = new Set(P.stopperSections), pick = steps.sort((a, b) => (mine.has(b) ? 1 : 0) - (mine.has(a) ? 1 : 0) || sim.price(a, 'speed') - sim.price(b, 'speed'))[0];
+    const pick = P.all.filter(p => p.kind === 'section' && sim.canBuy(p.id, 'speed')).map(p => p.id).sort(first('speed'))[0];
     if (pick && sim.buy(pick, 'speed')) return g.line.timetable && mine.has(pick) ? 'timetable' : 'speed:' + pick.slice('section:'.length);
   }
   for (let i = 0; i < sim.S.length; i++) if (g.st[i].lost > 200 && g.ups[i] && !g.ups[i].extend) { const r = up(i, 'extend'); if (r) return r; }

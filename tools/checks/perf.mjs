@@ -1,11 +1,12 @@
 // Performance on a phone (docs/DESIGN.md, Performance): the opening and a busy save (five stations owned with every
-// upgrade, the line's units, cars, timetable and spare bought, homes grown, the morning peak, rain) at 390 × 844 on a
-// touch screen, under four times CPU throttling. Each page logs what it draws (draw calls, triangles, geometries,
-// textures, shader programs, meshes and shadow casters, from renderer.info through window.__view.perf), when the first
-// frame was drawn, and the script time a frame takes in the sim, the view's sync and the draw over a few frames. The
-// script the page loads before its first frame is measured from dist/. It fails only on clear budgets (BUDGET, set
-// well above what the game drew when the group was added), so it catches a regression without flaking on a slow
-// machine: frame times are logged, never judged, since a software-rendered container is no guide to a phone's.
+// upgrade, the line's units, cars and spare bought, every section raised and resignalled, homes grown, the morning
+// peak, rain) at 390 × 844 on a touch screen, under four times CPU throttling. Each page logs what it draws (draw
+// calls, triangles, geometries, textures, shader programs, meshes and shadow casters, from renderer.info through
+// window.__view.perf), when the first frame was drawn, and the script time a frame takes in the sim, the view's sync
+// and the draw over a few frames. The script the page loads before its first frame is measured from dist/. It fails
+// only on clear budgets (BUDGET, set well above what the game drew when the group was added), so it catches a
+// regression without flaking on a slow machine: frame times are logged, never judged, since a software-rendered
+// container is no guide to a phone's.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -41,7 +42,7 @@ export default async function ({ ok, open, root }) {
     sim.grant(sim.P.station[i]); for (const u of UPGRADES.filter(u => sim.offered(i, u))) sim.grant(...sim.upgradePlace(i, u.id)); sim.g.homes[i] = sim.ceiling(i);
   }
   for (const u of LINE_UPGRADES) while (sim.g.line[u.id] < u.max) sim.grant(sim.linePlace(u.id), u.id);
-  for (const x of sim.secs) for (let k = 0; k < x.steps; k++) sim.grant(x.id, 'speed');
+  for (const x of sim.secs) { for (let k = 0; k < x.steps; k++) sim.grant(x.id, 'speed'); sim.grant(x.id, 'signals'); }
   sim.advance(1200);
   const t = simAtHour(2, 8);
   sim.g.t = t; sim.g.day = 2;

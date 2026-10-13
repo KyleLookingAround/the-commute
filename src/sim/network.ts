@@ -224,16 +224,36 @@ export class Network {
     return [t.start ? this.pointS(t.start) : c.start, t.end ? this.pointS(t.end) : c.end];
   }
   junction(id: string): Junction { const j = this.junctions.find(j => j.id === id); if (!j) throw new Error(`no junction "${id}"`); return j; }
-  /** A track's block sections (Blocks). */
+  /** A track's block sections (Blocks), from the network's signal sites. */
   blocks(trackId: string): Blocks {
     let b = this.blockCache.get(trackId); if (b) return b;
+    b = this.blocksAt(trackId, this.signals[this.track(trackId).corridor] ?? []); this.blockCache.set(trackId, b);
+    return b;
+  }
+  /** A track's block sections with its corridor's signal sites given (in order): a resignalled line's (Sim.sites). */
+  blocksAt(trackId: string, sites: number[]): Blocks {
     const t = this.track(trackId), [e0, e1] = this.extent(trackId), at = [e0];
-    for (const s of this.signals[t.corridor] ?? []) if (s - at[at.length - 1]! >= LAYOUT.block && e1 - s >= LAYOUT.block) at.push(s);
+    for (const s of sites) if (s - at[at.length - 1]! >= LAYOUT.block && e1 - s >= LAYOUT.block) at.push(s);
     at.push(e1);
     const near = this.stations.filter(st => st.corridor === t.corridor);
     const open = at.slice(1).map((s1, k) => { const s0 = at[k]!; return near.every(st => (st.s < s0 || st.s > s1) && (st.at < s0 || st.at > s1)); });
-    b = { at, open }; this.blockCache.set(trackId, b);
-    return b;
+    return { at, open };
+  }
+  /** A corridor's signal sites between s0 and s1 re-laid closer, as resignalling a section of line does: each run of
+   * the network's sites there (a run breaks where a throat or crossover skipped one) shared out evenly into as many
+   * blocks as fit no shorter than LAYOUT.block, so the run's ends stay where they were. In chainage order. */
+  closer(corridorId: string, s0: number, s1: number): number[] {
+    const own = (this.signals[corridorId] ?? []).filter(s => s >= s0 && s <= s1), moving = this.sections(corridorId), out: number[] = [];
+    let run: number[] = [];
+    const lay = () => {
+      const a = run[0], b = run[run.length - 1];
+      if (a === undefined || b === undefined) return;
+      const n = Math.max(run.length - 1, Math.floor((b - a) / (LAYOUT.block + 1))), at = Array.from({ length: n + 1 }, (_, k) => a + (b - a) * k / n);
+      out.push(...(n > 0 && at.every(s => moving.every(([m0, m1]) => s < m0 || s > m1)) ? at : run));
+    };
+    for (const s of own) { if (run.length && s - run[run.length - 1]! > SIGNAL_SITE + 1) { lay(); run = []; } run.push(s); }
+    lay();
+    return out;
   }
   /** The stretches of a corridor where its tracks, or a station's rails into a bay, move across it (its throats and
    * crossovers): [s0, s1] in order. */

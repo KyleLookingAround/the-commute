@@ -142,7 +142,7 @@ rig.line = (x, z) => { const at = world.terrain.t.nearest(x, z); return net.plac
 /** How many lines the plaque reads, -1 while it's hidden (no contract renewed yet). */
 let plaqueLines = -1;
 const view = {
-  preview: 0, framed: 0, rising: () => built.reduce((n, b) => n + b.gated.filter(gt => gt.rise < 1).length, 0) + (lineside.rise < 1 ? 1 : 0) + (trains.spareRising < 1 ? 1 : 0),
+  preview: 0, framed: 0, rising: () => built.reduce((n, b) => n + b.gated.filter(gt => gt.rise < 1).length, 0) + (lineside.risingNow ? 1 : 0) + (trains.spareRising < 1 ? 1 : 0),
   // contract renewal as drawn: what's still folding down, the plaque's lines, the unit stabled in the sidings, and the
   // career and run as the page holds them
   folding: () => foldingCount(built),
@@ -194,7 +194,7 @@ const partBox = new THREE.Box3();
 /** Preview an upgrade at a station on the map (or stop), and put the camera on what it adds. */
 function preview(i: number | null, id: string | null): void {
   const ups = i === null ? {} : sim.ups(i);
-  lineside.preview(false, !!sim.g.line.timetable); trains.previewSpare(false);
+  lineside.preview(false, !!sim.g.line.timetable); lineside.previewSignals(null, null); trains.previewSpare(false);
   view.preview = previewUpgrade(built, i, ups, id);
   reach.preview(i !== null && id ? withBought(sim, i, id) : null);
   const b = i === null ? undefined : built[i], box = b && id ? partsBox(b, ups, id, partBox) : null;
@@ -403,7 +403,10 @@ const ui = new UI(sim, els, {
   lockHour: h => { lockHour = h; ui.setLight(lockHour ?? sim.hour(), lockHour !== null); },
   reset: () => { startRun(); const [x, z] = stationXZ(0); rig.focus(x, z); },
   renew: () => void contractSheet().then(c => c.open(career, sim.g, net.stations.map(s => s.id))),
-  showSection: (id, bought) => void lineLayer.then(L => { const box = L.preview(bought ? null : id) ?? (id ? L.boxOf(id) : null); if (box) frameBox(box); }),
+  showSection: (id, bought, stage) => void lineLayer.then(L => {
+    const signals = stage === 'signals' && !bought ? lineside.previewSignals(sim, id) : lineside.previewSignals(null, null);
+    const box = signals ?? L.preview(bought || stage === 'signals' ? null : id) ?? (id ? L.boxOf(id) : null); if (box) frameBox(box);
+  }),
 }, sheet);
 uiMade = true;
 /** Start a run again from Stockport as a halt, with the career's perks: what was bought folds back down on the map. */

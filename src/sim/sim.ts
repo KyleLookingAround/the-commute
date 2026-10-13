@@ -8,14 +8,14 @@
 import { rand, freshSeed } from './random.ts';
 import { BASE, DAY, clockAt, clockText, hourAt, simAtHour } from './day.ts';
 import { SAVE_VERSION } from './save.ts';
-import type { Movement, Network, Route } from './network.ts';
+import type { Blocks, Movement, Network, Route } from './network.ts';
 import { journeys, cycle, runTime, waitWeight, type Journey } from './journeys.ts';
 import { freshWeather, stepWeather, feel, weatherKey } from './weather.ts';
 import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
 import { stepExpress, nextSlot, EXPRESS_UNITS } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
 import { effects, type Effects } from './contract.ts';
-import { places, build, derive, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, type Places, type Upgrade } from './places.ts';
+import { places, build, derive, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, type Places, type Upgrade } from './places.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
 // a station's stages and the line's, now stages of places (src/sim/places.ts); here too, where the view finds them
@@ -33,6 +33,7 @@ export const TUNING = {
   squeeze: 1.0,                                // seconds a full train is held for each person left trying to get on
   dispatch: 15,                                // seconds from the platform clearing to leaving: doors shut, all clear
   separation: 400,                             // metres a train keeps behind the one ahead on its line
+  separationClose: 260,                        // ...and through a resignalled section, where its closer signals keep them apart
   // signalling (docs/DESIGN.md, Signalling): a train stands signalStand metres short of a signal at red, where the block
   // beyond holds another train, or where its way through a junction crosses one set for another train
   signalStand: 10,
@@ -70,8 +71,8 @@ export const TUNING = {
   // things going wrong (src/sim/trouble.ts): nothing in the first sim hour, then on average one every troubleEvery,
   // never within troubleGap of the last ending, and only by the game's daylight hours. A share failShare are failed
   // trains, more than failMargin from a station, rescued in about `rescue` (rescueSpare with a spare unit standing by);
-  // the rest signal failures, a stretch between two stations at caution for about signalFor, which the faster
-  // timetable's new signals stop with chance resignalHolds. Nothing starts in troubleCalm (clock hours), where it would
+  // the rest signal failures, a stretch between two stations at caution for about signalFor, which a resignalled
+  // section's new signals stop with chance resignalHolds. Nothing starts in troubleCalm (clock hours), where it would
   // still be going in a peak's busiest hour (07:30-08:30, 17:00-18:00): a failure lasts about an hour by the clock
   troubleFrom: 3600, troubleEvery: 2.5 * 3600, troubleGap: 40 * 60, troubleDayFrom: 6, troubleDayTo: 21,
   troubleCalm: [[6.5, 8.5], [16, 18]] as [number, number][],
@@ -149,6 +150,9 @@ export class Sim {
   secs: { id: string; corridor: string; s0: number; s1: number; base: number; steps: number; miles: number }[];
   /** Line speeds between two stops, by service and stops, worked out as needed and forgotten when a section changes. */
   private speeds = new Map<number, number>();
+  /** Each corridor's signal sites and each track's blocks as the resignalled sections have them, worked out as needed
+   * and forgotten when one is resignalled. */
+  private siteCache = new Map<string, number[]>(); private blockCache = new Map<string, Blocks>();
   constructor(network: Network, state?: GameState) {
     this.net = network;
     this.S = network.stations;              // [{ id, name, s, miles, catchment, price, retail, index }]
@@ -208,11 +212,38 @@ export class Sim {
   vmax(): number { return (this.g.line.timetable ? TUNING.vmaxFast : TUNING.vmax) * feel(this.g).speed; }
   /** A section of line as it stands: its line speed now and where it started (mph), steps built of how many, its length,
    * and its next step's price (undefined once it's at the top). */
-  sectionAt(id: string): { mph: number; base: number; level: number; steps: number; miles: number; price: number | undefined } | null {
+  sectionAt(id: string): { mph: number; base: number; level: number; steps: number; miles: number; price: number | undefined; signals: boolean; signalsPrice: number | undefined } | null {
     const x = this.secs.find(q => q.id === id); if (!x) return null;
-    const level = Math.min(x.steps, this.g.places[id]?.[SECTION_SPEED.id] ?? 0), price = this.cost(Math.max(1000, Math.round(SECTION_SPEED.perMile * x.miles / 500) * 500));
-    return { mph: Math.min(SECTION_SPEED.top, x.base + SECTION_SPEED.step * level), base: x.base, level, steps: x.steps, miles: x.miles, price: level < x.steps ? price : undefined };
+    const level = Math.min(x.steps, this.g.places[id]?.[SECTION_SPEED.id] ?? 0), mile = (perMile: number) => this.cost(Math.max(1000, Math.round(perMile * x.miles / 500) * 500));
+    const signals = this.resignalled(id);
+    return {
+      mph: Math.min(SECTION_SPEED.top, x.base + SECTION_SPEED.step * level), base: x.base, level, steps: x.steps, miles: x.miles, price: level < x.steps ? mile(SECTION_SPEED.perMile) : undefined,
+      signals, signalsPrice: signals ? undefined : mile(SECTION_SIGNALS.perMile),
+    };
   }
+  /** Whether a section of line has been resignalled. */
+  resignalled(id: string): boolean { return (this.g.places[id]?.[SECTION_SIGNALS.id] ?? 0) > 0; }
+  /** Whether chainage s on any of these corridors lies in a resignalled section. */
+  resignalledAt(corridors: string[], s: number): boolean { return this.secs.some(x => corridors.includes(x.corridor) && s >= x.s0 && s <= x.s1 && this.resignalled(x.id)); }
+  /** A corridor's signal sites as they stand: the network's, re-laid closer through each resignalled section
+   * (Network.closer). In chainage order. */
+  sites(corridor: string): number[] {
+    let out = this.siteCache.get(corridor); if (out) return out;
+    out = this.net.signals[corridor] ?? [];
+    for (const x of this.secs) if (x.corridor === corridor && this.resignalled(x.id)) { const s0 = x.s0, s1 = x.s1; out = [...out.filter(s => s < s0 || s > s1), ...this.net.closer(corridor, s0, s1)].sort((a, b) => a - b); }
+    this.siteCache.set(corridor, out);
+    return out;
+  }
+  /** A track's block sections as they stand (the network's, closer through resignalled sections). */
+  blocks(track: string): Blocks {
+    let b = this.blockCache.get(track); if (b) return b;
+    const c = this.net.track(track).corridor, sites = this.sites(c);
+    b = sites === this.net.signals[c] ? this.net.blocks(track) : this.net.blocksAt(track, sites);
+    this.blockCache.set(track, b);
+    return b;
+  }
+  /** After a section's stages change: forget what was worked out from them. */
+  private resectioned(): void { this.speeds.clear(); this.siteCache.clear(); this.blockCache.clear(); this.occ.clear(); }
   /** How fast a service's trains run between two of its stops (station indices), as the timetable plans it and they
    * drive it: the run's length over the time it takes through each section at its own line speed (the game's line
    * speed where it runs beyond any section), in the weather. */
@@ -509,7 +540,7 @@ export class Sim {
   clear(tr: Train): number {
     let gap = Infinity; const track = this.trackOf(tr);
     for (const o of this.g.trains) if (o !== tr && o.state !== 'away' && o.dir === tr.dir && this.trackOf(o) === track) { const d = (o.s - tr.s) * tr.dir; if (d > 0 && d < gap) gap = d; }
-    return gap - TUNING.separation;
+    return gap - (this.resignalledAt([this.corridorOf(tr)], tr.s) ? TUNING.separationClose : TUNING.separation);
   }
   /** The track a train runs on: its route's, where it is, the way it's heading. */
   trackOf(tr: Train): string { return this.svc(tr.svc).path.track(tr.s, tr.dir, tr.leg); }
@@ -548,7 +579,7 @@ export class Sim {
       const P = this.svc(tr.svc).path, L = this.half(tr), lo = tr.s - L, hi = tr.s + L;
       for (const l of P.legs) {
         if (l.s1 < lo || l.s0 > hi) continue;
-        const track = tr.dir > 0 ? l.north : l.south, B = this.net.blocks(track), a0 = Math.max(lo, l.s0), a1 = Math.min(hi, l.s1);
+        const track = tr.dir > 0 ? l.north : l.south, B = this.blocks(track), a0 = Math.max(lo, l.s0), a1 = Math.min(hi, l.s1);
         let o = this.occ.get(track); if (!o) { o = new Int32Array(B.open.length).fill(-1); this.occ.set(track, o); }
         for (let k = 0; k < B.open.length; k++) if (B.at[k + 1]! > a0 && B.at[k]! < a1) o[k] = o[k] === -1 || o[k] === tr.id ? tr.id : -2;
       }
@@ -563,7 +594,7 @@ export class Sim {
     const v = this.svc(tr.svc), P = v.path, L = this.half(tr), head = tr.s + tr.dir * L, d = tr.dir;
     let room = Infinity;
     for (let k = P.legAt(head, tr.leg); k >= 0 && k < P.legs.length && room === Infinity; k += d) {
-      const leg = P.legs[k]!, B = this.net.blocks(d > 0 ? leg.north : leg.south), n = B.at.length;
+      const leg = P.legs[k]!, B = this.blocks(d > 0 ? leg.north : leg.south), n = B.at.length;
       for (let q = 0; q < n; q++) {
         const i = d > 0 ? q : n - 1 - q, b = B.at[i]!, ahead = (b - head) * d;
         if (ahead <= 0.5 || b < leg.s0 - 0.5 || b > leg.s1 + 0.5) continue;
@@ -598,7 +629,7 @@ export class Sim {
    * train), 1 yellow (the one after does, or the block beyond is a station's with a train in it: on at caution), 2
    * green; null where the track has no signal there. */
   aspect(track: string, s: number): 0 | 1 | 2 | null {
-    const B = this.net.blocks(track), d = this.net.way(track), i = B.at.findIndex(b => Math.abs(b - s) < 0.5);
+    const B = this.blocks(track), d = this.net.way(track), i = B.at.findIndex(b => Math.abs(b - s) < 0.5);
     if (i < 0) return null;
     const k = d > 0 ? i : i - 1, k2 = k + d;
     if (k < 0 || k >= B.open.length) return null;
@@ -814,7 +845,7 @@ export class Sim {
     const p = this.P.byId.get(id); if (!p) return undefined;
     if (stage === undefined) return p.kind === 'station' ? this.stationPrice(p.station!) : p.kind === 'stop' && p.stop ? this.cost(p.stop.price) : undefined;
     if (p.kind === 'station') { const u = UPGRADES.find(x => x.id === stage && !x.stop); return u ? this.upgradePrice(p.station!, u) : undefined; }
-    if (p.kind === 'section') return stage === SECTION_SPEED.id ? this.sectionAt(id)?.price : undefined;
+    if (p.kind === 'section') { const x = this.sectionAt(id); return stage === SECTION_SPEED.id ? x?.price : stage === SECTION_SIGNALS.id ? x?.signalsPrice : undefined; }
     const u = this.lineStage(stage);
     return u && this.P.stagesFor(this.net, id).includes(u) ? this.linePrice(u.id) : undefined;
   }
@@ -825,7 +856,7 @@ export class Sim {
     if (stage === undefined) return !(id in g.places) && this.P.touches(g, id) && !this.P.waits(g, this.net, id);
     if (!this.owns(id)) return false;
     if (p.kind === 'station') { const i = p.station!, u = UPGRADES.find(x => x.id === stage)!; return !this.ups(i)[u.id] && this.offered(i, u) && this.ready(i, u); }
-    if (p.kind === 'section') return true;
+    if (p.kind === 'section') return this.price(id, stage) !== undefined;
     const u = this.lineStage(stage)!;
     return g.line[u.id] < u.max && this.lineReady(u.id);
   }
@@ -833,7 +864,7 @@ export class Sim {
   buy(id: string, stage?: string): boolean {
     if (!this.canBuy(id, stage)) return false;
     const p = this.P.get(id);
-    this.g.cash -= this.price(id, stage)!; build(this.g, id, stage); derive(this.g, this.P); this.speeds.clear();
+    this.g.cash -= this.price(id, stage)!; build(this.g, id, stage); derive(this.g, this.P); this.resectioned();
     if (p.kind === 'station' && stage !== undefined) {
       const i = p.station!;
       if (stage === 'taxi') this.state(i).cabs = new Array<number>(TUNING.cabs).fill(0);   // the rank opens with every cab in
@@ -846,7 +877,7 @@ export class Sim {
    * game). */
   grant(id: string, stage?: string): void {
     if (stage === undefined || this.P.get(id).kind !== 'station' || !this.g.places[id]?.[stage]) build(this.g, id, stage);
-    derive(this.g, this.P); this.speeds.clear();
+    derive(this.g, this.P); this.resectioned();
     if (stage === 'taxi') { const i = this.P.get(id).station!; if (!this.state(i).cabs.length) this.state(i).cabs = new Array<number>(TUNING.cabs).fill(0); }
     if (stage === 'carpark') openAccess(this, this.P.get(id).station!, 'carpark');
     this.jkey = -1;

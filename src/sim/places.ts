@@ -46,6 +46,10 @@ export const LINE_UPGRADES: LineUpgrade[] = [
  * step up to SECTION_TOP, at `perMile` pounds a mile a step (the faster timetable's £20,000 over the stopper's six
  * miles). How many steps a section has, from where it starts, is the sim's (Sim.sectionAt). */
 export const SECTION_SPEED = { id: 'speed', name: 'Line speed', perMile: 3300, step: 15, top: 90, desc: 'Track renewed for a faster line speed: quicker rides through it' } as const;
+/** A section's resignalling: one stage, `perMile` pounds a mile, signal sites re-laid closer through it (shorter
+ * blocks, so trains follow closer: Network.closer) and its signal failures held off `holds` of the time (TUNING's
+ * resignalHolds, six in ten). */
+export const SECTION_SIGNALS = { id: 'signals', name: 'Resignalling', perMile: 5000, desc: 'New colour-light signals at closer spacing: trains follow closer, signals fail less' } as const;
 /** Which kind of place each of those stages is on. */
 export const LINE_PLACE: Record<Exclude<LineUpgradeId, 'timetable'>, 'route' | 'depot'> = { units: 'route', cars: 'route', spare: 'depot' };
 
@@ -220,8 +224,8 @@ export function derive(g: GameState, P: Places): GameState {
     return Object.freeze(o);
   }));
   const R = g.places[P.stopper] ?? {}, D = (P.sidings ? g.places[P.sidings] : undefined) ?? {};
-  // the faster timetable's new signals and recovery (src/sim/sim.ts, trouble, weather) once every section the stopper
-  // runs has had its line speed raised, until resignalling by section takes them over
+  // the faster timetable's recovery and resistance to leaves (src/sim/sim.ts, weather) once every section the stopper
+  // runs has had its line speed raised; its new signals are each section's resignalling now
   const timetable = P.stopperSections.length && P.stopperSections.every(k => (g.places[k]?.['speed'] ?? 0) > 0) ? 1 : 0;
   const line = Object.freeze({ units: R['units'] ?? 0, cars: R['cars'] ?? 0, timetable, spare: D['spare'] ?? 0 });
   for (const [k, value] of [['owned', owned], ['ups', ups], ['line', line]] as const) Object.defineProperty(g, k, { value, enumerable: false, configurable: true, writable: false });

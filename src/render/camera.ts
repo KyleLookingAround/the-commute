@@ -19,7 +19,7 @@ interface Ptr { x: number; y: number; x0: number; y0: number; t0: number }
 export const wrapPi = (a: number): number => a - Math.round(a / (Math.PI * 2)) * Math.PI * 2;
 // R_MAX holds the whole network on a phone held upright (Whole line, fitAll); far off, the map leaves out the kits and
 // the real buildings and trees (KIT_FAR in src/main.ts, FAR_ALL in src/render/buildings.ts)
-const R_MIN = 40, R_MAX = 24000, PH_MIN = 0.1, PH_MAX = 1.5;
+const R_MIN = 12, R_MAX = 24000, PH_MIN = 0.1, PH_MAX = 1.5;
 const FIT_X = 90, FIT_Y = 40;   // pixels kept clear round each point fitAll holds: half a name's width, and its height
 /** How far from the line the camera may look: a few hundred metres close in, more when zoomed out to see the line. */
 const nearLimit = (r: number) => Math.max(300, r * 0.35);

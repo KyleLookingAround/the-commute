@@ -12,6 +12,15 @@ import kitHazelGrove from './data/kits/hazel-grove.json';
 import kitMiddlewood from './data/kits/middlewood.json';
 import kitDisley from './data/kits/disley.json';
 import kitNewMills from './data/kits/new-mills-newtown.json';
+import kitAshburys from './data/kits/ashburys.json';
+import kitBelleVue from './data/kits/belle-vue.json';
+import kitRyderBrow from './data/kits/ryder-brow.json';
+import kitReddishNorth from './data/kits/reddish-north.json';
+import kitBrinnington from './data/kits/brinnington.json';
+import kitBredbury from './data/kits/bredbury.json';
+import kitRomiley from './data/kits/romiley.json';
+import kitMarple from './data/kits/marple.json';
+import kitRoseHill from './data/kits/rose-hill.json';
 import { SPINE, fromGeo, newFrame } from './sim/network.ts';
 import { Sim, TUNING } from './sim/sim.ts';
 import type { NetworkGeoDef } from './sim/types.ts';
@@ -81,6 +90,7 @@ const kits: Record<string, Kit> = {
   stockport: kitStockport as Kit, 'heaton-chapel': kitHeaton as Kit, levenshulme: kitLevenshulme as Kit, ardwick: kitArdwick as Kit, piccadilly: kitPiccadilly as Kit,
   davenport: kitDavenport as Kit, woodsmoor: kitWoodsmoor as Kit, 'hazel-grove': kitHazelGrove as Kit,
   middlewood: kitMiddlewood as Kit, disley: kitDisley as Kit, 'new-mills-newtown': kitNewMills as Kit,
+  ashburys: kitAshburys as Kit, 'belle-vue': kitBelleVue as Kit, 'ryder-brow': kitRyderBrow as Kit, 'reddish-north': kitReddishNorth as Kit, brinnington: kitBrinnington as Kit, bredbury: kitBredbury as Kit, romiley: kitRomiley as Kit, marple: kitMarple as Kit, 'rose-hill': kitRoseHill as Kit,
 };
 const net = fromGeo(networkDef);
 
@@ -269,7 +279,7 @@ const edges = new EdgeMarkers(el('edges'), built.length, i => ui.select(i));
 const edgeHtml: (string | null)[] = built.map(() => null), edgeLabel: string[] = built.map(() => '');
 function nextStations(): void {
   sim.S.forEach((s, i) => {
-    const next = !sim.g.owned[i] && (i === 0 || !!sim.g.owned[i - 1]) && !sim.stationNeeds(i);
+    const next = sim.offerable(i) && !sim.stationNeeds(i);
     edgeHtml[i] = next ? `<em>${s.name.replace('Manchester ', '')}</em><b>${fmt(sim.stationPrice(i))}</b>` : null;
     edgeLabel[i] = next ? `${s.name}, ${fmt(sim.stationPrice(i))}: open it` : '';
   });

@@ -160,6 +160,9 @@ const sum = Object.fromEntries(line.map(s => [s.id, { homes: 0, work: 0, walk: 0
 const lineAt = line.map(s => ({ id: s.id, lat: s.lat, lon: s.lon }));
 // a station no road reaches (Middlewood, `road: false`) takes nobody by car or bus: they go to the next one that does
 const roadless = new Set(line.filter(s => s.road === false).map(s => s.id)), byRoad = lineAt.filter(s => !roadless.has(s.id));
+// a line off the spine (the Marple line) is a later choice: its stations take the drivers and bus riders no station on
+// the spine would, so the spine's pools stay as they were
+const spineOf = new Set(net.spine ?? ['main']), later = new Set(line.filter(s => !spineOf.has(s.corridor)).map(s => s.id));
 for (const [, lat, lon, residents, workers] of ex.areas.rows) {
   const p = { lat, lon };
   // homes, draw and the walk from the areas near the line, as before the pools widened the extract
@@ -182,11 +185,12 @@ for (const [, lat, lon, residents, workers] of ex.areas.rows) {
     // line for the line's trains and a space), driving in towards Manchester, and only to a station at least DRIVE_OUT
     // from it (closer in, they'd drive the rest); Piccadilly's car park takes the city's own drivers going out, from
     // within DRIVE_CITY
-    const car = byRoad.reduce((a, s) => (s.id === 'piccadilly' ? dist(p, s) <= DRIVE_CITY : dist(s, picc) >= DRIVE_OUT && dist(p, picc) > dist(s, picc) && dist(p, s) <= DRIVE_MAX) && (!a || dist(p, s) < dist(p, a)) ? s : a, null);
+    const drive = list => list.reduce((a, s) => (s.id === 'piccadilly' ? dist(p, s) <= DRIVE_CITY : dist(s, picc) >= DRIVE_OUT && dist(p, picc) > dist(s, picc) && dist(p, s) <= DRIVE_MAX) && (!a || dist(p, s) < dist(p, a)) ? s : a, null);
+    const car = drive(byRoad.filter(s => !later.has(s.id))) ?? drive(byRoad);
     if (car) sum[car.id].drive.push([dist(p, car), residents * DRIVE_SHARE]);
     // the rest: a bus to the nearest station, if it's the line's and near, or Stockport's Interchange further out
-    const near = all.reduce((a, s) => !a || dist(p, s) < dist(p, a) ? s : a, null);
-    const bus = near?.id && near.id !== 'piccadilly' && !roadless.has(near.id) && dist(p, near) <= BUS_STOP ? near : lineAt.find(s => BUS_HUBS.includes(s.id) && dist(p, s) <= BUS_WIDE);
+    const toBus = stops => { const near = stops.reduce((a, s) => !a || dist(p, s) < dist(p, a) ? s : a, null); return near?.id && near.id !== 'piccadilly' && !roadless.has(near.id) && dist(p, near) <= BUS_STOP ? near : lineAt.find(s => BUS_HUBS.includes(s.id) && dist(p, s) <= BUS_WIDE); };
+    const bus = toBus(all.map(s => later.has(s.id) ? { ...s, id: null } : s)) ?? toBus(all);
     if (bus?.id) sum[bus.id].bus.push([dist(p, bus), residents * (1 - DRIVE_SHARE)]);
   }
   if (work?.id && workWalk <= WORK_WALK && near) sum[work.id].work += workers;

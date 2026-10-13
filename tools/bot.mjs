@@ -36,7 +36,8 @@ const hours = +opt('--hours', 8), jsonOut = opt('--json', null), runCount = Math
 if (args.includes('--fair')) WEATHER.felt = false;
 
 /** The sensible player's policy, in priority order: a second unit first (Stockport needs its subway and platform 3 for
- * it), then the next station (as a halt, building whatever it waits on elsewhere), then each station's way across and
+ * it), then the next station (as a halt, building whatever it waits on elsewhere; where two lines' next stations are
+ * offered, the cheaper), then each station's way across and
  * second platform (trains both ways), its booking office and barriers, then cheap wins, a taxi rank where people have
  * been giving up (a dozen or more), a spare unit once a train has failed, and the faster timetable once there's money
  * to spare. */
@@ -46,10 +47,11 @@ export function act(sim) {
   const g = sim.g, home = sim.svcs[0].route[0];
   const up = (i, id) => g.owned[i] && !g.ups[i][id] && sim.buyUpgrade(i, id) ? `${id}:${sim.S[i].id}` : null;
   if (g.line.units < 1) { if (sim.buyLine('units')) return 'unit'; const r = up(home, 'crossing') || up(home, 'platform2'); if (r) return r; }
-  for (let i = 1; i < sim.S.length; i++) if (!g.owned[i]) {
+  // the next station: of those offered (each line's next, where the network branches), the cheapest
+  const offered = sim.S.map((_, i) => i).filter(i => i > 0 && sim.offerable(i)).sort((a, b) => sim.stationPrice(a) - sim.stationPrice(b) || a - b);
+  for (const i of offered.slice(0, 1)) {
     if (sim.buyStation(i)) return 'station:' + sim.S[i].id;
     const needs = sim.stationNeeds(i); if (needs) { const r = up(needs.station.index, sim.S[i].needs.upgrade); if (r) return r; }
-    break;
   }
   for (const id of ['crossing', 'platform2', 'building', 'barriers', 'kiosk']) for (let i = 0; i < sim.S.length; i++) { const r = up(i, id); if (r) return r; }
   for (let i = 0; i < sim.S.length; i++) if (g.st[i].lost >= 12) { const r = up(i, 'taxi'); if (r) return r; }

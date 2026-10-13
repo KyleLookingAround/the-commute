@@ -109,7 +109,7 @@ const SIDINGS = [-43.3, -49, -53.9, -59.3, -65];
 /** A rescue the spare unit is out on, or coming back from: the failure's from and until (sim seconds), where the
  * spare's middle starts (in the sidings) and ends (buffered up to the failed unit), the line it runs out along and the
  * blocked one it crosses onto, and how long it takes coming back. */
-export interface Rescue { from: number; until: number; s0: number; s1: number; along: string; onto: string; back: number }
+export interface Rescue { from: number; until: number; s0: number; s1: number; along: string; onto: string; back: number; route?: { svc: ServiceDef; dir: number } }
 const SIDING_CLEAR = 220, EASE_OUT = 300, CROSS_IN = 150;   // metres: past the platforms, onto the line, onto the blocked line
 /** The rescue for a failure, worked out from the failed train where it stands. */
 export function rescueFor(net: Network, svcs: ServiceDef[], g: GameState): Rescue | null {
@@ -118,9 +118,11 @@ export function rescueFor(net: Network, svcs: ServiceDef[], g: GameState): Rescu
   const onto = net.route(svc).track(tr.s, tr.dir), fast = svcs.find(v => v.through);
   // the stoppers' line has the fast line beside it; anything else (the branch) has only its own
   const along = fast && svc === svcs[0] ? net.route(fast).track(tr.s, tr.dir) : onto;
-  const st = net.stations[0]!, sg = Math.sign(tr.s - st.s) || 1;
+  // off the spine (a line out), it comes out from its service's home along the line itself, on the failed train's track
+  const off = !net.spineOf.has(net.route(svc).leg(tr.s, tr.leg).corridor), home = off && svc.home ? net.station(svc.home) : null;
+  const st = home ?? net.stations[0]!, sg = Math.sign(tr.s - st.s) || 1;
   const s1 = tr.s - sg * ((tr.cars * PITCH - 0.6) / 2 + (2 * PITCH - 0.6) / 2 + 0.6);
-  return { from: f.from, until: f.until, s0: st.at + SPARE_AT[0], s1, along, onto, back: 0.65 * (f.until - f.from) };
+  return { from: f.from, until: f.until, s0: home ? home.s : st.at + SPARE_AT[0], s1, along, onto, back: 0.65 * (f.until - f.from), ...(home ? { route: { svc, dir: tr.dir } } : {}) };
 }
 /** Where the spare unit's middle is at sim time t on a rescue (along the corridor), or null once it's back. It waits a
  * tenth of the rescue for its crew, drives out to arrive three quarters through, and stands buffered up until the line
@@ -352,7 +354,8 @@ export class TrainLayer {
     this.spareOut = true;
     this.spareCars.forEach((m, c) => {
       const xc = x + (c - 0.5) * PITCH;
-      const a = this.net.place(SPINE, xc - BOGIE, rescueOffset(this.net, r, xc - BOGIE), fa), b = this.net.place(SPINE, xc + BOGIE, rescueOffset(this.net, r, xc + BOGIE), fb);
+      const R = r.route && this.net.route(r.route.svc), on = (x: number, f: Frame) => this.net.trackAt(R!.track(x, r.route!.dir), x, f);
+      const a = R ? on(xc - BOGIE, fa) : this.net.place(SPINE, xc - BOGIE, rescueOffset(this.net, r, xc - BOGIE), fa), b = R ? on(xc + BOGIE, fb) : this.net.place(SPINE, xc + BOGIE, rescueOffset(this.net, r, xc + BOGIE), fb);
       const dx = b.x - a.x, dz = b.z - a.z;
       m.position.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2); m.rotation.y = Math.atan2(-dz, dx); m.updateMatrix();
     });

@@ -40,7 +40,7 @@ const PAD = 1500;          // metres of ground round the corridor's bounding box
 const BASE_CELL = 32, FINE_CELL = 2, TILE = 128;
 const FINE_BAND = 100;     // fine samples within this many metres of the corridor (the line's widest layouts reach 80 m)
 const RAIL_STEP = 5, DATUM_CELL = 64;
-const FAR_CELL = 128, BLOCK = 32, FAR_RING = 1500;   // the far ring: see nearBlock
+const FAR_CELL = 128, BLOCK = 32, FAR_RING = 1500, OUT_RING = 800;   // the far ring: see nearBlock (OUT_RING: a line out's)
 const LATERAL = 1.25;      // the tracks and kits are drawn this many times real across the line
 const COARSE_CHUNK = 2000, COARSE_RES = 4, FINE_CHUNK = 500;
 
@@ -107,12 +107,13 @@ function encodeGrid(v, w, h) {
 // ---------------------------------------------------------------------------------------------------------------
 // The far ring: the base tiles are every FAR_CELL m, and only the BLOCK-cell blocks within FAR_RING of the line are
 // every BASE_CELL m besides, since further out the base mesh (every 48 m) is all that's drawn, seen from a kilometre off
-const linePts = []; for (const l of lines) for (let s = l.start; s <= l.end; s += 20) linePts.push(l.at(Math.min(s, l.end)));
+const linePts = [], ringPts = []; for (const l of lines) for (let s = l.start; s <= l.end; s += 20) { const p = l.at(Math.min(s, l.end)); linePts.push(p); ringPts.push([p, l === c ? FAR_RING : OUT_RING]); }
 const BS = BASE_CELL * BLOCK;
-/** Whether the near block (bi, bj) has any of it within FAR_RING of the line. */
+/** Whether the near block (bi, bj) has any of it within FAR_RING of the spine, or OUT_RING of a line out (seen from
+ * further off beyond that, so the first frame's script stays in its budget). */
 const nearBlock = (bi, bj) => {
   const x0 = bi * BS, z0 = bj * BS, x1 = x0 + BS, z1 = z0 + BS;
-  return linePts.some(p => Math.hypot(Math.max(x0 - p.x, 0, p.x - x1), Math.max(z0 - p.z, 0, p.z - z1)) < FAR_RING);
+  return ringPts.some(([p, r]) => Math.hypot(Math.max(x0 - p.x, 0, p.x - x1), Math.max(z0 - p.z, 0, p.z - z1)) < r);
 };
 // --coarsen: no fetching; rewrite a base.json written before the far ring (every tile every BASE_CELL m) from its own
 // samples: every other one for the tiles, and the near blocks cut out as they are

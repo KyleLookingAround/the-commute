@@ -275,6 +275,8 @@ export class Sim {
    * stations are owned (none until one beyond home is). */
   span(v: Svc): number[] {
     if (v.home === null) return v.route;
+    // a service that opens with a station runs nowhere until it's owned
+    if (v.def.opens && !this.g.owned[this.net.station(v.def.opens).index]) return [];
     const g = this.g, k = v.route.indexOf(v.home); let lo = k, hi = k;
     while (lo > 0 && g.owned[v.route[lo - 1]!]) lo--;
     while (hi < v.route.length - 1 && g.owned[v.route[hi + 1]!]) hi++;
@@ -782,7 +784,12 @@ export class Sim {
     const st = this.net.station(n.station), u = UPGRADES.find(x => x.id === n.upgrade);
     return u && !this.ups(st.index)[u.id] ? { station: st, name: this.upgradeName(st.index, u) } : null;
   }
-  canBuyStation(i: number): boolean { const g = this.g, s = this.S[i]; return !!s && !g.owned[i] && g.cash >= this.stationPrice(i) && (i === 0 || !!g.owned[i - 1]) && !this.stationNeeds(i); }
+  /** The station that must be owned before station i can be bought: its `after`, or the one before it in the list
+   * (none for the first). */
+  prior(i: number): number { const a = this.station(i).after; return a ? this.net.station(a).index : i - 1; }
+  /** Whether station i is next to buy: not owned, and the station before it is. */
+  offerable(i: number): boolean { const p = this.prior(i); return !this.g.owned[i] && (p < 0 || !!this.g.owned[p]); }
+  canBuyStation(i: number): boolean { const g = this.g, s = this.S[i]; return !!s && this.offerable(i) && g.cash >= this.stationPrice(i) && !this.stationNeeds(i); }
   buyStation(i: number): boolean { if (!this.canBuyStation(i)) return false; this.g.cash -= this.stationPrice(i); this.g.owned[i] = true; this.refreshJourneys(); return true; }
   canBuyUpgrade(i: number, id: string): boolean {
     const u = UPGRADES.find(u => u.id === id), g = this.g, ups = g.ups[i];

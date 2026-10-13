@@ -135,7 +135,7 @@ export class UI {
     const { strip } = this.els, g = this.g; strip.innerHTML = '';
     this.sim.S.forEach((s, i) => {
       // a chip: the name and the waiting count, or fogged with the price; the next station to buy fills a meter
-      const next = !g.owned[i] && (i === 0 || !!g.owned[i - 1]) && !this.sim.stationNeeds(i);
+      const next = this.sim.offerable(i) && !this.sim.stationNeeds(i);
       const b = document.createElement('button'); b.className = 'card' + (g.owned[i] ? '' : ' lock'); b.setAttribute('aria-pressed', String(i === this.selected));
       b.innerHTML = `<span class="nm">${s.name.replace('Manchester ', '')}</span><span class="st" data-st="${i}"></span>${next ? `<meter min="0" max="${this.sim.stationPrice(i)}" value="0" data-sm="${i}"></meter>` : ''}`;
       b.setAttribute('aria-label', `${s.name}, ${milesFrom(s.miles)}`);
@@ -155,7 +155,7 @@ export class UI {
     const i = this.selected, s = this.sim.station(i), g = this.g, panel = this.els.panel;
     if (this.els.shName.textContent !== s.name) this.els.shName.textContent = s.name;
     if (!g.owned[i]) {
-      const blocked = i > 0 && !g.owned[i - 1], needs = this.sim.stationNeeds(i);
+      const blocked = !this.sim.offerable(i), needs = this.sim.stationNeeds(i);
       const label = blocked ? 'Buy the stations before it first' : needs ? `Needs ${needs.station.name}'s ${needs.name}` : `Buy as a halt · ${fmt(this.sim.stationPrice(i))}`;
       panel.innerHTML = `<p class="blurb">${BLURB[s.id] || ''}</p>
         <button class="buy" id="buyStation" ${this.sim.canBuyStation(i) ? '' : 'disabled'}>${label}</button>`;

@@ -54,6 +54,9 @@ export interface StationGeoDef {
   grow?: Partial<Record<StageId, { name: string; desc?: string; price?: number; spaces?: number }>>;
   /** Something that must be built elsewhere before this station can be bought. */
   needs?: { station: string; upgrade: string };
+  /** The station that must be owned before this one: the one before it in the list when not given (the Marple line's
+   * first, Ashburys, comes after Hazel Grove, beside the Buxton line). */
+  after?: string;
   /** The platform faces trains stand at, where they're more than the halt's one and the second platform's (the sim
    * makes those two up for a station that doesn't list its own). */
   platforms?: PlatformDef[];
@@ -77,6 +80,8 @@ export interface Access { drive: number; driveTime: number; driveR: number; bus:
 export interface ServiceDef {
   id: string; name: string; operator: string; tracks: { north: string[]; south: string[] };
   calls: string | string[]; cars: number; scenery?: boolean; route?: string[]; home?: string;
+  /** A station that must be owned before the service runs at all (the Rose Hill trains, from when Rose Hill is bought). */
+  opens?: string;
   /** Where its calling pattern or route comes from, and what's a game choice. */
   note?: string;
   /** The platforms it uses at each station, preferred first; a station not listed: whichever face is its way. A `turn`

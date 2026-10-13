@@ -420,10 +420,19 @@ export function smoothPolyline(points: XZ[], subdivisions = 6): XZ[] {
  * every other corridor's running on to or from the junction where it meets another. */
 function graph(defs: CorridorDef[], junctions: JunctionDef[], spine: string[]): CorridorDef[] {
   const at = (id: string) => { const j = junctions.find(j => j.id === id); if (!j) throw new Error(`no junction "${id}"`); return j; };
+  // a line that ends at a junction on a line running through it (the Marple line at Ardwick) ends at the junction's
+  // point itself, which lies on that line, so their tracks meet; where both are cut there (Edgeley), they share the cut
+  const through = (id: string) => { const j = at(id); return !defs.some(k => k.id === j.corridor && (k.from === id || k.to === id)); };
   const cut = defs.map(c => {
     let points = c.points;
-    if (c.from) points = trim(points, at(c.from), true);
-    if (c.to) points = trim(points, at(c.to), false);
+    // (its last 20 m along that line's direction there, so the two run on together)
+    const snap = (pts: XZ[], j: JunctionDef, sign: number): XZ[] => {
+      const host = defs.find(k => k.id === j.corridor)!, H = new Corridor({ id: host.id, points: host.points }), f = H.at(H.nearest(j.x, j.z));
+      const keep = pts.filter((q, k) => k === 0 || Math.hypot(q[0] - j.x, q[1] - j.z) >= 40);
+      return [...keep, [j.x - sign * f.dx * 20, j.z - sign * f.dz * 20], [j.x, j.z]];
+    };
+    if (c.from) { points = trim(points, at(c.from), true); if (through(c.from)) points = snap([...points].reverse(), at(c.from), -1).reverse(); }
+    if (c.to) { points = trim(points, at(c.to), false); if (through(c.to)) points = snap(points, at(c.to), 1); }
     return { ...c, points };
   });
   const len = (c: CorridorDef) => { let l = 0; for (let i = 1; i < c.points.length; i++) l += Math.hypot(c.points[i]![0] - c.points[i - 1]![0], c.points[i]![1] - c.points[i - 1]![1]); return l; };

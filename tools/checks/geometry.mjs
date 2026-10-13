@@ -159,7 +159,9 @@ export default async function ({ ok, root, kits: given }) {
     const reachOut = 120;
 
     // ---- every track a service runs on, through the station ----
-    for (const svc of services) for (const [dir, id] of [1, -1].map(d => [d, net.route(svc).track(st.at, d)])) {
+    // (the services whose route runs along this station's corridor here: chainage runs on through the junctions, so
+    // a line out shares it with the line it joins, and its trains are elsewhere on the map)
+    for (const svc of services.filter(v => net.route(v).leg(st.at).corridor === st.corridor)) for (const [dir, id] of [1, -1].map(d => [d, net.route(svc).track(st.at, d)])) {
       const [r0, r1] = serviceRange(net, svc);
       for (const cars of lengths(svc)) for (let s = Math.max(r0, st.at + umin - reachOut); s <= Math.min(r1, st.at + umax + reachOut); s += STEP) {
         const bs = bodies(svc, s, dir, cars, null);

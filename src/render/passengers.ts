@@ -128,7 +128,7 @@ function entranceOf(kit: Kit, face: Face): { u: number; v: number } {
 
 /** The services that carry nobody from the line's stations (the expresses): nobody walks to board them. */
 const EXPRESS = new Set((network.services as { id: string; through?: unknown }[]).filter(v => v.through).map(v => v.id));
-const EDGE = 2.1, STAND = 2.6;   // a platform's edge from its track's centreline, and where people stand to board
+const EDGE = 1.68, STAND = 2.08;   // a platform's edge from its track's centreline, and where people stand to board
 /** Where people stand to board a train at each platform: STAND from its track towards whichever of the kit's platforms
  * has its edge there; null for a platform without a place across the line (the halt's and the second platform's at a
  * through station, which are the faces). */

@@ -85,6 +85,7 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
 5. **The fleet** (M): units as things you choose (older diesels, electric units), depots with room for them (Longsight), maintenance.
 6. **Timetabling** (L): a simple timetable view; junction conflicts, platform capacity and delays that spread as the late-game pressure.
 7. **Stockport as the hub** (M): many services changing passengers, and its interchange stage.
+8. **The A6 and the 192** (M, the owner, 13 October 2026; can run beside the lines out). The A6 drawn along its real course beside the line the whole way: Hazel Grove, Stockport's Wellington Road high over Mersey Square, Heaton Chapel, Levenshulme, Longsight and Ardwick to London Road at Piccadilly. It is lined with its real buildings: the terraces, shops and pubs, Levenshulme's market and antiques shops, Stockport Town Hall and the offices by the station, from the photo library's `areas` folders. Its traffic is busy at the peaks and lit at night. The 192, one of Britain's busiest bus routes, runs along it as the line's rival: a bus every few minutes, slower but stopping near every door, so it takes the trips the line serves badly, and quicker, more frequent trains win them back through door-to-door journey times, shown on the map in fuller or emptier 192s. Replaces the straight stand-in roads the stations and replacement buses use today where they run on the A6.
 
 ## 6. Manchester city centre
 
@@ -147,7 +148,7 @@ Past the plausible the network goes science fiction, still a model railway in da
 - A release at the end of each phase from the second on: What's new, save fixtures, and saves migrated.
 - Balance with the bot after any pacing or economy change; baselines moved on purpose, with the reason.
 - Everything bought shows on the map; locked stations stand fogged with their price; locked upgrades stay hidden.
-- Stations grow into their surroundings phase by phase (the owner, 12 October 2026): the road bridges beside them, car parks, forecourts and the bus stations that serve them, such as the Stockport Interchange, each added when a phase gives it a reason (car parks and bus links in phase 3; the city's streets in phase 6; trams' stops in phase 7), not all at once.
+- Stations grow into their surroundings phase by phase (the owner, 12 October 2026): the road bridges beside them, car parks, forecourts and the bus stations that serve them, such as the Stockport Interchange, each added when a phase gives it a reason (car parks and bus links in phase 3; the A6 in phase 5; the city's streets in phase 6; trams' stops in phase 7), not all at once.
 - A reference photo library of every station, today's and phase 5's, at different angles (the owner, 13 October 2026): `docs/reference/photos/`, freely licensed photographs from geograph and Commons with what each shows and what it settles (being gathered: `docs/briefs/station-photos.md`).
 - Real places and layouts where known, a note where something is from memory; sources credited (OpenStreetMap, the Environment Agency's LIDAR, the census).
 - Saves stay on the device, versioned, migrated from the first release on.

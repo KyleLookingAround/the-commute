@@ -98,11 +98,12 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   // a road along each line out, on one side (the Marple line runs through suburbs most of the way)
   for (const l of net.lines.slice(1)) ribbon(-95, 12, 0.2, 0.1, MAT.road, l);
 
-  // ---- OHLE: a mast outside each outer track with an arm reaching over it, and a wire over every track, along each
+  // ---- OHLE: a mast outside each outer track (open-ended: its foot is in the ground, its top under the arm) with an
+  // arm reaching over it, and a wire over every track, along each
   // line where it's electrified (the spine from the town's edge in; a line out where its corridor's `wires` say) ----
   (function ohle() {
     const n = net.lines.reduce((a, l) => a + Math.floor(l.length / 55) * 2 + 2, 0);
-    const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.2, 0.25, 7.5, 6), MAT.steel, n), arms = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 0.3, 6), MAT.steel, n);
+    const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.2, 0.25, 7.5, 6, 1, true), MAT.steel, n), arms = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 0.3, 6), MAT.steel, n);
     let k = 0; const wire: number[] = [];
     for (const l of net.lines) for (let s = (l === c ? edge : l.start) + 30; s < l.end && k < n; s += 55) {
       let lo = Infinity, hi = -Infinity;

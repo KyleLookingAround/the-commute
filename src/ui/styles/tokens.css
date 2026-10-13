@@ -70,7 +70,7 @@
   --map-home-roof:#5d6b80; --map-home-tile:#a8473a; --map-home-glass:#cfe6f5;
   /* the real buildings (src/render/buildings.ts): walls, then roofs */
   --map-bld-brick:#b65a3f; --map-bld-brick-dark:#8e4a38; --map-bld-buff:#dcc08e; --map-bld-render:#f0e8d6; --map-bld-stone:#cdb48c; --map-bld-concrete:#c4beb2;
-  --map-bld-glass:#8fbcdc; --map-bld-shed:#a9b8c6; --map-bld-slate:#5c6577; --map-bld-tile:#a95440; --map-bld-felt:#76737a; --map-bld-metal:#93a2b0;
+  --map-bld-glass:#8fbcdc; --map-bld-shed:#a9b8c6; --map-bld-slate:#5c6577; --map-bld-tile:#a95440; --map-bld-felt:#8d8a93; --map-bld-metal:#93a2b0;
   --map-ghost:#4fdcff; --map-house-sat:0.45; --map-tower-sat:0.15; --map-house-light:0.42; --map-tower-light:0.5;
 }
 @media (min-width:768px){ :root{ --sheet-w:360px } }

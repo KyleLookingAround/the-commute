@@ -4,7 +4,10 @@
 // - Size: what's committed of the world tiles stays within its budget (2 MB for today's line).
 // - Clear of the line: no drawn building has any of its footprint (sampled every 2 m) on the railway's land or its
 //   cutting and embankment slopes, or on a station kit's parts.
-// - Terraces joined: houses sharing walls are drawn as rows, so a dense square draws well under one piece a building.
+// - Clear of the landmarks: no corner of a building on a landmark's footprint (the town's named buildings, the Pyramid,
+//   the skyline's towers), the Mersey or the M60.
+// - Terraces joined: houses sharing walls are drawn as rows: at least 40% of the buildings are in rows and there are at
+//   most three pieces for every four buildings.
 // - Load time: how long placing and drawing each square takes here (logged, not judged).
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -14,7 +17,8 @@ register();
 globalThis.document ??= { createElement: () => ({ getContext: () => null }) };
 const { fromGeo } = await import('../../src/sim/network.ts');
 const { Terrain, partBoxes } = await import('../../src/render/terrain.ts');
-const { bridgesOf } = await import('../../src/render/landmarks.ts');
+const { bridgesOf, buildLandmarks, standing, onCourses } = await import('../../src/render/landmarks.ts');
+const THREE = await import('three');
 const { BuildingsLayer, decodeWorld } = await import('../../src/render/buildings.ts');
 
 const BUDGET = 2 * 1024 * 1024;
@@ -34,7 +38,7 @@ export default async function ({ ok, root }) {
     try {
       const { head, pieces } = decodeWorld(key, readFileSync(join(dir, f), 'utf8'));
       if (!pieces.length || !head.n) bad.push(`${key}: no buildings`);
-      for (const p of pieces) if (![p.x, p.z, p.w, p.d, p.h].every(Number.isFinite) || p.w <= 0 || p.d <= 0 || p.w > 600 || p.h < 2 || p.h > 200 || !'fph'.includes(p.roof)) { bad.push(`${key}: a piece ${JSON.stringify({ ...p, ring: !!p.ring })}`); break; }
+      for (const p of pieces) if (![p.x, p.z, p.w, p.d, p.h].every(Number.isFinite) || p.w <= 0 || p.d <= 0 || p.w > 600 || p.h < 2 || p.h > 320 || !'fph'.includes(p.roof)) { bad.push(`${key}: a piece ${JSON.stringify({ ...p, ring: !!p.ring })}`); break; }
       squares.push({ key, head, pieces });
     } catch (e) { bad.push(`${key}: ${e.message}`); }
   }
@@ -44,7 +48,10 @@ export default async function ({ ok, root }) {
   ok(`world: the tiles are within their budget (${(size / 1024).toFixed(0)} KB of ${BUDGET / 1048576} MB)`, size <= BUDGET);
 
   // placed as the page places them
-  const layer = new BuildingsLayer(t, {}, net, kits), times = [];
+  // the landmarks first, so their footprints are known (as the page builds them before the buildings come in)
+  const real = new Set(files.map(f => f.replace('.txt', '')));
+  buildLandmarks(new THREE.Scene(), net, def, (x, z) => t.groundY(x, z), (x, z) => real.has(`${Math.floor(x / 1000)}_${Math.floor(z / 1000)}`));
+  const layer = new BuildingsLayer(t, {}, net, def, kits), times = [];
   const placed = squares.map(({ key, pieces }) => { const t0 = performance.now(), out = layer.add(key, pieces); times.push(performance.now() - t0); return out; });
   console.log(`      ${layer.stats.buildings} pieces read, ${layer.stats.pieces} drawn, ${layer.stats.left} left out; placing a square takes ${(times.reduce((a, b) => a + b, 0) / times.length).toFixed(0)} ms on average here, ${Math.max(...times).toFixed(0)} at most`);
 
@@ -70,10 +77,23 @@ export default async function ({ ok, root }) {
   ok('world: no building on the railway\'s land or its slopes', !onLine.length, `${onLine.length}: ` + onLine.slice(0, 4).join(', '));
   ok('world: no building on a station kit\'s parts', !onKit.length, `${onKit.length}: ` + onKit.slice(0, 4).join(', '));
 
+  // clear of the landmarks: their buildings, the river and the M60
+  const course = onCourses(def), onMark = [];
+  for (const list of placed) for (const q of list) {
+    const p = q.p, pts = [p.x, p.z, ...q.cs];
+    for (let k = 0; k < pts.length; k += 2) {
+      const x = pts[k], z = pts[k + 1], hit = standing.find(([sx, sz, r]) => Math.hypot(x - sx, z - sz) < r - 1);
+      if (hit || course(x, z, -4)) { onMark.push(`${x.toFixed(0)},${z.toFixed(0)}${hit ? '' : ' (river or M60)'}`); break; }
+    }
+  }
+  ok(`world: no building on a landmark, the river or the M60 (${standing.length} landmark footprints)`, standing.length > 0 && !onMark.length, `${onMark.length}: ` + onMark.slice(0, 4).join(', '));
+
   // terraces joined into rows
-  const dense = squares.filter(s => s.head.n.buildings > 300), loose = dense.filter(s => s.head.n.pieces > 0.9 * s.head.n.buildings);
-  const joined = squares.reduce((n, s) => n + s.head.n.joined, 0), all = squares.reduce((n, s) => n + s.head.n.buildings, 0);
-  ok('world: terraces are joined into rows', dense.length > 0 && !loose.length, `${joined} of ${all} buildings joined into rows; ` + loose.map(s => `${s.key}: ${s.head.n.pieces} pieces for ${s.head.n.buildings}`).join(', '));
+  // (OSM's buildings: those outlined from the LIDAR come as rows already, a terrace's roof one patch)
+  const lid = squares.reduce((n, s) => n + (s.head.n.fromLidar ?? 0), 0);
+  const joined = squares.reduce((n, s) => n + s.head.n.joined, 0), all = squares.reduce((n, s) => n + s.head.n.buildings, 0) - lid, pieces = squares.reduce((n, s) => n + s.head.n.pieces, 0) - lid;
+  const rows = squares.filter(s => s.head.n.joined > (s.head.n.buildings - (s.head.n.fromLidar ?? 0)) / 2).length;
+  ok('world: terraces are joined into rows', joined >= 0.4 * all && pieces <= 0.75 * all && rows > 0, `${joined} of OSM's ${all} buildings joined into rows, ${pieces} pieces for them (and ${lid} outlined from the LIDAR); ${rows} squares mostly in rows`);
 }
 
 function inside(cs, x, z) {

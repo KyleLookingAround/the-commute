@@ -44,7 +44,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   // the real buildings, where there are tiles for them: the made-up houses keep out of those squares
   const files = worldFiles(), squares = new Set(Object.keys(files));
   let real: BuildingsLayer | null = null, low = false;
-  const loaded = import('./buildings.ts').then(m => { real = new m.BuildingsLayer(terrain, files, net, kitFiles(), layer); real.setLow(low); scene.add(real.group); return real; });
+  const loaded = import('./buildings.ts').then(m => { real = new m.BuildingsLayer(terrain, files, net, def, kitFiles(), layer); real.setLow(low); scene.add(real.group); return real; });
   const buildings: Buildings = {
     real: (x, z) => squares.has(`${Math.floor(x / 1000)}_${Math.floor(z / 1000)}`), blocked: (x, z, r) => !!real?.blocked(x, z, r),
     layer: loaded, ready: loaded.then(l => l.ready), setLow: v => { low = v; real?.setLow(v); },
@@ -162,7 +162,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   })();
 
   // ---- the landmarks: the viaduct, the river and the M60 under it, the Pyramid, the town, the city's skyline ----
-  buildLandmarks(scene, net, def, groundY);
+  buildLandmarks(scene, net, def, groundY, buildings.real);
 
   const roadSegs = (net.def.roads ?? []).flatMap(r => r.points.slice(1).map((b, i) => [r.points[i]!, b] as const));
   const onCourse = onCourses(def);

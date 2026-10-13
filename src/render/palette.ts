@@ -29,7 +29,7 @@ const FALLBACK = {
   'brolly-1': '#ff4f6d', 'brolly-2': '#ffc93c', 'brolly-3': '#2fb6a8', 'brolly-4': '#5a6cff', 'brolly-5': '#ff8a3d',
   'leaf-spring': '#7cc35a', 'leaf-summer': '#3f8f3a', 'leaf-autumn': '#e09a2c', 'leaf-autumn-2': '#c8552a', blossom: '#f6c3d6',
   'bld-brick': '#b65a3f', 'bld-brick-dark': '#8e4a38', 'bld-buff': '#dcc08e', 'bld-render': '#f0e8d6', 'bld-stone': '#cdb48c', 'bld-concrete': '#c4beb2',
-  'bld-glass': '#8fbcdc', 'bld-shed': '#a9b8c6', 'bld-slate': '#5c6577', 'bld-tile': '#a95440', 'bld-felt': '#76737a', 'bld-metal': '#93a2b0',
+  'bld-glass': '#8fbcdc', 'bld-shed': '#a9b8c6', 'bld-slate': '#5c6577', 'bld-tile': '#a95440', 'bld-felt': '#8d8a93', 'bld-metal': '#93a2b0',
   trunk: '#6a5040', wet: '#8fa6bd', brass: '#c9a24a', 'brass-ink': '#3b2a0e',
 };
 const NUMBERS = { 'house-sat': 0.45, 'tower-sat': 0.15, 'house-light': 0.42, 'tower-light': 0.5 };

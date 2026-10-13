@@ -29,10 +29,13 @@
 //    line a piece in a text encoding (decodeWorld in src/render/buildings.ts):
 //    R  x z w d yaw h roof wall top flags     a rectangle: centre, size (w along yaw, d across), walls, roof
 //    P  h roof wall top flags n (x z)*n        an outline, flat-roofed
+//    T  (x z h r)*                              the trees, one line: each top's place, height (every 0.5 m) and spread
+//                                               (every 0.2 m)
 //    Numbers are fixed-width base-90 digits (the terrain's alphabet): x, z every 0.25 m from 500 m before the square's
 //    corner, w, d and h every 0.1 m, yaw in 8100ths of a half turn. roof: f flat, p pitched, h hipped. wall and top
-//    name colours (the --map-bld-* tokens). flags: a digit, 1 the height is guessed (2 storeys), 2 from the LIDAR, 4 the
-//    roof is assumed.
+//    name colours (the --map-bld-* tokens). flags: a digit of
+//    the alphabet, the sum of 1 the height is guessed (2 storeys), 2 from the LIDAR, 4 the roof is assumed, 8 the outline
+//    is from the LIDAR (OSM has no building there).
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,10 +52,11 @@ const OSM = 'https://api.openstreetmap.org/api/0.6/map.json';
 const WCS = {
   dsm: ['https://environment.data.gov.uk/spatialdata/lidar-composite-digital-surface-model-first-return-dsm-1m/wcs', 'df4e3ec3-315e-48aa-aaaf-b5ae74d7b2bb__Lidar_Composite_Elevation_FZ_DSM_1m'],
   dtm: ['https://environment.data.gov.uk/spatialdata/lidar-composite-digital-terrain-model-dtm-1m/wcs', '13787b9a-26a4-4775-8523-806d13af58fc__Lidar_Composite_Elevation_DTM_1m'],
+  lst: ['https://environment.data.gov.uk/spatialdata/lidar-composite-digital-surface-model-last-return-dsm-1m/wcs', '9ba4d5ac-d596-445a-9056-dae3ddec0178__Lidar_Composite_Elevation_LZ_DSM_1m'],
 };
 const STOREY = 3;
-const outDir = join(root, 'src/data/world'), rawOsm = join(root, 'data/raw/osm'), rawDsm = join(root, 'data/raw/dsm'), rawDtm = join(root, 'data/raw/dtm');
-for (const d of [outDir, rawOsm, rawDsm, rawDtm]) mkdirSync(d, { recursive: true });
+const outDir = join(root, 'src/data/world'), rawOsm = join(root, 'data/raw/osm'), rawDsm = join(root, 'data/raw/dsm'), rawDtm = join(root, 'data/raw/dtm'), rawLst = join(root, 'data/raw/dsm-last');
+for (const d of [outDir, rawOsm, rawDsm, rawDtm, rawLst]) mkdirSync(d, { recursive: true });
 
 // ---------------------------------------------------------------------------------------------------------------
 // The network, and the map between game metres, WGS84 and the National Grid (as tools/lidar-to-terrain.mjs)
@@ -137,7 +141,7 @@ async function osmSquare(key) {
 const chunks = new Map();
 async function chunk(kind, e0, n0) {
   const key = `${kind}${e0},${n0}`; if (chunks.has(key)) return chunks.get(key);
-  const file = join(kind === 'dsm' ? rawDsm : rawDtm, `fine-${e0}-${n0}.f32`);
+  const file = join(kind === 'dsm' ? rawDsm : kind === 'lst' ? rawLst : rawDtm, `fine-${e0}-${n0}.f32`);
   let data;
   if (!fresh && existsSync(file)) data = new Float32Array(readFileSync(file).buffer.slice(0));
   else {
@@ -147,7 +151,7 @@ async function chunk(kind, e0, n0) {
     const vals = text.slice(at + 7).trim().split(/\s+/).map(Number);
     if (vals.length !== CHUNK * CHUNK) throw new Error(`${vals.length} values for a ${CHUNK} m chunk`);
     data = Float32Array.from(vals, v => Number.isFinite(v) && v > -100 && v < 2000 ? v : NaN);
-    writeFileSync(file, Buffer.from(data.buffer)); process.stdout.write(kind === 'dsm' ? 's' : 't');
+    writeFileSync(file, Buffer.from(data.buffer)); process.stdout.write(kind === 'dsm' ? 's' : kind === 'lst' ? 'l' : 't');
   }
   chunks.set(key, data); return data;
 }
@@ -156,7 +160,7 @@ async function loadRasters(key) {
   for (const [x, z] of [[i * SQ - 100, j * SQ - 100], [(i + 1) * SQ + 100, j * SQ - 100], [i * SQ - 100, (j + 1) * SQ + 100], [(i + 1) * SQ + 100, (j + 1) * SQ + 100]]) {
     const [E, N] = gameToBNG(x, z); e0 = Math.min(e0, E); e1 = Math.max(e1, E); n0 = Math.min(n0, N); n1 = Math.max(n1, N);
   }
-  for (let e = Math.floor(e0 / CHUNK) * CHUNK; e < e1; e += CHUNK) for (let n = Math.floor(n0 / CHUNK) * CHUNK; n < n1; n += CHUNK) { await chunk('dsm', e, n); await chunk('dtm', e, n); }
+  for (let e = Math.floor(e0 / CHUNK) * CHUNK; e < e1; e += CHUNK) for (let n = Math.floor(n0 / CHUNK) * CHUNK; n < n1; n += CHUNK) { await chunk('dsm', e, n); await chunk('dtm', e, n); await chunk('lst', e, n); }
 }
 /** The DSM or DTM at a game point (nearest sample): NaN where there's none. */
 function lidar(kind, x, z) {
@@ -280,14 +284,15 @@ function describe(b, palette) {
 }
 
 /** The suburbs' palette: red brick and slate, some render and buff, tiled 1930s hips; sheds and the bigger blocks plain.
- * Colours: wall b brick, d dark brick, u buff, r render, s stone, c concrete, g glass, m metal shed; top l slate,
+ * (The city's palette is city() below.) Colours: wall b brick, d dark brick, u buff, r render, s stone, c concrete, g glass, m metal shed; top l slate,
  * t tile, f felt (a flat roof), m metal. */
 function suburb(b, house, roof, h, rect) {
   const t = b.tags, r = hash(b.id, 1), type = t.building;
   const mat = t['building:material'] ?? '', col = t['building:colour'] ?? '';
   let wall = mat === 'stone' || mat === 'sandstone' ? 's' : mat === 'concrete' ? 'c' : mat === 'glass' ? 'g' : mat === 'plaster' || mat === 'render' || /white|cream/.test(col) ? 'r' : null;
   if (!wall) {
-    if (['industrial', 'warehouse', 'retail', 'supermarket', 'hangar', 'storage_tank', 'service'].includes(type) || (!house && rect.d > 20 && h < 12)) wall = r < 0.7 ? 'm' : 'b';
+    if (['industrial', 'warehouse', 'hangar', 'storage_tank'].includes(type)) wall = r < 0.7 ? 'm' : 'b';
+    else if (['retail', 'supermarket', 'service'].includes(type) || (!house && rect.d > 20 && h < 12)) wall = r < 0.4 ? 'b' : r < 0.65 ? 'u' : r < 0.85 ? 'r' : 'm';
     else if (['church', 'chapel', 'cathedral'].includes(type) || t.amenity === 'place_of_worship') wall = r < 0.5 ? 's' : 'd';
     else if (['office', 'commercial', 'hospital', 'university', 'college', 'apartments'].includes(type) && h > 12) wall = r < 0.5 ? 'c' : r < 0.8 ? 'u' : 'b';
     else wall = r < 0.62 ? 'b' : r < 0.8 ? 'd' : r < 0.9 ? 'r' : 'u';
@@ -295,6 +300,24 @@ function suburb(b, house, roof, h, rect) {
   const top = roof === 'f' ? (wall === 'm' ? 'm' : 'f') : roof === 'h' ? (hash(b.id, 2) < 0.65 ? 't' : 'l') : (hash(b.id, 2) < 0.8 ? 'l' : 't');
   return { wall, top };
 }
+
+/** The city's palette, towards Piccadilly: Victorian warehouses in red and dark brick, buff and stone, the newer blocks in
+ * concrete and glass, the tall ones mostly glass; flat roofs in felt. */
+function city(b, house, roof, h, rect) {
+  const t = b.tags, r = hash(b.id, 1), mat = t['building:material'] ?? '';
+  if (house) return suburb(b, house, roof, h, rect);
+  let wall = mat === 'glass' ? 'g' : mat === 'concrete' ? 'c' : mat === 'stone' || mat === 'sandstone' ? 's' : mat === 'brick' ? (r < 0.6 ? 'b' : 'd') : null;
+  if (!wall) {
+    if (['industrial', 'warehouse', 'retail', 'supermarket', 'service'].includes(t.building) && h < 12) wall = r < 0.55 ? 'm' : 'b';
+    else if (h > 24) wall = r < 0.55 ? 'g' : r < 0.85 ? 'c' : 'u';
+    else wall = r < 0.38 ? 'b' : r < 0.58 ? 'd' : r < 0.72 ? 'c' : r < 0.84 ? 'u' : r < 0.93 ? 's' : 'g';
+  }
+  const top = roof === 'f' ? (wall === 'm' ? 'm' : 'f') : hash(b.id, 2) < 0.75 ? 'l' : 't';
+  return { wall, top };
+}
+/** Each square's palette: the city's within 1.6 km of Piccadilly, the suburbs' elsewhere. */
+const pic = net.stationFrame('piccadilly');
+const paletteFor = key => { const [i, j] = key.split('_').map(Number); return Math.hypot((i + 0.5) * SQ - pic.x, (j + 0.5) * SQ - pic.z) < 1600 ? city : suburb; };
 
 /** Join terraces: rectangles sharing a wall, alike, into rows that stay nearly rectangles. */
 function join_(list) {
@@ -336,6 +359,123 @@ function join_(list) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Buildings OSM doesn't have (it maps few round Davenport and Woodsmoor), from the LIDAR: where the DSM stands 2.5 m or
+// more over the DTM and is smooth (a roof's planes, not a tree's crown), away from OSM's buildings and bridges, each
+// patch fitted as a rectangle if it nearly is one. Flagged 8 in the tile.
+function lidarBuildings(key, raw, els) {
+  const [i, j] = key.split('_').map(Number), N = SQ, X = i * SQ, Z = j * SQ;
+  // the game's frame to the National Grid is as good as affine across a square
+  const [E0, N0] = gameToBNG(X, Z), [E1, N1] = gameToBNG(X + SQ, Z), [E2, N2] = gameToBNG(X, Z + SQ);
+  const ex = (E1 - E0) / SQ, ez = (E2 - E0) / SQ, nx = (N1 - N0) / SQ, nz = (N2 - N0) / SQ;
+  const at = (kind, E, Nn) => { const e0 = Math.floor(E / CHUNK) * CHUNK, n0 = Math.floor(Nn / CHUNK) * CHUNK, d = chunks.get(`${kind}${e0},${n0}`); if (!d) return NaN; return d[Math.min(CHUNK - 1, Math.floor(n0 + CHUNK - Nn)) * CHUNK + Math.min(CHUNK - 1, Math.floor(E - e0))]; };
+  // h: standing over the ground (first return less the DTM); pierce: how far the laser went on through it (first less
+  // last return), a metre or more through a crown, next to nothing on a roof
+  const h = new Float32Array(N * N), pierce = new Float32Array(N * N);
+  for (let b = 0; b < N; b++) for (let a = 0; a < N; a++) {
+    const x = a + 0.5, z = b + 0.5, E = E0 + ex * x + ez * z, Nn = N0 + nx * x + nz * z, f = at('dsm', E, Nn), v = f - at('dtm', E, Nn), l = f - at('lst', E, Nn);
+    h[b * N + a] = Number.isFinite(v) ? v : 0; pierce[b * N + a] = Number.isFinite(l) ? l : 9;
+  }
+  // what's taken: OSM's buildings (2 m round), its bridges and raised roads and railways (6 m round)
+  const taken = new Uint8Array(N * N);
+  const mark = (x, z, r) => { for (let b = Math.max(0, Math.floor(z - Z - r)); b <= Math.min(N - 1, Math.floor(z - Z + r)); b++) for (let a = Math.max(0, Math.floor(x - X - r)); a <= Math.min(N - 1, Math.floor(x - X + r)); a++) taken[b * N + a] = 1; };
+  for (const bd of raw) {
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const [x, z] of bd.ring) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+    for (let z = z0 - 2; z <= z1 + 2; z += 1) for (let x = x0 - 2; x <= x1 + 2; x += 1) if (inside(x, z, bd.ring) || bd.ring.some(([px, pz]) => Math.hypot(px - x, pz - z) < 2.5)) mark(x, z, 0);
+    for (let k = 0; k < bd.ring.length; k++) { const [ax, az] = bd.ring[k], [bx, bz] = bd.ring[(k + 1) % bd.ring.length], L = Math.hypot(bx - ax, bz - az); for (let t = 0; t <= L; t += 1) mark(ax + (bx - ax) * t / L, az + (bz - az) * t / L, 2); }
+  }
+  const nodes = new Map(); for (const e of els) if (e.type === 'node') nodes.set(e.id, e);
+  for (const e of els) {
+    const t = e.tags; if (e.type !== 'way' || !t) continue;
+    if (!(t.bridge || +(t.layer ?? 0) > 0 || t.railway || t.man_made === 'bridge')) continue;
+    const pts = e.nodes.map(id => nodes.get(id)).filter(Boolean).map(n => toGame(n.lat, n.lon));
+    for (let k = 1; k < pts.length; k++) { const [ax, az] = pts[k - 1], [bx, bz] = pts[k], L = Math.hypot(bx - ax, bz - az) || 1; for (let q = 0; q <= L; q += 2) mark(ax + (bx - ax) * q / L, az + (bz - az) * q / L, 6); }
+  }
+  // smooth and raised: a roof
+  const rough = new Float32Array(N * N), roof = new Uint8Array(N * N);
+  // (across a roof's edge to the ground is a drop, not roughness: each way counts only between raised neighbours)
+  for (let b = 1; b < N - 1; b++) for (let a = 1; a < N - 1; a++) {
+    const k = b * N + a, c = h[k], up = v => v >= 2.5;
+    rough[k] = (up(h[k - 1]) && up(h[k + 1]) ? Math.abs(h[k - 1] + h[k + 1] - 2 * c) : 0) + (up(h[k - N]) && up(h[k + N]) ? Math.abs(h[k - N] + h[k + N] - 2 * c) : 0);
+  }
+  // a roof: raised, the laser stopped at its first return (the 3 m round mostly so), and not rough all through
+  for (let b = 1; b < N - 1; b++) for (let a = 1; a < N - 1; a++) {
+    const k = b * N + a; if (h[k] < 2.5 || taken[k]) continue;
+    let s = 0, solid = 0; for (let db = -1; db <= 1; db++) for (let da = -1; da <= 1; da++) { const q = k + db * N + da; s += rough[q]; if (pierce[q] < 0.5) solid++; }
+    if (solid >= 6 && s / 9 < 1.5) roof[k] = 1;
+  }
+  // opened (eroded then dilated a cell) so a roof touching a tree comes apart from it
+  const er = new Uint8Array(N * N);
+  for (let b = 1; b < N - 1; b++) for (let a = 1; a < N - 1; a++) { const k = b * N + a; er[k] = roof[k] && roof[k - 1] && roof[k + 1] && roof[k - N] && roof[k + N] ? 1 : 0; }
+  for (let b = 1; b < N - 1; b++) for (let a = 1; a < N - 1; a++) { const k = b * N + a; roof[k] = roof[k] && (er[k] || er[k - 1] || er[k + 1] || er[k - N] || er[k + N]) ? 1 : 0; }
+  // each patch
+  const seen = new Uint8Array(N * N), out = [], stack = [], why = { small: 0, big: 0, fill: 0, thin: 0 };
+  for (let k0 = 0; k0 < N * N; k0++) {
+    if (!roof[k0] || seen[k0]) continue;
+    const cells = []; stack.push(k0); seen[k0] = 1;
+    while (stack.length) { const k = stack.pop(); cells.push(k); for (const n of [k - 1, k + 1, k - N, k + N]) if (n >= 0 && n < N * N && roof[n] && !seen[n] && Math.abs((n % N) - (k % N)) <= 1) { seen[n] = 1; stack.push(n); } }
+    if (cells.length < 24) { why.small++; continue; } if (cells.length > 20000) { why.big++; continue; }
+    const pts = []; for (const k of cells) { const a = k % N, b = (k / N) | 0; pts.push([X + a, Z + b], [X + a + 1, Z + b], [X + a, Z + b + 1], [X + a + 1, Z + b + 1]); }
+    const r = minRect(pts), fill = cells.length / (r.w * r.d);
+    if (fill < 0.55) { why.fill++; continue; } if (r.d < 4 || (r.w / r.d > 6 && r.d < 8)) { why.thin++; continue; }
+    const ux = Math.cos(r.yaw), uz = Math.sin(r.yaw), A = r.w / 2, B = r.d / 2;
+    const ring = [[r.x - ux * A + uz * B, r.z - uz * A - ux * B], [r.x + ux * A + uz * B, r.z + uz * A - ux * B], [r.x + ux * A - uz * B, r.z + uz * A + ux * B], [r.x - ux * A - uz * B, r.z - uz * A + ux * B]];
+    if (area(ring) < 0) ring.reverse();
+    out.push({ id: 9e9 + i * 1e7 + j * 1e5 + out.length, ring, nodes: [], tags: { building: r.w * r.d < 160 ? 'house' : 'yes' }, lidar: true });
+  }
+  out.rasters = { h, pierce, rough, roof, taken, X, Z };
+  if (process.env.DUMP) { const img = new Uint8Array(N * N); for (let k = 0; k < N * N; k++) img[k] = roof[k] ? 255 : taken[k] ? 60 : h[k] >= 2.5 ? 130 : 0; writeFileSync(process.env.DUMP + key + '.raw', img); }
+  if (process.env.DEBUG) { let raised = 0, free = 0, rf = 0; for (let k = 0; k < N * N; k++) { if (h[k] >= 2.5) { raised++; if (!taken[k]) free++; } if (roof[k]) rf++; } console.log(key, { raised, free, roof: rf, kept: out.length, ...why }); }
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Trees, from the same rasters: standing 3 m or more where the laser went on through (or the top is rough), clear of
+// every building; one tree at each crown's top (the highest point within a radius that grows with height), its spread
+// how far the crown reaches round it. Crowns that overlap most of the way join into one clump (a wood, a garden row),
+// so the map draws what it can afford: each clump at the tallest top, as wide as their crowns together.
+function lidarTrees(key, R, extra) {
+  const { h, pierce, rough, roof, taken, X, Z } = R, N = SQ;
+  const veg = new Uint8Array(N * N);
+  const block = new Uint8Array(N * N);
+  for (const b of extra) { const r = minRect(b.ring); for (let dz = -r.d / 2 - 1; dz <= r.d / 2 + 1; dz += 1) for (let dw = -r.w / 2 - 1; dw <= r.w / 2 + 1; dw += 1) {
+    const x = r.x + Math.cos(r.yaw) * dw - Math.sin(r.yaw) * dz - X, z = r.z + Math.sin(r.yaw) * dw + Math.cos(r.yaw) * dz - Z;
+    if (x >= 0 && z >= 0 && x < N && z < N) block[Math.floor(z) * N + Math.floor(x)] = 1;
+  } }
+  for (let k = 0; k < N * N; k++) if (h[k] >= 3 && !taken[k] && !roof[k] && !block[k] && (pierce[k] >= 0.5 || rough[k] >= 1.5)) veg[k] = 1;
+  // the crowns' heights a little smoothed, so a top is a crown's and not one twig's
+  const hs = new Float32Array(N * N);
+  for (let b = 1; b < N - 1; b++) for (let a = 1; a < N - 1; a++) { const k = b * N + a; if (!veg[k]) continue; let s = 0, n = 0; for (let db = -1; db <= 1; db++) for (let da = -1; da <= 1; da++) { const q = k + db * N + da; if (veg[q]) { s += h[q]; n++; } } hs[k] = s / n; }
+  const tops = [];
+  for (let b = 2; b < N - 2; b++) for (let a = 2; a < N - 2; a++) {
+    const k = b * N + a; if (!veg[k]) continue;
+    const v = hs[k], w = Math.round(Math.max(2, Math.min(5, 1.5 + v * 0.12))); let top = true;
+    for (let db = -w; db <= w && top; db++) for (let da = -w; da <= w; da++) { const aa = a + da, bb = b + db; if (aa < 0 || bb < 0 || aa >= N || bb >= N) continue; const q = bb * N + aa; if (hs[q] > v || (hs[q] === v && q < k)) { top = false; break; } }
+    if (!top) continue;
+    // the spread: eight ways out until the crown ends or falls below half its height
+    let sum = 0;
+    for (let d = 0; d < 8; d++) {
+      const ca = Math.cos(d * Math.PI / 4), sb = Math.sin(d * Math.PI / 4); let r = 1;
+      for (; r < 9; r++) { const aa = Math.round(a + ca * r), bb = Math.round(b + sb * r); if (aa < 0 || bb < 0 || aa >= N || bb >= N) break; const q = bb * N + aa; if (!veg[q] || hs[q] < v * 0.5) break; }
+      sum += r;
+    }
+    tops.push({ x: X + a + 0.5, z: Z + b + 0.5, h: v, r: Math.max(1.5, Math.min(8, sum / 8)) });
+  }
+  // the tallest first; a top inside a taller crown's middle is that tree's
+  tops.sort((p, q) => q.h - p.h);
+  const kept = [], grid = new Map(), cell = 20, key2 = (x, z) => `${Math.floor(x / cell)},${Math.floor(z / cell)}`;
+  for (const t of tops) {
+    let into = null;
+    for (let i = -1; i <= 1 && !into; i++) for (let j = -1; j <= 1 && !into; j++) for (const o of grid.get(`${Math.floor(t.x / cell) + i},${Math.floor(t.z / cell) + j}`) ?? []) {
+      if (Math.hypot(t.x - o.x, t.z - o.z) < 1.0 * (o.r + t.r)) { into = o; break; }
+    }
+    if (into) { const a2 = into.r * into.r + t.r * t.r * 0.5; into.r = Math.min(16, Math.sqrt(a2)); into.n++; continue; }
+    const o = { ...t, n: 1 }; kept.push(o); const g = key2(o.x, o.z); if (!grid.has(g)) grid.set(g, []); grid.get(g).push(o);
+  }
+  return kept.filter(t => t.h >= 4 && t.r >= 1.5);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // The encoding
 const ALPHA = []; for (let k = 35; k <= 125; k++) if (k !== 92) ALPHA.push(String.fromCharCode(k));
 const num = (v, digits) => { let n = Math.max(0, Math.min(90 ** digits - 1, Math.round(v))), s = ''; for (let k = 0; k < digits; k++) { s = ALPHA[n % 90] + s; n = Math.floor(n / 90); } return s; };
@@ -343,21 +483,24 @@ function encode(key, pieces) {
   const [i, j] = key.split('_').map(Number), X = i * SQ - 500, Z = j * SQ - 500;
   const xz = (x, z) => num((x - X) * 4, 2) + num((z - Z) * 4, 2);
   return pieces.map(p => {
-    const tail = p.roof + p.wall + p.top + p.flags;
+    const tail = p.roof + p.wall + p.top + ALPHA[p.flags];
     if (p.fill >= 0.8) return 'R' + xz(p.rect.x, p.rect.z) + num(p.rect.w * 10, 2) + num(p.rect.d * 10, 2) + num(p.rect.yaw / Math.PI * 8100, 2) + num(p.h * 10, 2) + tail;
     const ring = simplify(p.ring, 0.4).slice(0, 89);
-    return 'P' + num(p.h * 10, 2) + 'f' + p.wall + (p.top === 'f' || p.top === 'm' ? p.top : 'f') + p.flags + ALPHA[ring.length] + ring.map(([x, z]) => xz(x, z)).join('');
+    return 'P' + num(p.h * 10, 2) + 'f' + p.wall + (p.top === 'f' || p.top === 'm' ? p.top : 'f') + ALPHA[p.flags] + ALPHA[ring.length] + ring.map(([x, z]) => xz(x, z)).join('');
   }).join('\n');
 }
 
 // ---------------------------------------------------------------------------------------------------------------
 for (const key of [...squares].sort()) {
   const els = await osmSquare(key); await loadRasters(key);
-  const raw = buildings(key, els), described = raw.map(b => describe(b, suburb)), pieces = join_(described);
-  const n = { buildings: raw.length, pieces: pieces.length, rects: pieces.filter(p => p.fill >= 0.8).length, joined: pieces.filter(p => p.joined).reduce((s, p) => s + p.joined, 0),
+  const osm = buildings(key, els), extra = lidarBuildings(key, osm, els), raw = [...osm, ...extra], trees = lidarTrees(key, extra.rasters, extra);
+  const described = raw.map(b => { const d = describe(b, paletteFor(key)); if (b.lidar) d.flags |= 8; return d; }), pieces = join_(described);
+  const n = { buildings: raw.length, fromLidar: extra.length, trees: trees.length, pieces: pieces.length, rects: pieces.filter(p => p.fill >= 0.8).length, joined: pieces.filter(p => p.joined).reduce((s, p) => s + p.joined, 0),
     levels: described.filter(b => !(b.flags & 3)).length, lidar: described.filter(b => b.flags & 2).length, guessed: described.filter(b => b.flags & 1).length, roofAssumed: described.filter(b => b.flags & 4).length };
-  const head = { v: 1, square: key, src: 'OpenStreetMap (© OpenStreetMap contributors, ODbL) and the Environment Agency LIDAR Composite DSM and DTM 1 m (Open Government Licence), by tools/osm-to-world.mjs', note: `${n.buildings} buildings as ${n.pieces} pieces (${n.joined} houses joined into rows); walls from OSM's height or levels for ${n.levels}, the LIDAR for ${n.lidar}, guessed at 2 storeys for ${n.guessed}; roofs assumed for ${n.roofAssumed} (flags in each line)`, n };
-  const text = JSON.stringify(head) + '\n' + encode(key, pieces) + '\n';
+  const head = { v: 1, square: key, src: 'OpenStreetMap (© OpenStreetMap contributors, ODbL) and the Environment Agency LIDAR Composite DSM and DTM 1 m (Open Government Licence), by tools/osm-to-world.mjs', note: `${n.buildings} buildings (${n.fromLidar} outlined from the LIDAR where OSM has none) as ${n.pieces} pieces (${n.joined} houses joined into rows); walls from OSM's height or levels for ${n.levels}, the LIDAR for ${n.lidar}, guessed at 2 storeys for ${n.guessed}; roofs assumed for ${n.roofAssumed} (flags in each line); ${n.trees} trees and clumps from the LIDAR`, n };
+  const [si, sj] = key.split('_').map(Number), TX = si * SQ - 500, TZ = sj * SQ - 500;
+  const treeLine = 'T' + trees.map(t => num((t.x - TX) * 4, 2) + num((t.z - TZ) * 4, 2) + num(t.h * 2, 1) + num(t.r * 5, 1)).join('');
+  const text = JSON.stringify(head) + '\n' + encode(key, pieces) + '\n' + treeLine + '\n';
   writeFileSync(join(outDir, `${key}.txt`), text);
   console.log(`\n${key}: ${head.note}; ${(text.length / 1024).toFixed(1)} KB`);
 }

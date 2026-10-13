@@ -58,7 +58,13 @@ export function bridgesOf(c: Corridor, def: NetworkGeoDef): [number, number][] {
   return out;
 }
 
-export function buildLandmarks(scene: THREE.Scene, net: Network, def: NetworkGeoDef, groundY: (x: number, z: number) => number): void {
+/** Where the landmarks' buildings stand (x, z, radius), filled as they're built: the real buildings (src/render/buildings.ts)
+ * leave these out, so nothing stands twice. */
+export const standing: [number, number, number][] = [];
+
+/** real: whether real buildings stand round a point (src/render/buildings.ts), so the town's made-up streets keep out. */
+export function buildLandmarks(scene: THREE.Scene, net: Network, def: NetworkGeoDef, groundY: (x: number, z: number) => number, real: (x: number, z: number) => boolean = () => false): void {
+  standing.length = 0;
   const c = net.spine;
   const marks = (def.landmarks ?? []) as Mark[], byId = (id: string) => marks.find(m => m.id === id);
   const along = (m: Mark | undefined): number | null => m && m.at ? c.nearest(...xz(def, m.at)) : null;
@@ -69,8 +75,11 @@ export function buildLandmarks(scene: THREE.Scene, net: Network, def: NetworkGeo
   if (river !== null) crossing(scene, c, river, groundY, 'river', courseOf(def, 'mersey'));
   if (m60 !== null) crossing(scene, c, m60, groundY, 'm60', courseOf(def, 'm60'));
   const pyramid = byId('pyramid'); if (pyramid) buildPyramid(scene, def, pyramid, groundY);
-  town(scene, net, c, def, marks, groundY, { river, m60 });
-  skyline(scene, def, marks.filter(m => m.kind === 'tower'));
+  if (pyramid?.lat !== undefined && pyramid.lon !== undefined) { const p = projectLatLon(pyramid.lat, pyramid.lon, def.origin); standing.push([p.x, p.z, (pyramid.w ?? 48) + 24]); }
+  town(scene, net, c, def, marks, groundY, { river, m60 }, real);
+  const towers = marks.filter(m => m.kind === 'tower');
+  for (const t of towers) if (t.lat !== undefined && t.lon !== undefined) { const p = projectLatLon(t.lat, t.lon, def.origin); standing.push([p.x, p.z, (t.w ?? 20) * 0.8 + 6]); }
+  skyline(scene, def, towers);
 }
 
 // ---- Stockport Viaduct: 27 brick arches on tall piers, widened on its west side in the 1880s ----
@@ -272,8 +281,8 @@ function buildPyramid(scene: THREE.Scene, def: NetworkGeoDef, m: Mark, groundY: 
 
 // ---- Stockport town centre in the valley: the Plaza, Merseyway over the river, St Mary's, the Market Hall, and streets of
 // shops and offices round them between the viaduct and the A6 ----
-function town(scene: THREE.Scene, net: Network, c: Corridor, def: NetworkGeoDef, marks: Mark[], groundY: (x: number, z: number) => number, bands: { river: number | null; m60: number | null }): void {
-  const taken: [number, number, number][] = [];   // footprints already standing: x, z, radius
+function town(scene: THREE.Scene, net: Network, c: Corridor, def: NetworkGeoDef, marks: Mark[], groundY: (x: number, z: number) => number, bands: { river: number | null; m60: number | null }, real: (x: number, z: number) => boolean): void {
+  const taken = standing;   // footprints already standing: x, z, radius
   const onCourse = onCourses(def);
   // a station's buildings down at street level (Stockport Interchange's hall), from the kits
   const kits = kitFiles();
@@ -336,6 +345,7 @@ function town(scene: THREE.Scene, net: Network, c: Corridor, def: NetworkGeoDef,
     const a = o0 + i * PLOT, b = b0 + j * PLOT, x = f.x + f.nx * a + f.dx * b, z = f.z + f.nz * a + f.dz * b;
     const s = c.nearest(x, z); c.at(s, 0, fr); const off = Math.abs((x - fr.x) * fr.nx + (z - fr.z) * fr.nz);
     if (off < 34 + rad) continue;                                              // the viaduct and the railway's land
+    if (real(x, z)) continue;                                                  // the real streets stand here
     if (onCourse(x, z, rad)) continue;
     if (nearRoad(x, z, rad)) continue;
     if (taken.some(([tx, tz, tr]) => Math.hypot(x - tx, z - tz) < tr + rad + 2)) continue;

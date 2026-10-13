@@ -11,8 +11,10 @@
 import * as THREE from 'three';
 import { PAL } from './scene.ts';
 import { partBoxes } from './terrain.ts';
+import { onCourses, standing } from './landmarks.ts';
 import type { KitDef, Terrain, TerrainLayer } from './terrain.ts';
 import type { Network } from '../sim/network.ts';
+import type { NetworkGeoDef } from '../sim/types.ts';
 
 /** The squares' size (the tool's), and the chunks each is drawn in. */
 export const SQUARE = 1000;
@@ -21,6 +23,7 @@ const NEAR = 900;        // a chunk this near the camera is drawn in full
 const SHADOW = 650;      // and casts shadows this near
 const FAR_LOW = 1600;    // on Low, nothing further than this
 const RAIL_MARGIN = 4;   // metres kept clear beyond the railway's land
+const RAIL_REACH = 300;  // the land (80 m at its widest) and its slopes (the terrain's strip, 150 m) lie within this of the line
 const KIT_MARGIN = 3;
 const ROAD_CLEAR = 4;    // half a road's width
 const EAVE = 0.3;        // a pitched roof's overhang
@@ -34,14 +37,15 @@ const num = (s: string, p: number, digits: number) => { let v = 0; for (let k = 
 export interface Piece { x: number; z: number; w: number; d: number; yaw: number; h: number; roof: 'f' | 'p' | 'h'; wall: string; top: string; flags: number; ring: Float32Array | null }
 
 /** A square's header and pieces from its text. */
-export function decodeWorld(key: string, text: string): { head: Record<string, unknown>; pieces: Piece[] } {
+export function decodeWorld(key: string, text: string): { head: Record<string, unknown>; pieces: Piece[]; trees: Float32Array } {
   const [i, j] = key.split('_').map(Number) as [number, number], X = i * SQUARE - 500, Z = j * SQUARE - 500;
   const lines = text.split('\n'), head = JSON.parse(lines[0]!) as Record<string, unknown>, pieces: Piece[] = [];
+  let trees = new Float32Array(0);
   for (let k = 1; k < lines.length; k++) {
     const l = lines[k]!; if (!l) continue;
     if (l[0] === 'R') {
       pieces.push({ x: X + num(l, 1, 2) / 4, z: Z + num(l, 3, 2) / 4, w: num(l, 5, 2) / 10, d: num(l, 7, 2) / 10, yaw: num(l, 9, 2) / 8100 * Math.PI, h: num(l, 11, 2) / 10,
-        roof: l[13] as Piece['roof'], wall: l[14]!, top: l[15]!, flags: +l[16]!, ring: null });
+        roof: l[13] as Piece['roof'], wall: l[14]!, top: l[15]!, flags: INDEX[l.charCodeAt(16)]!, ring: null });
     } else if (l[0] === 'P') {
       const n = INDEX[l.charCodeAt(7)]!, ring = new Float32Array(n * 2);
       let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
@@ -49,10 +53,14 @@ export function decodeWorld(key: string, text: string): { head: Record<string, u
         const x = X + num(l, 8 + q * 4, 2) / 4, z = Z + num(l, 10 + q * 4, 2) / 4; ring[q * 2] = x; ring[q * 2 + 1] = z;
         x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z);
       }
-      pieces.push({ x: (x0 + x1) / 2, z: (z0 + z1) / 2, w: x1 - x0, d: z1 - z0, yaw: 0, h: num(l, 1, 2) / 10, roof: 'f', wall: l[4]!, top: l[5]!, flags: +l[6]!, ring });
+      pieces.push({ x: (x0 + x1) / 2, z: (z0 + z1) / 2, w: x1 - x0, d: z1 - z0, yaw: 0, h: num(l, 1, 2) / 10, roof: 'f', wall: l[4]!, top: l[5]!, flags: INDEX[l.charCodeAt(6)]!, ring });
+    } else if (l[0] === 'T') {
+      // each tree x, z, height, spread
+      const n = (l.length - 1) / 6; trees = new Float32Array(n * 4);
+      for (let q = 0; q < n; q++) { const p = 1 + q * 6; trees[q * 4] = X + num(l, p, 2) / 4; trees[q * 4 + 1] = Z + num(l, p + 2, 2) / 4; trees[q * 4 + 2] = num(l, p + 4, 1) / 2; trees[q * 4 + 3] = num(l, p + 5, 1) / 5; }
     }
   }
-  return { head, pieces };
+  return { head, pieces, trees };
 }
 
 /** A pitched or hipped roof's rise over its walls. */
@@ -65,11 +73,14 @@ function corners(p: Piece): number[] {
   return [p.x - ux * a + uz * b, p.z - uz * a - ux * b, p.x + ux * a + uz * b, p.z + uz * a - ux * b, p.x + ux * a - uz * b, p.z + uz * a + ux * b, p.x - ux * a - uz * b, p.z - uz * a + ux * b];
 }
 
-/** What a piece may not stand on: the railway's land and its slopes, a station's kit, the buses' roads. */
+/** What a piece may not stand on: the railway's land and its slopes, a station's kit, the buses' roads, the landmarks (their
+ * buildings, the river and the M60). */
 export class Keep {
   private kits: { x: number; z: number; dx: number; dz: number; nx: number; nz: number; boxes: [number, number, number, number][] }[] = [];
   private roads: [number, number, number, number][] = [];
-  constructor(private t: Terrain, net: Network, kits: Record<string, KitDef | undefined>) {
+  private course: (x: number, z: number, r: number) => boolean;
+  constructor(private t: Terrain, net: Network, def: NetworkGeoDef, kits: Record<string, KitDef | undefined>) {
+    this.course = onCourses(def);
     for (const st of net.stations) {
       const kit = kits[st.kit]; if (!kit) continue;
       const F = net.stationFrame(st.id), boxes: [number, number, number, number][] = [];
@@ -81,12 +92,17 @@ export class Keep {
   /** Whether a piece (drawn) may stand: every corner and its middle off the railway's land, off every kit's parts, and
    * no road through it. */
   ok(p: Piece): boolean {
-    const cs = corners(p), t = this.t;
-    if (t.railLand(p.x, p.z, RAIL_MARGIN)) return false;
-    for (let k = 0; k < cs.length; k += 2) if (t.railLand(cs[k]!, cs[k + 1]!, RAIL_MARGIN)) return false;
-    // the long side of a big piece: its edges' middles too
-    for (let k = 0; k < cs.length; k += 2) { const n = (k + 2) % cs.length; if (t.railLand((cs[k]! + cs[n]!) / 2, (cs[k + 1]! + cs[n + 1]!) / 2, RAIL_MARGIN)) return false; }
-    const R = Math.hypot(p.w, p.d) / 2;
+    const cs = corners(p), t = this.t, R = Math.hypot(p.w, p.d) / 2;
+    // the railway's land, its slopes and the strip they're drawn in reach no further than this from the line
+    if (Math.abs(t.locate(p.x, p.z).o) < R + RAIL_REACH) {
+      if (t.railLand(p.x, p.z, RAIL_MARGIN)) return false;
+      for (let k = 0; k < cs.length; k += 2) if (t.railLand(cs[k]!, cs[k + 1]!, RAIL_MARGIN)) return false;
+      // the long side of a big piece: its edges' middles too
+      for (let k = 0; k < cs.length; k += 2) { const n = (k + 2) % cs.length; if (t.railLand((cs[k]! + cs[n]!) / 2, (cs[k + 1]! + cs[n + 1]!) / 2, RAIL_MARGIN)) return false; }
+    }
+    if (this.course(p.x, p.z, 0)) return false;
+    for (let k = 0; k < cs.length; k += 2) if (this.course(cs[k]!, cs[k + 1]!, 0)) return false;
+    for (const [x, z, r] of standing) if (Math.hypot(p.x - x, p.z - z) < r + R && (Math.hypot(p.x - x, p.z - z) < r || inPiece(p, cs, x, z, r))) return false;
     for (const K of this.kits) {
       if (Math.hypot(p.x - K.x, p.z - K.z) > 400 + R) continue;
       const pts = [p.x, p.z, ...cs];
@@ -98,6 +114,14 @@ export class Keep {
         }
         const um = (u0 + u1) / 2, vm = (v0 + v1) / 2;
         if (inPiece(p, cs, K.x + K.dx * um + K.nx * vm, K.z + K.dz * um + K.nz * vm, 0)) return false;
+      }
+      // and through the piece every 2 m, for a box across its middle
+      let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+      for (let k = 0; k < cs.length; k += 2) { x0 = Math.min(x0, cs[k]!); x1 = Math.max(x1, cs[k]!); z0 = Math.min(z0, cs[k + 1]!); z1 = Math.max(z1, cs[k + 1]!); }
+      for (let x = x0 + 1; x < x1; x += 2) for (let z = z0 + 1; z < z1; z += 2) {
+        if (!inPiece(p, cs, x, z, 0)) continue;
+        const ex = x - K.x, ez = z - K.z, u = ex * K.dx + ez * K.dz, v = ex * K.nx + ez * K.nz;
+        for (const [u0, u1, v0, v1] of K.boxes) if (u > u0 - KIT_MARGIN && u < u1 + KIT_MARGIN && v > v0 - KIT_MARGIN && v < v1 + KIT_MARGIN) return false;
       }
     }
     for (const [ax, az, bx, bz] of this.roads) {
@@ -211,8 +235,8 @@ export class BuildingsLayer {
   /** What was read and what was left out, for the checks. */
   readonly stats = { buildings: 0, pieces: 0, left: 0 };
 
-  constructor(private t: Terrain, private files: Record<string, string>, net: Network, kits: Record<string, KitDef | undefined>, private terrain: TerrainLayer | null = null) {
-    this.squares = new Set(Object.keys(files)); this.keep = new Keep(t, net, kits);
+  constructor(private t: Terrain, private files: Record<string, string>, net: Network, def: NetworkGeoDef, kits: Record<string, KitDef | undefined>, private terrain: TerrainLayer | null = null) {
+    this.squares = new Set(Object.keys(files)); this.keep = new Keep(t, net, def, kits);
     this.ready = new Promise(r => { this.resolve = r; }); if (!this.squares.size) this.resolve();
     // a sentinel drawn every frame (it's empty): after the first frame, start fetching; then follow the camera
     const tick = new THREE.Mesh(new THREE.BufferGeometry(), this.material); tick.frustumCulled = false;

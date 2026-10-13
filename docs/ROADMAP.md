@@ -148,6 +148,7 @@ Past the plausible the network goes science fiction, still a model railway in da
 - Balance with the bot after any pacing or economy change; baselines moved on purpose, with the reason.
 - Everything bought shows on the map; locked stations stand fogged with their price; locked upgrades stay hidden.
 - Stations grow into their surroundings phase by phase (the owner, 12 October 2026): the road bridges beside them, car parks, forecourts and the bus stations that serve them, such as the Stockport Interchange, each added when a phase gives it a reason (car parks and bus links in phase 3; the city's streets in phase 6; trams' stops in phase 7), not all at once.
+- A reference photo library of every station, today's and phase 5's, at different angles (the owner, 13 October 2026): `docs/reference/photos/`, freely licensed photographs from geograph and Commons with what each shows and what it settles (being gathered: `docs/briefs/station-photos.md`).
 - Real places and layouts where known, a note where something is from memory; sources credited (OpenStreetMap, the Environment Agency's LIDAR, the census).
 - Saves stay on the device, versioned, migrated from the first release on.
 - UK English, colours as tokens, the four layers and the seeded sim.

@@ -1,5 +1,6 @@
 // The Commute: station tycoon simulation. Pure TypeScript, tick-based in sim seconds, no rendering here, nothing from the DOM.
-// Trains move along a corridor by distance s (metres, increasing towards Manchester). Stations are at a known s.
+// Trains move along their service's route through the network, leg by leg, by chainage s (metres, increasing towards
+// Manchester on every corridor, src/sim/network.ts). Stations are at a known s on their corridor.
 // A sim second is a real second on the page at 1x, so trains, people and dwells move at real speed. The clock and the
 // demand curve run faster than that, and fastest at night (src/sim/day.ts): a game day is about two hours of sim time,
 // so the peaks and the night still come round while you watch, and the night doesn't keep you waiting.
@@ -303,7 +304,7 @@ export class Sim {
   }
   /** A new unit of a service at s, heading dir. */
   private unit(v: Svc, s: number, dir: 1 | -1): Train {
-    return { id: this.g.trains.length, svc: v.id, dir, s, v: 0, state: 'run', dwell: 0, next: null, load: this.S.map(() => 0), onboard: 0,
+    return { id: this.g.trains.length, svc: v.id, dir, s, leg: v.path.legAt(s), v: 0, state: 'run', dwell: 0, next: null, load: this.S.map(() => 0), onboard: 0,
       cars: v.express ? v.def.cars : this.carsPerUnit(), calling: null, boardAcc: 0, due: -1, late: 0, stood: 0, quiet: 0, pf: -1, pfAt: -1, bound: -1 };
   }
   nextStop(tr: Train): number {
@@ -480,7 +481,11 @@ export class Sim {
     return gap - TUNING.separation;
   }
   /** The track a train runs on: its route's, where it is, the way it's heading. */
-  trackOf(tr: Train): string { return this.svc(tr.svc).path.track(tr.s, tr.dir); }
+  trackOf(tr: Train): string { return this.svc(tr.svc).path.track(tr.s, tr.dir, tr.leg); }
+  /** The corridor a train is on: its route's leg's there. */
+  corridorOf(tr: Train): string { return this.svc(tr.svc).path.leg(tr.s, tr.leg).corridor; }
+  /** A train goes to chainage s along its route, passing onto the next leg (or back onto the last) at a junction. */
+  goTo(tr: Train, s: number): void { tr.s = s; tr.leg = this.svc(tr.svc).path.legAt(s, tr.leg); }
   /** Run a train towards `target` (s along the line) for dt, as far as the train ahead and its signal allow; where it
    * hasn't a platform yet at `stop`, it claims one from `claim` metres out and stands at its signal, approach metres
    * short, until it has. Returns whether it has arrived. */
@@ -492,13 +497,13 @@ export class Sim {
     // it can go as far as the train ahead allows, and no further than its signal while it has no platform
     const held = stop !== null && tr.bound < 0 && rem >= TUNING.approach;
     const room = held ? Math.min(this.clear(tr), rem - TUNING.approach) : this.clear(tr);
-    tr.v = Math.min(limit, tr.v + TUNING.accel * dt, cautionLimit(this.g, TUNING, tr.s, tr.dir));
+    tr.v = Math.min(limit, tr.v + TUNING.accel * dt, cautionLimit(this, TUNING, tr));
     tr.v = Math.max(0.5, Math.min(tr.v, Math.sqrt(2 * TUNING.brake * Math.max(rem, 0))));
     // a train closing on the one ahead, or on a red signal, brakes to stand behind it
     if (room < rem) tr.v = Math.min(tr.v, Math.sqrt(2 * TUNING.brake * Math.max(room, 0)));
     const step = room < rem ? Math.min(tr.v * dt, Math.max(room, 0)) : tr.v * dt;
-    if (step >= rem) { tr.s = target; tr.v = 0; return true; }
-    tr.s += tr.dir * step; return false;
+    if (step >= rem) { this.goTo(tr, target); tr.v = 0; return true; }
+    this.goTo(tr, tr.s + tr.dir * step); return false;
   }
   /** A train stands at the platform it claimed: it's the one it holds now. */
   standAt(tr: Train, i: number): void { if (tr.bound < 0) this.claim(tr, i, true); tr.pf = tr.bound; tr.pfAt = i; tr.bound = -1; }

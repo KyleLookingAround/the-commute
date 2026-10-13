@@ -335,9 +335,11 @@ export class TrainLayer {
     this.hazards.count = h; this.hazards.instanceMatrix.needsUpdate = true;
     let c = 0;
     if (tb.caution) {
-      const cor = this.net.spine;
+      // at each end of the stretch, on the corridor it's on there (the spine where it doesn't say)
+      const on = tb.caution.on ?? [];
       for (const s of [tb.caution.s0, tb.caution.s1]) for (const off of [-12, 26]) {
-        const p = cor.at(s, off, fc); m4.makeTranslation(p.x, 0, p.z);
+        const id = on.find(id => { const k = this.net.corridors[id]; return !!k && s >= k.start && s <= k.end; });
+        const p = (id ? this.net.corridor(id) : this.net.spine).at(s, off, fc); m4.makeTranslation(p.x, 0, p.z);
         this.posts.setMatrixAt(c, m4); this.cautions.setMatrixAt(c, m4); c++;
       }
     }

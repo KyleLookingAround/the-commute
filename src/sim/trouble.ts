@@ -49,15 +49,19 @@ function start(sim: Sim, T: Tuning): void {
   } else {
     // the faster timetable's new signals mostly hold
     if (g.line.timetable && sim.rand() < T.resignalHolds) { tb.next = later(g.t, after(sim, T)); return; }
-    const pairs: [number, number][] = [];
+    // a stretch between two stations on a route, on the corridors its legs there run along (across a junction, both)
+    const pairs: [number, number, string[]][] = [];
     for (const v of sim.local()) {
       if (!sim.unitsFor(v)) continue;
       const sp = sim.span(v);
-      for (let k = 1; k < sp.length; k++) { const s0 = sim.station(sp[k - 1]!).s, s1 = sim.station(sp[k]!).s; if (s1 - s0 > 3 * T.failMargin) pairs.push([s0 + T.failMargin, s1 - T.failMargin]); }
+      for (let k = 1; k < sp.length; k++) {
+        const s0 = sim.station(sp[k - 1]!).s + T.failMargin, s1 = sim.station(sp[k]!).s - T.failMargin; if (s1 - s0 <= T.failMargin) continue;
+        pairs.push([s0, s1, v.path.legs.filter(l => l.s1 > s0 && l.s0 < s1).map(l => l.corridor)]);
+      }
     }
     if (!pairs.length) { tb.next = g.t + 120; return; }
-    const [s0, s1] = pairs[Math.floor(sim.rand() * pairs.length)]!;
-    tb.caution = { s0, s1, from: g.t, until: g.t + T.signalFor * (0.75 + 0.5 * sim.rand()) };
+    const [s0, s1, on] = pairs[Math.floor(sim.rand() * pairs.length)]!;
+    tb.caution = { s0, s1, on, from: g.t, until: g.t + T.signalFor * (0.75 + 0.5 * sim.rand()) };
     tb.signals++;
   }
 }
@@ -75,12 +79,14 @@ export function stepTrouble(sim: Sim, T: Tuning): void {
 /** Whether a train has failed and stands where it is. */
 export function failed(g: { trouble: Trouble }, tr: Train): boolean { return g.trouble.fail?.train === tr.id; }
 
-/** The fastest a train at s may run for a signal failure: at caution inside the stretch, braking to it before. */
-export function cautionLimit(g: { trouble: Trouble }, T: Tuning, s: number, dir: 1 | -1): number {
-  const c = g.trouble.caution; if (!c) return Infinity;
-  if (s >= c.s0 && s <= c.s1) return T.caution;
-  const d = dir > 0 ? c.s0 - s : s - c.s1;
-  return d > 0 ? Math.sqrt(T.caution * T.caution + 2 * T.brake * d) : Infinity;
+/** The fastest a train may run for a signal failure: at caution inside the stretch, braking to it before, where its
+ * route runs along the stretch's corridors. */
+export function cautionLimit(sim: Sim, T: Tuning, tr: Train): number {
+  const c = sim.g.trouble.caution; if (!c) return Infinity;
+  const path = sim.svc(tr.svc).path, on = (s: number) => !c.on || c.on.includes(path.leg(s, tr.leg).corridor), s = tr.s;
+  if (s >= c.s0 && s <= c.s1) return on(s) ? T.caution : Infinity;
+  const edge = tr.dir > 0 ? c.s0 : c.s1, d = (edge - s) * tr.dir;
+  return d > 0 && on(edge) ? Math.sqrt(T.caution * T.caution + 2 * T.brake * d) : Infinity;
 }
 
 /** How long a bus takes between two stations: along the road where the data has one, otherwise a third longer than

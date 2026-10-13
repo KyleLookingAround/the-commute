@@ -322,6 +322,23 @@ test('branch: buying Davenport after Piccadilly opens the Hazel Grove line, and 
   assert.ok(tr.s >= n.station('woodsmoor').s - 1 && tr.s <= n.station('stockport').s + 1, 'the branch train stays on its run');
 });
 
+test('branch: the Hazel Grove train passes from its own line onto the line to Stockport at Edgeley Junction, and back', () => {
+  const sim = new Sim(net()), n = sim.net, j = n.junction('edgeley').s;
+  sim.g.cash = 1e7;
+  const dav = n.station('davenport').index;
+  for (let i = 1; i < dav; i++) assert.ok(sim.buyStation(i));
+  growStockport(sim); assert.ok(sim.buyStation(dav)); sim.step(1);
+  const tr = sim.g.trains.find(t => t.svc === 'hazel-grove')!, seen: string[] = [];
+  const note = () => { const k = `${sim.corridorOf(tr)} ${sim.trackOf(tr)}`; if (seen[seen.length - 1] !== k) seen.push(k); };
+  // out from Stockport to Davenport and back: across the junction twice
+  for (let k = 0; k < 3000 && seen.filter(s => s.startsWith('main')).length < 4; k++) {
+    sim.advance(2); note();
+    assert.equal(tr.leg, tr.s < j ? 0 : 1, 'its leg is the one that holds where it is');
+  }
+  assert.ok(seen.includes('main branch-south') && seen.includes('hazel-grove hazel-grove-south'), `south over the junction: ${seen.join(', ')}`);
+  assert.ok(seen.includes('hazel-grove hazel-grove-north') && seen.includes('main branch-north'), `north over it: ${seen.join(', ')}`);
+});
+
 test('branch: passengers change at Stockport, pay once, and arrive', () => {
   const sim = new Sim(net(), Sim.fresh(net(), 5)), n = sim.net;
   sim.g.cash = 1e8; growStockport(sim);

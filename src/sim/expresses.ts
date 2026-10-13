@@ -46,7 +46,7 @@ export function stepExpress(sim: Sim, T: Tuning, tr: Train, dt: number): void {
     const h = sim.hour();
     if (h < x.first || h > x.last + x.every) { tr.due = nextSlot(x, g.t, unitOf(sim, tr)); return; }
     // on the map at the start of the fast lines, heading for Manchester
-    tr.state = 'run'; tr.dir = 1; tr.s = x.portal; tr.v = T.expressSpeed; tr.late = Math.max(0, g.t - tr.due);
+    tr.state = 'run'; tr.dir = 1; sim.goTo(tr, x.portal); tr.v = T.expressSpeed; tr.late = Math.max(0, g.t - tr.due);
     tr.next = nextCall(sim, tr); tr.bound = -1; tr.pfAt = -1;
     tr.onboard = Math.round(tr.cars * T.seatsPerCar * (0.3 + 0.4 * demandCurve(h) / 1.12));
     if (tr.next !== null) tr.due += run(T, x.portal, sim.station(tr.next).s) + (sim.isEnd(tr, tr.next) ? sim.turnaround() : T.expressDwell);

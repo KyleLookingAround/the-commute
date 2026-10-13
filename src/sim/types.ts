@@ -152,8 +152,10 @@ export interface StationState {
  * the timetable has it leave the stop it's at or running to (sim seconds; -1 until a new unit's first stop). late:
  * seconds past due, live while it stands and as it left its last stop while it runs. stood: seconds at this stop;
  * quiet: seconds since its platform first cleared there (the doors closing). */
+/** Where it is: on the corridor of its service's route's leg `leg`, at chainage s there (its middle); it passes onto the
+ * next leg at the junction where their corridors meet (src/sim/network.ts, Route). */
 export interface Train {
-  id: number; svc: string; dir: 1 | -1; s: number; v: number; state: 'run' | 'dwell' | 'away'; dwell: number;
+  id: number; svc: string; dir: 1 | -1; s: number; leg: number; v: number; state: 'run' | 'dwell' | 'away'; dwell: number;
   next: number | null; load: number[]; onboard: number; cars: number; calling: number | null; boardAcc: number;
   due: number; late: number; stood: number; quiet: number;
   /** The platform (index in the sim's list for the station) it stands at or last left, and that station (-1 none);
@@ -162,9 +164,10 @@ export interface Train {
 }
 /** Things going wrong (docs/DESIGN.md, Things going wrong). A failed train: the unit (by id) stands where it failed
  * from `from` until `until`, blocking its line one way (d, 0 towards Manchester) between the stations either side
- * (a behind it, b ahead). A signal failure: trains run at caution between s0 and s1 (metres along the corridor). */
+ * (a behind it, b ahead). A signal failure: trains run at caution between s0 and s1 (chainage) on the corridors `on`
+ * (every corridor, if not given). */
 export interface Failure { train: number; from: number; until: number; a: number; b: number; d: 0 | 1 }
-export interface Caution { s0: number; s1: number; from: number; until: number }
+export interface Caution { s0: number; s1: number; on?: string[]; from: number; until: number }
 /** A rail replacement bus between stations a and b, one way: loading at a, running to b, setting down there, running
  * back. t0 to t1 is the leg it's on (sim seconds); load is who's aboard. */
 export interface Bus { id: number; a: number; b: number; d: 0 | 1; leg: 'load' | 'out' | 'drop' | 'back'; t0: number; t1: number; load: Queued[] }

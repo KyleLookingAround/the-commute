@@ -9,7 +9,8 @@
 // 1. Fetches the DTM over the map's area from the Environment Agency's WCS into data/raw/dtm/ (gitignored; --fresh
 //    fetches again): every 4 m over the whole area, every 1 m within FINE_BAND of the line. About 120 requests, a minute
 //    or two.
-// 2. Works out the railway's real level along the corridor: the DTM under each track, the lowest track at each point
+// 2. Works out the railway's real level along each line (the spine, and each line out off it, which meets the level of
+//    the line it joins at its junction): the DTM under each track, the lowest track at each point
 //    (the cutting floor, the embankment's top), spikes and short dips (bridges over and under the line) taken out,
 //    linear over the viaducts (a DTM has no bridges, so it gives the ground beneath), and smoothed. This is the game's
 //    zero: the page draws the ground relative to it, so the tracks, stations and trains stay where they are.
@@ -31,7 +32,7 @@ import { register } from 'tsx/esm/api';
 register();
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const { fromGeo } = await import('../src/sim/network.ts');
-const { viaductOf } = await import('../src/render/landmarks.ts');
+const { viaductOf, bridgesOf } = await import('../src/render/landmarks.ts');
 
 const WCS = 'https://environment.data.gov.uk/spatialdata/lidar-composite-digital-terrain-model-dtm-1m/wcs';
 const COVERAGE = '13787b9a-26a4-4775-8523-806d13af58fc__Lidar_Composite_Elevation_DTM_1m';
@@ -51,6 +52,8 @@ mkdirSync(rawDir, { recursive: true });
 // The network, and the map between game metres, WGS84 and the British National Grid
 const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'));
 const net = fromGeo(def), c = net.spine, O = def.origin;
+/** Every line the ground is laid along: the spine, then the lines out (net.lines). */
+const lines = net.lines;
 const kLat = 111320, kLon = 111320 * Math.cos(O.lat * Math.PI / 180);
 const toLatLon = (x, z) => [O.lat - z / kLat, O.lon + x / kLon];
 const rad = Math.PI / 180;
@@ -104,7 +107,7 @@ function encodeGrid(v, w, h) {
 // ---------------------------------------------------------------------------------------------------------------
 // The far ring: the base tiles are every FAR_CELL m, and only the BLOCK-cell blocks within FAR_RING of the line are
 // every BASE_CELL m besides, since further out the base mesh (every 48 m) is all that's drawn, seen from a kilometre off
-const linePts = []; for (let s = 0; s <= c.length; s += 20) linePts.push(c.at(Math.min(s, c.length)));
+const linePts = []; for (const l of lines) for (let s = l.start; s <= l.end; s += 20) linePts.push(l.at(Math.min(s, l.end)));
 const BS = BASE_CELL * BLOCK;
 /** Whether the near block (bi, bj) has any of it within FAR_RING of the line. */
 const nearBlock = (bi, bj) => {
@@ -136,7 +139,7 @@ if (process.argv.includes('--coarsen')) {
 // ---------------------------------------------------------------------------------------------------------------
 // The area, in game metres, snapped out to whole base tiles
 let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-for (const p of c.pts) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
+for (const p of lines.flatMap(l => l.pts)) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
 const BT = BASE_CELL * TILE;
 const ti0 = Math.floor((minX - PAD) / BT), ti1 = Math.ceil((maxX + PAD) / BT) - 1, tj0 = Math.floor((minZ - PAD) / BT), tj1 = Math.ceil((maxZ + PAD) / BT) - 1;
 console.log(`area: base tiles ${ti0}..${ti1} by ${tj0}..${tj1} (${(ti1 - ti0 + 1) * BT / 1000} by ${(tj1 - tj0 + 1) * BT / 1000} km)`);
@@ -179,7 +182,7 @@ async function load(kind, e0, n0, size, res) {
   console.log(`\ncoarse: ${k} chunks of ${C} m every ${COARSE_RES} m`);
 }
 // along the line, fine
-const corridorBNG = []; for (let s = 0; s <= c.length; s += 20) { const p = c.at(s); corridorBNG.push(gameToBNG(p.x, p.z)); }
+const corridorBNG = linePts.map(p => gameToBNG(p.x, p.z));
 {
   const C = FINE_CHUNK, want = new Set();
   for (const [E, N] of corridorBNG) {
@@ -215,45 +218,66 @@ function ground(x, z, size, fineOnly = false) {
 
 // PROBE="station:u:v;..." prints the DTM at points in a station's frame (real metres across) and stops
 if (process.env.PROBE) {
-  for (const q of process.env.PROBE.split(';')) { const [id, u, v] = q.split(':'), st = net.station(id), p = c.at(st.at + +u, +v); console.log(q, ground(p.x, p.z, 2).toFixed(1)); }
+  for (const q of process.env.PROBE.split(';')) { const [id, u, v] = q.split(':'), st = net.station(id), p = net.lineOf(st.corridor).at(st.at + +u, +v); console.log(q, ground(p.x, p.z, 2).toFixed(1)); }
   process.exit(0);
 }
 // ---------------------------------------------------------------------------------------------------------------
-// The rail's real level along the corridor
-const nRail = Math.floor(c.length / RAIL_STEP) + 1, under = new Float64Array(nRail);
-for (let k = 0; k < nRail; k++) {
-  const s = k * RAIL_STEP; let lo = Infinity;
-  for (const t of net.tracks) {
-    const [e0, e1] = net.extent(t.id); if (s < e0 || s > e1) continue;
-    const p = c.at(s, net.offsetAt(t.id, s) / LATERAL), v = ground(p.x, p.z, 2); if (Number.isFinite(v)) lo = Math.min(lo, v);
-  }
-  if (!Number.isFinite(lo)) { const p = c.at(s); lo = ground(p.x, p.z, 4); }
-  under[k] = lo;
-}
-for (let k = 0; k < nRail; k++) if (!Number.isFinite(under[k])) under[k] = k ? under[k - 1] : under.find(Number.isFinite);
+// The rail's real level along each line, every RAIL_STEP m from its start
 const filter = (src, half, f) => Float64Array.from(src, (_, k) => f(Array.from(src.subarray(Math.max(0, k - half), Math.min(src.length, k + half + 1)))));
-// spikes (a structure the DTM kept), then short dips (a bridge over a road or a stream: the DTM shows the road)
-let rail = filter(under, 3, w => w.sort((a, b) => a - b)[w.length >> 1]);
-rail = filter(filter(rail, 8, w => Math.max(...w)), 8, w => Math.min(...w));
-// the long bridges, where the DTM gives the ground beneath: Stockport Viaduct from the landmarks (its span is where the
-// DTM's dip is), and the brick arches from Slade Lane's embankment past Ardwick into Piccadilly, whose end level isn't in
-// the DTM (it has the undercroft's floor): Piccadilly's platforms stand about a storey and a half over Fairfield Street,
-// from memory, so 7.5 m over the 40.5 m the DTM gives there
+/** A line's rail level: the DTM under its lowest track, spikes and short dips out, the given long bridges straight
+ * across (`end`: a level from memory at the far end), smoothed. */
+function railOf(l, spans) {
+  const n = Math.floor(l.length / RAIL_STEP) + 1, under = new Float64Array(n);
+  for (let k = 0; k < n; k++) {
+    const s = l.start + k * RAIL_STEP; let lo = Infinity;
+    for (const t of net.tracks) {
+      if (!net.onLine(t.corridor, l)) continue;
+      const [e0, e1] = net.extent(t.id); if (s < e0 || s > e1) continue;
+      const p = l.at(s, net.offsetAt(t.id, s) / LATERAL), v = ground(p.x, p.z, 2); if (Number.isFinite(v)) lo = Math.min(lo, v);
+    }
+    if (!Number.isFinite(lo)) { const p = l.at(s); lo = ground(p.x, p.z, 4); }
+    under[k] = lo;
+  }
+  for (let k = 0; k < n; k++) if (!Number.isFinite(under[k])) under[k] = k ? under[k - 1] : under.find(Number.isFinite);
+  // spikes (a structure the DTM kept), then short dips (a bridge over a road or a stream: the DTM shows the road)
+  let rail = filter(under, 3, w => w.sort((a, b) => a - b)[w.length >> 1]);
+  rail = filter(filter(rail, 8, w => Math.max(...w)), 8, w => Math.min(...w));
+  for (const { s0, s1, end } of spans) {
+    const k0 = Math.max(0, Math.floor((s0 - l.start) / RAIL_STEP)), k1 = Math.min(n - 1, Math.ceil((s1 - l.start) / RAIL_STEP)), a = rail[k0], b = end ?? rail[k1];
+    for (let k = k0; k <= k1; k++) rail[k] = a + (b - a) * (k - k0) / (k1 - k0);
+  }
+  return filter(rail, 10, w => w.reduce((s, q) => s + q, 0) / w.length);
+}
+// the spine's long bridges, where the DTM gives the ground beneath: Stockport Viaduct from the landmarks (its span is
+// where the DTM's dip is), and the brick arches from Slade Lane's embankment past Ardwick into Piccadilly, whose end
+// level isn't in the DTM (it has the undercroft's floor): Piccadilly's platforms stand about a storey and a half over
+// Fairfield Street, from memory, so 7.5 m over the 40.5 m the DTM gives there
 const spans = [];
 const via = viaductOf(c, def); if (via) spans.push({ s0: Math.min(via.from, via.to) - 10, s1: Math.max(via.from, via.to) + 10 });
 spans.push({ s0: net.station('ardwick').at - 690, s1: c.length, end: 48.0 });
-for (const { s0, s1, end } of spans) {
-  const k0 = Math.max(0, Math.floor(s0 / RAIL_STEP)), k1 = Math.min(nRail - 1, Math.ceil(s1 / RAIL_STEP)), a = rail[k0], b = end ?? rail[k1];
-  for (let k = k0; k <= k1; k++) rail[k] = a + (b - a) * (k - k0) / (k1 - k0);
+const rail = railOf(c, spans), nRail = rail.length, rails = [rail];
+const levelAt = (k, s) => { const r = rails[k], f = Math.max(0, Math.min(r.length - 1.001, (s - lines[k].start) / RAIL_STEP)), i = Math.floor(f); return r[i] + (r[i + 1] - r[i]) * (f - i); };
+// each line out meets the level of the line it joins at its junction, easing to it over the last JOIN m
+const JOIN = 400;
+for (const l of lines.slice(1)) {
+  const cd = def.corridors.find(k => k.id === l.id), j = net.junction(cd.to ?? cd.from), at = j.s;
+  const parent = lines.indexOf(net.lineOf(j.corridor)), level = levelAt(parent, at), toEnd = !!cd.to;
+  // its own arches straight across, reaching the junction's level where they run up to it
+  const r = railOf(l, bridgesOf(l, def).map(([s0, s1]) => ({ s0: s0 - 10, s1, end: Math.abs(s1 - (toEnd ? l.end : l.start)) < 20 ? level : undefined })));
+  for (let k = 0; k < r.length; k++) {
+    const s = l.start + k * RAIL_STEP, d = toEnd ? l.end - s : s - l.start, w = d >= JOIN ? 0 : 1 - d / JOIN, e = w * w * (3 - 2 * w);
+    r[k] = r[k] + (level - r[k]) * e;
+  }
+  rails.push(r);
 }
-rail = filter(rail, 10, w => w.reduce((s, q) => s + q, 0) / w.length);
 const dmRail = Array.from(rail, v => Math.round(v * 10));
 console.log('rail level (m above OD) every km: ' + Array.from({ length: Math.ceil(c.length / 1000) + 1 }, (_, i) => rail[Math.min(nRail - 1, i * 1000 / RAIL_STEP)].toFixed(1)).join(' '));
-for (const st of net.stations) console.log(`  ${st.id}: rail ${rail[Math.round(st.at / RAIL_STEP)].toFixed(1)} m`);
+lines.slice(1).forEach((l, i) => console.log(`${l.id}: ` + Array.from({ length: Math.ceil(l.length / 1000) + 1 }, (_, k) => levelAt(i + 1, Math.min(l.end, l.start + k * 1000)).toFixed(1)).join(' ')));
+for (const st of net.stations) console.log(`  ${st.id}: rail ${levelAt(lines.indexOf(net.lineOf(st.corridor)), st.at).toFixed(1)} m`);
 
 // ---------------------------------------------------------------------------------------------------------------
 // The datum: the rail level near the line, a smooth blend of it further out (a point inside a bend is near both arms)
-const ds = []; for (let k = 0; k < nRail; k += 4) { const p = c.at(k * RAIL_STEP); ds.push([p.x, p.z, rail[k]]); }
+const ds = []; lines.forEach((l, i) => { for (let k = 0; k < rails[i].length; k += 4) { const p = l.at(l.start + k * RAIL_STEP); ds.push([p.x, p.z, rails[i][k]]); } });
 const dx0 = ti0 * BT, dz0 = tj0 * BT, dw = (ti1 + 1 - ti0) * BT / DATUM_CELL + 1, dh = (tj1 + 1 - tj0) * BT / DATUM_CELL + 1;
 const datum = new Int32Array(dw * dh);
 for (let j = 0; j < dh; j++) for (let i = 0; i < dw; i++) {
@@ -288,11 +312,19 @@ for (let ti = ti0; ti <= ti1; ti++) for (let tj = tj0; tj <= tj1; tj++) {
   }
 }
 // fine tiles: only the samples within the band, so most of a tile along a diagonal stretch is '!'
-const FT = FINE_CELL * TILE, near = (x, z) => { const s = c.nearest(x, z), p = c.at(s); return Math.hypot(x - p.x, z - p.z); };
+// how far a point is from the nearest line: from the segments of every line near the tile at hand
+const segs = lines.flatMap(l => l.pts.slice(1).map((b, i) => [l.pts[i].x, l.pts[i].z, b.x, b.z]));
+let local = segs;
+const nearTile = (x0, z0, x1, z1, r) => { local = segs.filter(([ax, az, bx, bz]) => Math.max(ax, bx) > x0 - r && Math.min(ax, bx) < x1 + r && Math.max(az, bz) > z0 - r && Math.min(az, bz) < z1 + r); };
+const FT = FINE_CELL * TILE, near = (x, z) => {
+  let m = Infinity;
+  for (const [ax, az, bx, bz] of local) { const ex = bx - ax, ez = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / (ex * ex + ez * ez || 1e-9))), d = Math.hypot(ax + ex * t - x, az + ez * t - z); if (d < m) m = d; }
+  return m;
+};
 let fineBytes = 0, fineTiles = 0;
 const fi0 = Math.floor((minX - FINE_BAND) / FT), fi1 = Math.floor((maxX + FINE_BAND) / FT), fj0 = Math.floor((minZ - FINE_BAND) / FT), fj1 = Math.floor((maxZ + FINE_BAND) / FT);
 for (let ti = fi0; ti <= fi1; ti++) for (let tj = fj0; tj <= fj1; tj++) {
-  const cx = (ti + 0.5) * FT, cz = (tj + 0.5) * FT; if (near(cx, cz) > FINE_BAND + FT * 0.75) continue;
+  const cx = (ti + 0.5) * FT, cz = (tj + 0.5) * FT; nearTile(ti * FT, tj * FT, (ti + 1) * FT, (tj + 1) * FT, FINE_BAND + FT); if (near(cx, cz) > FINE_BAND + FT * 0.75) continue;
   const v = new Array(N * N); let any = false;
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     const x = ti * FT + i * FINE_CELL, z = tj * FT + j * FINE_CELL;

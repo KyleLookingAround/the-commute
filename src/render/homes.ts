@@ -45,14 +45,14 @@ export class HomesLayer {
 
   private plan(): void {
     const { scene, net, world } = this;
-    const c = net.spine, st = net.stations.map(s => net.stationFrame(s.id));
+    const st = net.stations.map(s => net.stationFrame(s.id));
     const taken: number[] = [];   // x, z, r of every plot so far
     const clear = (x: number, z: number, r: number): boolean => {
       for (const f of st) if (Math.hypot(x - f.x, z - f.z) < STATION_CLEAR + r) return false;
       for (let k = 0; k < taken.length; k += 3) if (Math.hypot(x - taken[k]!, z - taken[k + 1]!) < r + taken[k + 2]! + 4) return false;
-      // off every track: the point's offset across the corridor against each track's there
-      const s = c.nearest(x, z), a = c.at(s), off = (x - a.x) * a.nx + (z - a.z) * a.nz;
-      for (const t of net.tracks) { const [e0, e1] = net.extent(t.id); if (s >= e0 - 50 && s <= e1 + 50 && Math.abs(off - net.offsetAt(t.id, Math.max(e0, Math.min(e1, s)))) < TRACK_CLEAR + r) return false; }
+      // off every track: the point's offset across the nearest line against each of its tracks' there
+      const at = world.terrain.t.nearest(x, z), c = net.lines[at.k]!, s = at.s, a = c.at(s), off = (x - a.x) * a.nx + (z - a.z) * a.nz;
+      for (const t of net.tracks) { if (!net.onLine(t.corridor, c)) continue; const [e0, e1] = net.extent(t.id); if (s >= e0 - 50 && s <= e1 + 50 && Math.abs(off - net.offsetAt(t.id, Math.max(e0, Math.min(e1, s)))) < TRACK_CLEAR + r) return false; }
       return world.buildable(x, z, r);
     };
     let walls = 0, bands = 0;

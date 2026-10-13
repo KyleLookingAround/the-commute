@@ -150,6 +150,9 @@ export class Network {
    * along it, and a place on it is the same place on the corridor it's on. */
   spine: Corridor;
   spineOf: Set<string>;
+  /** The lines the ground and what stands along the line are laid along: the spine first, then every corridor off it
+   * (a line out, with its own ground, trees, masts and signals), each by its own chainage. */
+  lines: Corridor[];
   junctions: Junction[];
   tracks: TrackDef[];
   stations: Station[];
@@ -170,6 +173,7 @@ export class Network {
     const spine = def.spine ?? built.slice(0, 1).map(c => c.id);
     this.spineOf = new Set(spine);
     this.spine = new Corridor({ id: SPINE, base: 0, points: spine.flatMap((id, k) => (built.find(c => c.id === id)?.points ?? []).slice(k ? 1 : 0)) });
+    this.lines = [this.spine, ...Object.values(this.corridors).filter(c => !this.spineOf.has(c.id))];
     this.junctions = (def.junctions ?? []).map(j => ({
       id: j.id, name: j.name, corridor: j.corridor, x: j.x, z: j.z, s: this.corridor(j.corridor).nearest(j.x, j.z),
       joins: [j.corridor, ...def.corridors.filter(c => c.from === j.id || c.to === j.id).map(c => c.id)].filter((c, k, a) => a.indexOf(c) === k),
@@ -194,6 +198,12 @@ export class Network {
     }));
   }
   corridor(id: string): Corridor { const c = this.corridors[id]; if (!c) throw new Error(`no corridor "${id}"`); return c; }
+  /** The line a corridor's ground is laid along: the spine for the spine's corridors, else the corridor itself. */
+  lineOf(corridorId: string): Corridor { return this.spineOf.has(corridorId) ? this.spine : this.corridor(corridorId); }
+  /** Whether a corridor's tracks are electrified at s (its `wires`, back from its Manchester end). */
+  wired(corridorId: string, s: number): boolean { const w = this.def.corridors.find(c => c.id === corridorId)?.wires, c = this.corridor(corridorId); return w === undefined || s >= c.end - w; }
+  /** Whether a corridor lies along a line (the spine, or the corridor itself). */
+  onLine(corridorId: string, line: Corridor): boolean { return line === this.spine ? this.spineOf.has(corridorId) : line.id === corridorId; }
   track(id: string): TrackDef { const t = this.tracks.find(t => t.id === id); if (!t) throw new Error(`no track "${id}"`); return t; }
   station(id: string): Station { const s = this.byId[id]; if (!s) throw new Error(`no station "${id}"`); return s; }
   /** The road between two stations either way round, or null if the data has none; `reversed` when it runs b to a. */
@@ -452,7 +462,7 @@ function trim(points: XZ[], p: { x: number; z: number }, after: boolean): XZ[] {
 // Waypoints are smoothed into a curve; station s is the nearest point on their corridor.
 export function fromGeo(def: NetworkGeoDef): Network {
   const origin = def.origin;
-  const corridors = def.corridors.map(c => ({ id: c.id, from: c.from, to: c.to, points: smoothPolyline(c.waypoints.map(([lat, lon]): XZ => { const p = projectLatLon(lat, lon, origin); return [p.x, p.z]; }), c.subdivisions || 8) }));
+  const corridors = def.corridors.map(c => ({ id: c.id, from: c.from, to: c.to, wires: c.wires, points: smoothPolyline(c.waypoints.map(([lat, lon]): XZ => { const p = projectLatLon(lat, lon, origin); return [p.x, p.z]; }), c.subdivisions || 8) }));
   const stations = def.stations.map(s => { const p = projectLatLon(s.lat, s.lon, origin); return { ...s, x: p.x, z: p.z }; });
   const junctions = (def.junctions ?? []).map(j => { const p = projectLatLon(j.lat, j.lon, origin); return { id: j.id, name: j.name, corridor: j.corridor, note: j.note, x: p.x, z: p.z }; });
   const roads = (def.roads ?? []).map(r => {

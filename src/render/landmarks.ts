@@ -47,12 +47,15 @@ export function viaductOf(c: Corridor, def: NetworkGeoDef): Viaduct | null {
   return { from: c.nearest(...xz(def, via.from)), to: c.nearest(...xz(def, via.to)), height: via.height, arches: via.arches };
 }
 
-/** Every stretch of the line on arches, as [from, to] along the main corridor: the viaduct, and the arches into
- * Piccadilly. The terrain draws the real ground under them rather than an embankment. */
+/** Whether a landmark on a corridor (the main line's when it doesn't say) lies along a line: the spine, or a line out. */
+const alongLine = (corridor: string | undefined, c: Corridor, def: NetworkGeoDef) => c.id === SPINE ? (def.spine ?? ['main']).includes(corridor ?? 'main') : c.id === corridor;
+/** Every stretch of a line on arches, as [from, to] along it: on the spine the viaduct and the arches into Piccadilly,
+ * on a line out its own arches (the Marple line's into Ardwick Junction). The terrain draws the real ground under them
+ * rather than an embankment. */
 export function bridgesOf(c: Corridor, def: NetworkGeoDef): [number, number][] {
-  const out: [number, number][] = [], via = viaductOf(c, def);
+  const out: [number, number][] = [], via = c.id === SPINE ? viaductOf(c, def) : null;
   if (via) out.push([Math.min(via.from, via.to), Math.max(via.from, via.to)]);
-  for (const m of def.landmarks ?? []) if (m.kind === 'arches' && m.from && m.to) {
+  for (const m of def.landmarks ?? []) if (m.kind === 'arches' && m.from && m.to && alongLine(m.corridor, c, def)) {
     const a = c.nearest(...xz(def, m.from)), b = c.nearest(...xz(def, m.to)); out.push([Math.min(a, b), Math.max(a, b)]);
   }
   return out;
@@ -71,7 +74,7 @@ export function buildLandmarks(scene: THREE.Scene, net: Network, def: NetworkGeo
   const river = along(byId('mersey')), m60 = along(byId('m60'));
   const via = viaductOf(c, def);
   if (via) viaduct(scene, net, c, via, groundY);
-  for (const m of marks) if (m.kind === 'arches' && m.from && m.to) arcade(scene, net, c, c.nearest(...xz(def, m.from)), c.nearest(...xz(def, m.to)), groundY);
+  for (const l of net.lines) for (const m of marks) if (m.kind === 'arches' && m.from && m.to && alongLine(m.corridor, l, def)) arcade(scene, net, l, l.nearest(...xz(def, m.from)), l.nearest(...xz(def, m.to)), groundY);
   if (river !== null) crossing(scene, c, river, groundY, 'river', courseOf(def, 'mersey'));
   if (m60 !== null) crossing(scene, c, m60, groundY, 'm60', courseOf(def, 'm60'));
   const pyramid = byId('pyramid'); if (pyramid) buildPyramid(scene, def, pyramid, groundY);
@@ -162,7 +165,7 @@ function arcade(scene: THREE.Scene, net: Network, c: Corridor, a: number, b: num
   const spans = new THREE.InstancedMesh(spandrel, MAT.viaduct, n), piers = new THREE.InstancedMesh(pier, MAT.viaduct, n + 1), deck = new THREE.InstancedMesh(unit, MAT.brickDark, n * 3);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), yAxis = new THREE.Vector3(0, 1, 0), v = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color(), f = newFrame();
   // across the line: every track there, with a few metres each side
-  const width = (s: number) => { let lo = Infinity, hi = -Infinity; for (const t of net.tracks) { const o = net.offsetAt(t.id, s); lo = Math.min(lo, o); hi = Math.max(hi, o); } return [lo - 4, hi + 4] as const; };
+  const width = (s: number) => { let lo = Infinity, hi = -Infinity; for (const t of net.tracks) { if (!net.onLine(t.corridor, c)) continue; const [e0, e1] = net.extent(t.id); if (c !== net.spine && (s < e0 - 1 || s > e1 + 1)) continue; const o = net.offsetAt(t.id, s); lo = Math.min(lo, o); hi = Math.max(hi, o); } return [lo - 4, hi + 4] as const; };
   const put = (im: THREE.InstancedMesh, i: number, s: number, along: number, y: number, o: number, sx: number, sy: number, sz: number, k?: THREE.Color) => {
     c.at(s, 0, f); q.setFromAxisAngle(yAxis, yawFor(f));
     v.set(f.x + f.dx * along + f.nx * o, y, f.z + f.dz * along + f.nz * o); sc.set(sx, sy, sz); m4.compose(v, q, sc); im.setMatrixAt(i, m4); if (k) im.setColorAt(i, k);

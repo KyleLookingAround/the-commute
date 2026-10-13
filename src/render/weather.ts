@@ -129,15 +129,16 @@ export class WeatherLayer {
     this.ground = world.ground; this.groundC = world.ground.color.clone();
     // the trees: both sides of every corridor, a belt beyond the fences, where nothing else stands: clear of the
     // stations and their yards, and of the city
-    // (along the spine: the corridors the ground is laid along, end to end)
-    const stations = net.stations.filter(st => net.spineOf.has(st.corridor)).map(st => st.s);
-    for (const c of [net.spine]) {
-      for (let s = 40; s < c.length - 1600; s += TREE_EVERY) for (const side of [-1, 1]) {
+    // (along each line: the spine, the corridors the ground is laid along end to end, and each line out; the spine's
+    // city end has none, a line out's last stretch into the junction neither)
+    for (const c of net.lines) {
+      const stations = net.stations.filter(st => net.onLine(st.corridor, c)).map(st => st.s), out = c !== net.spine;
+      for (let s = c.start + 40; s < c.end - (out ? 400 : 1600); s += TREE_EVERY) for (const side of [-1, 1]) {
         if (stations.some(st => Math.abs(st - s) < STATION_CLEAR)) continue;
         const k = this.tree.length, h = hash(s, side + 3);
         if (h < 0.3) continue;   // gaps, so it reads as trees rather than a hedge
         // beyond the outermost track that side (yards and sidings spread wide), the fence and a verge
-        let edge = 0; for (const t of net.tracks) if (net.spineOf.has(t.corridor)) { const o = net.offsetAt(t.id, s) * side; if (o > edge) edge = o; }
+        let edge = 0; for (const t of net.tracks) if (net.onLine(t.corridor, c)) { const o = net.offsetAt(t.id, s) * side; if (o > edge) edge = o; }
         const off = side * (Math.max(40, edge + 18) + hash(s, side + 5) * 16), p = c.at(s + (hash(s, side + 7) - 0.5) * 14, off);
         if (!world.buildable(p.x, p.z, 4)) continue;
         this.tree.push({ x: p.x, y: world.groundY(p.x, p.z), z: p.z, h: 7 + 7 * hash(s, side + 9), k });

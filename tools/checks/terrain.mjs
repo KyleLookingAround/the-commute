@@ -1,6 +1,6 @@
 // The terrain (src/render/terrain.ts) against the line, from the tiles on disk with every fine tile loaded, the
 // ground built as the page builds it (the base mesh, the strip coarse and fine). No browser.
-// - Clearance: no ground stands in a train's space: wherever a track runs (off the viaduct), nothing drawn within a
+// - Clearance: no ground stands in a train's space: wherever a track runs on any line (off the viaduct), nothing drawn within a
 //   body's half width (and half a metre) of its centreline is higher than the underframe, and the ground there is 0.
 // - Platforms: no ground stands over any platform a kit draws (bought or not).
 // - The datum: the ground at every track's centreline is the rail's level, 0, off the viaduct; under the viaduct the
@@ -21,20 +21,20 @@ const { Terrain, TerrainLayer, partBoxes } = await import('../../src/render/terr
 const { viaductOf, bridgesOf } = await import('../../src/render/landmarks.ts');
 
 const HALF = 1.93 + 0.5, Y0 = 0.65;   // a body's half width as drawn (the geometry check's), and its underframe
-const BUDGET = 2 * 1024 * 1024;
+const BUDGET = 2.6 * 1024 * 1024;
 
 export default async function ({ ok, root }) {
   const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def), c = net.spine;
   const kits = Object.fromEntries(net.stations.map(st => [st.kit, JSON.parse(readFileSync(join(root, 'src/data/kits', st.kit + '.json'), 'utf8'))]));
   const via = viaductOf(c, def), spans = via ? [[Math.min(via.from, via.to), Math.max(via.from, via.to)]] : [];
-  const t = new Terrain(net, kits, bridgesOf(c, def));
+  const t = new Terrain(net, kits, l => bridgesOf(l, def));
   const fineDir = join(root, 'src/data/terrain/fine'), fine = readdirSync(fineDir);
   for (const f of fine) t.addFine(f.replace('.txt', ''), readFileSync(join(fineDir, f), 'utf8'));
   const layer = new TerrainLayer(t, { city: { x: 0, z: 0, r: 0 } }, {});
 
   // every track's centreline every half metre, in 10 m cells, for how far a point is from the nearest
   const cells = new Map(), key = (x, z) => `${Math.floor(x / 10)},${Math.floor(z / 10)}`;
-  for (const tr of net.tracks) { const [e0, e1] = net.extent(tr.id); for (let s = e0; s <= e1; s += 0.5) { if (t.bridged(s)) continue; const f = net.trackAt(tr.id, s), k = key(f.x, f.z); if (!cells.has(k)) cells.set(k, []); cells.get(k).push(f.x, f.z); } }
+  for (const tr of net.tracks) { const g = t.lineFor(tr.corridor), [e0, e1] = net.extent(tr.id); for (let s = e0; s <= e1; s += 0.5) { if (t.bridged(s, g)) continue; const f = net.trackAt(tr.id, s), k = key(f.x, f.z); if (!cells.has(k)) cells.set(k, []); cells.get(k).push(f.x, f.z); } }
   const near = (x, z) => {
     for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
       const list = cells.get(`${Math.floor(x / 10) + i},${Math.floor(z / 10) + j}`); if (!list) continue;
@@ -55,12 +55,12 @@ export default async function ({ ok, root }) {
 
   const notZero = [], notDeep = [];
   for (const tr of net.tracks) {
-    const [e0, e1] = net.extent(tr.id);
+    const g = t.lineFor(tr.corridor), [e0, e1] = net.extent(tr.id);
     for (let s = e0; s <= e1; s += 3) {
       const f = net.trackAt(tr.id, s);
       for (const d of [-HALF, 0, HALF]) {
         const y = t.groundY(f.x + f.nx * d, f.z + f.nz * d);
-        if (t.bridged(s)) { if (d === 0 && y > -8 && s > spans[0][0] + 60 && s < spans[0][1] - 60) notDeep.push(`${tr.id}@${s.toFixed(0)}: ${y.toFixed(1)}`); }
+        if (t.bridged(s, g)) { if (d === 0 && y > -8 && s > spans[0][0] + 60 && s < spans[0][1] - 60) notDeep.push(`${tr.id}@${s.toFixed(0)}: ${y.toFixed(1)}`); }
         else if (Math.abs(y) > 0.01) notZero.push(`${tr.id}@${s.toFixed(0)}${d ? (d > 0 ? '+' : '-') : ''}: ${y.toFixed(2)}`);
       }
     }

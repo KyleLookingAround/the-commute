@@ -124,9 +124,9 @@ const trackV = net.stations.map(st => ({ north: faceTrack(st, 'north'), south: f
 const pax = new PassengerLayer(built, net.stations, trackV, net.stations.findIndex(st => st.id === 'piccadilly'));
 const rig = new OrbitRig(camera, canvas, scene);
 { const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches; setReducedMotion(reduced); reach.setReducedMotion(reduced); rig.reduced = reduced; }
-// where the camera looks stays near the line: the nearest point on it as drawn
+// where the camera looks stays near the line: the nearest point on any line as drawn (the spine or a line out)
 const mainLine = net.spine, nearF = newFrame();
-rig.line = (x, z) => net.place(SPINE, mainLine.nearest(x, z), 0, nearF);
+rig.line = (x, z) => { const at = world.terrain.t.nearest(x, z); return net.place(net.lines[at.k]!.id, at.s, 0, nearF); };
 /** How many lines the plaque reads, -1 while it's hidden (no contract renewed yet). */
 let plaqueLines = -1;
 const view = {
@@ -155,7 +155,7 @@ const view = {
 window.__view = view;
 // the camera as it is, for the checks: the orbit, how far above the ground and from the line, flying, riding, the compass
 Object.assign(view, { camera: () => {
-  const p = camera.position, n = net.place(SPINE, mainLine.nearest(rig.o.tx, rig.o.tz), 0, newFrame());
+  const p = camera.position, at = world.terrain.t.nearest(rig.o.tx, rig.o.tz), n = net.place(net.lines[at.k]!.id, at.s, 0, newFrame());
   return { ...rig.o, above: p.y - groundAt(p.x, p.z), fromLine: Math.hypot(rig.o.tx - n.x, rig.o.tz - n.z), flying: !!rig.tween, riding: rig.riding ? trains.meshes.indexOf(rig.riding as THREE.Group) : -1, moves: rig.moves, compass: !compass.hidden, along: +glide.value };
 },
   // where a station's label, a train or the middle of the last ghost framed stands on the screen, in client pixels (null

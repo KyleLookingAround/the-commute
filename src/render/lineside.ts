@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { MAT, PAL } from './scene.ts';
 import { GHOST, riseBy, settle } from './stations.ts';
 import { yawFor } from './world.ts';
-import { SIGNAL_CLEAR, SIGNAL_FIRST, SIGNAL_SITE, SPINE, type Network } from '../sim/network.ts';
+import { SIGNAL_CLEAR, SIGNAL_FIRST, SIGNAL_SITE, type Network } from '../sim/network.ts';
 import type { Sim } from '../sim/sim.ts';
 
 const SITE = SIGNAL_SITE;    // metres between signals: eight mast spans, so each stands halfway between two masts
@@ -47,10 +47,10 @@ function merge(a: THREE.BufferGeometry, b: THREE.BufferGeometry): THREE.BufferGe
 }
 
 /** A place along the line with its signals, and whether it has boards too. */
-interface Site { s: number; x: number; z: number; board: boolean }
+interface Site { line: string; s: number; x: number; z: number; board: boolean }
 /** Where a signal or board stands (s along the line, off across it) and which way it faces: +1 towards Manchester,
  * at the trains coming from there, -1 the other way. */
-type Spot = [s: number, off: number, face: 1 | -1];
+type Spot = [s: number, off: number, face: 1 | -1, line: string];
 
 export class Lineside {
   /** The signals and the 90 boards: shown once bought, and ghosted while the card is chosen. */
@@ -73,28 +73,32 @@ export class Lineside {
 
   constructor(scene: THREE.Scene, net: Network) {
     this.net = net;
-    const c = net.spine;
-    // across the line, the outermost tracks running at s, or null where there are none
-    const span = (s: number): [number, number] | null => {
-      let lo = Infinity, hi = -Infinity;
-      for (const t of net.tracks) { const [e0, e1] = net.extent(t.id); if (s < e0 || s > e1) continue; const o = net.offsetAt(t.id, s); lo = Math.min(lo, o); hi = Math.max(hi, o); }
-      return lo > hi ? null : [lo, hi];
-    };
-    const clear = (s: number) => net.stations.every(st => Math.abs(st.s - s) > CLEAR);
     const sig: Spot[] = [], board: Spot[] = [];
-    // the network's signal sites along the spine (the sim's block boundaries), the kth from the first
-    const sites = [...net.spineOf].flatMap(id => net.signals[id] ?? []).filter(s => s < c.length);
-    for (const s of sites) {
-      // a site only where it's a block boundary on a track there (none too near a track's end, so no block is short)
-      const k = Math.round((s - FIRST) / SITE), w = span(s), here = net.tracks.filter(t => net.spineOf.has(t.corridor) && net.blocks(t.id).at.some(b => Math.abs(b - s) < 0.5));
-      if (!w || !here.length) continue;
-      // the down lines (towards Manchester) are on the low side, so their signals face back down the line, at the trains
-      // running towards Manchester; the high side's face the trains coming back
-      sig.push([s, w[0] - OUT, -1], [s, w[1] + OUT, 1]);
-      for (const way of [1, -1] as const) this.faces.push({ s, tracks: here.filter(t => net.way(t.id) === way).map(t => t.id) });
-      const sb = s + BOARD_AHEAD, wb = k % 2 === 0 && clear(sb) ? span(sb) : null;
-      if (wb) board.push([sb, wb[0] - OUT, -1], [sb, wb[1] + OUT, 1]);
-      const m = net.place(SPINE, s); this.sites.push({ s, x: m.x, z: m.z, board: !!wb });
+    // along each line: the spine, then each line out (which has signals but no line-speed boards: its real speeds are
+    // lower, and the faster timetable's 90 is the main line's)
+    for (const c of net.lines) {
+      const on = (corridor: string) => net.onLine(corridor, c), spine = c === net.spine;
+      // across the line, the outermost tracks running at s, or null where there are none
+      const span = (s: number): [number, number] | null => {
+        let lo = Infinity, hi = -Infinity;
+        for (const t of net.tracks) { if (!on(t.corridor)) continue; const [e0, e1] = net.extent(t.id); if (s < e0 || s > e1) continue; const o = net.offsetAt(t.id, s); lo = Math.min(lo, o); hi = Math.max(hi, o); }
+        return lo > hi ? null : [lo, hi];
+      };
+      const clear = (s: number) => net.stations.every(st => !on(st.corridor) || Math.abs(st.s - s) > CLEAR);
+      // the network's signal sites along the line (the sim's block boundaries), the kth from the first
+      const sites = Object.keys(net.corridors).filter(on).flatMap(id => net.signals[id] ?? []).filter(s => s >= c.start && s < c.end);
+      for (const s of sites) {
+        // a site only where it's a block boundary on a track there (none too near a track's end, so no block is short)
+        const k = Math.round((s - FIRST) / SITE), w = span(s), here = net.tracks.filter(t => on(t.corridor) && net.blocks(t.id).at.some(b => Math.abs(b - s) < 0.5));
+        if (!w || !here.length) continue;
+        // the down lines (towards Manchester) are on the low side, so their signals face back down the line, at the
+        // trains running towards Manchester; the high side's face the trains coming back
+        sig.push([s, w[0] - OUT, -1, c.id], [s, w[1] + OUT, 1, c.id]);
+        for (const way of [1, -1] as const) this.faces.push({ s, tracks: here.filter(t => net.way(t.id) === way).map(t => t.id) });
+        const sb = s + BOARD_AHEAD, wb = spine && k % 2 === 0 && clear(sb) ? span(sb) : null;
+        if (wb) board.push([sb, wb[0] - OUT, -1, c.id], [sb, wb[1] + OUT, 1, c.id]);
+        const m = net.place(c.id, s); this.sites.push({ line: c.id, s, x: m.x, z: m.z, board: !!wb });
+      }
     }
 
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
@@ -102,8 +106,8 @@ export class Lineside {
     // towards them the piece stands from the spot
     const place = (spots: Spot[], geo: THREE.BufferGeometry, mat: THREE.Material | THREE.Material[], y: number, ahead: number, into: THREE.Group): THREE.InstancedMesh => {
       const inst = new THREE.InstancedMesh(geo, mat, Math.max(1, spots.length)); inst.count = spots.length;
-      spots.forEach(([s, off, face], i) => {
-        const p = net.place(SPINE, s + face * ahead, off);
+      spots.forEach(([s, off, face, line], i) => {
+        const p = net.place(line, s + face * ahead, off);
         e.set(0, yawFor(p) + (face < 0 ? Math.PI : 0), 0); q.setFromEuler(e); v.set(p.x, y, p.z); m4.compose(v, q, one); inst.setMatrixAt(i, m4);
       });
       into.add(inst);
@@ -159,7 +163,7 @@ export class Lineside {
     let best: Site | null = null, d = Infinity;
     for (const st of this.sites) { const dd = Math.hypot(st.x - x, st.z - z) - (st.board ? 300 : 0); if (dd < d) { d = dd; best = st; } }
     if (!best) return null;
-    const a = this.net.place(SPINE, best.s - 4, -3), b = this.net.place(SPINE, best.s + 16, 17);
+    const a = this.net.place(best.line, best.s - 4, -3), b = this.net.place(best.line, best.s + 16, 17);
     return into.makeEmpty().expandByPoint(this.pt.set(a.x, 0, a.z)).expandByPoint(this.pt.set(b.x, 6, b.z));
   }
 

@@ -14,7 +14,7 @@
 import * as THREE from 'three';
 import baseData from '../data/terrain/base.json';
 import { PAL } from './scene.ts';
-import type { Network } from '../sim/network.ts';
+import type { Corridor, Network } from '../sim/network.ts';
 
 declare global { interface ImportMeta { glob: <T = string>(pattern: string, opts: { query?: string; import: string; eager: boolean }) => Record<string, T> } }
 
@@ -39,6 +39,7 @@ export function decodeGrid(text: string, w: number, h: number): Float32Array {
 }
 
 // ---- the railway's land, and the ground beside it ----
+const TOUCH = 60;          // a point of railway land this near another line is marked on it too
 const CESS = 5;            // the railway's land beyond the outer track's centre (the masts stand at 3.2)
 const BAND_STEP = 2;       // metres between samples of the land's edges along the line
 const STRIP = 150;         // the strip's reach beyond the land's edge
@@ -47,6 +48,11 @@ const WALL_MIN = 1;        // a step this high or more at a station's edge is a 
 const CUT = 1.2, BANK = 1 / 1.5;   // the steepest cutting and embankment slopes on the open line (rise over run)
 
 interface Tile { x0: number; z0: number; cell: number; n: number; v: Float32Array }
+/** The railway's land along one line the ground is laid along (the spine, or a line out off it), every BAND_STEP m from
+ * its start: its edges across (lo, hi), whether each is a station's (padLo, padHi), the tracks' own land within it
+ * (tlo, thi; the rest is a station's pad), and the stretches of it on a viaduct (no land beneath, only the ground far
+ * below). */
+export interface GroundLine { k: number; c: Corridor; s0: number; n: number; lo: Float32Array; hi: Float32Array; padLo: Uint8Array; padHi: Uint8Array; tlo: Float32Array; thi: Float32Array; spans: [number, number][] }
 /** A kit's part, loosely: whatever of these it has says where it stands. */
 type KitPart = Record<string, unknown> & { type: string };
 export interface KitDef { parts: KitPart[] }
@@ -58,17 +64,16 @@ export class Terrain {
   readonly fineCell: number; readonly fineBand: number; readonly lateral: number;
   private railDm: number[]; private railStep: number;
   private datum: { x0: number; z0: number; cell: number; w: number; h: number; v: Float32Array };
-  /** The railway's land along the line, every BAND_STEP m: its edges across (lo, hi) and whether each is a station's. */
-  readonly lo: Float32Array; readonly hi: Float32Array; readonly padLo: Uint8Array; readonly padHi: Uint8Array;
-  /** The tracks' own land within it (the rest is a station's pad). */
-  readonly tlo: Float32Array; readonly thi: Float32Array;
+  /** The railway's land along each line the ground is laid along: the spine first, then the lines out (net.lines). */
+  readonly lines: GroundLine[];
   readonly bounds: { x0: number; z0: number; x1: number; z1: number };
   /** Where the far ground meets the map's edge, relative to the line. */
   readonly edge: number;
-  /** The stretches of line on a viaduct (s from, to): no land beneath them, only the ground far below. */
+  /** The stretches of the spine on a viaduct (s from, to): no land beneath them, only the ground far below. */
   readonly spans: [number, number][];
-  constructor(net: Network, kits: Record<string, KitDef | undefined>, spans: [number, number][] = [], data: typeof baseData = baseData) {
-    this.net = net; this.spans = spans;
+  /** spans: the spine's stretches on arches, or each line's (a function of the line, the spine among them). */
+  constructor(net: Network, kits: Record<string, KitDef | undefined>, spans: [number, number][] | ((line: Corridor) => [number, number][]) = [], data: typeof baseData = baseData) {
+    this.net = net; this.spans = typeof spans === 'function' ? spans(net.spine) : spans;
     this.baseSize = data.cell * data.tile; this.fineCell = data.fineCell; this.fineSize = data.fineCell * data.tile;
     this.fineBand = data.fineBand; this.lateral = data.lateral;
     let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
@@ -85,57 +90,67 @@ export class Terrain {
     }
     this.bounds = { x0, z0, x1, z1 };
     {
-      // for each 200 m cell, the stretches of line that can hold the nearest point to anywhere in it
-      const c = net.spine, cell = 200, w = Math.ceil((x1 - x0) / cell), h = Math.ceil((z1 - z0) / cell), cells: number[][] = [], half = cell * Math.SQRT1_2;
-      const P = c.pts, nSeg = P.length - 1, d = new Float64Array(nSeg);
+      // for each 200 m cell, the stretches of line (on every line: its index, then the segment's) that can hold the
+      // nearest point to anywhere in it
+      const cell = 200, w = Math.ceil((x1 - x0) / cell), h = Math.ceil((z1 - z0) / cell), cells: number[][] = [], half = cell * Math.SQRT1_2;
+      const segs: [number, number][] = net.lines.flatMap((c, l) => c.pts.slice(1).map((_, k) => [l, k] as [number, number])), d = new Float64Array(segs.length);
       for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
         const x = x0 + (i + 0.5) * cell, z = z0 + (j + 0.5) * cell; let m = Infinity;
-        for (let k = 0; k < nSeg; k++) {
-          const a = P[k]!, b = P[k + 1]!, ex = b.x - a.x, ez = b.z - a.z, t = Math.max(0, Math.min(1, ((x - a.x) * ex + (z - a.z) * ez) / (ex * ex + ez * ez || 1e-9)));
-          d[k] = Math.hypot(a.x + ex * t - x, a.z + ez * t - z); if (d[k]! < m) m = d[k]!;
-        }
-        const list: number[] = []; for (let k = 0; k < nSeg; k++) if (d[k]! <= m + 2 * half) list.push(k);
+        segs.forEach(([l, k], q) => {
+          const P = net.lines[l]!.pts, a = P[k]!, b = P[k + 1]!, ex = b.x - a.x, ez = b.z - a.z, t = Math.max(0, Math.min(1, ((x - a.x) * ex + (z - a.z) * ez) / (ex * ex + ez * ez || 1e-9)));
+          d[q] = Math.hypot(a.x + ex * t - x, a.z + ez * t - z); if (d[q]! < m) m = d[q]!;
+        });
+        const list: number[] = []; segs.forEach(([l, k], q) => { if (d[q]! <= m + 2 * half) list.push(l, k); });
         cells.push(list);
       }
       this.locator = { x0, z0, cell, w, h, cells };
     }
     this.railDm = data.rail.dm; this.railStep = data.rail.step;
     const d = data.datum; this.datum = { ...d, v: decodeGrid(d.dm, d.w, d.h) };
-    // the land: every track and its cess, then each station's pad
-    const c = net.spine, n = Math.ceil(c.length / BAND_STEP) + 1;
-    this.lo = new Float32Array(n).fill(Infinity); this.hi = new Float32Array(n).fill(-Infinity); this.padLo = new Uint8Array(n); this.padHi = new Uint8Array(n);
-    // a point of railway land at (x, z), r across: widen the land where the point is nearest the line
+    // the land along each line: every track and its cess, then each station's pad
+    this.lines = net.lines.map((c, k) => {
+      const n = Math.ceil(c.length / BAND_STEP) + 1;
+      return { k, c, s0: c.start, n, lo: new Float32Array(n).fill(Infinity), hi: new Float32Array(n).fill(-Infinity), padLo: new Uint8Array(n), padHi: new Uint8Array(n), tlo: new Float32Array(0), thi: new Float32Array(0), spans: !k ? this.spans : typeof spans === 'function' ? spans(c) : [] };
+    });
+    const lineOf = (corridor: string) => this.lines[net.lines.indexOf(net.lineOf(corridor))]!;
+    // a point of railway land at (x, z), r across: widen the land where the point is nearest a line
     // (the strip lays its rows square to the line, so a point is marked both where it's nearest the line and where a
-    // row through it at its own distance along would put it: round a bend the two differ)
-    const mark = (x: number, z: number, r: number, pad: boolean, at?: number, off?: number) => {
-      const { s, o } = this.locate(x, z);
-      markAt(s, o, r, pad); if (at !== undefined && off !== undefined) markAt(at, off, r, pad);
+    // row through it at its own distance along its own line would put it: round a bend the two differ)
+    // and where lines run close (at a junction, or a line out passing a station on another), on each line within
+    // TOUCH of it too, so one line's strip never draws ground over another's tracks or platforms
+    const mark = (x: number, z: number, r: number, pad: boolean, own?: GroundLine, at?: number, off?: number) => {
+      const { k, s, o } = this.locate(x, z);
+      markAt(this.lines[k]!, s, o, r, pad); if (own && at !== undefined && off !== undefined) markAt(own, at, off, r, pad);
+      if (this.lines.length > 1) this.each(x, z, (l, ls, lo, past) => { if (l !== k && !past && Math.abs(lo) < TOUCH && this.lines[l] !== own) markAt(this.lines[l]!, ls, lo, r, pad); });
     };
-    const markAt = (s: number, o: number, r: number, pad: boolean) => {
-      for (let k = Math.max(0, Math.round(s / BAND_STEP) - 1); k <= Math.min(n - 1, Math.round(s / BAND_STEP) + 1); k++) {
-        if (o - r < this.lo[k]!) { this.lo[k] = o - r; if (pad) this.padLo[k] = 1; }
-        if (o + r > this.hi[k]!) { this.hi[k] = o + r; if (pad) this.padHi[k] = 1; }
+    const markAt = (g: GroundLine, s: number, o: number, r: number, pad: boolean) => {
+      const i = Math.round((s - g.s0) / BAND_STEP);
+      for (let k = Math.max(0, i - 1); k <= Math.min(g.n - 1, i + 1); k++) {
+        if (o - r < g.lo[k]!) { g.lo[k] = o - r; if (pad) g.padLo[k] = 1; }
+        if (o + r > g.hi[k]!) { g.hi[k] = o + r; if (pad) g.padHi[k] = 1; }
       }
     };
     const f = { ...FRAME };
-    for (const tr of net.tracks) { const [e0, e1] = net.extent(tr.id); for (let s = e0; s <= e1; s += 1) { net.trackAt(tr.id, s, f); mark(f.x, f.z, CESS, false, s, net.offsetAt(tr.id, s)); } }
-    for (let k = 0; k < n; k++) if (this.lo[k] === Infinity) { this.lo[k] = -CESS; this.hi[k] = CESS; }
-    this.tlo = this.lo.slice(); this.thi = this.hi.slice();
+    for (const tr of net.tracks) { const g = lineOf(tr.corridor), [e0, e1] = net.extent(tr.id); for (let s = e0; s <= e1; s += 1) { net.trackAt(tr.id, s, f); mark(f.x, f.z, CESS, false, g, s, net.offsetAt(tr.id, s)); } }
+    for (const g of this.lines) {
+      for (let k = 0; k < g.n; k++) if (g.lo[k] === Infinity) { g.lo[k] = -CESS; g.hi[k] = CESS; }
+      g.tlo = g.lo.slice(); g.thi = g.hi.slice();
+    }
     for (const st of net.stations) {
       const kit = kits[st.kit]; if (!kit) continue;
-      const F = net.stationFrame(st.id);
+      const F = net.stationFrame(st.id), g = lineOf(st.corridor);
       // each part's box, every couple of metres round its edge and through it
       for (const p of kit.parts) for (const [u0, u1, v0, v1] of partBoxes(p)) {
         const nu = Math.ceil((u1 - u0) / 2), nv = Math.ceil((v1 - v0) / 2);
         for (let a = 0; a <= nu; a++) for (let b = 0; b <= nv; b++) {
           const u = u0 + (u1 - u0) * a / nu, v = v0 + (v1 - v0) * b / nv;
-          mark(F.x + F.dx * u + F.nx * v, F.z + F.dz * u + F.nz * v, 0, true, st.at + u, v);
+          mark(F.x + F.dx * u + F.nx * v, F.z + F.dz * u + F.nz * v, 0, true, g, st.at + u, v);
         }
       }
     }
     // the edges change by no more than they run along, so a wall never cuts back across a row of the strip
-    for (const [arr, sign] of [[this.lo, -1], [this.hi, 1]] as const) for (let pass = 0; pass < 2; pass++)
-      for (let k = pass ? n - 2 : 1; pass ? k >= 0 : k < n; k += pass ? -1 : 1) {
+    for (const g of this.lines) for (const [arr, sign] of [[g.lo, -1], [g.hi, 1]] as const) for (let pass = 0; pass < 2; pass++)
+      for (let k = pass ? g.n - 2 : 1; pass ? k >= 0 : k < g.n; k += pass ? -1 : 1) {
         const prev = arr[k + (pass ? 1 : -1)]! - sign * BAND_STEP;
         if (sign > 0 ? prev > arr[k]! : prev < arr[k]!) arr[k] = prev;
       }
@@ -144,29 +159,54 @@ export class Terrain {
     for (let t = 0; t < 1; t += 0.01) for (const [x, z] of [[x0 + (x1 - x0) * t, z0 + 1], [x0 + (x1 - x0) * t, z1 - 1], [x0 + 1, z0 + (z1 - z0) * t], [x1 - 1, z0 + (z1 - z0) * t]] as const) ring.push(this.raw(x, z) - this.datumAt(x, z));
     ring.sort((a, b) => a - b); this.edge = ring[ring.length >> 1] ?? 0;
   }
-  /** How far along the line the nearest point to (x, z) is: Corridor.nearest, but asking only the stretches of line
-   * that can be nearest from the point's cell. */
-  nearest(x: number, z: number): number {
-    const L = this.locator, i = Math.floor((x - L.x0) / L.cell), j = Math.floor((z - L.z0) / L.cell);
-    const c = this.net.spine;
-    if (i < 0 || j < 0 || i >= L.w || j >= L.h) return c.nearest(x, z);
-    const pts = c.pts, cum = c.cum; let best = 0, bestD = Infinity;
-    for (const k of L.cells[j * L.w + i]!) {
-      const a = pts[k]!, b = pts[k + 1]!, L2 = (b.x - a.x) ** 2 + (b.z - a.z) ** 2 || 1e-9;
+  /** Which line is nearest (x, z), and how far along it the nearest point is: Corridor.nearest over every line, but
+   * asking only the stretches of line that can be nearest from the point's cell. (One object, filled again on each call.) */
+  nearest(x: number, z: number): { k: number; s: number } {
+    const L = this.locator, i = Math.floor((x - L.x0) / L.cell), j = Math.floor((z - L.z0) / L.cell), lines = this.net.lines, out = NEAR_AT;
+    let bestD = Infinity; out.k = 0; out.s = 0;
+    const seg = (l: number, k: number) => {
+      const c = lines[l]!, a = c.pts[k]!, b = c.pts[k + 1]!, L2 = (b.x - a.x) ** 2 + (b.z - a.z) ** 2 || 1e-9;
       const t = Math.max(0, Math.min(1, ((x - a.x) * (b.x - a.x) + (z - a.z) * (b.z - a.z)) / L2));
       const d = (a.x + (b.x - a.x) * t - x) ** 2 + (a.z + (b.z - a.z) * t - z) ** 2;
-      if (d < bestD) { bestD = d; best = cum[k]! + Math.sqrt(L2) * t; }
-    }
-    return best;
+      if (d < bestD) { bestD = d; out.k = l; out.s = c.cum[k]! + Math.sqrt(L2) * t; }
+    };
+    if (i < 0 || j < 0 || i >= L.w || j >= L.h) { lines.forEach((c, l) => { for (let k = 0; k < c.pts.length - 1; k++) seg(l, k); }); return out; }
+    const list = L.cells[j * L.w + i]!; for (let q = 0; q < list.length; q += 2) seg(list[q]!, list[q + 1]!);
+    return out;
   }
   private locator: { x0: number; z0: number; cell: number; w: number; h: number; cells: number[][] };
-  /** Where a point is against the line: how far along (s), how far across (o, its distance from the line, signed;
-   * round a bend's outside the line's nearest point is a corner), and whether it's past either end. (One object,
-   * filled again on each call: read it at once.) */
-  locate(x: number, z: number): { s: number; o: number; past: boolean } {
-    const c = this.net.spine, s = this.nearest(x, z); c.at(s, 0, LOC_F);
+  /** Whether (x, z) is on the land, off its arches, of a line within TOUCH other than line `but`. */
+  private onLand(x: number, z: number, but: number): boolean {
+    let on = false;
+    this.each(x, z, (l, s, o, past) => {
+      if (on || l === but || past || Math.abs(o) > TOUCH) return;
+      const g = this.lines[l]!, [lo, hi] = this.band(g, s); if (o >= lo && o <= hi && !this.bridged(s, g)) on = true;
+    });
+    return on;
+  }
+  /** For each line with a stretch near (x, z) (the point's cell's), the nearest point on it: how far along, across, and
+   * whether past its ends. */
+  private each(x: number, z: number, fn: (k: number, s: number, o: number, past: boolean) => void): void {
+    const L = this.locator, i = Math.floor((x - L.x0) / L.cell), j = Math.floor((z - L.z0) / L.cell), lines = this.net.lines;
+    if (i < 0 || j < 0 || i >= L.w || j >= L.h) return;
+    const list = L.cells[j * L.w + i]!, best = new Map<number, [number, number]>();
+    for (let q = 0; q < list.length; q += 2) {
+      const l = list[q]!, k = list[q + 1]!, c = lines[l]!, a = c.pts[k]!, b = c.pts[k + 1]!, L2 = (b.x - a.x) ** 2 + (b.z - a.z) ** 2 || 1e-9;
+      const t = Math.max(0, Math.min(1, ((x - a.x) * (b.x - a.x) + (z - a.z) * (b.z - a.z)) / L2)), d = (a.x + (b.x - a.x) * t - x) ** 2 + (a.z + (b.z - a.z) * t - z) ** 2;
+      const was = best.get(l); if (!was || d < was[0]) best.set(l, [d, c.cum[k]! + Math.sqrt(L2) * t]);
+    }
+    for (const [l, [, s]] of best) {
+      const c = lines[l]!, F = c.at(s, 0, EACH_F), ax = x - F.x, az = z - F.z, along = ax * F.dx + az * F.dz, o = ax * F.nx + az * F.nz;
+      fn(l, s, Math.abs(along) > 0.01 ? Math.sign(o) * Math.hypot(ax, az) : o, (s < c.start + 0.01 || s > c.end - 0.01) && Math.abs(along) > 1);
+    }
+  }
+  /** Where a point is against the nearest line: which (k, in `lines`), how far along (s), how far across (o, its
+   * distance from the line, signed; round a bend's outside the line's nearest point is a corner), and whether it's past
+   * either end. (One object, filled again on each call: read it at once.) */
+  locate(x: number, z: number): { k: number; s: number; o: number; past: boolean } {
+    const { k, s } = this.nearest(x, z), c = this.lines[k]!.c; c.at(s, 0, LOC_F);
     const ax = x - LOC_F.x, az = z - LOC_F.z, o = ax * LOC_F.nx + az * LOC_F.nz, along = ax * LOC_F.dx + az * LOC_F.dz;
-    LOC.s = s; LOC.past = (s < 0.01 || s > c.length - 0.01) && Math.abs(along) > 1;
+    LOC.k = k; LOC.s = s; LOC.past = (s < c.start + 0.01 || s > c.end - 0.01) && Math.abs(along) > 1;
     LOC.o = Math.abs(along) > 0.01 ? Math.sign(o) * Math.hypot(ax, az) : o;
     return LOC;
   }
@@ -192,19 +232,21 @@ export class Terrain {
     const v = sample(this.base, this.baseSize, cx, cz);
     return v === v ? v : this.rail(0);
   }
-  /** Whether s is on a viaduct. */
-  bridged(s: number): boolean { for (const [a, b] of this.spans) if (s > a && s < b) return true; return false; }
-  /** The land's edges at s. */
-  /** The tracks' own land's edges at s. */
-  tracks(s: number): [number, number] {
-    const f = Math.max(0, Math.min(this.lo.length - 1.001, s / BAND_STEP)), k = Math.floor(f), t = f - k;
-    return [this.tlo[k]! + (this.tlo[k + 1]! - this.tlo[k]!) * t, this.thi[k]! + (this.thi[k + 1]! - this.thi[k]!) * t];
+  /** The ground line a corridor's land is on (the spine for the spine's corridors). */
+  lineFor(corridor: string): GroundLine { return this.lines[this.net.lines.indexOf(this.net.lineOf(corridor))]!; }
+  /** Whether s along a line (the spine if not given) is on a viaduct. */
+  bridged(s: number, g: GroundLine = this.lines[0]!): boolean { for (const [a, b] of g.spans) if (s > a && s < b) return true; return false; }
+  /** The tracks' own land's edges at s along a line. */
+  tracks(g: GroundLine, s: number): [number, number] {
+    const f = Math.max(0, Math.min(g.n - 1.001, (s - g.s0) / BAND_STEP)), k = Math.floor(f), t = f - k;
+    return [g.tlo[k]! + (g.tlo[k + 1]! - g.tlo[k]!) * t, g.thi[k]! + (g.thi[k + 1]! - g.thi[k]!) * t];
   }
-  /** (One array, filled again on each call: read it at once.) */
-  band(s: number): [number, number, boolean, boolean] {
-    const f = Math.max(0, Math.min(this.lo.length - 1.001, s / BAND_STEP)), k = Math.floor(f), t = f - k, b = BAND;
-    b[0] = this.lo[k]! + (this.lo[k + 1]! - this.lo[k]!) * t; b[1] = this.hi[k]! + (this.hi[k + 1]! - this.hi[k]!) * t;
-    b[2] = !!(this.padLo[k]! || this.padLo[k + 1]!); b[3] = !!(this.padHi[k]! || this.padHi[k + 1]!);
+  /** The land's edges at s along a line, and whether each is a station's pad. (One array, filled again on each call:
+   * read it at once.) */
+  band(g: GroundLine, s: number): [number, number, boolean, boolean] {
+    const f = Math.max(0, Math.min(g.n - 1.001, (s - g.s0) / BAND_STEP)), k = Math.floor(f), t = f - k, b = BAND;
+    b[0] = g.lo[k]! + (g.lo[k + 1]! - g.lo[k]!) * t; b[1] = g.hi[k]! + (g.hi[k + 1]! - g.hi[k]!) * t;
+    b[2] = !!(g.padLo[k]! || g.padLo[k + 1]!); b[3] = !!(g.padHi[k]! || g.padHi[k + 1]!);
     return b;
   }
   /** Where to read the real ground for a point `o` across the line at s: beyond the land, as far past the land's real
@@ -213,9 +255,9 @@ export class Terrain {
     const L = this.lateral, r = o > hi ? hi / L + (o - hi) : o < lo ? lo / L + (o - lo) : o / L;
     const d = Math.abs(o) - FAR; return d <= 0 ? r : d >= FAR ? o : r + (o - r) * d / FAR;
   }
-  /** The ground beside the line, drawn: `o` across at s (outside the land), and the step at the land's edge. */
-  beside(s: number, o: number, fr = FRAME): number {
-    const [lo, hi] = this.band(s), c = this.net.spine;
+  /** The ground beside a line, drawn: `o` across at s (outside the land), and the step at the land's edge. */
+  beside(g: GroundLine, s: number, o: number, fr = FRAME): number {
+    const [lo, hi] = this.band(g, s), c = g.c;
     c.at(s, this.realOffset(o, lo, hi), fr);
     const x = fr.x, z = fr.z; c.at(s, o, fr);
     return this.raw(x, z) - this.datumAt(fr.x, fr.z);
@@ -223,36 +265,39 @@ export class Terrain {
   /** Where a surveyed point (a building's middle, a tree) is drawn: moved out from the line as the ground beside it is
    * read (realOffset, inverted), so it stands where its ground is drawn. (One array, filled again: read it at once.) */
   drawnAt(x: number, z: number): [number, number] {
-    const { s, o, past } = this.locate(x, z), out = DRAWN;
+    const { k: l, s, o, past } = this.locate(x, z), out = DRAWN, L = this.lines[l]!;
     out[0] = x; out[1] = z;
     if (past || Math.abs(o) > 2 * FAR) return out;
-    const [lo, hi] = this.band(s); let d = o;
+    const [lo, hi] = this.band(L, s); let d = o;
     for (let k = 0; k < 6; k++) d += o - this.realOffset(d, lo, hi);
-    this.net.spine.at(s, 0, LOC_F); out[0] = x + LOC_F.nx * (d - o); out[1] = z + LOC_F.nz * (d - o);
+    L.c.at(s, 0, LOC_F); out[0] = x + LOC_F.nx * (d - o); out[1] = z + LOC_F.nz * (d - o);
     return out;
   }
   /** Whether a drawn point is on the railway's land, within `margin` m of it, or on its cutting or embankment slope
    * (where the ground is drawn shaped to the line rather than as surveyed). */
   railLand(x: number, z: number, margin: number): boolean {
-    const { s, o, past } = this.locate(x, z);
+    const { k, s, o, past } = this.locate(x, z), L = this.lines[k]!;
     if (past || Math.abs(o) > 2 * FAR) return false;
-    const [lo, hi, pLo, pHi] = this.band(s);
-    if (o >= lo - margin && o <= hi + margin) return !this.bridged(s) || (o >= lo && o <= hi);
-    if (this.bridged(s)) return false;
-    const out = o > hi ? o - hi : lo - o, g = this.beside(s, o);
-    return Math.abs(shape(g, out, o > hi ? pHi : pLo, this.beside(s, o > hi ? hi + 2.5 : lo - 2.5)) - g) > 0.3;
+    const [lo, hi, pLo, pHi] = this.band(L, s);
+    if (o >= lo - margin && o <= hi + margin) return !this.bridged(s, L) || (o >= lo && o <= hi);
+    if (this.lines.length > 1 && this.onLand(x, z, k)) return true;
+    if (this.bridged(s, L)) return false;
+    const out = o > hi ? o - hi : lo - o, g = this.beside(L, s, o);
+    return Math.abs(shape(g, out, o > hi ? pHi : pLo, this.beside(L, s, o > hi ? hi + 2.5 : lo - 2.5)) - g) > 0.3;
   }
   /** The ground's height as drawn at a point: 0 on the railway's land, else the real ground less the datum, with the
    * slopes and walls where they meet. */
   groundY(x: number, z: number): number {
-    const { s, o, past } = this.locate(x, z);
+    const { k, s, o, past } = this.locate(x, z), L = this.lines[k]!;
     // past the line's ends, and far from it, the ground is read where it is
     if (past || Math.abs(o) > 2 * FAR) return this.raw(x, z) - this.datumAt(x, z);
-    const [lo, hi, pLo, pHi] = this.band(s);
-    if (this.bridged(s)) return this.beside(s, o);
-    if (o >= lo && o <= hi) return 0;
-    const out = o > hi ? o - hi : lo - o, g = this.beside(s, o);
-    return shape(g, out, o > hi ? pHi : pLo, this.beside(s, o > hi ? hi + 2.5 : lo - 2.5));
+    const [lo, hi, pLo, pHi] = this.band(L, s);
+    if (o >= lo && o <= hi && !this.bridged(s, L)) return 0;
+    // another line's land close by, off its arches, is the railway's too (a station on one line beside another's)
+    if (this.lines.length > 1 && this.onLand(x, z, k)) return 0;
+    if (this.bridged(s, L)) return this.beside(L, s, o);
+    const out = o > hi ? o - hi : lo - o, g = this.beside(L, s, o);
+    return shape(g, out, o > hi ? pHi : pLo, this.beside(L, s, o > hi ? hi + 2.5 : lo - 2.5));
   }
   // ---- the fine tiles ----
   /** The fine tiles a circle touches that exist and aren't loaded yet. */
@@ -269,7 +314,7 @@ export class Terrain {
   }
   hasFine(key: string): boolean { return this.fine.has(key.replace('_', ',')); }
 }
-const FRAME = { x: 0, z: 0, heading: 0, dx: 0, dz: 0, nx: 0, nz: 0 }, LOC_F = { ...FRAME }, LOC = { s: 0, o: 0, past: false }, BAND: [number, number, boolean, boolean] = [0, 0, false, false];
+const FRAME = { x: 0, z: 0, heading: 0, dx: 0, dz: 0, nx: 0, nz: 0 }, LOC_F = { ...FRAME }, EACH_F = { ...FRAME }, LOC = { k: 0, s: 0, o: 0, past: false }, NEAR_AT = { k: 0, s: 0 }, BAND: [number, number, boolean, boolean] = [0, 0, false, false];
 const DRAWN: [number, number] = [0, 0];
 
 /** The ground `out` metres past the land's edge, given the real ground there (g) and just past the edge (g0): at a
@@ -346,7 +391,7 @@ interface Bands { city: { x: number; z: number; r: number } }
 export class TerrainLayer {
   readonly material: THREE.MeshLambertMaterial;
   readonly group = new THREE.Group();
-  private chunks: { s0: number; s1: number; mid: THREE.Vector3; mesh: THREE.Mesh; coarse: THREE.BufferGeometry; fine: THREE.BufferGeometry | null; dirty: boolean }[] = [];
+  private chunks: { g: GroundLine; s0: number; s1: number; mid: THREE.Vector3; mesh: THREE.Mesh; coarse: THREE.BufferGeometry; fine: THREE.BufferGeometry | null; dirty: boolean }[] = [];
   private files: Record<string, string>; private loading = new Map<string, Promise<void>>();
   private col = palette(); private last = -1;
   /** The base mesh's chunks: they take shadows but cast none (the page sets every mesh casting at start; the first frame unsets these). */
@@ -355,12 +400,11 @@ export class TerrainLayer {
     this.files = files;
     this.material = new THREE.MeshLambertMaterial({ vertexColors: true });
     this.buildBase();
-    const c = t.net.spine;
-    for (let s0 = 0; s0 < c.length - 1; s0 += CHUNK) {
-      const s1 = Math.min(c.length, s0 + CHUNK), p = c.at((s0 + s1) / 2);
-      const coarse = this.strip(s0, s1, ROW_COARSE, OUT_COARSE), mesh = new THREE.Mesh(coarse, this.material);
+    for (const g of t.lines) for (let s0 = g.c.start; s0 < g.c.end - 1; s0 += CHUNK) {
+      const s1 = Math.min(g.c.end, s0 + CHUNK), p = g.c.at((s0 + s1) / 2);
+      const coarse = this.strip(g, s0, s1, ROW_COARSE, OUT_COARSE), mesh = new THREE.Mesh(coarse, this.material);
       mesh.receiveShadow = true; mesh.castShadow = true; this.group.add(mesh);
-      this.chunks.push({ s0, s1, mid: new THREE.Vector3(p.x, 0, p.z), mesh, coarse, fine: null, dirty: true });
+      this.chunks.push({ g, s0, s1, mid: new THREE.Vector3(p.x, 0, p.z), mesh, coarse, fine: null, dirty: true });
     }
     // a sentinel drawn every frame (it's empty) that keeps the strip's detail and tiles following the camera
     const tick = new THREE.Mesh(new THREE.BufferGeometry(), this.material); tick.frustumCulled = false;
@@ -376,13 +420,13 @@ export class TerrainLayer {
       const d = Math.hypot(at.x - ch.mid.x, at.z - ch.mid.z) - CHUNK / 2, near = d < NEAR && at.y < 2500;
       if (near) {
         this.fetch(ch.mid.x, ch.mid.z, CHUNK / 2 + this.t.fineBand);
-        if ((ch.dirty || !ch.fine) && built < 3) { ch.fine?.dispose(); ch.fine = this.strip(ch.s0, ch.s1, ROW_FINE, OUT_FINE); ch.dirty = false; built++; }
+        if ((ch.dirty || !ch.fine) && built < 3) { ch.fine?.dispose(); ch.fine = this.strip(ch.g, ch.s0, ch.s1, ROW_FINE, OUT_FINE); ch.dirty = false; built++; }
       }
       const g = near && ch.fine ? ch.fine : ch.coarse; if (ch.mesh.geometry !== g) ch.mesh.geometry = g;
     }
   }
   /** Every chunk of the strip as it's drawn fine, built now (for the checks). */
-  fineStrips(): THREE.BufferGeometry[] { return this.chunks.map(ch => this.strip(ch.s0, ch.s1, ROW_FINE, OUT_FINE)); }
+  fineStrips(): THREE.BufferGeometry[] { return this.chunks.map(ch => this.strip(ch.g, ch.s0, ch.s1, ROW_FINE, OUT_FINE)); }
   /** Load every fine tile now (for the checks and a screenshot that wants the detail at once). */
   async loadAll(): Promise<void> { await Promise.all(Object.keys(this.files).map(k => this.get(k))); for (const ch of this.chunks) ch.dirty = true; this.last = -1; }
   /** Load the fine tiles a circle touches (for what stands on the ground there: the buildings wait for them). */
@@ -418,31 +462,45 @@ export class TerrainLayer {
     const d = Math.hypot(x - b.city.x, z - b.city.z) - b.city.r;
     return d < 300 ? k.lerp(C.city, 1 - Math.max(0, d) / 300 * (d > 0 ? 1 : 0)) : k;
   }
-  /** The strip from s0 to s1: rows across the line every `row` m, the railway's land and each side out to STRIP m. */
-  strip(s0: number, s1: number, row: number, OUT: number[]): THREE.BufferGeometry {
-    const t = this.t, c = t.net.spine, rows = Math.max(1, Math.ceil((s1 - s0) / row));
+  /** Whether another line comes within reach of a line's strip from s0 to s1. */
+  private near(L: GroundLine, s0: number, s1: number): boolean {
+    const reach = STRIP + 250;
+    for (let s = s0; s <= s1 + 1e-6; s += Math.max(1, Math.min(60, s1 - s0))) {
+      const p = L.c.at(s); let hit = false;
+      for (const g of this.t.lines) if (g !== L) { const q = g.c.at(g.c.nearest(p.x, p.z)); if (Math.hypot(q.x - p.x, q.z - p.z) < reach) hit = true; }
+      if (hit) return true;
+    }
+    return false;
+  }
+  /** The strip from s0 to s1 along a line: rows across it every `row` m, the railway's land and each side out to STRIP m. */
+  strip(L: GroundLine, s0: number, s1: number, row: number, OUT: number[]): THREE.BufferGeometry {
+    const t = this.t, c = L.c, rows = Math.max(1, Math.ceil((s1 - s0) / row)), shared = this.near(L, s0, s1);
     // per side: the land's edge (yard), the wall's foot, its top, the ground (each wall vertex twice, so colours change
     // crisply), then the columns out and the skirt
     const perSide = 2 + 2 + 2 + (OUT.length - 2) + 1, cols = 2 * perSide;
     const pos = new Float32Array((rows + 1) * cols * 3), col = new Float32Array((rows + 1) * cols * 3), k = new THREE.Color();
     const fr = { ...FRAME }, gy = new Float32Array(OUT.length);
     for (let r = 0; r <= rows; r++) {
-      const s = Math.min(s1, s0 + r * row), [lo, hi, pLo, pHi] = t.band(s), [tLo, tHi] = t.tracks(s);
+      const s = Math.min(s1, s0 + r * row), [lo, hi, pLo, pHi] = t.band(L, s), [tLo, tHi] = t.tracks(L, s);
       for (let side = 0; side < 2; side++) {
         const sign = side ? 1 : -1, edge = side ? hi : lo, pad = side ? pHi : pLo;
         // the ground at each column: the real ground shaped by the slopes, and at a pad a wall when the step is big
-        const bridged = t.bridged(s), g0 = t.beside(s, edge + sign * 2.5, fr), wall = !bridged && pad && Math.abs(g0) >= WALL_MIN;
+        const bridged = t.bridged(s, L), g0 = t.beside(L, s, edge + sign * 2.5, fr), wall = !bridged && pad && Math.abs(g0) >= WALL_MIN;
         for (let q = 0; q < OUT.length; q++) {
           const out = OUT[q]!, o = edge + sign * Math.max(out, 0.01);
-          gy[q] = bridged ? t.beside(s, o, fr) : q === 0 ? 0 : q === 1 ? (wall ? g0 : 0) : shape(t.beside(s, o, fr), out, pad, g0);
+          gy[q] = bridged ? t.beside(L, s, o, fr) : q === 0 ? 0 : q === 1 ? (wall ? g0 : 0) : shape(t.beside(L, s, o, fr), out, pad, g0);
         }
         if (!wall && !bridged) gy[1] = gy[2]! * (OUT[1]! / OUT[2]!);
         // under a viaduct the land's own two columns lie on the ground beneath too
-        const floor = bridged ? t.beside(s, edge, fr) : 0;
+        const floor = bridged ? t.beside(L, s, edge, fr) : 0;
         // the order across runs from far west (side 0, reversed) to far east, so the rows' quads all face up
         const put = (q: number, o: number, y: number, colour: THREE.Color) => {
           const ci = side ? perSide + q : perSide - 1 - q, at = (r * cols + ci) * 3;
-          c.at(s, o, fr); pos[at] = fr.x; pos[at + 1] = y; pos[at + 2] = fr.z;
+          c.at(s, o, fr);
+          // where the strip reaches over another line's ground (near a junction, or a line out passing near), it lies
+          // as that line's ground does, so the two strips agree and neither covers the other's tracks
+          if (shared && t.locate(fr.x, fr.z).k !== L.k) y = t.groundY(fr.x, fr.z);
+          pos[at] = fr.x; pos[at + 1] = y; pos[at + 2] = fr.z;
           col[at] = colour.r; col[at + 1] = colour.g; col[at + 2] = colour.b;
         };
         // the tracks' land, then a station's pad out to the edge (each colour change twice, so it's crisp)
@@ -473,19 +531,19 @@ export class TerrainLayer {
   /** The base mesh over the whole map, in chunks: sunk well under the strip near the line, and easing to the far
    * ground's level at the map's edge. */
   private buildBase(): void {
-    const t = this.t, c = t.net.spine, b = t.bounds, G = BASE_GRID, k = new THREE.Color();
+    const t = this.t, b = t.bounds, G = BASE_GRID, k = new THREE.Color();
     const nx = Math.floor((b.x1 - b.x0) / G), nz = Math.floor((b.z1 - b.z0) / G), fr = { ...FRAME };
     const EASE = 1200;
     for (let ci = 0; ci < nx; ci += BASE_CHUNK) for (let cj = 0; cj < nz; cj += BASE_CHUNK) {
       const w = Math.min(BASE_CHUNK, nx - ci) + 1, h = Math.min(BASE_CHUNK, nz - cj) + 1;
       const pos = new Float32Array(w * h * 3), col = new Float32Array(w * h * 3);
       // is this chunk anywhere near the line? (most aren't, and needn't ask the corridor for each vertex)
-      const cx = b.x0 + (ci + w / 2) * G, cz = b.z0 + (cj + h / 2) * G, pc = c.at(t.nearest(cx, cz)), nearLine = Math.hypot(cx - pc.x, cz - pc.z) < (w + h) * G / 2 + 800;
+      const cx = b.x0 + (ci + w / 2) * G, cz = b.z0 + (cj + h / 2) * G, at = t.nearest(cx, cz), pc = t.lines[at.k]!.c.at(at.s), nearLine = Math.hypot(cx - pc.x, cz - pc.z) < (w + h) * G / 2 + 800;
       for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
         const x = b.x0 + (ci + i) * G, z = b.z0 + (cj + j) * G, at = (j * w + i) * 3;
         let y = t.raw(x, z) - t.datumAt(x, z), out = 1e9;
         if (nearLine) {
-          const { s, o, past } = t.locate(x, z), [lo, hi] = t.band(s);
+          const { k: l, s, o, past } = t.locate(x, z), [lo, hi] = t.band(t.lines[l]!, s);
           out = o > hi ? o - hi : o < lo ? lo - o : -1;
           if (!past && out < STRIP - G * 0.75) {
             // under the strip: well below anything it draws round here

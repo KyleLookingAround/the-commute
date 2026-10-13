@@ -35,7 +35,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   const hg = net.stations.find(st => st.id === 'hazel-grove'), edge = hg ? Math.max(0, hg.at - 360) : 0;
 
   // ---- the ground, from survey: the railway's land level with the line, the real lie of the land round it ----
-  const terrain = new Terrain(net, kitFiles(), bridgesOf(c, def)); setTerrain(terrain);
+  const terrain = new Terrain(net, kitFiles(), l => bridgesOf(l, def)); setTerrain(terrain);
   const end = c.at(c.length - 700);
   const layer = new TerrainLayer(terrain, { city: { x: end.x, z: end.z, r: 1700 } }, fineFiles());
   scene.add(layer.group);
@@ -56,16 +56,18 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   { const far = new THREE.Mesh(new THREE.PlaneGeometry(60000, 60000), new THREE.MeshLambertMaterial({ color: PAL.grass, depthWrite: false })); far.rotation.x = -Math.PI / 2; far.position.y = terrain.edge - 0.6; far.renderOrder = -1; scene.add(far); }
 
   // ---- ribbons along the corridor: roads; ballast and rails along each track ----
-  const segs: { s0: number; s1: number; len: number }[] = [];
-  for (let i = 0; i < c.pts.length - 1; i++) { const s0 = c.cum[i]!, s1 = c.cum[i + 1]!; segs.push({ s0, s1, len: s1 - s0 }); }
   const unit = new THREE.BoxGeometry(1, 1, 1);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v3 = new THREE.Vector3(), sc = new THREE.Vector3();
-  // a road along the line on the ground, each piece tilted to the slope; none down into the viaduct's valley
-  function ribbon(offset: number, width: number, height: number, y: number, mat: THREE.Material): void {
+  // a road along a line (the spine, or a line out) on the ground, each piece tilted to the slope; none down into the
+  // viaduct's valley, and a line out's stops short of the junction it runs into, where it would cross the other line
+  function ribbon(offset: number, width: number, height: number, y: number, mat: THREE.Material, c = net.spine): void {
+    const segs: { s0: number; s1: number }[] = [];
+    for (let i = 0; i < c.pts.length - 1; i++) segs.push({ s0: c.cum[i]!, s1: c.cum[i + 1]! });
     const inst = new THREE.InstancedMesh(unit, mat, segs.length); inst.count = 0;
     for (const sg of segs) {
-      if (sg.s0 < edge) continue;
-      if (valley && sg.s1 > valley.s0 - 100 && sg.s0 < valley.s1 + 100) continue;
+      if (c === net.spine && sg.s0 < edge) continue;
+      if (c === net.spine && valley && sg.s1 > valley.s0 - 100 && sg.s0 < valley.s1 + 100) continue;
+      if (c !== net.spine && sg.s1 > c.end - 600) continue;
       const a = c.at(sg.s0, offset), b = c.at(sg.s1, offset), mid = c.at((sg.s0 + sg.s1) / 2, offset);
       const ya = groundY(a.x, a.z), yb = groundY(b.x, b.z), len = Math.hypot(b.x - a.x, b.z - a.z);
       e.set(0, yawFor(mid), Math.atan2(yb - ya, len)); q.setFromEuler(e); v3.set(mid.x, (ya + yb) / 2 + y, mid.z); sc.set(Math.hypot(len, yb - ya) + 0.6, height, width);
@@ -92,30 +94,36 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   }
   for (const t of net.tracks) { trackRibbon(t.id, 0, 3.4, 0.5, -0.25, MAT.ballast); for (const dx of [-0.72, 0.72]) trackRibbon(t.id, dx, 0.1, 0.16, 0.08, MAT.rail); }
   ribbon(-95, 12, 0.2, 0.1, MAT.road); ribbon(126, 12, 0.2, 0.1, MAT.road);
+  // a road along each line out, on one side (the Marple line runs through suburbs most of the way)
+  for (const l of net.lines.slice(1)) ribbon(-95, 12, 0.2, 0.1, MAT.road, l);
 
-  // ---- OHLE: a mast outside each outer track with an arm reaching over it, and a wire over every track ----
+  // ---- OHLE: a mast outside each outer track with an arm reaching over it, and a wire over every track, along each
+  // line where it's electrified (the spine from the town's edge in; a line out where its corridor's `wires` say) ----
   (function ohle() {
-    const n = Math.floor((c.length - edge) / 55) * 2;
+    const n = net.lines.reduce((a, l) => a + Math.floor(l.length / 55) * 2 + 2, 0);
     const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.2, 0.25, 7.5, 6), MAT.steel, n), arms = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 0.3, 6), MAT.steel, n);
     let k = 0; const wire: number[] = [];
-    for (let s = edge + 30; s < c.length && k < n; s += 55) {
+    for (const l of net.lines) for (let s = (l === c ? edge : l.start) + 30; s < l.end && k < n; s += 55) {
       let lo = Infinity, hi = -Infinity;
-      for (const t of net.tracks) { const [e0, e1] = net.extent(t.id); if (s < e0 || s > e1) continue; const o = net.offsetAt(t.id, s); lo = Math.min(lo, o); hi = Math.max(hi, o); }
+      for (const t of net.tracks) { if (!net.onLine(t.corridor, l) || !net.wired(t.corridor, s)) continue; const [e0, e1] = net.extent(t.id); if (s < e0 || s > e1) continue; const o = net.offsetAt(t.id, s); lo = Math.min(lo, o); hi = Math.max(hi, o); }
       if (lo > hi) continue;
       for (const [off, inward] of [[lo - 3.2, 1], [hi + 3.2, -1]] as const) {
-        const p = net.place(SPINE, s, off); e.set(0, yawFor(p), 0); q.setFromEuler(e); sc.set(1, 1, 1);
+        const p = net.place(l.id, s, off); e.set(0, yawFor(p), 0); q.setFromEuler(e); sc.set(1, 1, 1);
         v3.set(p.x, 3.75, p.z); m4.compose(v3, q, sc); poles.setMatrixAt(k, m4);
-        const pa2 = net.place(SPINE, s, off + inward * 3); v3.set(pa2.x, 6.8, pa2.z); m4.compose(v3, q, sc); arms.setMatrixAt(k, m4); k++;
+        const pa2 = net.place(l.id, s, off + inward * 3); v3.set(pa2.x, 6.8, pa2.z); m4.compose(v3, q, sc); arms.setMatrixAt(k, m4); k++;
       }
     }
     poles.count = arms.count = k; scene.add(byCell(poles).group, byCell(arms).group);
     for (const t of net.tracks) {
       const [e0, e1] = net.extent(t.id);
-      for (let s = t.corridor === hg?.corridor ? Math.max(e0, edge) : e0; s < e1; s += STEP) { net.trackAt(t.id, s, pa); net.trackAt(t.id, Math.min(e1, s + STEP), pb); wire.push(pa.x, 5.4, pa.z, pb.x, 5.4, pb.z); }
+      for (let s = t.corridor === hg?.corridor ? Math.max(e0, edge) : e0; s < e1; s += STEP) { if (!net.wired(t.corridor, s)) continue; net.trackAt(t.id, s, pa); net.trackAt(t.id, Math.min(e1, s + STEP), pb); wire.push(pa.x, 5.4, pa.z, pb.x, 5.4, pb.z); }
     }
     const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(wire), 3));
     scene.add(new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x8c93a3 })));
   })();
+
+  // whether a building r round (x, z) would stand on a line out's land, or a line out's building on another line's
+  const offLine = (x: number, z: number, r: number) => net.lines.length > 1 && Math.abs(terrain.locate(x, z).o) < 40 + r;
 
   // ---- houses: terraces through the suburbs, towers at the city end ----
   // each house's footprint (x, z, radius) in cells of HOUSE_CELL metres, so homes that grow keep off them
@@ -124,7 +132,8 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   (function towns() {
     const inst = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial({ color: PAL.house }), 5000);
     const col = new THREE.Color(); let n = 0;
-    const stationS = net.stations.map(s => s.s);
+    // the spine's stations (a line out's are along their own chainage)
+    const spineSt = net.stations.filter(st => net.spineOf.has(st.corridor)), stationS = spineSt.map(s => s.s);
     // nothing stands on the roads the replacement buses drive (the network's `roads`)
     const segs = (net.def.roads ?? []).flatMap(r => r.points.slice(1).map((b, i) => [r.points[i]!, b] as const));
     const onRoad = (x: number, z: number, r: number) => segs.some(([[ax, az], [bx, bz]]) => {
@@ -132,7 +141,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       return Math.hypot(x - ax - dx * t, z - az - dz * t) < r;
     });
     // beyond the town's edge, fewer: a scatter in the fields, and the villages round their stations, by how many live there
-    const rural = (s: number, near: number, st: number) => 0.05 + 0.5 * Math.exp(-((near / 450) ** 2)) * Math.min(1, (net.stations[st]?.catchment ?? 0) / 150);
+    const rural = (s: number, near: number, st: number) => 0.05 + 0.5 * Math.exp(-((near / 450) ** 2)) * Math.min(1, (spineSt[st]?.catchment ?? 0) / 150);
     const ruralN = Math.round(14000 * edge / Math.max(1, c.length - edge));
     for (let k = 0; k < 14000 + ruralN && n < 5000; k++) {
       const out = k >= 14000, s = out ? seed(k, 1) * edge : edge + seed(k, 1) * (c.length - edge), side = seed(k, 2) < 0.5 ? -1 : 1, off = side * (60 + seed(k, 3) * 600);
@@ -149,6 +158,8 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       const p = c.at(s, off);
       if (buildings.real(p.x, p.z)) continue;
       if (onRoad(p.x, p.z, 6 + Math.max(w, d) / 2)) continue;
+      // none on a line out's land, where one passes near
+      if (offLine(p.x, p.z, Math.max(w, d) / 2)) continue;
       // on the ground's lowest corner, its walls running down into it; none on a bank too steep to build on
       const rr = Math.max(w, d) / 2, ys = [groundY(p.x, p.z), groundY(p.x - rr, p.z - rr), groundY(p.x + rr, p.z - rr), groundY(p.x - rr, p.z + rr), groundY(p.x + rr, p.z + rr)];
       const y0 = Math.min(...ys); if (Math.max(...ys) - y0 > 5) continue;
@@ -158,6 +169,26 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       col.setHSL(0.04 + seed(k, 9) * 0.06, city ? PAL['tower-sat'] : PAL['house-sat'], (city ? PAL['tower-light'] : PAL['house-light']) + seed(k, 10) * 0.15); inst.setColorAt(n, col);
       n++;
     }
+    // along each line out: houses through the suburbs it runs through, thicker round its stations (its own seeds)
+    net.lines.slice(1).forEach((l, i) => {
+      const own = net.stations.filter(st => st.corridor === l.id).map(st => st.s);
+      for (let k = 100000 * (i + 1), k1 = k + Math.round(l.length / 4); k < k1 && n < 5000; k++) {
+        const s = l.start + seed(k, 1) * l.length, side = seed(k, 2) < 0.5 ? -1 : 1, off = side * (60 + seed(k, 3) * 600);
+        const near = Math.min(Infinity, ...own.map(x => Math.abs(x - s)));
+        if (near < 220 && Math.abs(off) < 180) continue;
+        if (seed(k, 4) > 0.35 + (near < 600 ? 0.3 : 0)) continue;
+        const terrace = seed(k, 5) < 0.5, w = terrace ? 12 + seed(k, 6) * 26 : 8 + seed(k, 6) * 10, d = 9 + seed(k, 7) * 6, h = 6 + seed(k, 8) * 5;
+        const p = l.at(s, off), rr = Math.max(w, d) / 2;
+        if (onRoad(p.x, p.z, 6 + rr) || offLine(p.x, p.z, rr)) continue;
+        const ys = [groundY(p.x, p.z), groundY(p.x - rr, p.z - rr), groundY(p.x + rr, p.z - rr), groundY(p.x - rr, p.z + rr), groundY(p.x + rr, p.z + rr)];
+        const y0 = Math.min(...ys); if (Math.max(...ys) - y0 > 5) continue;
+        e.set(0, yawFor(p) + (seed(k, 11) - 0.5) * 0.3, 0); q.setFromEuler(e);
+        v3.set(p.x, (h + 1 + Math.max(...ys) - y0) / 2 + y0 - 0.5, p.z); sc.set(w, h + Math.max(...ys) - y0 + 1, d); m4.compose(v3, q, sc); inst.setMatrixAt(n, m4);
+        { const k2 = cellKey(p.x, p.z), list = houses.get(k2) ?? []; list.push(p.x, p.z, Math.hypot(w, d) / 2); houses.set(k2, list); }
+        col.setHSL(0.04 + seed(k, 9) * 0.06, PAL['house-sat'], PAL['house-light'] + seed(k, 10) * 0.15); inst.setColorAt(n, col);
+        n++;
+      }
+    });
     inst.count = n; scene.add(byCell(inst).group);
   })();
 
@@ -167,9 +198,10 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   const roadSegs = (net.def.roads ?? []).flatMap(r => r.points.slice(1).map((b, i) => [r.points[i]!, b] as const));
   const onCourse = onCourses(def);
   const buildable = (x: number, z: number, r: number): boolean => {
-    const s = c.nearest(x, z), a = c.at(s), off = Math.hypot(x - a.x, z - a.z);
+    // clear of every line's land (the nearest line's), and of the viaduct's valley
+    const { k, s, o } = terrain.locate(x, z), off = Math.abs(o);
     if (off < 36 + r) return false;
-    if (valley && s > valley.s0 - 40 && s < valley.s1 + 40 && off < 700) return false;
+    if (k === 0 && valley && s > valley.s0 - 40 && s < valley.s1 + 40 && off < 700) return false;
     // level enough to build on: no more than 4 m from one side to the other
     const ys = [groundY(x, z), groundY(x - r, z), groundY(x + r, z), groundY(x, z - r), groundY(x, z + r)];
     if (Math.max(...ys) - Math.min(...ys) > 4) return false;

@@ -119,8 +119,12 @@ test('tracks: on the open line and through the stations the tracks there keep cl
   // nor Piccadilly, where pairs of tracks run into one platform each
   const throat = n.station('piccadilly').at - 400;
   for (const s of [...byS.map(st => st.s), ...between].filter(s => Math.abs(s - stockport) > 1200 && s < throat)) {
-    const o = n.tracks.filter(t => { const [e0, e1] = n.extent(t.id); return s >= e0 && s <= e1; }).map(t => n.offsetAt(t.id, s)).sort((a, b) => a - b);
-    for (let i = 1; i < o.length; i++) assert.ok(o[i]! - o[i - 1]! >= 4.2, `at ${s.toFixed(0)} m two tracks are ${(o[i]! - o[i - 1]!).toFixed(2)} m apart`);
+    // each corridor's tracks there (chainage runs on through the junctions, so two corridors share it), and a single
+    // line's two tracks are the one road (together)
+    for (const c of Object.keys(n.corridors)) {
+      const o = n.tracks.filter(t => { const [e0, e1] = n.extent(t.id); return t.corridor === c && s >= e0 && s <= e1; }).map(t => n.offsetAt(t.id, s)).sort((a, b) => a - b);
+      for (let i = 1; i < o.length; i++) assert.ok(o[i]! - o[i - 1]! >= 4.2 || o[i]! - o[i - 1]! <= 0.3, `at ${s.toFixed(0)} m on ${c} two tracks are ${(o[i]! - o[i - 1]!).toFixed(2)} m apart`);
+    }
   }
 });
 

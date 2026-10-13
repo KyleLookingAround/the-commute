@@ -8,9 +8,10 @@ export type XZ = [number, number];
 // ---- the line as data (src/data/network.json) ----
 /** A corridor: a real line's centreline, drawn towards Manchester. from, to: the junctions it starts and ends at, if
  * any (its waypoints may run a little past one, and it's cut at the junction's point). */
-export interface CorridorGeoDef { id: string; name?: string; waypoints: [number, number][]; subdivisions?: number; from?: string; to?: string }
+/** wires: how far back from its Manchester end its tracks are electrified, in metres (all of it when not given). */
+export interface CorridorGeoDef { id: string; name?: string; waypoints: [number, number][]; subdivisions?: number; from?: string; to?: string; wires?: number }
 /** base: the chainage at its first point (src/sim/network.ts works it out from the junctions). */
-export interface CorridorDef { id: string; name?: string; points: XZ[]; from?: string; to?: string; base?: number }
+export interface CorridorDef { id: string; name?: string; points: XZ[]; from?: string; to?: string; base?: number; wires?: number }
 /** A junction: a named point on a corridor, where other corridors start or end (or will, once their lines are drawn). */
 export interface JunctionGeoDef { id: string; name: string; corridor: string; lat: number; lon: number; note?: string }
 export interface JunctionDef { id: string; name: string; corridor: string; x: number; z: number; note?: string }

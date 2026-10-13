@@ -27,4 +27,4 @@ Until now the whole map was one corridor, the Hazel Grove line included, and eve
 
 - Today's game is unchanged: the Hazel Grove line's chainage is what its distance was, and the line to Piccadilly's runs on from it, so every distance the sim uses is the same (the bot's `PLAY` is identical on seeds 1–3).
 - A route that turns back away from Manchester at a junction (the Stalybridge line from Stockport through Heaton Norris) runs against chainage on one leg; that step gives a leg a direction of its own.
-- A line beside the spine (the Styal line, the Crewe line) needs its own ground and trees: the terrain is laid along the spine only.
+- A line beside the spine (the Styal line, the Crewe line) needs its own ground and trees: the terrain is laid along the spine only. (Done for the Marple line, 13 October 2026: `net.lines`, the spine and every corridor off it, each with its own land, strip, trees, masts and signals.)

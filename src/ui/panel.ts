@@ -13,6 +13,14 @@ import type { At } from './sheet.ts';
 export interface SheetLike { at: At; docked: boolean; to: (at: At) => void; fit: () => void }
 
 export const fmt = (n: number): string => '£' + Math.floor(n).toLocaleString('en-GB');
+// a sum short enough for a stats cell at 320 px, whatever the game has earned: £9,840, £83.3k, £176k, £1.25m
+export const fmtShort = (n: number): string => {
+  const a = Math.floor(n);
+  if (a < 10_000) return fmt(a);
+  const [d, u] = a < 1e6 ? [a / 1e3, 'k'] : [a / 1e6, 'm'];
+  const t = d < 100 ? (Math.floor(d * (d < 10 ? 100 : 10)) / (d < 10 ? 100 : 10)).toString() : Math.floor(d).toString();
+  return '£' + t + u;
+};
 
 const BLURB: Record<string, string | undefined> = {
   'heaton-chapel': 'Two platforms on the slow lines, 1,200 commuters a morning, and a footbridge that needs lifts.',
@@ -224,7 +232,7 @@ export class UI {
     const i = this.selected, g = this.g, S = this.sim.state(i), panel = this.els.panel;
     if (!g.owned[i]) { const b = panel.querySelector<HTMLButtonElement>('#buyStation'); if (b) b.disabled = !this.sim.canBuyStation(i); return; }
     const set = (id: string, v: string) => { const el = panel.querySelector('#' + id); if (el && el.textContent !== v) el.textContent = v; };
-    set('pWait', String(S.waiting)); set('pBoard', S.boarded.toLocaleString('en-GB')); set('pOff', S.alighted.toLocaleString('en-GB')); set('pRev', fmt(S.revenue)); set('pLost', S.lost.toLocaleString('en-GB')); set('pChg', S.changed.toLocaleString('en-GB'));
+    set('pWait', String(S.waiting)); set('pBoard', S.boarded.toLocaleString('en-GB')); set('pOff', S.alighted.toLocaleString('en-GB')); set('pRev', fmtShort(S.revenue)); set('pLost', S.lost.toLocaleString('en-GB')); set('pChg', S.changed.toLocaleString('en-GB'));
     set('pHomes', Math.round(this.sim.homes(i)).toLocaleString('en-GB')); set('pCab', S.cab.toLocaleString('en-GB'));
     set('pCar', S.car.toLocaleString('en-GB')); set('pBus', S.bus.toLocaleString('en-GB'));
     // each card's Buy shows once the money is there; until then, how far there is to go

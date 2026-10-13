@@ -16,8 +16,8 @@
 // Stockport end, and back to the sidings once it's moving again. The view's own, timed from the sim's failure.
 // A contract's perk can stand a second unit on the next siding from the start, until it's put in service.
 // On some nights, in the small hours, the fast lines close for engineering: the expresses stop and a yellow on-track
-// machine with flashing orange beacons crawls along them, one way one night and back the next. Cosmetic: it's the
-// view's own, from the seed and the night, and no passenger train meets it.
+// machine with flashing orange beacons crawls a few hundred metres along them at the night's site, one way one night
+// and the other the next. Cosmetic: it's the view's own, from the seed and the night, and no passenger train meets it.
 import * as THREE from 'three';
 import { yawFor } from './world.ts';
 import { PAL } from './scene.ts';
@@ -88,16 +88,18 @@ const LATE = 60, LATE_FULL = 300, MAX_LAMPS = 16, lampGeo = new THREE.BoxGeometr
 // flashing about once a real second
 const hazardGeo = new THREE.BoxGeometry(0.9, 0.7, 0.9), postGeo = new THREE.BoxGeometry(0.25, 4, 0.25).translate(0, 2, 0), cautionGeo = new THREE.BoxGeometry(0.9, 0.9, 0.9).translate(0, 4.4, 0);
 // the engineering train: the clock hours the fast lines are closed on a night it runs, and how many nights in a hundred
-const ENG_FROM = 0.75, ENG_TO = 4.75, ENG_NIGHTS = 55, beaconGeo = new THREE.BoxGeometry(1.0, 0.8, 1.0);
+// it works one site a night, creeping ENG_CREEP of the fast lines' length through the hours it's out (the night's clock
+// runs so fast that a run along the whole line went by in a real minute, too quick to see)
+const ENG_FROM = 0.75, ENG_TO = 4.75, ENG_NIGHTS = 55, ENG_CREEP = 0.02, beaconGeo = new THREE.BoxGeometry(1.0, 0.8, 1.0);
 const engHash = (a: number, b: number) => { const s = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return s - Math.floor(s); };
 /** How far along the fast lines the engineering train is at sim time t for a seed (0 at the Stockport end, 1 at
- * Piccadilly's), and which way it's going; null when it isn't out: outside the small hours, or on a night it doesn't run.
+ * Piccadilly's), at the night's site, and which way it's creeping; null when it isn't out: outside the small hours, or on a night it doesn't run.
  * A night belongs to the game day it starts after midnight on. */
 export function engineering(seed: number, t: number): { at: number; dir: 1 | -1 } | null {
   const clock = clockAt(t) / 3600, hour = clock % 24, night = Math.floor(clock / 24);
   if (hour < ENG_FROM || hour >= ENG_TO || engHash(seed % 9973, night * 1.37 + 11) * 100 >= ENG_NIGHTS) return null;
-  const k = (hour - ENG_FROM) / (ENG_TO - ENG_FROM), dir = night % 2 ? -1 : 1;
-  return { at: dir > 0 ? k : 1 - k, dir };
+  const k = (hour - ENG_FROM) / (ENG_TO - ENG_FROM), dir = night % 2 ? -1 : 1, site = 0.1 + 0.8 * engHash(seed % 9973, night * 2.71 + 5);
+  return { at: site + dir * (k - 0.5) * ENG_CREEP, dir };
 }
 /** Where the spare unit stands: in Stockport's carriage sidings, in the kit's (u, v); and the unit a contract's perk
  * stables there from the start, on the next siding. */

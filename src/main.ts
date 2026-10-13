@@ -271,6 +271,10 @@ vLight.addEventListener('click', () => { const on = lightPop.hidden; lightPop.hi
 const lblBox = el('lbls');
 const lbls = built.map(() => { const d = document.createElement('div'); d.className = 'lbl'; lblBox.appendChild(d); return d; });
 const lblKey: number[] = built.map(() => NaN);
+// where each label stands this frame (its centre's x, its bottom, its depth) and its width, read only when its text
+// changes, so two names that line up in the distance can be told apart: the nearer one shows
+const lblX = built.map(() => 0), lblY = built.map(() => 0), lblZ = built.map(() => 0), lblW = built.map(() => 0), lblOn = built.map(() => false);
+const LBL_H = 24;
 const v3 = new THREE.Vector3();
 /** Labels hide above this line, where the stage's own controls (and the minutes view's key, while it shows) sit. */
 let labelTop = 64;
@@ -294,12 +298,26 @@ function labels(): void {
     if (html) edges.place(i, html, edgeLabel[i] ?? '', (v3.x + 1) / 2 * w, top, v3.z > 1, rig.cover.left, labelTop, w, h - rig.cover.bottom);
     else edges.hide(i);
     // off screen, or in the top band where the stage's own controls sit
+    lblOn[i] = false;
     if (v3.z > 1 || Math.abs(v3.x) > 1.1 || Math.abs(v3.y) > 1.1 || top < labelTop) { d.style.display = 'none'; return; }
-    d.style.display = ''; d.style.left = ((v3.x + 1) / 2 * w) + 'px'; d.style.top = top + 'px';
+    lblOn[i] = true; lblX[i] = (v3.x + 1) / 2 * w; lblY[i] = top; lblZ[i] = v3.z;
+    d.style.left = lblX[i] + 'px'; d.style.top = top + 'px';
     // the text only when it changes (ownership, or the price with it), so a frame makes no strings; -1 for owned
     const owned = !!sim.g.owned[i], key = owned ? -1 : sim.stationPrice(i);
-    if (lblKey[i] !== key) { const s = b.station; lblKey[i] = key; d.innerHTML = owned ? s.name : `${s.name} · <b>${fmt(key)}</b>`; d.classList.toggle('lock', !owned); }
+    if (lblKey[i] !== key) {
+      const s = b.station; lblKey[i] = key; d.innerHTML = owned ? s.name : `${s.name} · <b>${fmt(key)}</b>`; d.classList.toggle('lock', !owned);
+      d.style.display = ''; lblW[i] = d.offsetWidth;
+    }
   });
+  // where two names overlap on screen, the farther one gives way
+  for (let i = 0; i < lbls.length; i++) {
+    let show = lblOn[i]!;
+    for (let j = 0; show && j < lbls.length; j++) {
+      if (j === i || !lblOn[j] || lblZ[j]! > lblZ[i]! || (lblZ[j] === lblZ[i] && j > i)) continue;
+      if (Math.abs(lblX[i]! - lblX[j]!) * 2 < lblW[i]! + lblW[j]! && Math.abs(lblY[i]! - lblY[j]!) < LBL_H) show = false;
+    }
+    const d = lbls[i]!, disp = show ? '' : 'none'; if (d.style.display !== disp) d.style.display = disp;
+  }
 }
 
 // ---- ui ----
@@ -442,7 +460,7 @@ function frame(now: number): void {
   pax.setRain(0.8 * weather.look.rain + 0.3 * weather.look.snow); sound.setWeather(weather.look.rain, weather.look.snow);
   sound.update(sim, rig.o, light.daylight, stationsXZ, trains.meshes, realDt); pax.setDaylight(light.daylight);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
-  syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt, sim); trains.sync(sim, dtGame); pax.sync(sim.g, dtGame); labels();
+  syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt, sim); trains.sync(sim, dtGame); pax.sync(sim.g, dtGame); pax.placeCoin(camera); labels();
   life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim);
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); nextStations(); followGlide(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }

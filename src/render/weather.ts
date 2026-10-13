@@ -124,8 +124,9 @@ export class WeatherLayer {
   constructor(scene: THREE.Scene, net: Network, private world: World) {
     this.rain = new Fall(scene, RAIN, true, PAL.rain, 34, 0);
     this.snowFall = new Fall(scene, SNOW, false, PAL.snow, 2.2, 1.6);
-    // what snow settles on and rain wets: the roofs, the platforms, the canopies' glass; and the ground's tint
-    this.mats = [MAT.roof, MAT.platform, MAT.canopy, MAT.concrete].map(mat => ({ mat, c: mat.color.clone() }));
+    // what snow settles on and rain wets: the roofs, the platforms, the canopies' glass, the park on Stockport
+    // Interchange's roof; and the ground's tint
+    this.mats = [MAT.roof, MAT.platform, MAT.canopy, MAT.concrete, MAT.park].map(mat => ({ mat, c: mat.color.clone() }));
     this.ground = world.ground; this.groundC = world.ground.color.clone();
     // the trees: both sides of every corridor, a belt beyond the fences, where nothing else stands: clear of the
     // stations and their yards, and of the city

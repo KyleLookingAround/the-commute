@@ -46,6 +46,6 @@
     { "type": "box", "u0": 125, "u1": 130, "v0": -26, "v1": -20, "y0": 0, "y1": 7.3, "mat": "concrete", "scenery": true },
     { "type": "box", "u0": 125, "u1": 130, "v0": 16, "v1": 22, "y0": 0, "y1": 7.3, "mat": "concrete", "scenery": true },
     { "type": "carpark", "u0": 20, "u1": 125, "v0": 62, "v1": 92, "upgrade": "carpark2", "note": "The extension beyond the car park, a game choice for a bigger one; not survey" },
-    { "type": "buslink", "u": -30, "v": 44, "back": [1, 0], "kerb": -1, "upgrade": "bus", "note": "A stop on the station approach for the buses along the A6 (Buxton Road), from memory, placed by eye" }
+    { "type": "buslink", "u": -30, "v": 37, "back": [1, 0], "kerb": -1, "upgrade": "bus", "note": "A stop on the station approach for the buses along the A6 (Buxton Road), from memory, placed by eye on the forecourt behind the rail replacement stop (it stood out on the grass, audit finding 7)" }
   ]
 }

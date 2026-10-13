@@ -75,6 +75,7 @@ export function buildLandmarks(scene: THREE.Scene, net: Network, def: NetworkGeo
   const via = viaductOf(c, def);
   if (via) viaduct(scene, net, c, via, groundY);
   for (const l of net.lines) for (const m of marks) if (m.kind === 'arches' && m.from && m.to && alongLine(m.corridor, l, def)) arcade(scene, net, l, l.nearest(...xz(def, m.from)), l.nearest(...xz(def, m.to)), groundY);
+  overbridges(scene, net, def, marks, groundY);
   if (river !== null) crossing(scene, c, river, groundY, 'river', courseOf(def, 'mersey'));
   if (m60 !== null) crossing(scene, c, m60, groundY, 'm60', courseOf(def, 'm60'));
   const pyramid = byId('pyramid'); if (pyramid) buildPyramid(scene, def, pyramid, groundY);
@@ -183,6 +184,61 @@ function arcade(scene: THREE.Scene, net: Network, c: Corridor, a: number, b: num
     put(piers, j, s, 0, spring, zm, j === 0 || j === n ? pw * 2 : pw, Math.max(0.01, spring - foot), w1 - w0 + 0.6, col.copy(PAL.brick).multiplyScalar(0.85 + seed(j, 4) * 0.1));
   }
   for (const im of [spans, piers, deck]) { im.castShadow = true; im.receiveShadow = true; scene.add(im); }
+}
+
+// ---- the road bridges over the line that no station's kit draws (the landmarks of kind `overbridge`, from the LIDAR) ----
+// Each is square to the line where it crosses, `w` metres wide along it, its deck's top `height` over the rail. The deck
+// spans every track there and runs on out each side until it meets the ground at its own level (a bridge over a
+// cutting), or for at most REACH metres; where it still stands over the ground, the road comes down to it on a ramp of
+// earth no steeper than 1 in RAMP (a hump-backed bridge on level ground), and a brick abutment faces the tracks.
+// Merged by material with the town's buildings' way (bake).
+function overbridges(scene: THREE.Scene, net: Network, def: NetworkGeoDef, marks: Mark[], groundY: (x: number, z: number) => number): void {
+  const REACH = 12, STEP = 2, DECK = 1.1, PARAPET = 1.1, RAMP = 6, f = newFrame(), root = new THREE.Group();
+  const bank = new THREE.MeshLambertMaterial({ color: PAL.bank });
+  for (const m of marks) {
+    if (m.kind !== 'overbridge' || !m.at) continue;
+    const l = net.lines.find(k => alongLine(m.corridor, k, def)); if (!l) continue;
+    const s = l.nearest(...xz(def, m.at)), top = m.height ?? 6, w = m.w ?? 10;
+    let lo = Infinity, hi = -Infinity;
+    for (const t of net.tracks) { if (!net.onLine(t.corridor, l)) continue; const [e0, e1] = net.extent(t.id); if (s < e0 - 1 || s > e1 + 1) continue; const o = net.offsetAt(t.id, s); lo = Math.min(lo, o); hi = Math.max(hi, o); }
+    if (lo > hi) continue;
+    l.at(s, 0, f);
+    // local x along the line, z across it (the corridor's normal), as the frame's yaw turns them
+    const g = new THREE.Group(); g.position.set(f.x, 0, f.z); g.rotation.y = yawFor(f); root.add(g);
+    const ground = (o: number) => groundY(f.x + f.nx * o, f.z + f.nz * o), under = top - DECK;
+    // each side: out from the outer track's cess until the ground stands at the deck's underside
+    const end = (from: number, dir: 1 | -1): [number, boolean] => {
+      for (let d = 0; d <= REACH; d += STEP) if (ground(from + dir * d) >= under - 0.4) return [from + dir * d, true];
+      return [from + dir * REACH, false];
+    };
+    const [a, aMet] = end(lo - 4, -1), [b, bMet] = end(hi + 4, 1), mid = (a + b) / 2, span = b - a;
+    box(g, w, DECK, span, MAT.concrete, 0, top - DECK / 2, mid);
+    box(g, w - 0.6, 0.06, span, MAT.road, 0, top + 0.03, mid);
+    for (const e of [-1, 1]) box(g, 0.5, PARAPET, span, MAT.brickDark, e * (w / 2 - 0.25), top + PARAPET / 2, mid);
+    for (const [o, at, met, dir] of [[lo - 4, a, aMet, -1], [hi + 4, b, bMet, 1]] as const) {
+      // the abutment's face to the tracks, down to the rail's level
+      box(g, w + 0.8, under + 0.5, 1.5, MAT.brickDark, 0, (under - 0.5) / 2, o + dir * 0.75);
+      // solid from there to the deck's end, and the ramp beyond it where the deck didn't meet the ground
+      const foot = Math.min(ground(at), 0) - 0.5;
+      if (Math.abs(at - o) > 1.5) box(g, w, under - foot, Math.abs(at - o) - 1.5, MAT.brickDark, 0, (under + foot) / 2, (o + dir * 1.5 + at) / 2);
+      if (met) continue;
+      const rise = top - Math.max(foot + 0.5, ground(at + dir * RAMP * top)), len = Math.max(4, rise * RAMP);
+      ramp(g, w, rise, len, at, dir, top, bank);
+    }
+  }
+  if (root.children.length) bake(scene, root);
+}
+
+/** A bank of earth carrying a road down from a deck: a wedge w wide (along local x), falling `rise` over `len` out
+ * from z = at in direction dir, its top at y = top, with the road on its slope. */
+function ramp(g: THREE.Group, w: number, rise: number, len: number, at: number, dir: 1 | -1, top: number, bank: THREE.Material): void {
+  const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(len, 0); sh.lineTo(0, rise + 1); sh.closePath();
+  const geo = new THREE.ExtrudeGeometry(sh, { depth: w, bevelEnabled: false }); geo.translate(0, -1, -w / 2);
+  // the shape's x runs out from the deck along z, its y up; extruded along local x
+  geo.rotateY(dir > 0 ? -Math.PI / 2 : Math.PI / 2);
+  const wedge = new THREE.Mesh(geo, bank); wedge.position.set(0, top - rise, at); g.add(wedge);
+  const road = new THREE.Mesh(new THREE.BoxGeometry(w - 0.6, 0.12, Math.hypot(len, rise)), MAT.road);
+  road.position.set(0, top - rise / 2 + 0.02, at + dir * len / 2); road.rotation.x = dir * Math.atan2(rise, len); g.add(road);
 }
 
 // ---- the river and the M60 through the valley under the viaduct, along their real courses (the landmarks' `course`) ----
@@ -322,7 +378,8 @@ function town(scene: THREE.Scene, net: Network, c: Corridor, def: NetworkGeoDef,
       for (let a = -len / 2 + 25; a <= len / 2 - 25; a += 30) taken.push([p.x + ax * a, p.z + az * a, 32]);
     }
     else continue;
-    g.position.set(p.x, footY(p.x, p.z, 12), p.z); root.add(g);
+    // stood on the lowest ground under its footprint (the depot's yard is 64 by 46 m), so no side hangs off a slope
+    g.position.set(p.x, footY(p.x, p.z, m.kind === 'depot' ? 30 : 12), p.z); root.add(g);
   }
   bake(scene, root);
   // the streets round them: brick and render, two to five storeys, and a few 1960s and 70s office blocks

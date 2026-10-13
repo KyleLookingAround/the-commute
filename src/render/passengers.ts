@@ -35,8 +35,11 @@ const SHRUG = 1.6;            // game seconds a figure stands and shrugs before 
 const EARN_TAU = 900;         // game seconds the earnings rate is averaged over (a game hour and a half)
 const coin = new THREE.CylinderGeometry(4, 4, 0.8, 24); coin.rotateX(Math.PI / 2);
 const coinMat = new THREE.MeshLambertMaterial({ color: PAL.coin, emissive: PAL['coin-glow'] });
-const COIN_Y = 36;   // clear above the station's name (which floats at 14 m) from the stock zoom, and over the tallest roof
-const q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3();
+// the coin hangs over the station's name on screen: the name's point lifted along the camera's own up by this share of
+// the camera's distance (a steady gap above the name at any zoom and tilt; a fixed height over it swung off to one side
+// from a tilted view), and never lower than the tallest roof
+const COIN_LIFT = 0.045, COIN_FLOOR = 24;
+const q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), camUp = new THREE.Vector3(), camAt = new THREE.Vector3();
 // a suitcase on its wheels beside a student, and a bike wheeled beside a cyclist (along the platform), both 1.4 times
 // life like the figures
 const caseGeo = new THREE.BoxGeometry(0.7, 1.0, 0.42); caseGeo.translate(0, 0.55, 0);
@@ -111,7 +114,7 @@ interface Layer {
   stands: (number | null)[]; concourse: boolean;
   pools: THREE.InstancedMesh; lamps: Lamp[]; lit: string;
   im: THREE.InstancedMesh; heads: THREE.InstancedMesh; cases: THREE.InstancedMesh; bikes: THREE.InstancedMesh; brollies: THREE.InstancedMesh; faces: [FaceLayer, FaceLayer]; s: number; at: number; nextCoat: number; alighted: number; primed: boolean;
-  lost: number; balks: number; balkDue: number; revenue: number; rate: number; coin: THREE.Mesh;
+  lost: number; balks: number; balkDue: number; revenue: number; rate: number; coin: THREE.Mesh; label: THREE.Object3D;
 }
 
 /** Where a face's passengers come and go: the kit's own entrance (a terminus's concourse), else the subway or
@@ -173,13 +176,13 @@ export class PassengerLayer {
       const brollies = new THREE.InstancedMesh(brollyGeo, brollyMat, max / 2);
       im.count = heads.count = cases.count = bikes.count = brollies.count = 0; im.castShadow = true; cases.frustumCulled = bikes.frustumCulled = brollies.frustumCulled = false; for (const m of [im, heads, cases, bikes, brollies]) b.group.add(m);
       const f = b.kit.faces;
-      // the coin turns over the station's name, which floats over the kit's origin
-      const cm = new THREE.Mesh(coin, coinMat); cm.position.copy(b.label.position).y = COIN_Y; cm.visible = false; b.group.add(cm);
+      // the coin turns over the station's name (placed each frame by placeCoin)
+      const cm = new THREE.Mesh(coin, coinMat); cm.visible = false; b.group.add(cm);
       return {
         stands: standsOf(b.kit, stations[i]?.platforms), concourse: b.kit.entrance !== undefined,
         pools: this.pools(b), lamps: lampsOf(b.kit), lit: '-',
         im, heads, cases, bikes, brollies, s: stations[i]?.s ?? 0, at: stations[i]?.at ?? 0, nextCoat: i * 7, alighted: -1, primed: false,
-        lost: -1, balks: 0, balkDue: 0, revenue: -1, rate: 0, coin: cm,
+        lost: -1, balks: 0, balkDue: 0, revenue: -1, rate: 0, coin: cm, label: b.label,
         faces: [{ face: f.north, trackV: trackV[i]?.north ?? 0, agents: [], nextSpot: 0, entrance: entranceOf(b.kit, f.north), due: 0 },
           { face: f.south, trackV: trackV[i]?.south ?? 0, agents: [], nextSpot: 0, entrance: entranceOf(b.kit, f.south), due: 0 }],
       };
@@ -408,7 +411,16 @@ export class PassengerLayer {
     this.spin += dt;
     this.layers.forEach((L, i) => {
       L.coin.visible = i === this.top;
-      if (L.coin.visible) { L.coin.rotation.y = this.spin * 0.8; L.coin.position.y = COIN_Y + Math.sin(this.spin * 0.9) * 0.4; }
+      if (L.coin.visible) L.coin.rotation.y = this.spin * 0.8;
     });
+  }
+
+  /** Hang the coin, if one shows, just above its station's name as the camera sees it (see COIN_LIFT). */
+  placeCoin(camera: THREE.Camera): void {
+    const L = this.layers[this.top]; if (!L || !L.coin.parent) return;
+    L.label.getWorldPosition(pos); camera.getWorldPosition(camAt); camUp.setFromMatrixColumn(camera.matrixWorld, 1);
+    pos.addScaledVector(camUp, pos.distanceTo(camAt) * COIN_LIFT + Math.sin(this.spin * 0.9) * 0.4);
+    if (pos.y < COIN_FLOOR) pos.y = COIN_FLOOR;
+    L.coin.parent.worldToLocal(L.coin.position.copy(pos));
   }
 }

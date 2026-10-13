@@ -11,7 +11,7 @@ export const MAT = {
   brick: lam(PAL.brick), brickDark: lam(PAL['brick-dark']), concrete: lam(PAL.concrete), platform: lam(PAL.platform), tactile: lam(PAL.tactile),
   ballast: lam(PAL.ballast), rail: lam(PAL.rail), canopy: lam(PAL.canopy, { transparent: true, opacity: 0.6 }), steel: lam(PAL.steel),
   glass: lam(PAL.glass, { transparent: true, opacity: 0.75, emissive: PAL['glass-glow'] }), roof: lam(PAL.roof), timber: lam(PAL.timber),
-  road: lam(PAL.road), shed: lam(PAL.shed, { transparent: true, opacity: 0.55, side: THREE.DoubleSide }),
+  road: lam(PAL.road), park: lam(PAL['link-park']), shed: lam(PAL.shed, { transparent: true, opacity: 0.55, side: THREE.DoubleSide }),
   glow: new THREE.MeshBasicMaterial({ color: PAL.lamp }), warm: new THREE.MeshBasicMaterial({ color: PAL.warm }),
   locked: lam(PAL.locked, { transparent: true, opacity: 0.55 }), pax: lam(PAL.pax, { emissive: PAL['pax-glow'] }), paxHead: lam(PAL['pax-head']),
   paxCoat: lam(new THREE.Color(0xffffff)),   // white: each figure's coat colour comes from its instance

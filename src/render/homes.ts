@@ -1,8 +1,9 @@
 // Homes that grow on the map: new terraces and small blocks of flats round each station whose homes have grown
 // (Sim.homes over the station's census catchment), one building for every HOMES_PER_PLOT homes, nearest the station
 // first, so they fill the reach's glow. Where they can go is worked out once at start, clear of the tracks, the
-// stations, the roads and the houses already drawn; the sim only says how many show. A new one rises into place as a
-// bought part does (at once with reduced motion). Instanced: walls, pitched roofs, flat roofs and window bands.
+// stations, the railway's land (pads and walls), the roads and the houses already drawn; the sim only says how many
+// show. A new one rises into place as a bought part does (at once with reduced motion). Instanced: walls, pitched
+// roofs, flat roofs and window bands.
 import * as THREE from 'three';
 import type { Sim } from '../sim/sim.ts';
 import type { Network } from '../sim/network.ts';
@@ -14,7 +15,7 @@ import { riseBy, settle } from './stations.ts';
 export const HOMES_PER_PLOT = 3;
 const NEAR = 150, FAR = 720;          // metres from the station: inside its own land, out to the edge of a good reach
 const FAR_OUT = 1200;                 // and further out where the real gaps nearer are full
-const TRACK_CLEAR = 30, STATION_CLEAR = 210;
+const TRACK_CLEAR = 30, STATION_CLEAR = 210, LAND_CLEAR = 10;
 const STOREY = 3;
 
 const hash = (a: number, b: number) => { const s = Math.sin(a * 91.7 + b * 247.3) * 43758.5453; return s - Math.floor(s); };
@@ -54,6 +55,9 @@ export class HomesLayer {
       // off every track: the point's offset across the nearest line against each of its tracks' there
       const at = world.terrain.t.nearest(x, z), c = net.lines[at.k]!, s = at.s, a = c.at(s), off = (x - a.x) * a.nx + (z - a.z) * a.nz;
       for (const t of net.tracks) { if (!net.onLine(t.corridor, c)) continue; const [e0, e1] = net.extent(t.id); if (s >= e0 - 50 && s <= e1 + 50 && Math.abs(off - net.offsetAt(t.id, Math.max(e0, Math.min(e1, s)))) < TRACK_CLEAR + r) return false; }
+      // off the railway's land too, a station's pad and the tops of its walls among it
+      const T = world.terrain.t, [lo, hi] = T.band(T.lines[at.k]!, s);
+      if (off > lo - LAND_CLEAR - r && off < hi + LAND_CLEAR + r) return false;
       return world.buildable(x, z, r);
     };
     let walls = 0, bands = 0;

@@ -51,7 +51,7 @@ export function buildLink(gp: THREE.Group, p: LinkPart, owner: object): void {
     box(gp, w, h - 1.2, d, MAT.brick, cu, (h - 1.2) / 2, cv);
     box(gp, w + 0.2, 2.2, d + 0.2, MAT.glass, cu, 2, cv);
     box(gp, w + 2, 1.2, d + 2, MAT.concrete, cu, h - 0.6, cv);
-    box(gp, w, 0.3, d, lam(PAL['link-park']), cu, h + 0.15, cv);
+    box(gp, w, 0.3, d, MAT.park, cu, h + 0.15, cv);
     for (let t = 0; t < 7; t++) box(gp, 3, 3, 3, lam(PAL['link-trees']), u0 + 6 + (w - 12) * ((t * 0.37) % 1), h + 1.8, v0 + 5 + (d - 10) * ((t * 0.61) % 1));
   }
   links.set(owner, { gp, p, bu, bv });

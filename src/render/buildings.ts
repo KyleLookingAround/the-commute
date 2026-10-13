@@ -2,9 +2,9 @@
 // (tools/osm-to-world.mjs writes them by kilometre square into src/data/world/), drawn in the model-railway style.
 // - The squares are fetched after the first frame, nearest the camera first, as the fine terrain is; a square waits for
 //   the fine terrain under it, so its buildings stand on the ground as drawn.
-// - Each building moves out from the line as the ground beside it is read (Terrain.drawnAt), and stands on its lowest
-//   corner. Left out: anything on the railway's land or its cutting and embankment slopes, on a station's kit (its parts
-//   draw their own), or on the roads the replacement buses drive.
+// - Each building moves out from the line as the ground beside it is read (Terrain.drawnAt), and stands on the lowest
+//   ground along its walls. Left out: anything on the railway's land or its cutting and embankment slopes, on a
+//   station's kit (its parts draw their own), or on the roads the replacement buses drive.
 // - Drawn merged by half-kilometre chunk, one draw call each: walls and roofs (pitched, hipped or flat) near the camera,
 //   blocks with a flat top further off; only the near chunks cast shadows (all take them), and Low (Settings, Graphics)
 //   leaves out the far ones.
@@ -29,6 +29,7 @@ const RAIL_REACH = 300;  // the land (80 m at its widest) and its slopes (the te
 const KIT_MARGIN = 3;
 const ROAD_CLEAR = 4;    // half a road's width
 const EAVE = 0.3;        // a pitched roof's overhang
+const WALL_STEP = 8;     // metres between the ground's heights read along a wall
 
 // ---- the tiles' text encoding (encode in tools/osm-to-world.mjs) ----
 const ALPHA: number[] = []; for (let k = 35; k <= 125; k++) if (k !== 92) ALPHA.push(k);
@@ -487,7 +488,12 @@ export class BuildingsLayer {
       const q: Piece = { ...p, x: dx, z: dz, ring: p.ring ? p.ring.map((v, k) => v + (k & 1 ? sz : sx)) : null };
       if (!this.keep.ok(q)) { this.stats.left++; continue; }
       const cs = corners(q); let lo = Infinity, sum = 0;
-      for (let k = 0; k < cs.length; k += 2) { const y = t.groundY(cs[k]!, cs[k + 1]!); lo = Math.min(lo, y); sum += y; }
+      for (let k = 0; k < cs.length; k += 2) {
+        const y = t.groundY(cs[k]!, cs[k + 1]!); lo = Math.min(lo, y); sum += y;
+        // and along each wall every WALL_STEP, so a big one over a dip (a shed on the valley side) reaches the ground
+        const k2 = (k + 2) % cs.length, ex = cs[k2]! - cs[k]!, ez = cs[k2 + 1]! - cs[k + 1]!, n = Math.floor(Math.hypot(ex, ez) / WALL_STEP);
+        for (let j = 1; j <= n; j++) lo = Math.min(lo, t.groundY(cs[k]! + ex * j / (n + 1), cs[k + 1]! + ez * j / (n + 1)));
+      }
       const mid = t.groundY(q.x, q.z), base = (sum / (cs.length / 2) + mid) / 2;
       out.push({ p: q, cs, y0: lo - 0.6, y1: base + q.h });
     }

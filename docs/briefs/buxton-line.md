@@ -18,7 +18,8 @@
 ## Read first
 
 - The project notes (`CLAUDE.md`), `docs/decisions/ADR-2026-10-13-network-as-a-graph.md`, `docs/DESIGN.md` (station kits, terrain, homes and draw, the economy), `.claude/skills/balance/SKILL.md`, phase 5 of `docs/ROADMAP.md`.
-- The network-as-a-graph commits (f4b4e19, f59b7eb, 8dc48df and its journeys commit), and the kits for Hazel Grove, Woodsmoor and Davenport as the pattern for a small station.
+- `docs/briefs/track-spacing.md` and the track layout test it adds: new stations and junctions leave the room it asks for, and `npm test` holds them to it. Start only once it has landed.
+- The network-as-a-graph commits (f4b4e19, f59b7eb, 8dc48df and 56b201f), and the kits for Hazel Grove, Woodsmoor and Davenport as the pattern for a small station.
 
 ## What it must keep
 

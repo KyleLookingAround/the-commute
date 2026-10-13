@@ -384,7 +384,7 @@ function frame(now: number): void {
   pax.setRain(0.8 * weather.look.rain + 0.3 * weather.look.snow); sound.setWeather(weather.look.rain, weather.look.snow);
   sound.update(sim, rig.o, light.daylight, stationsXZ, trains.meshes, realDt); pax.setDaylight(light.daylight);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
-  syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt); trains.sync(sim, dtGame); pax.sync(sim.g, dtGame); labels();
+  syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt, sim); trains.sync(sim, dtGame); pax.sync(sim.g, dtGame); labels();
   life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim);
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); followGlide(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }

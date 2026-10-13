@@ -8,7 +8,7 @@
 import { rand, freshSeed } from './random.ts';
 import { BASE, DAY, clockAt, clockText, hourAt, simAtHour } from './day.ts';
 import { SAVE_VERSION } from './save.ts';
-import type { Network, Route } from './network.ts';
+import type { Movement, Network, Route } from './network.ts';
 import { journeys, cycle, runTime, waitWeight, type Journey } from './journeys.ts';
 import { freshWeather, stepWeather, feel, weatherKey } from './weather.ts';
 import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
@@ -59,6 +59,9 @@ export const TUNING = {
   squeeze: 1.0,                                // seconds a full train is held for each person left trying to get on
   dispatch: 15,                                // seconds from the platform clearing to leaving: doors shut, all clear
   separation: 400,                             // metres a train keeps behind the one ahead on its line
+  // signalling (docs/DESIGN.md, Signalling): a train stands signalStand metres short of a signal at red, where the block
+  // beyond holds another train, or where its way through a junction crosses one set for another train
+  signalStand: 10,
   // platforms that block (docs/DESIGN.md, Platforms): one train at a platform face at a time. A train for a stop whose
   // faces are all taken stands at its signal, approach metres short of where it stops, until one is free, and a face is
   // free once the train leaving it has run clear metres on (its tail off the platform)
@@ -157,6 +160,8 @@ export class Sim {
   /** How fast each station's homes grow, as a share of TUNING.grow: the reach of its trip to where its people go,
    * worked out with the journeys. */
   private growth: Float64Array;
+  /** Each track's blocks this step: the id of the train in each (-1 none, -2 more than one). */
+  private occ = new Map<string, Int32Array>();
   /** Scratch for generate: trips an hour to each station, and how full each service runs each way. */
   private rates: Float64Array; private crowding: Float64Array; private trainsEachWay: Float64Array;
   private hourT = NaN; private hourNow = 0;
@@ -496,7 +501,7 @@ export class Sim {
     }
     // it can go as far as the train ahead allows, and no further than its signal while it has no platform
     const held = stop !== null && tr.bound < 0 && rem >= TUNING.approach;
-    const room = held ? Math.min(this.clear(tr), rem - TUNING.approach) : this.clear(tr);
+    const room = Math.min(held ? Math.min(this.clear(tr), rem - TUNING.approach) : this.clear(tr), this.signalRoom(tr, rem));
     tr.v = Math.min(limit, tr.v + TUNING.accel * dt, cautionLimit(this, TUNING, tr));
     tr.v = Math.max(0.5, Math.min(tr.v, Math.sqrt(2 * TUNING.brake * Math.max(rem, 0))));
     // a train closing on the one ahead, or on a red signal, brakes to stand behind it
@@ -504,6 +509,75 @@ export class Sim {
     const step = room < rem ? Math.min(tr.v * dt, Math.max(room, 0)) : tr.v * dt;
     if (step >= rem) { this.goTo(tr, target); tr.v = 0; return true; }
     this.goTo(tr, tr.s + tr.dir * step); return false;
+  }
+  // ---- signalling ----
+  /** Half a train's length: from its middle (s) to either end. */
+  half(tr: Train): number { return tr.cars * TUNING.carPitch / 2; }
+  /** Which train is in each block of every track (once a step, before the trains move): a train is in every block its
+   * length covers, on each leg's track it spans. */
+  occupy(): void {
+    for (const a of this.occ.values()) a.fill(-1);
+    for (const tr of this.g.trains) {
+      if (tr.state === 'away') continue;
+      const P = this.svc(tr.svc).path, L = this.half(tr), lo = tr.s - L, hi = tr.s + L;
+      for (const l of P.legs) {
+        if (l.s1 < lo || l.s0 > hi) continue;
+        const track = tr.dir > 0 ? l.north : l.south, B = this.net.blocks(track), a0 = Math.max(lo, l.s0), a1 = Math.min(hi, l.s1);
+        let o = this.occ.get(track); if (!o) { o = new Int32Array(B.open.length).fill(-1); this.occ.set(track, o); }
+        for (let k = 0; k < B.open.length; k++) if (B.at[k + 1]! > a0 && B.at[k]! < a1) o[k] = o[k] === -1 || o[k] === tr.id ? tr.id : -2;
+      }
+    }
+  }
+  /** Whether block k of a track holds a train other than tr. */
+  private taken(track: string, k: number, tr: Train | null): boolean { const v = this.occ.get(track)?.[k] ?? -1; return v !== -1 && (!tr || v !== tr.id); }
+  /** How far a running train's middle can go before it stands at a signal at red: the next signal ahead whose block
+   * beyond (open line) holds another train, or a junction whose way through for it crosses one set for another. Only
+   * as far ahead as `rem`, where it's going. */
+  signalRoom(tr: Train, rem: number): number {
+    const v = this.svc(tr.svc), P = v.path, L = this.half(tr), head = tr.s + tr.dir * L, d = tr.dir;
+    let room = Infinity;
+    for (let k = P.legAt(head, tr.leg); k >= 0 && k < P.legs.length && room === Infinity; k += d) {
+      const leg = P.legs[k]!, B = this.net.blocks(d > 0 ? leg.north : leg.south), n = B.at.length;
+      for (let q = 0; q < n; q++) {
+        const i = d > 0 ? q : n - 1 - q, b = B.at[i]!, ahead = (b - head) * d;
+        if (ahead <= 0.5 || b < leg.s0 - 0.5 || b > leg.s1 + 0.5) continue;
+        if (ahead > rem + 1) break;
+        const beyond = d > 0 ? i : i - 1;
+        if (beyond >= 0 && beyond < B.open.length && B.open[beyond] && this.taken(d > 0 ? leg.north : leg.south, beyond, tr)) { room = ahead - TUNING.signalStand; break; }
+      }
+    }
+    // the junctions ahead it's coming up to
+    for (const m of this.net.movements(v.def, d)) {
+      const ahead = (m.s - head) * d; if (ahead <= 0.5) continue; if (ahead > Math.min(rem + 1, TUNING.claim)) break;
+      if (this.junctionHeld(tr, m, ahead)) room = Math.min(room, ahead - TUNING.signalStand);
+      break;
+    }
+    return room;
+  }
+  /** Whether another train holds a junction a train is coming up to (`ahead` metres off) on a way that conflicts with
+   * its own: one across it now, or nearer it coming up (the first there goes first). */
+  junctionHeld(tr: Train, m: Movement, ahead: number): boolean {
+    for (const o of this.g.trains) {
+      if (o === tr || o.state === 'away') continue;
+      const L = this.half(o);
+      for (const p of this.net.movements(this.svc(o.svc).def, o.dir)) {
+        if (p.junction !== m.junction || !this.net.conflicts(m, p)) continue;
+        const head = (p.s - (o.s + o.dir * L)) * o.dir, tail = (p.s - (o.s - o.dir * L)) * o.dir;
+        if ((head <= 0 && tail > 0) || (head > 0 && head <= TUNING.claim && o.state === 'run' && (head < ahead || (head === ahead && o.id < tr.id)))) return true;
+      }
+    }
+    return false;
+  }
+  /** What a signal shows to trains running along a track (its own way) at site s: 0 red (the block beyond holds a
+   * train), 1 yellow (the one after does, or the block beyond is a station's with a train in it: on at caution), 2
+   * green; null where the track has no signal there. */
+  aspect(track: string, s: number): 0 | 1 | 2 | null {
+    const B = this.net.blocks(track), d = this.net.way(track), i = B.at.findIndex(b => Math.abs(b - s) < 0.5);
+    if (i < 0) return null;
+    const k = d > 0 ? i : i - 1, k2 = k + d;
+    if (k < 0 || k >= B.open.length) return null;
+    if (this.taken(track, k, null)) return B.open[k] ? 0 : 1;
+    return k2 >= 0 && k2 < B.open.length && this.taken(track, k2, null) ? 1 : 2;
   }
   /** A train stands at the platform it claimed: it's the one it holds now. */
   standAt(tr: Train, i: number): void { if (tr.bound < 0) this.claim(tr, i, true); tr.pf = tr.bound; tr.pfAt = i; tr.bound = -1; }
@@ -695,6 +769,7 @@ export class Sim {
     stepWeather(g, dt); this.refreshJourneys(); this.measureCrowding(); this.grow(dc);
     for (let i = 0; i < this.S.length; i++) { if (!g.owned[i]) continue; this.generate(i, dc); stepAccess(this, TUNING, i, dc); this.expire(i); }
     stepTrouble(this, TUNING);
+    this.occupy();
     for (const tr of g.trains) this.stepTrain(tr, dt);
   }
   advance(gameSeconds: number, maxStep = 2): void { let left = gameSeconds; while (left > 0) { const d = Math.min(maxStep, left); this.step(d); left -= d; } }

@@ -18,6 +18,7 @@ Until now the whole map was one corridor, the Hazel Grove line included, and eve
 - **Chainage:** 0 at the start of the spine (`spine`: the corridors the ground is laid along, end to end), and along any other corridor so it meets the one it joins at the junction's own chainage. Two corridors can share a range of chainage (a branch beside the line it leaves); a place is a corridor and a chainage.
 - **Junctions:** named points on a corridor (`junctions`, real names and positions, a `note` where from memory), with the corridors that start or end there. A junction with no line beyond it yet marks where a later line joins.
 - **Tracks** belong to one corridor. A service lists its tracks each way leg by leg (`tracks: { north: [...], south: [...] }`); `Route` in `src/sim/network.ts` joins the legs at the junctions where their corridors meet, and a train passes onto the next leg's track there.
+- **Signalling:** every track is cut into blocks at the signal sites along its corridor and at its ends; a train doesn't enter an open-line block another is in, and at a junction doesn't cross a way set for another train. A station's own block is worked by its platforms. The view's colour-light signals stand at those sites and show what the sim says.
 - **The view** asks the network for positions as before; what's laid along the whole line (the ground, trees, masts, signals) follows `net.spine`, the spine's corridors as one.
 
 ## Consequences

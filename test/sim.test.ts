@@ -620,3 +620,68 @@ test('expresses: an express standing in platform 3 holds a stopper that wants it
   assert.equal(state(), 'dwell', 'and runs in once the express has gone');
   assert.equal(sim.plats[0]![b.pf]!.def.id, '3');
 });
+
+// ---- signalling ----
+test('signalling: a train stands at the signal at red behind a failed one in the block beyond, and the signals show it', () => {
+  const sim = new Sim(net()), n = sim.net; sim.g.cash = 1e7; growStockport(sim);
+  assert.ok(sim.buyLine('units')); sim.step(1);
+  const [a, b] = sim.g.trains.filter(t => t.svc === 'stopper') as [Train, Train];
+  // three open blocks in a row on the stoppers' line north of Stockport
+  const B = n.blocks('down-slow'), k = B.open.findIndex((o, i) => o && i >= 2 && B.open[i - 1] && B.open[i - 2] && B.at[i]! > n.station('stockport').s);
+  assert.ok(k > 0, 'an open block on the way');
+  const entry = B.at[k]!;
+  Object.assign(a, { state: 'run', dir: 1, s: entry + 400, v: 0, next: 1, bound: -1 });
+  Object.assign(b, { state: 'run', dir: 1, s: entry - 1500, v: 20, next: 1, bound: -1, due: sim.g.t + 1e6 });
+  sim.g.trouble.fail = { train: a.id, from: sim.g.t, until: sim.g.t + 1e6, a: 0, b: 1, d: 0 };
+  sim.g.trouble.next = sim.g.t + 1e9;
+  for (let t = 0; t < 400; t++) sim.step(1);
+  const head = b.s + sim.half(b);
+  assert.ok(b.v < 1 && Math.abs(entry - TUNING.signalStand - head) < 2, `it stands at the signal: its front ${(entry - head).toFixed(1)} m short`);
+  assert.ok(a.s - TUNING.separation - b.s > 30, 'short of where the 400 m spacing alone would have left it');
+  assert.equal(sim.aspect('down-slow', entry), 0, 'red at the block with the failed train');
+  assert.equal(sim.aspect('down-slow', B.at[k - 1]!), 0, 'red at the one the train behind stands in');
+  assert.equal(sim.aspect('down-slow', B.at[k - 2]!), 1, 'yellow at the one before');
+  assert.equal(sim.aspect('down-slow', B.at[k + 2]!), 2, 'green beyond');
+  sim.g.trouble.fail = null;
+  for (let t = 0; t < 300; t++) sim.step(1);
+  assert.ok(b.s + sim.half(b) > entry, 'once the line clears it goes on past');
+});
+
+test('signalling: at a junction a train waits while another crosses its way, the first to come up going first', async () => {
+  const { Network } = await import('../src/sim/network.ts');
+  const st = (id: string, corridor: string, x: number, z: number) => ({ id, name: id, corridor, x, z, lat: 0, lon: 0, miles: 0, catchment: 100, draw: 100, price: 0, kit: id, retail: '' });
+  // a line north (towards -z), and a branch from the east meeting it at a junction 2 km up, its trains taking the
+  // line's northbound track, so the branch's way in crosses the line's southbound track and joins the northbound
+  const def = {
+    origin: { lat: 0, lon: 0 }, spine: ['line'],
+    corridors: [{ id: 'line', points: [[0, 0], [0, -6000]] as [number, number][] }, { id: 'branch', to: 'j', points: [[3000, 1000], [0, -2000], [0, -2100]] as [number, number][] }],
+    junctions: [{ id: 'j', name: 'J', corridor: 'line', x: 0, z: -2000 }],
+    tracks: [{ id: 'n', corridor: 'line', offset: 0 }, { id: 's', corridor: 'line', offset: 5 }, { id: 'bn', corridor: 'branch', offset: 0 }, { id: 'bs', corridor: 'branch', offset: 5 }],
+    stations: [st('south', 'line', 0, -100), st('north', 'line', 0, -5800), st('east', 'branch', 2800, 900), st('piccadilly', 'line', 0, -5900)],
+    services: [
+      { id: 'line', name: 'line', operator: 'x', tracks: { north: ['n'], south: ['s'] }, calls: 'all', cars: 2, route: ['south', 'north'] },
+      { id: 'branch', name: 'branch', operator: 'x', tracks: { north: ['bn', 'n'], south: ['bs', 's'] }, calls: 'all', cars: 2, route: ['east', 'north'] },
+    ],
+  };
+  const nw = new Network(def as never), sim = new Sim(nw), j = nw.junction('j').s;
+  const [mn] = nw.movements(def.services[0]!, 1), [bn] = nw.movements(def.services[1]!, 1), [ms] = nw.movements(def.services[0]!, -1);
+  assert.ok(mn && bn && ms);
+  assert.ok(nw.conflicts(mn, bn), 'joining the northbound track conflicts with running along it');
+  assert.ok(nw.conflicts(ms, bn), 'crossing the southbound track conflicts with running along it');
+  assert.ok(!nw.conflicts(mn, ms), 'the line\'s two tracks don\'t');
+  sim.ensureTrains();
+  const L = sim.g.trains.find(t => t.svc === 'line')!, Bt = sim.g.trains.find(t => t.svc === 'branch')!;
+  const at = (t: Train, s: number) => { Object.assign(t, { state: 'run', dir: 1, v: 0, next: 1 }); sim.goTo(t, s); };
+  // both coming up to the junction (chainage grows towards it), the line's train nearer
+  at(L, j - 400); at(Bt, j - 600); sim.occupy();
+  assert.equal(Bt.leg, 0, 'the branch train is on its own line');
+  assert.ok(sim.signalRoom(Bt, 5000) < 600, 'the branch train waits for the line\'s, nearer the junction');
+  assert.equal(sim.signalRoom(L, 5000), Infinity, 'the line\'s train has the junction');
+  // once the line's train is through and clear, the branch's way is set
+  at(L, j + 200); sim.occupy();
+  assert.equal(sim.signalRoom(Bt, 5000), Infinity, 'clear behind it, the branch train goes');
+  // across the junction now, it holds the line's next train back
+  at(Bt, j + 10); at(L, j - 500); sim.occupy();
+  assert.equal(Bt.leg, 1, 'on the line now');
+  assert.ok(sim.signalRoom(L, 5000) < 500, 'and holds the next one back while it crosses');
+});

@@ -116,6 +116,17 @@ export class Route {
   uses(corridor: string): boolean { return this.legs.some(l => l.corridor === corridor); }
 }
 
+/** Signals: a site every SIGNAL_SITE metres of chainage from SIGNAL_FIRST (halfway between two masts), none within
+ * SIGNAL_CLEAR of a station on its corridor (its kit fills that stretch). Each site is a block boundary on every track
+ * there, and so are a track's ends (a junction, a buffer stop, the edge of the map). */
+export const SIGNAL_SITE = 440, SIGNAL_FIRST = 57.5, SIGNAL_CLEAR = 280;
+/** A track's block sections: its boundaries in chainage order, and whether each block between two is open line (no
+ * station in it: a station's own stretch is worked by its platforms). */
+export interface Blocks { at: number[]; open: boolean[] }
+/** A train's way through a junction (or past one on the corridor it runs along): the track it's on on the low-chainage
+ * side (a) and the high (b), and the points 100 m out either side they run between (for telling which ways cross). */
+export interface Movement { junction: string; s: number; a: string; b: string; ax: number; az: number; bx: number; bz: number }
+
 /** The corridor the drawing calls the spine: the corridors the ground is laid along, end to end, as one. */
 export const SPINE = 'spine';
 
@@ -134,6 +145,11 @@ export class Network {
   private keys: Record<string, Key[]>;
   private straights: Straight[];
   private routes = new Map<string, Route>();
+  /** The signal sites along each corridor (chainage). */
+  signals: Record<string, number[]>;
+  private blockCache = new Map<string, Blocks>();
+  /** Which way each track's trains run: +1 towards Manchester (a route's north track), -1 the other way. */
+  private ways = new Map<string, 1 | -1>();
   constructor(def: NetworkDef) {
     this.def = def;
     const built = graph(def.corridors, def.junctions ?? [], def.spine ?? def.corridors.map(c => c.id).slice(0, 1));
@@ -153,6 +169,13 @@ export class Network {
     });
     this.byId = Object.fromEntries(this.stations.map(s => [s.id, s]));
     this.keys = Object.fromEntries(this.tracks.map(t => [t.id, this.profile(t)]));
+    this.signals = Object.fromEntries(Object.values(this.corridors).map(c => {
+      const near = this.stations.filter(st => st.corridor === c.id), out: number[] = [];
+      for (let k = Math.ceil((c.start - SIGNAL_FIRST) / SIGNAL_SITE), s = SIGNAL_FIRST + k * SIGNAL_SITE; s < c.end; k++, s = SIGNAL_FIRST + k * SIGNAL_SITE)
+        if (near.every(st => Math.abs(st.s - s) > SIGNAL_CLEAR)) out.push(s);
+      return [c.id, out];
+    }));
+    for (const v of def.services ?? []) for (const l of this.route(v).legs) { this.ways.set(l.north, 1); this.ways.set(l.south, -1); }
     this.straights = this.stations.filter(st => st.straight).map(st => ({
       corridor: st.corridor, s0: st.at + (st.straight?.[0] ?? 0), s1: st.at + (st.straight?.[1] ?? 0), at: st.at, F: this.stationFrame(st.id),
     }));
@@ -177,6 +200,42 @@ export class Network {
     return [t.start ? this.pointS(t.start) : c.start, t.end ? this.pointS(t.end) : c.end];
   }
   junction(id: string): Junction { const j = this.junctions.find(j => j.id === id); if (!j) throw new Error(`no junction "${id}"`); return j; }
+  /** A track's block sections (Blocks). */
+  blocks(trackId: string): Blocks {
+    let b = this.blockCache.get(trackId); if (b) return b;
+    const t = this.track(trackId), [e0, e1] = this.extent(trackId), at = [e0, ...(this.signals[t.corridor] ?? []).filter(s => s > e0 + 1 && s < e1 - 1), e1];
+    const near = this.stations.filter(st => st.corridor === t.corridor);
+    const open = at.slice(1).map((s1, k) => { const s0 = at[k]!; return near.every(st => (st.s < s0 || st.s > s1) && (st.at < s0 || st.at > s1)); });
+    b = { at, open }; this.blockCache.set(trackId, b);
+    return b;
+  }
+  /** Which way a track's trains run: +1 towards Manchester, -1 the other way. */
+  way(trackId: string): 1 | -1 { return this.ways.get(trackId) ?? 1; }
+  /** The ways a service's trains take through junctions heading dir, in the order they reach them: from one leg's track
+   * onto the next's where the route changes corridor, and straight on along its track past a junction on its corridor. */
+  movements(def: ServiceDef, dir: 1 | -1): Movement[] {
+    const key = `${def.id}:${dir}`; let m = this.moveCache.get(key); if (m) return m;
+    const r = this.route(def), out: Movement[] = [], f = newFrame();
+    const end = (track: string, s: number) => { const [e0, e1] = this.extent(track); this.trackAt(track, Math.max(e0, Math.min(e1, s)), f); return [f.x, f.z] as const; };
+    const add = (j: Junction, a: string, b: string) => { const [ax, az] = end(a, j.s - 100), [bx, bz] = end(b, j.s + 100); out.push({ junction: j.id, s: j.s, a, b, ax, az, bx, bz }); };
+    r.legs.forEach((l, k) => {
+      const t = dir > 0 ? l.north : l.south;
+      for (const j of this.junctions) if (j.corridor === l.corridor && j.s > l.s0 && j.s < l.s1) add(j, t, t);
+      const n = r.legs[k + 1]; if (n) add(this.junctions.find(j => j.s === l.s1 && j.joins.includes(l.corridor) && j.joins.includes(n.corridor))!, t, dir > 0 ? n.north : n.south);
+    });
+    out.sort((p, q) => (p.s - q.s) * dir); this.moveCache.set(key, out);
+    return out;
+  }
+  private moveCache = new Map<string, Movement[]>();
+  /** Whether two ways through the same junction can't be set at once: different ways that share a track or cross. */
+  conflicts(p: Movement, q: Movement): boolean {
+    if (p.junction !== q.junction || (p.a === q.a && p.b === q.b)) return false;
+    if (p.a === q.a || p.b === q.b || p.a === q.b || p.b === q.a) return true;
+    const cross = (x1: number, z1: number, x2: number, z2: number, x3: number, z3: number) => (x2 - x1) * (z3 - z1) - (z2 - z1) * (x3 - x1);
+    const d1 = cross(q.ax, q.az, q.bx, q.bz, p.ax, p.az), d2 = cross(q.ax, q.az, q.bx, q.bz, p.bx, p.bz);
+    const d3 = cross(p.ax, p.az, p.bx, p.bz, q.ax, q.az), d4 = cross(p.ax, p.az, p.bx, p.bz, q.bx, q.bz);
+    return d1 * d2 < 0 && d3 * d4 < 0;
+  }
   /** A service's route through the graph: its tracks each way, leg by leg, joined where their corridors meet. */
   route(def: ServiceDef): Route {
     let r = this.routes.get(def.id); if (r) return r;

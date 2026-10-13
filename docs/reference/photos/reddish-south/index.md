@@ -13,6 +13,18 @@ On the Stockport–Denton–Guide Bridge line, long served by one 'parliamentary
 | [platform-view-4.jpg](platform-view-4.jpg) | Looking back along the platform towards the bridge, with the Friends of Reddish South mural on the right (2013). | 2013-05-22 | Gerald England | CC BY-SA 2.0 | [geograph 3473990](https://www.geograph.org.uk/photo/3473990) | [640 px](https://s0.geograph.org.uk/geophotos/03/47/39/3473990_e2fa39c0.jpg) |
 | [platform-end-1.jpg](platform-end-1.jpg) | From the platform end towards Denton: the fence, notice board and line onward (2013). | 2013-05-22 | Gerald England | CC BY-SA 2.0 | [geograph 3473967](https://www.geograph.org.uk/photo/3473967) | [640 px](https://s0.geograph.org.uk/geophotos/03/47/39/3473967_ab4b49b6.jpg) |
 
+## Round the station
+
+The station is reached by steps from the road bridge; round it are the Morrisons superstore, a stone merchant, and new housing going up off Lambeth Road.
+
+| Photo | What it shows | Taken | Photographer | Licence | Source | Image |
+| --- | --- | --- | --- | --- | --- | --- |
+| [area-steps-1.jpg](area-steps-1.jpg) | The steps out of the station, the line to Stockport on the left and the lifted track, now flower beds, on the right (2013). | 2013-05-22 | Gerald England | CC BY-SA 2.0 | [geograph 3472819](https://www.geograph.org.uk/photo/3472819) | [640 px](https://s0.geograph.org.uk/geophotos/03/47/28/3472819_a57d1ca4.jpg) |
+| [area-entrance-1.jpg](area-entrance-1.jpg) | The white picket fence put up in front of the mural by the Friends of Reddish South (2014). | 2014-06-06 | Gerald England | CC BY-SA 2.0 | [geograph 4021331](https://www.geograph.org.uk/photo/4021331) | [640 px](https://s0.geograph.org.uk/geophotos/04/02/13/4021331_8894477e.jpg) |
+| [area-morrisons-1.jpg](area-morrisons-1.jpg) | The Morrisons superstore in Reddish near the station (2019). | 2019-04-19 | Gerald England | CC BY-SA 2.0 | [geograph 6170239](https://www.geograph.org.uk/photo/6170239) | [640 px](https://s0.geograph.org.uk/geophotos/06/17/02/6170239_5a422fd2.jpg) |
+| [area-lambeth-road-1.jpg](area-lambeth-road-1.jpg) | A building on Lambeth Road beside the station (2021). | 2021-05-16 | Peter McDermott | CC BY-SA 2.0 | [geograph 6839252](https://www.geograph.org.uk/photo/6839252) | [640 px](https://s0.geograph.org.uk/geophotos/06/83/92/6839252_b8e53f50.jpg) |
+| [area-development-1.jpg](area-development-1.jpg) | New housing being built off Lambeth Road, beyond the stone merchant (2020). | 2020-01-24 | Bill Boaden | CC BY-SA 2.0 | [geograph 6376579](https://www.geograph.org.uk/photo/6376579) | [640 px](https://s0.geograph.org.uk/geophotos/06/37/65/6376579_e1edec89.jpg) |
+
 ## What the photos settle
 
 - One platform and one track in use; the other platform is abandoned, with its track gone.

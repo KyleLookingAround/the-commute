@@ -13,6 +13,17 @@ Two side platforms on an embankment on the Styal line, where the line crosses Fo
 | [platform-view-4.jpg](platform-view-4.jpg) | A Northern train for the Airport running through without stopping, seen from the other platform (2021). | 2021-07-08 | Gerald England | CC BY-SA 2.0 | [geograph 6893271](https://www.geograph.org.uk/photo/6893271) | [640 px](https://s0.geograph.org.uk/geophotos/06/89/32/6893271_5127cf5f.jpg) |
 | [building-1.jpg](building-1.jpg) | The flat-roofed brick building with its long canopy on the platform, a train leaving for Manchester (2011). | 2011-09-28 | David Dixon | CC BY-SA 2.0 | [geograph 2624749](https://www.geograph.org.uk/photo/2624749) | [640 px](https://s0.geograph.org.uk/geophotos/02/62/47/2624749_3abb243f.jpg) |
 
+## Round the station
+
+The station is on Fog Lane, with a parade of shops and new housing beside it, a short way from Kingsway (A34).
+
+| Photo | What it shows | Taken | Photographer | Licence | Source | Image |
+| --- | --- | --- | --- | --- | --- | --- |
+| [area-fog-lane-1.jpg](area-fog-lane-1.jpg) | The shops on Fog Lane by the station (2020). | 2020-06-24 | Peter McDermott | CC BY-SA 2.0 | [geograph 6519620](https://www.geograph.org.uk/photo/6519620) | [640 px](https://s0.geograph.org.uk/geophotos/06/51/96/6519620_9bb8d9ff.jpg) |
+| [area-fog-lane-2.jpg](area-fog-lane-2.jpg) | The shops on Fog Lane (2023). | 2023-03-04 | Gerald England | CC BY-SA 2.0 | [geograph 7446029](https://www.geograph.org.uk/photo/7446029) | [640 px](https://s0.geograph.org.uk/geophotos/07/44/60/7446029_d290e145.jpg) |
+| [area-quadrant-1.jpg](area-quadrant-1.jpg) | The Quadrant, new housing off Fog Lane beside the line (2021). | 2021-04-26 | Gerald England | CC BY-SA 2.0 | [geograph 6843805](https://www.geograph.org.uk/photo/6843805) | [640 px](https://s0.geograph.org.uk/geophotos/06/84/38/6843805_897abac8.jpg) |
+| [area-kingsway-junction-1.jpg](area-kingsway-junction-1.jpg) | The Kingsway and Fog Lane junction (2013). | 2013-04-16 | Colin Pyle | CC BY-SA 2.0 | [geograph 3417488](https://www.geograph.org.uk/photo/3417488) | [640 px](https://s0.geograph.org.uk/geophotos/03/41/74/3417488_ceee06eb.jpg) |
+
 ## What the photos settle
 
 - Each platform has its own ramp from Fog Lane: step-free, no footbridge.

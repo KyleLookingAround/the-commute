@@ -13,6 +13,19 @@ Two side platforms in a shallow cutting on the Styal line just north of the junc
 | [entrance-1.jpg](entrance-1.jpg) | The station approach road and car park off the main road (2021). | 2021-01-02 | Benjamin Shaw | CC BY-SA 2.0 | [geograph 6721277](https://www.geograph.org.uk/photo/6721277) | [640 px](https://s0.geograph.org.uk/geophotos/06/72/12/6721277_4bf0d346.jpg) |
 | [steps-1.jpg](steps-1.jpg) | The steps and path from the station to Longstone Road, Moss Nook, with the Premier Inn behind (2021). | 2021-01-02 | Benjamin Shaw | CC BY-SA 2.0 | [geograph 6721286](https://www.geograph.org.uk/photo/6721286) | [640 px](https://s0.geograph.org.uk/geophotos/06/72/12/6721286_5cd9958a.jpg) |
 
+## Round the station
+
+The station entrance is on Finney Lane, the village's main street, with shops and banks along it, and the Premier Inn and Beefeater beside the line.
+
+| Photo | What it shows | Taken | Photographer | Licence | Source | Image |
+| --- | --- | --- | --- | --- | --- | --- |
+| [area-entrance-1.jpg](area-entrance-1.jpg) | Along Finney Lane at the station entrance (2017). | 2017-03-21 | DS Pugh | CC BY-SA 2.0 | [geograph 5340893](https://www.geograph.org.uk/photo/5340893) | [640 px](https://s0.geograph.org.uk/geophotos/05/34/08/5340893_369fa9bf.jpg) |
+| [area-finney-lane-1.jpg](area-finney-lane-1.jpg) | Finney Lane at the station (2014). | 2014-06-20 | Colin Pyle | CC BY-SA 2.0 | [geograph 4035894](https://www.geograph.org.uk/photo/4035894) | [640 px](https://s0.geograph.org.uk/geophotos/04/03/58/4035894_5634b346.jpg) |
+| [area-shops-1.jpg](area-shops-1.jpg) | Shops on Finney Lane: a florist, a takeaway and Lloyds Bank (2016). | 2016-09-09 | Gerald England | CC BY-SA 2.0 | [geograph 5233242](https://www.geograph.org.uk/photo/5233242) | [640 px](https://s0.geograph.org.uk/geophotos/05/23/32/5233242_9be790bf.jpg) |
+| [area-bank-1.jpg](area-bank-1.jpg) | The NatWest bank on the corner of Neal Avenue and Finney Lane (2016). | 2016-09-09 | Gerald England | CC BY-SA 2.0 | [geograph 5232951](https://www.geograph.org.uk/photo/5232951) | [640 px](https://s0.geograph.org.uk/geophotos/05/23/29/5232951_47c36e39.jpg) |
+| [area-hotel-1.jpg](area-hotel-1.jpg) | The Beefeater and Premier Inn beside the station (2018). | 2018-03-13 | Gerald England | CC BY-SA 2.0 | [geograph 5853965](https://www.geograph.org.uk/photo/5853965) | [640 px](https://s0.geograph.org.uk/geophotos/05/85/39/5853965_d33dc59e.jpg) |
+| [area-alleyway-1.jpg](area-alleyway-1.jpg) | The alley from the station to Heald Point, the Premier Inn on the right (2018). | 2018-11-10 | Benjamin Shaw | CC BY-SA 2.0 | [geograph 5977819](https://www.geograph.org.uk/photo/5977819) | [640 px](https://s0.geograph.org.uk/geophotos/05/97/78/5977819_b5fb555a.jpg) |
+
 ## What the photos settle
 
 - There is a station car park beside the line.

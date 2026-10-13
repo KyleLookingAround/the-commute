@@ -13,6 +13,17 @@ Two side platforms on an embankment on the Styal line between East Didsbury and 
 | [building-1.jpg](building-1.jpg) | The station building close up: white timber walls, blue trim, hipped slate roof and a flat canopy over the platform (2013). | 2013-02-23 | JThomas | CC BY-SA 2.0 | [geograph 3345805](https://www.geograph.org.uk/photo/3345805) | [640 px](https://s0.geograph.org.uk/geophotos/03/34/58/3345805_a3253865.jpg) |
 | [north-1.jpg](north-1.jpg) | From the end of the platform looking north along the line towards Manchester (2024). | 2024-04-19 | Kevin Waterhouse | CC BY-SA 2.0 | [geograph 7755072](https://www.geograph.org.uk/photo/7755072) | [640 px](https://s0.geograph.org.uk/geophotos/07/75/50/7755072_ee2e1358.jpg) |
 
+## Round the station
+
+The station is on Gatley Road (A560), which passes under the line at its south end, a short walk from Gatley village and the Tatton cinema building.
+
+| Photo | What it shows | Taken | Photographer | Licence | Source | Image |
+| --- | --- | --- | --- | --- | --- | --- |
+| [area-gatley-road-1.jpg](area-gatley-road-1.jpg) | Gatley Road (A560) looking east from the railway bridge by the station (2012). | 2012-11-01 | David Dixon | CC BY-SA 2.0 | [geograph 3206250](https://www.geograph.org.uk/photo/3206250) | [640 px](https://s0.geograph.org.uk/geophotos/03/20/62/3206250_1508e8ac.jpg) |
+| [area-gatley-road-2.jpg](area-gatley-road-2.jpg) | Gatley Road (A560) heading west (2013). | 2013-02-23 | JThomas | CC BY-SA 2.0 | [geograph 3345806](https://www.geograph.org.uk/photo/3345806) | [640 px](https://s0.geograph.org.uk/geophotos/03/34/58/3345806_4258e61c.jpg) |
+| [area-tatton-1.jpg](area-tatton-1.jpg) | The Tatton, a 1937 cinema building in Gatley (2021). | 2021-07-17 | Gerald England | CC BY-SA 2.0 | [geograph 6903746](https://www.geograph.org.uk/photo/6903746) | [640 px](https://s0.geograph.org.uk/geophotos/06/90/37/6903746_300d2cc1.jpg) |
+| [area-northenden-road-1.jpg](area-northenden-road-1.jpg) | Northenden Road at the Delamere Road junction (2013). | 2013-02-27 | Peter Barr | CC BY-SA 2.0 | [geograph 3351190](https://www.geograph.org.uk/photo/3351190) | [640 px](https://s0.geograph.org.uk/geophotos/03/35/11/3351190_672a53ac.jpg) |
+
 ## What the photos settle
 
 - Gatley keeps a timber station building with a hipped roof on one platform.

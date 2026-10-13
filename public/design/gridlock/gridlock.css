@@ -1,0 +1,42 @@
+/* The gridlock opening: the mockups page (docs/design/gridlock.md). On top of ../design.css and ../buying/buying.css,
+   which have the tokens, the page and the mockups' frame; this adds only what's new. Nothing here is loaded by the game. */
+:root{--jam-1:#ffb347;--jam-2:#ff6f4f;--road:#9aa0aa}
+.ml.shut{border-color:var(--accent);box-shadow:0 0 0 3px rgba(242,182,58,.25),0 2px 8px rgba(0,0,0,.25)}
+.ml.shut b{color:var(--ink)}
+.ml.breathe{animation:breathe 2.4s ease-in-out infinite}
+@keyframes breathe{50%{box-shadow:0 0 0 8px rgba(242,182,58,.1),0 2px 8px rgba(0,0,0,.25)}}
+@media (prefers-reduced-motion:reduce){.ml.breathe{animation:none}}
+.reopen{display:grid;grid-template-columns:1fr auto auto;gap:4px 10px;align-items:center;margin-top:8px;padding:10px 12px;border:1.5px solid var(--accent-soft);border-radius:var(--r);background:var(--card);box-shadow:inset 3px 0 0 var(--accent)}
+.reopen>div{display:flex;flex-direction:column;min-width:0}
+.reopen b{font-size:16px}
+.reopen>div span{font-size:13px;color:var(--soft)}
+.reopen .pr{font-size:15px}
+.reopen .buy{display:grid;place-items:center;height:44px;padding:0 16px;border-radius:var(--r-pill);background:var(--accent);color:var(--accent-ink);font:700 15px var(--display)}
+.p320 .reopen{grid-template-columns:1fr auto;gap:6px 8px}
+.p320 .reopen .pr{grid-row:2;grid-column:1}
+.p320 .reopen .buy{grid-row:1 / span 2;grid-column:2;padding:0 12px}
+.p320 .reopen>div span{font-size:12px}
+.jamline{margin:8px 0 0;padding:6px 10px;border-left:3px solid var(--jam-2);background:rgba(255,111,79,.1);border-radius:0 var(--r-sm) var(--r-sm) 0;font-size:13px;color:#ffe0d2}
+.k.road{background:var(--road);border-radius:2px;width:12px;height:6px}
+.chip.road{border-color:#6b7080}
+.chip.road .cf{color:#ffd2c4}
+.chip.road.ok .cf{color:#bfe8c8}
+.chip.road.amber .cf{color:#ffd9a0}
+.score{display:flex;align-items:center;gap:12px;margin-top:6px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--card)}
+.score>div{flex:1;min-width:0;display:flex;flex-direction:column}
+.score b{font-size:20px;font-weight:800;color:var(--ok)}
+.score .sub{font-family:var(--mono);font-size:12px;color:var(--soft)}
+.score .lbl{width:auto}
+.spark{flex:0 0 72px;height:30px;color:var(--ok)}
+.p320 .score b{font-size:17px}
+.p320 .spark{flex-basis:52px}
+.card.road .brings{font-size:14px}
+.card.road .brings b{color:var(--ok)}
+.budget{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;margin-top:8px}
+.budget svg{width:min(520px,100%);height:auto;border-radius:14px;box-shadow:0 0 0 1px var(--line-soft)}
+.cost{border-collapse:collapse;font-size:var(--text-sm);max-width:560px}
+.cost th,.cost td{padding:8px 10px;border-bottom:1px solid var(--line-soft);text-align:left;vertical-align:top}
+.cost th{font-family:var(--mono);font-size:var(--text-xs);color:var(--soft);text-transform:uppercase;letter-spacing:.04em}
+.cost td:first-child{color:var(--soft)}
+@media (max-width:540px){.cost{font-size:13px}.cost th,.cost td{padding:6px}}
+.p320 .peek .reopen>div span{display:none}

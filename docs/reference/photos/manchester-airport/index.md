@@ -1,6 +1,6 @@
 # Manchester Airport
 
-A terminus opened in 1993 at the end of a short branch from the Styal line (and later the Styal line's Crewe chord). Several through-terminal platforms in a cutting under a long curved roof on steel columns, Metrolink tram platforms alongside, and the bus and coach station and the Skylink walkways above. It sits between the terminals beside Terminal Road North.
+A terminus opened in 1993 on a short branch with chords to the Styal line both ways. Several through-terminal platforms in a cutting under a long curved roof on steel columns, Metrolink tram platforms alongside, and the bus and coach station and the Skylink walkways above. It sits between the terminals beside Terminal Road North.
 
 | Photo | What it shows | Taken | Photographer | Licence | Source | Image |
 | --- | --- | --- | --- | --- | --- | --- |

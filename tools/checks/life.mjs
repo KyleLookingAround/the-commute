@@ -27,7 +27,7 @@ export default async function ({ ok, open, root, SAVE_KEY }) {
     await tap('#vSet');
     const sheet = await page.evaluate(min => {
       const d = document.getElementById('settings'), r = d.getBoundingClientRect();
-      const small = [...d.querySelectorAll('button, input')].filter(b => b.getClientRects().length).map(b => { const q = b.getBoundingClientRect(); return [b.textContent.trim() || b.getAttribute('aria-label'), Math.round(q.width), Math.round(q.height)]; }).filter(([, bw, bh]) => bw < min || bh < min);
+      const small = [...d.querySelectorAll('button, input')].filter(b => b.getClientRects().length && !b.matches('.pick-file')).map(b => { const q = b.getBoundingClientRect(); return [b.textContent.trim() || b.getAttribute('aria-label'), Math.round(q.width), Math.round(q.height)]; }).filter(([, bw, bh]) => bw < min || bh < min);
       return { open: d.open, fits: r.left >= 0 && r.right <= innerWidth + 0.5 && r.top >= 0 && r.bottom <= innerHeight + 0.5, small, sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth };
     }, 44);
     ok(`life: at ${w}×${h} the settings sheet opens from the stage, fits the screen, and every control in it is 44 px`, sheet.open && sheet.fits && !sheet.small.length && sheet.sw <= sheet.cw,

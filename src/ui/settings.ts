@@ -1,6 +1,9 @@
 // The settings sheet: sound on or off and its volume, graphics for older phones (High, Low, or shadows, fewer
-// figures and sharpness one by one), and the weather shown or kept fair (only the look: the game is the same), and a quiet line once the game plays offline. Opened from the stage's settings button; it changes nothing in the game, and the
-// settings are kept on this device apart from the save (src/app/prefs.ts, through main.ts).
+// figures and sharpness one by one), the weather shown or kept fair (only the look: the game is the same), Screen (full
+// screen, src/ui/fullscreen.ts), Your game (Save, Load and Start over, wired by src/ui/saves.ts and the panel, with a
+// quiet line once the game plays offline) and About (how it plays, and the credits). Opened from the settings button
+// top right: a sheet over the whole screen on a phone, centred on wider screens. The settings change nothing in the
+// game and are kept on this device apart from the save (src/app/prefs.ts, through main.ts).
 import './styles/settings.css';
 import { DEFAULT_PREFS, LOW, type Prefs } from '../app/prefs.ts';
 
@@ -25,10 +28,18 @@ export class Settings {
       <div class="set-row"><button data-t="shadows" aria-pressed="false">Shadows</button><button data-t="fewer" aria-pressed="false">Fewer people</button><button data-t="sharp" aria-pressed="false">Sharp</button></div>
       <p class="set-note">Low is lighter on older phones.</p></section>
       <section><h3>Weather</h3><div class="set-row"><button data-t="weather" aria-pressed="false">Weather</button></div>
-      <p class="set-note">Fair weather keeps rain, fog and snow off the map. The game plays the same. Settings stay on this device.</p>
-      <p class="set-note set-offline" hidden>Ready to play offline.</p></section>`;
+      <p class="set-note">Fair weather keeps rain, fog and snow off the map. The game plays the same. Settings stay on this device.</p></section>
+      <section class="set-screen"><h3>Screen</h3><div class="set-row"><button id="vFull" aria-pressed="false">Full screen</button></div></section>
+      <section><h3>Your game</h3><div class="set-row saves"><button id="saveFile">Save to file</button><button id="loadFile">Load from file</button><input id="loadPick" class="pick-file" type="file" tabindex="-1" aria-hidden="true"></div>
+      <div class="set-row"><button id="reset" class="warn">Start over</button><button id="resetAll" class="warn" hidden>Career too</button></div>
+      <p class="set-note">Progress saves on this device and catches up while you're away.</p>
+      <p class="set-note set-offline" hidden>Ready to play offline.</p></section>
+      <section><h3>About</h3><p class="set-note">Passengers arrive by the real demand curve, wait on your platforms and pay a fare when they board. Full platforms and long waits lose them. Buy the next station up the line to lift the fog: it starts as a halt and grows as you build it.</p>
+      <p class="set-note credits">The line, its tracks and its stations are drawn from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a> (ODbL); station details from photographs on geograph.org.uk. Where people live and work: contains Office for National Statistics data © Crown copyright and database right 2021 and NaPTAN data from the Department for Transport; the lie of the land contains Environment Agency information © Environment Agency and/or database right (<a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener">Open Government Licence</a>).</p></section>`;
     document.body.appendChild(d);
     const q = <T extends Element>(sel: string) => d.querySelector<T & Element>(sel)!;
+    d.querySelector('.set-head')?.after(Object.assign(document.createElement('div'), { className: 'set-body' }));
+    const body = d.querySelector('.set-body')!; for (const sec of [...d.querySelectorAll('section')]) body.appendChild(sec);
     for (const b of d.querySelectorAll<HTMLButtonElement>('[data-t]')) {
       const t = b.dataset['t'] as Toggle; this.toggles.set(t, b);
       b.addEventListener('click', () => this.set({ [t]: !this.prefs[t] }));
@@ -43,7 +54,7 @@ export class Settings {
     d.addEventListener('click', e => { if (e.target === d) { const r = d.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) d.close(); } });
     d.addEventListener('close', () => button.setAttribute('aria-expanded', 'false'));
     button.setAttribute('aria-haspopup', 'dialog'); button.setAttribute('aria-expanded', 'false');
-    button.addEventListener('click', () => { d.showModal(); button.setAttribute('aria-expanded', 'true'); });
+    button.addEventListener('click', () => { d.showModal(); button.setAttribute('aria-expanded', 'true'); body.scrollTop = 0; });
     this.show();
   }
 

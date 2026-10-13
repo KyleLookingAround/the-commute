@@ -39,7 +39,7 @@ const PAD = 1500;          // metres of ground round the corridor's bounding box
 const BASE_CELL = 32, FINE_CELL = 2, TILE = 128;
 const FINE_BAND = 100;     // fine samples within this many metres of the corridor (the line's widest layouts reach 80 m)
 const RAIL_STEP = 5, DATUM_CELL = 64;
-const FAR_CELL = 64, BLOCK = 32, FAR_RING = 1500;   // the far ring: see nearBlock
+const FAR_CELL = 128, BLOCK = 32, FAR_RING = 1500;   // the far ring: see nearBlock
 const LATERAL = 1.25;      // the tracks and kits are drawn this many times real across the line
 const COARSE_CHUNK = 2000, COARSE_RES = 4, FINE_CHUNK = 500;
 

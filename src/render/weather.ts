@@ -121,7 +121,7 @@ export class WeatherLayer {
   private readonly col = new THREE.Color(); private readonly col2 = new THREE.Color(); private readonly m4 = new THREE.Matrix4();
   private readonly v = new THREE.Vector3(); private readonly q = new THREE.Quaternion(); private readonly s = new THREE.Vector3();
 
-  constructor(scene: THREE.Scene, net: Network, world: World) {
+  constructor(scene: THREE.Scene, net: Network, private world: World) {
     this.rain = new Fall(scene, RAIN, true, PAL.rain, 34, 0);
     this.snowFall = new Fall(scene, SNOW, false, PAL.snow, 2.2, 1.6);
     // what snow settles on and rain wets: the roofs, the platforms, the canopies' glass; and the ground's tint
@@ -140,7 +140,8 @@ export class WeatherLayer {
         // beyond the outermost track that side (yards and sidings spread wide), the fence and a verge
         let edge = 0; for (const t of net.tracks) if (net.onLine(t.corridor, c)) { const o = net.offsetAt(t.id, s) * side; if (o > edge) edge = o; }
         const off = side * (Math.max(40, edge + 18) + hash(s, side + 5) * 16), p = c.at(s + (hash(s, side + 7) - 0.5) * 14, off);
-        if (!world.buildable(p.x, p.z, 4)) continue;
+        // none where the real trees stand (src/render/buildings.ts)
+        if (!world.buildable(p.x, p.z, 4) || world.buildings.real(p.x, p.z)) continue;
         this.tree.push({ x: p.x, y: world.groundY(p.x, p.z), z: p.z, h: 7 + 7 * hash(s, side + 9), k });
       }
     }
@@ -225,7 +226,7 @@ export class WeatherLayer {
   /** The trees' crowns by the year: redone only when the year or the snow has moved enough to see. */
   private treesFor(L: Look): void {
     if (Math.abs(L.year - this.treeYear) < 0.004 && Math.abs(L.settle - this.treeSnow) < 0.05) return;
-    this.treeYear = L.year; this.treeSnow = L.settle;
+    this.treeYear = L.year; this.treeSnow = L.settle; this.world.buildings.season(L.year, L.settle);
     const y = L.year * 4, i = Math.floor(y) % 4, f = y - Math.floor(y), t = f < 0.75 ? 0 : (f - 0.75) / 0.25;
     const { meshes, mesh, slot } = this.crowns;
     this.tree.forEach((tr, n) => {

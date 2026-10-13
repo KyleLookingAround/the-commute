@@ -7,6 +7,8 @@
 //    node tools/osm-to-world.mjs --corridor 900 [--from heaton-chapel --to piccadilly]
 //    node tools/osm-to-world.mjs --square 3_-41 [--square ...]
 //    node tools/osm-to-world.mjs --all        (writes again every square already in src/data/world/)
+//    node tools/osm-to-world.mjs --bridges --corridor 200 --from hazel-grove --to piccadilly
+//                                             (lists the bridges over the line the LIDAR shows, against the kits'; writes nothing)
 //    add --fresh to fetch again what's in data/raw/
 //
 // An area is a set of kilometre squares of the game's frame (x east, z south of the network's origin, in metres; square
@@ -27,10 +29,15 @@
 //    roof, while the row stays nearly a rectangle, so a straight street of 20 is one piece.
 // 4. Writes src/data/world/<i>_<j>.txt, a header line (JSON: what's in it, where it's from, what's filled in), then one
 //    line a piece in a text encoding (decodeWorld in src/render/buildings.ts):
-//    R  x z w d yaw h roof wall top flags     a rectangle: centre, size (w along yaw, d across), walls, roof
+//    R  (x z w d yaw h roof wall top flags)*  the rectangles, one line: centre, size (w along yaw, d across), walls, roof
 //    P  h roof wall top flags n (x z)*n        an outline, flat-roofed
-//    T  (x z h r)*                              the trees, one line: each top's place, height (every 0.5 m) and spread
-//                                               (every 0.2 m)
+//    T  (xz h r)*                               the trees, one line: each top's place (x and z every 1.25 m from 20 m
+//                                               before the square's corner, as x * 832 + z), height (every 0.5 m) and
+//                                               spread (every 0.2 m)
+//    A  class n points                          an area of ground cover (cover() says the classes)
+//    L  width n points                          a street, its width every 0.5 m
+//    An area's or street's points: the first in full (x z, as a piece's), then each the step from the one before in
+//    whole metres, a character each way (-44 to 44), or '~' and the point in full for a longer step.
 //    Numbers are fixed-width base-90 digits (the terrain's alphabet): x, z every 0.25 m from 500 m before the square's
 //    corner, w, d and h every 0.1 m, yaw in 8100ths of a half turn. roof: f flat, p pitched, h hipped. wall and top
 //    name colours (the --map-bld-* tokens). flags: a digit of
@@ -99,7 +106,7 @@ const addCircle = (x, z, r) => { for (let i = Math.floor((x - r) / SQ); i <= Mat
   st.forEach((id, k) => { const f = net.stationFrame(id); addCircle(f.x, f.z, +(rs[k] ?? rs[0] ?? 600)); });
   for (const r of opts('--corridor')) {
     const from = opts('--from')[0], to = opts('--to')[0];
-    const a = from ? net.station(from).at : 0, b = to ? net.station(to).at : c.length;
+    const a = from ? net.station(from).s : 0, b = to ? net.station(to).s : c.length;
     for (let s = Math.min(a, b); s <= Math.max(a, b); s += 50) { const p = c.at(s); addCircle(p.x, p.z, +r); }
   }
   for (const q of opts('--square')) squares.add(q);
@@ -476,21 +483,131 @@ function lidarTrees(key, R, extra) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// The ground's cover, from OSM's areas and streets: each area's class and outline (clipped to the square and 20 m round
+// it), each street's class, width and line. Classes (the --map-cover-* tokens): p park and grass, h pitches, f fields,
+// w woods, s scrub, a water, y paved yards (industry, retail, commerce), c car parks, b brownfield and building sites,
+// e greenfield, g cemeteries and allotments; r streets.
+const AREA = [
+  [t => t.amenity === 'parking' || t.parking === 'surface', 'c'],
+  [t => t.natural === 'water' || t.waterway === 'riverbank' || ['reservoir', 'basin'].includes(t.landuse) || t.leisure === 'swimming_pool', 'a'],
+  [t => ['pitch', 'track', 'sports_centre'].includes(t.leisure), 'h'],
+  [t => ['brownfield', 'construction', 'landfill'].includes(t.landuse), 'b'],
+  [t => t.landuse === 'greenfield', 'e'],
+  [t => ['forest'].includes(t.landuse) || t.natural === 'wood', 'w'],
+  [t => t.natural === 'scrub' || t.natural === 'heath', 's'],
+  [t => ['cemetery', 'allotments'].includes(t.landuse) || t.amenity === 'grave_yard', 'g'],
+  [t => ['farmland', 'meadow', 'farmyard', 'orchard'].includes(t.landuse) || t.natural === 'grassland', 'f'],
+  [t => ['park', 'garden', 'recreation_ground', 'golf_course', 'common', 'nature_reserve', 'playground'].includes(t.leisure) || ['grass', 'village_green', 'recreation_ground'].includes(t.landuse), 'p'],
+  [t => ['industrial', 'commercial', 'retail', 'depot'].includes(t.landuse), 'y'],
+];
+const STREET = { motorway: 22, trunk: 16, primary: 14, secondary: 12, tertiary: 10, unclassified: 8, residential: 8, living_street: 6, pedestrian: 6, motorway_link: 8, trunk_link: 8, primary_link: 8, secondary_link: 7, tertiary_link: 7 };
+/** A ring clipped to a box (Sutherland-Hodgman). */
+function clip(ring, x0, z0, x1, z1) {
+  let pts = ring;
+  for (const [axis, v, keep] of [[0, x0, 1], [0, x1, -1], [1, z0, 1], [1, z1, -1]]) {
+    const out = [];
+    for (let k = 0; k < pts.length; k++) {
+      const a = pts[k], b = pts[(k + 1) % pts.length], ina = (a[axis] - v) * keep >= 0, inb = (b[axis] - v) * keep >= 0;
+      if (ina) out.push(a);
+      if (ina !== inb) { const t = (v - a[axis]) / (b[axis] - a[axis]); out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
+    }
+    pts = out; if (pts.length < 3) return [];
+  }
+  return pts;
+}
+function cover(key, els) {
+  const [i, j] = key.split('_').map(Number), x0 = i * SQ - 20, z0 = j * SQ - 20, x1 = (i + 1) * SQ + 20, z1 = (j + 1) * SQ + 20;
+  const nodes = new Map(), ways = new Map(); for (const e of els) { if (e.type === 'node') nodes.set(e.id, e); else if (e.type === 'way') ways.set(e.id, e); }
+  const line = ids => ids.map(id => nodes.get(id)).filter(Boolean).map(n => toGame(n.lat, n.lon));
+  const areas = [], streets = [], seen = new Set();
+  const area = (id, ids, t) => {
+    const cls = AREA.find(([f]) => f(t))?.[1]; if (!cls || seen.has(id)) return; seen.add(id);
+    if (ids[0] !== ids[ids.length - 1]) return;
+    const r = clip(simplify(line(ids).slice(0, -1), 1.0), x0, z0, x1, z1); if (r.length >= 3 && Math.abs(area_(r)) > 40) areas.push({ cls, ring: r, a: Math.abs(area_(r)) });
+  };
+  for (const e of els) {
+    if (e.type === 'way' && e.tags && !e.tags.building) area(e.id, e.nodes, e.tags);
+    if (e.type === 'relation' && e.tags?.type === 'multipolygon') for (const m of e.members) if (m.type === 'way' && m.role === 'outer' && ways.has(m.ref)) area(m.ref, ways.get(m.ref).nodes, { ...ways.get(m.ref).tags, ...e.tags });
+    const t = e.tags;
+    if (e.type === 'way' && t && STREET[t.highway] && !t.bridge && !t.tunnel && !(+(t.layer ?? 0) > 0) && t.area !== 'yes') {
+      const pts = line(e.nodes); if (pts.length < 2) continue;
+      if (!pts.some(([x, z]) => x > x0 && x < x1 && z > z0 && z < z1)) continue;
+      streets.push({ w: STREET[t.highway], pts: simplifyLine(pts, 1.2) });
+    }
+  }
+  // the big areas first, so a park's pond or a yard's car park draws over it
+  areas.sort((a, b) => b.a - a.a);
+  return { areas, streets };
+}
+const area_ = area;
+/** Douglas-Peucker on an open line. */
+function simplifyLine(pts, tol) {
+  if (pts.length <= 2) return pts;
+  const [ax, az] = pts[0], [bx, bz] = pts[pts.length - 1], L = Math.hypot(bx - ax, bz - az) || 1e-9;
+  let m = -1, at = -1; for (let k = 1; k < pts.length - 1; k++) { const [x, z] = pts[k], d = Math.abs((bx - ax) * (az - z) - (ax - x) * (bz - az)) / L; if (d > m) { m = d; at = k; } }
+  return m > tol ? [...simplifyLine(pts.slice(0, at + 1), tol).slice(0, -1), ...simplifyLine(pts.slice(at), tol)] : [pts[0], pts[pts.length - 1]];
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // The encoding
 const ALPHA = []; for (let k = 35; k <= 125; k++) if (k !== 92) ALPHA.push(String.fromCharCode(k));
 const num = (v, digits) => { let n = Math.max(0, Math.min(90 ** digits - 1, Math.round(v))), s = ''; for (let k = 0; k < digits; k++) { s = ALPHA[n % 90] + s; n = Math.floor(n / 90); } return s; };
 function encode(key, pieces) {
   const [i, j] = key.split('_').map(Number), X = i * SQ - 500, Z = j * SQ - 500;
   const xz = (x, z) => num((x - X) * 4, 2) + num((z - Z) * 4, 2);
-  return pieces.map(p => {
-    const tail = p.roof + p.wall + p.top + ALPHA[p.flags];
-    if (p.fill >= 0.8) return 'R' + xz(p.rect.x, p.rect.z) + num(p.rect.w * 10, 2) + num(p.rect.d * 10, 2) + num(p.rect.yaw / Math.PI * 8100, 2) + num(p.h * 10, 2) + tail;
+  const rects = pieces.filter(p => p.fill >= 0.8).map(p => xz(p.rect.x, p.rect.z) + num(p.rect.w * 10, 2) + num(p.rect.d * 10, 2) + num(p.rect.yaw / Math.PI * 8100, 2) + num(p.h * 10, 2) + p.roof + p.wall + p.top + ALPHA[p.flags]);
+  return ['R' + rects.join(''), ...pieces.filter(p => p.fill < 0.8).map(p => {
     const ring = simplify(p.ring, 0.4).slice(0, 89);
     return 'P' + num(p.h * 10, 2) + 'f' + p.wall + (p.top === 'f' || p.top === 'm' ? p.top : 'f') + ALPHA[p.flags] + ALPHA[ring.length] + ring.map(([x, z]) => xz(x, z)).join('');
-  }).join('\n');
+  })].join('\n');
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// --bridges: the structures over the line the DSM shows (standing 3.5 m or more over the rail across most of its tracks,
+// the laser stopping there, not going on through as through a tree), along the corridor asked for, against the bridges
+// the station kits draw; printed as a table for the audit, nothing written
+if (args.includes('--bridges')) {
+  for (const key of [...squares].sort()) await loadRasters(key);
+  const from = opts('--from')[0], to = opts('--to')[0], a0 = from ? net.station(from).s : 0, b0 = to ? net.station(to).s : c.length;
+  const kitBridges = [];
+  for (const st of net.stations) {
+    if (st.corridor && !net.onLine?.(st.corridor, c) && net.lineOf?.(st.corridor) !== c) continue;
+    const kit = JSON.parse(readFileSync(join(root, 'src/data/kits', st.kit + '.json'), 'utf8'));
+    // what a kit draws over its tracks: a road on arches, a footbridge, a canopy or train shed, a deck (a box up high)
+    for (const p of kit.parts) if (['arches', 'lattice', 'footbridge', 'canopy', 'shed'].includes(p.type) || (p.type === 'box' && (p.y0 ?? 0) >= 3)) {
+      const us = [p.u0, p.u1, p.u].filter(v => typeof v === 'number'), half = (p.d ?? 4) / 2;
+      if (us.length) kitBridges.push({ st: st.id, type: p.type, s0: st.s + Math.min(...us) - half - 4, s1: st.s + Math.max(...us) + half + 4 });
+    }
+  }
+  const { bridgesOf } = await import('../src/render/landmarks.ts'), spans = bridgesOf(c, def);
+  const runs = []; let run = null;
+  for (let s = Math.min(a0, b0); s <= Math.max(a0, b0); s += 2) {
+    // on the viaduct and the arches the DTM is the ground below, not the rail
+    if (spans.some(([p, q]) => s > p - 20 && s < q + 20)) { if (run) { runs.push(run); run = null; } continue; }
+    let n = 0, high = 0, top = 0;
+    for (const t of net.tracks) {
+      const [e0, e1] = net.extent(t.id); if (s < e0 || s > e1 || !(net.onLine ? net.onLine(t.corridor, c) : true)) continue;
+      const p = c.at(s, net.offsetAt(t.id, s) / 1.25), h = lidar('dsm', p.x, p.z) - lidar('dtm', p.x, p.z), l = lidar('dsm', p.x, p.z) - lidar('lst', p.x, p.z);
+      n++; if (h >= 3.5 && l < 0.5) { high++; top = Math.max(top, h); }
+    }
+    const on = n > 0 && high >= Math.max(1, Math.ceil(n * 0.7));
+    if (on) { if (!run) run = { s0: s, s1: s, top: 0 }; run.s1 = s; run.top = Math.max(run.top, top); } else if (run) { runs.push(run); run = null; }
+  }
+  if (run) runs.push(run);
+  const near = s => { let best = null; for (const st of net.stations) { const d = s - st.at; if (!best || Math.abs(d) < Math.abs(best.d)) best = { id: st.id, d }; } return best; };
+  console.log('| Along the line (m) | Width along (m) | Height over the rail (m) | Nearest station | Drawn by a kit |\n| --- | --- | --- | --- | --- |');
+  const long = runs.filter(r => r.s1 - r.s0 > 60);
+  for (const r of runs) {
+    // a bridge is a few metres to 60 m along the line; longer is the arches or an embankment the DTM has as ground
+    if (r.s1 - r.s0 < 3 || r.s1 - r.s0 > 60) continue;
+    const k = kitBridges.find(b => b.s1 > r.s0 && b.s0 < r.s1), nr = near((r.s0 + r.s1) / 2);
+    const [lat, lon] = toLatLon(c.at((r.s0 + r.s1) / 2).x, c.at((r.s0 + r.s1) / 2).z);
+    console.log(`| ${r.s0.toFixed(0)}-${r.s1.toFixed(0)} (${lat.toFixed(5)}, ${lon.toFixed(5)}) | ${(r.s1 - r.s0 + 2).toFixed(0)} | ${r.top.toFixed(1)} | ${nr.id} ${nr.d >= 0 ? '+' : ''}${nr.d.toFixed(0)} m | ${k ? `${k.st}'s ${k.type}` : 'no'} |`);
+  }
+  console.log(`\nLonger than 60 m, left out as arches or embankments: ${long.map(r => `${r.s0.toFixed(0)}-${r.s1.toFixed(0)}`).join(', ')}`);
+  process.exit(0);
+}
+
 for (const key of [...squares].sort()) {
   const els = await osmSquare(key); await loadRasters(key);
   const osm = buildings(key, els), extra = lidarBuildings(key, osm, els), raw = [...osm, ...extra], trees = lidarTrees(key, extra.rasters, extra);
@@ -499,8 +616,24 @@ for (const key of [...squares].sort()) {
     levels: described.filter(b => !(b.flags & 3)).length, lidar: described.filter(b => b.flags & 2).length, guessed: described.filter(b => b.flags & 1).length, roofAssumed: described.filter(b => b.flags & 4).length };
   const head = { v: 1, square: key, src: 'OpenStreetMap (© OpenStreetMap contributors, ODbL) and the Environment Agency LIDAR Composite DSM and DTM 1 m (Open Government Licence), by tools/osm-to-world.mjs', note: `${n.buildings} buildings (${n.fromLidar} outlined from the LIDAR where OSM has none) as ${n.pieces} pieces (${n.joined} houses joined into rows); walls from OSM's height or levels for ${n.levels}, the LIDAR for ${n.lidar}, guessed at 2 storeys for ${n.guessed}; roofs assumed for ${n.roofAssumed} (flags in each line); ${n.trees} trees and clumps from the LIDAR`, n };
   const [si, sj] = key.split('_').map(Number), TX = si * SQ - 500, TZ = sj * SQ - 500;
-  const treeLine = 'T' + trees.map(t => num((t.x - TX) * 4, 2) + num((t.z - TZ) * 4, 2) + num(t.h * 2, 1) + num(t.r * 5, 1)).join('');
-  const text = JSON.stringify(head) + '\n' + encode(key, pieces) + '\n' + treeLine + '\n';
+  // a line's points: the first every 0.25 m from the square's corner less 500 m, then each the step from the last in
+  // whole metres, one character each way while it's within 44 m ('~' and the point in full otherwise)
+  const pts = list => { let out = '', px = 0, pz = 0; list.forEach(([x, z], k) => {
+    let qx = Math.round(x - TX), qz = Math.round(z - TZ);
+    if (k && Math.abs(qx - px) <= 44 && Math.abs(qz - pz) <= 44) out += ALPHA[qx - px + 44] + ALPHA[qz - pz + 44];
+    else {
+      // in full, and the steps after it from where it's read back (to the quarter metre)
+      const fx = Math.round((x - TX) * 4), fz = Math.round((z - TZ) * 4); out += (k ? '~' : '') + num(fx, 2) + num(fz, 2);
+      qx = Math.round(fx / 4); qz = Math.round(fz / 4);
+    }
+    px = qx; pz = qz;
+  }); return out; };
+  const cov = cover(key, els);
+  const coverLines = [...cov.areas.map(a => 'A' + a.cls + num(a.ring.length, 2) + pts(a.ring)), ...cov.streets.map(r => 'L' + num(r.w * 2, 1) + num(r.pts.length, 2) + pts(r.pts))];
+  n.areas = cov.areas.length; n.streets = cov.streets.length;
+  // a tree's place every 1.25 m from 20 m before the square's corner, x and z in three characters together
+  const treeLine = 'T' + trees.map(t => num(Math.round((t.x - si * SQ + 20) / 1.25) * 832 + Math.round((t.z - sj * SQ + 20) / 1.25), 3) + num(t.h * 2, 1) + num(t.r * 5, 1)).join('');
+  const text = JSON.stringify(head) + '\n' + encode(key, pieces) + '\n' + treeLine + '\n' + coverLines.join('\n') + '\n';
   writeFileSync(join(outDir, `${key}.txt`), text);
   console.log(`\n${key}: ${head.note}; ${(text.length / 1024).toFixed(1)} KB`);
 }

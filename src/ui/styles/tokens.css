@@ -71,6 +71,10 @@
   /* the real buildings (src/render/buildings.ts): walls, then roofs */
   --map-bld-brick:#b65a3f; --map-bld-brick-dark:#8e4a38; --map-bld-buff:#dcc08e; --map-bld-render:#f0e8d6; --map-bld-stone:#cdb48c; --map-bld-concrete:#c4beb2;
   --map-bld-glass:#8fbcdc; --map-bld-shed:#a9b8c6; --map-bld-slate:#5c6577; --map-bld-tile:#a95440; --map-bld-felt:#8d8a93; --map-bld-metal:#93a2b0;
+  /* the ground's cover (src/render/buildings.ts): parks, pitches, fields, woods, scrub, water, yards, car parks, bare ground,
+     cemeteries and allotments, streets */
+  --map-cover-park:#6fb85a; --map-cover-pitch:#7ccc5e; --map-cover-field:#9fbf5a; --map-cover-wood:#3f7f3c; --map-cover-scrub:#7a9a4e; --map-cover-water:#4a86c0;
+  --map-cover-yard:#b3aea4; --map-cover-car:#8d8f96; --map-cover-bare:#a8916e; --map-cover-allot:#5f9a4a; --map-cover-street:#7d8088;
   --map-ghost:#4fdcff; --map-house-sat:0.45; --map-tower-sat:0.15; --map-house-light:0.42; --map-tower-light:0.5;
 }
 @media (min-width:768px){ :root{ --sheet-w:360px } }

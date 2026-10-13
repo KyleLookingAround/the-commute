@@ -13,13 +13,14 @@ import { riseBy, settle } from './stations.ts';
 /** Homes (on the sim's scale) a building stands for. */
 export const HOMES_PER_PLOT = 3;
 const NEAR = 150, FAR = 720;          // metres from the station: inside its own land, out to the edge of a good reach
+const FAR_OUT = 1200;                 // and further out where the real gaps nearer are full
 const TRACK_CLEAR = 30, STATION_CLEAR = 210;
 const STOREY = 3;
 
 const hash = (a: number, b: number) => { const s = Math.sin(a * 91.7 + b * 247.3) * 43758.5453; return s - Math.floor(s); };
 
 /** A building's place and shape: centre, yaw, footprint w (along) by d, wall height h, and whether it's flats. */
-interface Plot { x: number; y: number; z: number; yaw: number; w: number; d: number; h: number; flats: boolean; floors: number; rise: number }
+interface Plot { x: number; y: number; z: number; yaw: number; w: number; d: number; h: number; flats: boolean; floors: number; rise: number; gap: '' | 'brown' | 'open' }
 
 export class HomesLayer {
   /** Each station's plots, nearest first, and how many show. */
@@ -58,12 +59,17 @@ export class HomesLayer {
     let walls = 0, bands = 0;
     net.stations.forEach((s, i) => {
       const want = Math.max(0, Math.ceil(((s.ceiling ?? s.catchment) - s.catchment) / HOMES_PER_PLOT)), list: Plot[] = [];
-      // candidates nearest first, with a little shuffle so the rings aren't perfect
-      const cands: [number, number][] = [];
-      for (let k = 0; k < want * 40; k++) cands.push([k, NEAR + (FAR - NEAR) * Math.sqrt(hash(i * 7919 + k, 1)) + 60 * hash(i * 7919 + k, 2)]);
+      // candidates nearest first, with a little shuffle so the rings aren't perfect: the real gaps first (OSM's
+      // brownfield, building land and greenfield, and open ground with no building or tree), out to FAR; then, short of
+      // room, further out (to FAR_OUT), real gaps still; then any clear ground there, as before the real surroundings
+      const cands: [number, number, number][] = [];
+      for (let k = 0; k < want * 40; k++) cands.push([k, NEAR + (FAR - NEAR) * Math.sqrt(hash(i * 7919 + k, 1)) + 60 * hash(i * 7919 + k, 2), 0]);
       cands.sort((a, b) => a[1] - b[1]);
+      const out: [number, number, number][] = [];
+      for (let k = 0; k < want * 40; k++) out.push([want * 40 + k, FAR + (FAR_OUT - FAR) * Math.sqrt(hash(i * 7919 + want * 40 + k, 1)), 1]);
+      out.sort((a, b) => a[1] - b[1]);
       const f = st[i]!;
-      for (const [k, r] of cands) {
+      for (const [k, r, pass] of [...cands, ...out, ...out.map(([k2, r2]) => [k2, r2, 2] as [number, number, number])]) {
         if (list.length >= want) break;
         const seed = i * 7919 + k, ang = hash(seed, 3) * Math.PI * 2, x = f.x + Math.cos(ang) * r, z = f.z + Math.sin(ang) * r;
         // flats nearer the station (and at the city end), terraces and pairs further out
@@ -72,11 +78,12 @@ export class HomesLayer {
         const w = flats ? 14 + hash(seed, 6) * 10 : 10 + Math.floor(hash(seed, 6) * 5) * 5, d = flats ? 11 + hash(seed, 7) * 5 : 8;
         const rad = Math.hypot(w, d) / 2;
         if (!clear(x, z, rad)) continue;
+        const gap = pass < 2 ? world.buildings.gap(x, z, rad) : ''; if (pass < 2 && !gap) continue;
         // along the street: facing the station or across, give or take
         const yaw = Math.atan2(f.z - z, f.x - x) + (hash(seed, 8) < 0.5 ? 0 : Math.PI / 2) + (hash(seed, 9) - 0.5) * 0.2;
         // on the lowest of its corners, so no side stands off a slope (buildable keeps them level within 4 m)
         const g = world.groundY, y = Math.min(g(x, z), g(x - rad, z), g(x + rad, z), g(x, z - rad), g(x, z + rad)) - 0.3;
-        list.push({ x, y, z, yaw, w, d, h: floors * STOREY, flats, floors, rise: 1 });
+        list.push({ x, y, z, yaw, w, d, h: floors * STOREY, flats, floors, rise: 1, gap: pass === 0 ? gap : '' });
         taken.push(x, z, rad);
       }
       this.plots.push(list);
@@ -109,6 +116,9 @@ export class HomesLayer {
     this.shown = net.stations.map(() => 0);
   }
 
+  /** Of each station's plots, how many stand on a real gap within its ring: OSM's brownfield, building land or
+   * greenfield, open ground; the rest stand further out. */
+  gaps(): { brown: number; open: number; out: number }[] { return this.plots.map(l => ({ brown: l.filter(p => p.gap === 'brown').length, open: l.filter(p => p.gap === 'open').length, out: l.filter(p => !p.gap).length })); }
   /** How many buildings show at each station. */
   counts(): number[] { return [...this.shown]; }
   /** How many are still rising. */

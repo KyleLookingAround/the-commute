@@ -3,7 +3,8 @@
 // - Every square loads: its header reads, it has buildings, and every piece is a sane size and height.
 // - Size: what's committed of the world tiles stays within its budget (2 MB for today's line).
 // - Clear of the line: no drawn building has any of its footprint (sampled every 2 m) on the railway's land or its
-//   cutting and embankment slopes, or on a station kit's parts.
+//   cutting and embankment slopes, or on a station kit's parts; no tree stands on them either.
+// - The ground's cover: every square has its areas and streets.
 // - Clear of the landmarks: no corner of a building on a landmark's footprint (the town's named buildings, the Pyramid,
 //   the skyline's towers), the Mersey or the M60.
 // - Terraces joined: houses sharing walls are drawn as rows: at least 40% of the buildings are in rows and there are at
@@ -36,10 +37,11 @@ export default async function ({ ok, root }) {
   for (const f of files) {
     const key = f.replace('.txt', '');
     try {
-      const { head, pieces } = decodeWorld(key, readFileSync(join(dir, f), 'utf8'));
+      const { head, pieces, trees, cover } = decodeWorld(key, readFileSync(join(dir, f), 'utf8'));
       if (!pieces.length || !head.n) bad.push(`${key}: no buildings`);
       for (const p of pieces) if (![p.x, p.z, p.w, p.d, p.h].every(Number.isFinite) || p.w <= 0 || p.d <= 0 || p.w > 600 || p.h < 2 || p.h > 320 || !'fph'.includes(p.roof)) { bad.push(`${key}: a piece ${JSON.stringify({ ...p, ring: !!p.ring })}`); break; }
-      squares.push({ key, head, pieces });
+      if (!trees.length) bad.push(`${key}: no trees`);
+      squares.push({ key, head, pieces, trees, cover });
     } catch (e) { bad.push(`${key}: ${e.message}`); }
   }
   ok(`world: every square loads (${files.length})`, files.length > 0 && !bad.length, bad.slice(0, 4).join('; '));
@@ -52,7 +54,7 @@ export default async function ({ ok, root }) {
   const real = new Set(files.map(f => f.replace('.txt', '')));
   buildLandmarks(new THREE.Scene(), net, def, (x, z) => t.groundY(x, z), (x, z) => real.has(`${Math.floor(x / 1000)}_${Math.floor(z / 1000)}`));
   const layer = new BuildingsLayer(t, {}, net, def, kits), times = [];
-  const placed = squares.map(({ key, pieces }) => { const t0 = performance.now(), out = layer.add(key, pieces); times.push(performance.now() - t0); return out; });
+  const placed = squares.map(({ key, pieces, trees }) => { const t0 = performance.now(), out = layer.add(key, pieces, trees); times.push(performance.now() - t0); return out; });
   console.log(`      ${layer.stats.buildings} pieces read, ${layer.stats.pieces} drawn, ${layer.stats.left} left out; placing a square takes ${(times.reduce((a, b) => a + b, 0) / times.length).toFixed(0)} ms on average here, ${Math.max(...times).toFixed(0)} at most`);
 
   // clear of the railway's land and the kits: each footprint sampled every 2 m
@@ -76,6 +78,21 @@ export default async function ({ ok, root }) {
   }
   ok('world: no building on the railway\'s land or its slopes', !onLine.length, `${onLine.length}: ` + onLine.slice(0, 4).join(', '));
   ok('world: no building on a station kit\'s parts', !onKit.length, `${onKit.length}: ` + onKit.slice(0, 4).join(', '));
+
+  // the trees: off the railway's land and its slopes, and the kits' parts
+  const tr = layer.treesPlaced(), badTree = [];
+  for (let k = 0; k < tr.length; k += 8) {
+    const x = tr[k], z = tr[k + 2];
+    if (t.railLand(x, z, 0)) { const L = t.locate(x, z); badTree.push(`${L.s.toFixed(0)}:${L.o.toFixed(1)}`); continue; }
+    for (const { F, boxes } of frames) {
+      if (Math.hypot(F.x - x, F.z - z) > 500) continue;
+      const ex = x - F.x, ez = z - F.z, u = ex * F.dx + ez * F.dz, v = ex * F.nx + ez * F.nz;
+      if (boxes.some(([u0, u1, v0, v1]) => u > u0 && u < u1 && v > v0 && v < v1)) { badTree.push(`kit ${u.toFixed(0)},${v.toFixed(0)}`); break; }
+    }
+  }
+  ok(`world: no tree on the railway's land, its slopes or a kit's parts (${tr.length / 8} trees, ${layer.stats.treesLeft} left out)`, tr.length > 0 && !badTree.length, `${badTree.length}: ` + badTree.slice(0, 4).join(', '));
+  const cov = squares.reduce((n, s) => n + s.cover.length, 0);
+  ok(`world: the ground's cover is in the tiles (${cov} areas and streets)`, squares.every(s => s.cover.length > 0));
 
   // clear of the landmarks: their buildings, the river and the M60
   const course = onCourses(def), onMark = [];

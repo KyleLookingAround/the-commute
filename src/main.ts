@@ -146,7 +146,7 @@ const view = {
   folding: () => foldingCount(built),
   contract: () => ({ renewals: career.renewals, rep: career.rep, perks: [...career.perks], run: [...sim.g.perks], earned: reputation(sim.g), plaque: plaqueLines, stabled: trains.stabled.visible, spare: trains.spare.visible, cash: sim.g.cash, owned: sim.g.owned.filter(Boolean).length }),
   // homes that grow as drawn: how many new buildings stand at each station, and how many it has room for
-  homes: () => ({ shown: homes.counts(), room: homes.plots.map(l => l.length), rising: homes.risingCount }),
+  homes: () => ({ shown: homes.counts(), room: homes.plots.map(l => l.length), rising: homes.risingCount, gaps: homes.gaps() }),
   // what's going wrong as drawn: hazard lamps lit or not, caution posts, buses, and the spare unit in the sidings
   // the reach as drawn: each station's glow now and where it's easing to, the ghost rings, and the minutes view
   reach: () => ({ ...reach.radii(), ghosts: reach.ghosts(), minutes: reach.minutesOn }),

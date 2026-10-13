@@ -23,7 +23,7 @@ export interface World { groundY: (x: number, z: number) => number; yawFor: type
 
 /** The real buildings (src/render/buildings.ts), whose script is fetched after the page's own, so the first frame never
  * waits on it: which squares have them from the start, the layer once it's in. */
-export interface Buildings { real: (x: number, z: number) => boolean; blocked: (x: number, z: number, r: number) => boolean; layer: Promise<BuildingsLayer>; ready: Promise<void>; setLow: (low: boolean) => void }
+export interface Buildings { real: (x: number, z: number) => boolean; blocked: (x: number, z: number, r: number) => boolean; layer: Promise<BuildingsLayer>; ready: Promise<void>; setLow: (low: boolean) => void; season: (year: number, settle: number) => void; gap: (x: number, z: number, r: number) => '' | 'brown' | 'open' }
 
 export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef): World {
   const c = net.spine;
@@ -43,11 +43,12 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   const groundY = (x: number, z: number): number => terrain.groundY(x, z);
   // the real buildings, where there are tiles for them: the made-up houses keep out of those squares
   const files = worldFiles(), squares = new Set(Object.keys(files));
-  let real: BuildingsLayer | null = null, low = false;
-  const loaded = import('./buildings.ts').then(m => { real = new m.BuildingsLayer(terrain, files, net, def, kitFiles(), layer); real.setLow(low); scene.add(real.group); return real; });
+  let real: BuildingsLayer | null = null, low = false, year = 0.4, settle = 0;
+  const loaded = import('./buildings.ts').then(m => { real = new m.BuildingsLayer(terrain, files, net, def, kitFiles(), layer); real.setLow(low); real.season(year, settle); scene.add(real.group); return real; });
   const buildings: Buildings = {
     real: (x, z) => squares.has(`${Math.floor(x / 1000)}_${Math.floor(z / 1000)}`), blocked: (x, z, r) => !!real?.blocked(x, z, r),
     layer: loaded, ready: loaded.then(l => l.ready), setLow: v => { low = v; real?.setLow(v); },
+    season: (y, s) => { year = y; settle = s; real?.season(y, s); }, gap: (x, z, r) => real ? real.gap(x, z, r) : 'open',
   };
 
   // ---- the far ground: one flat field out to the horizon at the level the terrain eases to, so it never shows an edge ----

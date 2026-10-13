@@ -15,6 +15,16 @@
   - the forecourt, car park, taxi rank and bus stops round it
   - the station from an overbridge or the approach, showing the track layout and the platform ends
   - an aerial view where one exists
+- **The outside areas too** (the owner, 13 October 2026: "and the outside areas including the new interchange and roads and buildings"):
+  - **Round each station, up to six more photographs:** the streets and road bridges beside it, the buildings that face it, the bus stops and car parks, and what a passenger sees walking up to it. Add these to the station's folder, named `area-<what>-<n>.jpg`, in their own section of its `index.md`.
+  - **The bigger places get folders of their own** under `docs/reference/photos/areas/`, each with an `index.md` like a station's and up to ten photographs. Session A takes:
+    - `stockport-interchange`: the bus station that opened in March 2024, its roof park (Viaduct Park), its flats, the helix ramp and the link to the railway station, from every side
+    - `stockport-town-centre`: Mersey Square, Merseyway, the Pyramid, the Plaza, St Mary's, the Market Hall, Wellington Road (the A6) and the streets round the station, including Station Road, Grand Central and Stockport Exchange
+    - `stockport-viaduct`: from the valley, from Mersey Square, from the M60 and from the deck, with the river and the M60 beneath it
+    - `piccadilly-approach`: Station Approach, London Road, Fairfield Street, Gateway House and the multi-storey car park
+    - the A6 through Levenshulme and Heaton Chapel where it passes the stations
+  - Session B takes the town centres and interchanges its lines meet: Marple, Wilmslow, Manchester Airport's station and its transport interchange, and any bus stations beside its stations.
+  - In each area's `index.md`, add a **"For the map"** list: how the place should look in the game, its main buildings, their heights, materials and colours, and the roads' widths and what's on them, so later sessions can draw it.
 - Prefer recent photographs (from 2015 on), and an older one only where it shows something no newer one does.
 - **Sources** (these answer from the sessions): geograph.org.uk (CC BY-SA 2.0) and Wikimedia Commons (check each file's licence; keep only freely licensed ones: CC BY, CC BY-SA, public domain). OpenStreetMap doesn't answer. Don't use photographs from sites without a free licence.
 - **Files:** save each as a JPEG at most 800 px on its long edge, quality about 72 (aim for under 100 KB each), named `<angle>-<n>.jpg` (for example `platform-1-north-1.jpg`, `footbridge-1.jpg`, `entrance-1.jpg`, `carpark-1.jpg`, `overview-1.jpg`).
@@ -33,7 +43,7 @@
 ## What it must keep
 
 - Nothing in the game changes: no edits in `src/`.
-- Only freely licensed photographs, each credited with photographer, licence and source. Keep the library to a few tens of MB in all: eight photographs a station at most.
+- Only freely licensed photographs, each credited with photographer, licence and source. Keep the library to a few tens of MB in all: eight photographs a station and six of its surroundings at most, and ten an area.
 
 ## Commit author
 
@@ -53,5 +63,5 @@ The session pushes each batch to `main` once the rules and tests pass (docs only
 
 ## Cost budget
 
-- Estimate: about $10 a session (about 16 to 20 stations, a few searches and up to eight downloads each).
+- Estimate: about $15 a session (about 16 to 20 stations with their surroundings, and the bigger places' folders).
 - Past twice the estimate: say why in the commit message and stop at the station you're on.

@@ -21,7 +21,7 @@ The bus station that opened on 17 March 2024 between Wellington Road (the A6) an
 
 - The Interchange is a long low curved building, one storey of stands under a roof park, pale stone and glass on the street with a gold-clad round corner and lift drum; the bus stands are along its viaduct side, under the curved roof edge.
 - Viaduct Park on the roof: lawns, young trees and resin paths, lifts at each end, the Helix spiral ramp on the town side.
-- The flats: a tall block (about 17 storeys) with a red frame and dark cladding, beside the Interchange.
+- The flats: a tall block (17 storeys, from Wikipedia as the kit notes) with a red frame and dark cladding, beside the Interchange.
 - The link to the railway station: a path up past Exchange Street and a rust-red weathering-steel bridge over Swaine Street at Daw Bank.
 - Round it: the viaduct (red brick arches) across one end, the white 1960s office tower and the old Weir Mill by the river.
 

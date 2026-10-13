@@ -22,9 +22,9 @@ The centre between the station and the river: Mersey Square under the A6's Welli
 - Mersey Square: a paved square under the A6, now mostly closed to traffic, dominated by the Plaza (a 1932 cinema, tall white faience front, its name in red on top); red-brick and terracotta blocks round it; the Bear Pit steps down to the river beside it.
 - Merseyway: a 1960s precinct of two-storey shopfronts with deep fascias, built over the culverted Mersey, a multi-storey car park on its roof.
 - Market Place on the hill: St Mary's church (red sandstone, a square tower with pinnacles) and the Market Hall (white cast iron and glass gables), with narrow streets of old brick and timber buildings stepping down to Great Underbank.
-- The Town Hall on Wellington Road South: white stone, about 40 m across, two storeys and a tall tiered clock tower (about 40 m), set back behind a lawn.
+- The Town Hall on Wellington Road South: white stone, about 40 m across, two storeys and a tall tiered clock tower (about 40 m), set back behind a lawn (sizes from memory).
 - Wellington Road (the A6): a wide road running high over Mersey Square on its own arched bridge; Grand Central's leisure blocks and Stockport Exchange's glass offices between it and the station.
-- The Pyramid: a blue glass pyramid of offices about six storeys tall beside the M60, west of the centre.
+- The Pyramid: a blue glass pyramid of offices about six storeys tall beside the M60, west of the centre (height from memory).
 
 ## What the photos settle
 

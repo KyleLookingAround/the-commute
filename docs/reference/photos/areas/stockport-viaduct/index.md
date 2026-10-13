@@ -19,7 +19,7 @@ The Grade II* listed red-brick viaduct of 1840 that carries the line over the Me
 
 ## For the map
 
-- Red brick, darkened, on tall piers with round arches (22 of them in the real viaduct), about 33 m high and over 500 m long; stone string courses and a plain parapet on top with the overhead wire masts above.
+- Red brick, darkened, on tall piers with round arches (27 of them, about 33 m high and about 550 m long, from memory rather than survey); stone string courses and a plain parapet on top with the overhead wire masts above.
 - Four tracks on the deck since its widening in the 1880s.
 - Beneath it, from north to south: the M60 under one arch, the river Mersey with King Street West's stone bridge, the Interchange and Viaduct Park, Chestergate, Viaduct Street and Heaton Lane with the Crown Inn.
 

@@ -5,9 +5,9 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { MAT, PAL, box } from './scene.ts';
-import { newFrame, projectLatLon } from '../sim/network.ts';
+import { SPINE, newFrame, projectLatLon } from '../sim/network.ts';
 import type { Corridor, Network } from '../sim/network.ts';
-import type { LandmarkDef, LatLon, NetworkGeoDef } from '../sim/types.ts';
+import type { Frame, LandmarkDef, LatLon, NetworkGeoDef } from '../sim/types.ts';
 import { kitFiles } from './terrain.ts';
 
 /** A landmark as the data gives it, with the fields only the renderer reads: a footprint (w along x, d along z, metres),
@@ -75,14 +75,15 @@ export function buildLandmarks(scene: THREE.Scene, net: Network, def: NetworkGeo
 
 // ---- Stockport Viaduct: 27 brick arches on tall piers, widened on its west side in the 1880s ----
 function viaduct(scene: THREE.Scene, net: Network, c: Corridor, via: Viaduct, groundY: (x: number, z: number) => number): void {
-  const s0 = Math.min(via.from, via.to), len = Math.abs(via.to - via.from), n = via.arches, span = len / n;
-  const mid = c.at(s0 + len / 2), gp = new THREE.Group(); gp.position.set(mid.x, 0, mid.z); gp.rotation.y = yawFor(mid); scene.add(gp);
-  // as wide as the four tracks on it, with a few metres of cess each side; the corridor's normal points east, so the
-  // 1887-89 widening is the half at lower offsets (west) and the 1840 original the half at higher ones
-  let lo = Infinity, hi = -Infinity; for (const t of net.tracks) { const o = net.offsetAt(t.id, s0 + len / 2); lo = Math.min(lo, o); hi = Math.max(hi, o); }
-  const w0 = lo - 6, w1 = hi + 6, zm = (w0 + w1) / 2, half = (w1 - w0) / 2, SEAM = 0.3;
+  const s0 = Math.min(via.from, via.to), len = Math.abs(via.to - via.from), n = via.arches, span = len / n, SEAM = 0.3;
   const pw = span * 0.2, r = span / 2 - pw / 2, top = -0.4, spring = -(r + 3.2);
-  const worldY = (u: number, v: number) => groundY(mid.x + mid.dx * u + mid.nx * v, mid.z + mid.dz * u + mid.nz * v);
+  // each span follows the line where it is and is as wide as the tracks over it with their cess (the network's deck:
+  // Stockport's throat fans out over the first spans, as on the real one), so no track runs off it; the corridor's
+  // normal points east, so the 1887-89 widening is the half at lower offsets (west), the 1840 original the higher
+  const corridor = net.corridor('main').id;
+  const widths = Array.from({ length: n }, (_, i) => net.deck(corridor, s0 + span * i, s0 + span * (i + 1)));
+  const frames = Array.from({ length: n + 1 }, (_, j) => net.place(SPINE, s0 + span * j, 0));
+  const mids = Array.from({ length: n }, (_, i) => net.place(SPINE, s0 + span * (i + 0.5), 0));
 
   // the spandrel over one span, solid right through (so the soffit shows from the valley floor), extruded one metre in v
   const shape = new THREE.Shape(); const hs = span / 2;
@@ -95,39 +96,48 @@ function viaduct(scene: THREE.Scene, net: Network, c: Corridor, via: Viaduct, gr
   // the arch ring proud of each outer face
   const ringShape = new THREE.Shape(); ringShape.absarc(0, 0, r + 0.9, 0, Math.PI, false); ringShape.lineTo(-r, 0); ringShape.absarc(0, 0, r, Math.PI, 0, true); ringShape.lineTo(r + 0.9, 0);
   const ring = new THREE.ExtrudeGeometry(ringShape, { depth: 0.5, bevelEnabled: false, curveSegments: 10 }); ring.translate(0, spring, -0.25);
+  const unit = new THREE.BoxGeometry(1, 1, 1);
 
-  const halves = [{ z: (w0 + zm - SEAM) / 2, d: half - SEAM, col: PAL['brick-new'] }, { z: (zm + SEAM + w1) / 2, d: half - SEAM, col: PAL.brick }];
-  // the piers stand 0.3 m proud of the outer faces only, so the seam between the halves shows down them too
-  const pierZ = [{ z: (w0 - 0.3 + zm - SEAM) / 2, d: half - SEAM + 0.3 }, { z: (zm + SEAM + w1 + 0.3) / 2, d: half - SEAM + 0.3 }];
   const spans = new THREE.InstancedMesh(spandrel, MAT.viaduct, n * 3), piers = new THREE.InstancedMesh(pier, MAT.viaduct, (n + 1) * 3);
-  const rings = new THREE.InstancedMesh(ring, MAT.viaduct, n * 2), imposts = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), MAT.concrete, n + 1);
+  const rings = new THREE.InstancedMesh(ring, MAT.viaduct, n * 2), imposts = new THREE.InstancedMesh(unit, MAT.concrete, n + 1);
   const lamps = new THREE.InstancedMesh(new THREE.BoxGeometry(0.9, 0.5, 0.9), MAT.glow, (n + 1) * 2);
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color();
-  const put = (im: THREE.InstancedMesh, i: number, x: number, y: number, z: number, sx: number, sy: number, sz: number, k?: THREE.Color) => {
-    v.set(x, y, z); sc.set(sx, sy, sz); m4.compose(v, q, sc); im.setMatrixAt(i, m4); if (k) im.setColorAt(i, k);
+  const slabs = new THREE.InstancedMesh(unit, MAT.brickDark, n * 3), coping = new THREE.InstancedMesh(unit, MAT.concrete, n * 4);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), yAxis = new THREE.Vector3(0, 1, 0), v = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color();
+  /** An instance at offset o across the line in frame f, y up, scaled (sx along, sy, sz across). */
+  const put = (im: THREE.InstancedMesh, i: number, f: Frame, y: number, o: number, sx: number, sy: number, sz: number, k?: THREE.Color) => {
+    q.setFromAxisAngle(yAxis, yawFor(f)); v.set(f.x + f.nx * o, y, f.z + f.nz * o); sc.set(sx, sy, sz); m4.compose(v, q, sc); im.setMatrixAt(i, m4); if (k) im.setColorAt(i, k);
   };
+  const worldY = (f: Frame, o: number) => groundY(f.x + f.nx * o, f.z + f.nz * o);
   for (let i = 0; i < n; i++) {
-    const x = -len / 2 + span * (i + 0.5), shade = 0.94 + seed(i, 1) * 0.12;
-    halves.forEach((h, k) => put(spans, i * 3 + k, x, 0, h.z, 1, 1, h.d, col.copy(h.col).multiplyScalar(shade)));
+    const f = mids[i]!, [w0, w1] = widths[i]!, zm = (w0 + w1) / 2, half = (w1 - w0) / 2, shade = 0.94 + seed(i, 1) * 0.12;
+    // the span runs on a little either side so a bend leaves no gap between one and the next
+    const L = span * 1.02;
+    put(spans, i * 3, f, 0, (w0 + zm - SEAM) / 2, L / span, 1, half - SEAM, col.copy(PAL['brick-new']).multiplyScalar(shade));
+    put(spans, i * 3 + 1, f, 0, (zm + SEAM + w1) / 2, L / span, 1, half - SEAM, col.copy(PAL.brick).multiplyScalar(shade));
     // the join: a darker course a little up into the soffit, so the widening shows as a seam along the arch
-    put(spans, i * 3 + 2, x, 0.12, zm, 1, 1, SEAM * 2 + 0.02, PAL['brick-dark']);
-    put(rings, i * 2, x, 0, w0, 1, 1, 1, col.copy(PAL['brick-new']).multiplyScalar(0.82));
-    put(rings, i * 2 + 1, x, 0, w1, 1, 1, 1, col.copy(PAL.brick).multiplyScalar(0.82));
+    put(spans, i * 3 + 2, f, 0.12, zm, L / span, 1, SEAM * 2 + 0.02, PAL['brick-dark']);
+    put(rings, i * 2, f, 0, w0, 1, 1, 1, col.copy(PAL['brick-new']).multiplyScalar(0.82));
+    put(rings, i * 2 + 1, f, 0, w1, 1, 1, 1, col.copy(PAL.brick).multiplyScalar(0.82));
+    // the deck: its slab, a stone cornice along each face, the parapets and their coping
+    put(slabs, i * 3, f, -0.6, zm, L, 1.2, w1 - w0);
+    for (const [k, off] of [[0, w0 + 0.4], [1, w1 - 0.4]] as const) { put(slabs, i * 3 + 1 + k, f, 0.4, off, L, 1.6, 0.8); put(coping, i * 4 + k, f, 1.29, off, L, 0.18, 1); }
+    for (const [k, off] of [[2, w0 - 0.3], [3, w1 + 0.3]] as const) put(coping, i * 4 + k, f, -0.9, off, L, 0.5, 0.6);
   }
   for (let j = 0; j <= n; j++) {
-    const x = -len / 2 + span * j, foot = Math.min(worldY(x, w0), worldY(x, w1)) - 3, h = Math.max(0.01, spring - foot);
+    // a pier carries the wider of the spans either side of it
+    const f = frames[j]!, a = widths[Math.max(0, j - 1)]!, b = widths[Math.min(n - 1, j)]!, w0 = Math.min(a[0], b[0]), w1 = Math.max(a[1], b[1]), zm = (w0 + w1) / 2, half = (w1 - w0) / 2;
+    const foot = Math.min(worldY(f, w0), worldY(f, w1)) - 3, h = Math.max(0.01, spring - foot);
     const thick = j === 0 || j === n ? pw * 2 : pw;     // the abutments at each end are heavier
-    halves.forEach((hf, k) => put(piers, j * 3 + k, x, spring, pierZ[k]!.z, thick, h, pierZ[k]!.d, col.copy(hf.col).multiplyScalar(0.92 + seed(j, 2) * 0.1)));
-    put(piers, j * 3 + 2, x, spring, zm, thick * 0.96, h, SEAM * 2 + 0.02, PAL['brick-dark']);
-    put(imposts, j, x, spring + 0.3, zm, thick * 1.12, 0.6, w1 - w0 + 1.4);
+    // the piers stand 0.3 m proud of the outer faces only, so the seam between the halves shows down them too
+    put(piers, j * 3, f, spring, (w0 - 0.3 + zm - SEAM) / 2, thick, h, half - SEAM + 0.3, col.copy(PAL['brick-new']).multiplyScalar(0.92 + seed(j, 2) * 0.1));
+    put(piers, j * 3 + 1, f, spring, (zm + SEAM + w1 + 0.3) / 2, thick, h, half - SEAM + 0.3, col.copy(PAL.brick).multiplyScalar(0.92 + seed(j, 2) * 0.1));
+    put(piers, j * 3 + 2, f, spring, zm, thick * 0.96, h, SEAM * 2 + 0.02, PAL['brick-dark']);
+    put(imposts, j, f, spring + 0.3, zm, thick * 1.12, 0.6, w1 - w0 + 1.4);
     // floodlights at each pier's foot, either side: the viaduct is lit at night
-    put(lamps, j * 2, x, foot + 3.3, w0 - 3, 1, 1, 1); put(lamps, j * 2 + 1, x, foot + 3.3, w1 + 3, 1, 1, 1);
+    put(lamps, j * 2, f, foot + 3.3, w0 - 3, 1, 1, 1); put(lamps, j * 2 + 1, f, foot + 3.3, w1 + 3, 1, 1, 1);
   }
-  for (const im of [spans, piers, rings, imposts, lamps]) gp.add(im);
-  // the deck: a stone cornice along each face, the parapets and their coping
-  box(gp, len, 1.2, w1 - w0, MAT.brickDark, 0, -0.6, zm);
-  for (const off of [w0 - 0.3, w1 + 0.3]) box(gp, len, 0.5, 0.6, MAT.concrete, 0, -0.9, off);
-  for (const off of [w0 + 0.4, w1 - 0.4]) { box(gp, len, 1.6, 0.8, MAT.brickDark, 0, 0.4, off); box(gp, len, 0.18, 1, MAT.concrete, 0, 1.29, off); }
+  for (const im of [spans, piers, rings, imposts, lamps, slabs, coping]) scene.add(im);
+
 }
 
 // ---- the arches into Piccadilly: a brick railway viaduct following the line's curve, each span an arch on its piers ----

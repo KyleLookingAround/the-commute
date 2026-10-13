@@ -103,10 +103,12 @@ test('tracks: trains stand just clear of the platform their passengers wait on, 
   }
 });
 
-test('tracks: a main-line train turning round at either end stays on the track it came in on', () => {
+test('tracks: a main-line train turning round at Piccadilly stays on the track it came in on', () => {
+  // (at Stockport the stoppers come in on the up slow, platform 1's line, and cross over to the down slow's platforms
+  // north of the throat, as the tracks keep their order: docs/DESIGN.md, Where the tracks run)
   const n = net();
   if (!stopper) throw new Error('no stopper');
-  for (const st of [n.station('stockport'), n.station('piccadilly')])
+  for (const st of [n.station('piccadilly')])
     assert.equal(n.offsetAt(n.route(stopper).track(st.s, 1), st.s), n.offsetAt(n.route(stopper).track(st.s, -1), st.s), `${st.id}: both directions in one platform`);
 });
 
@@ -125,8 +127,8 @@ test('tracks: on the open line and through the stations the tracks there keep cl
 test('tracks: no track steps sideways anywhere along the line', () => {
   const n = net(), L = n.spine.length;
   for (const t of n.tracks) {
-    let prev = n.offsetAt(t.id, 0);
-    for (let s = 1; s <= L; s++) { const o = n.offsetAt(t.id, s); assert.ok(Math.abs(o - prev) < 0.6, `${t.id} jumps ${(o - prev).toFixed(2)} m at ${s} m`); prev = o; }
+    const [e0, e1] = n.extent(t.id); let prev = n.offsetAt(t.id, e0);
+    for (let s = Math.ceil(e0); s <= Math.min(L, e1); s++) { const o = n.offsetAt(t.id, s); assert.ok(Math.abs(o - prev) < 0.6, `${t.id} jumps ${(o - prev).toFixed(2)} m at ${s} m`); prev = o; }
   }
 });
 

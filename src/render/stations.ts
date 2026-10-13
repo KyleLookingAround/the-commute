@@ -14,8 +14,8 @@ import { buildRank, type RankPart } from './taxis.ts';
 import { buildBusStop, type BusStopPart } from './buses.ts';
 import { buildLink, type LinkPart } from './links.ts';
 import { groundAt, partBoxes } from './terrain.ts';
-import type { Network } from '../sim/network.ts';
-import type { GameState, Station } from '../sim/types.ts';
+import { newFrame, type Network } from '../sim/network.ts';
+import type { Frame, GameState, Station } from '../sim/types.ts';
 
 // ---- the kit format ----
 /** street: the part stands on the ground at street level (where its middle is), not at rail level on the station's pad:
@@ -399,14 +399,33 @@ export interface BuiltStation {
   gated: Gate[]; label: THREE.Object3D; lockedNow: boolean | null; rise: number; fold: number; live: Live;
 }
 
+/** A kit's rails as the map draws them: (u, v) is v across the line at u along it, as a track's offset is, so they
+ * follow the line where it bends beyond the station's straight stretch (Stockport's north end turns onto the viaduct);
+ * in the kit's own frame, every few metres. */
+export function alongLine(net: Network, st: Station, F: Frame, points: [number, number][]): [number, number][] {
+  const out: [number, number][] = [], f = newFrame();
+  const put = (u: number, v: number) => {
+    net.place(st.corridor, st.at + u, v, f);
+    const p: [number, number] = [(f.x - F.x) * F.dx + (f.z - F.z) * F.dz, (f.x - F.x) * F.nx + (f.z - F.z) * F.nz], last = out[out.length - 1];
+    if (!last || Math.hypot(p[0] - last[0], p[1] - last[1]) > 0.01) out.push(p);   // no piece of no length
+  };
+  for (let i = 0; i < points.length; i++) {
+    const [u1, v1] = points[i]!, prev = points[i - 1];
+    if (prev) { const [u0, v0] = prev, n = Math.max(1, Math.ceil(Math.abs(u1 - u0) / 5)); for (let k = 1; k < n; k++) put(u0 + (u1 - u0) * k / n, v0 + (v1 - v0) * k / n); }
+    put(u1, v1);
+  }
+  return out;
+}
+
 export function buildStations(scene: THREE.Scene, net: Network, kits: Record<string, Kit>): BuiltStation[] {
   return net.stations.map(st => {
     const kit = kits[st.kit]; if (!kit) throw new Error(`no kit "${st.kit}" for ${st.name}`);
     const frame = net.stationFrame(st.id);
     const gp = new THREE.Group(); gp.position.set(frame.x, 0, frame.z); gp.rotation.y = yawFor(frame); scene.add(gp);
     const fixed = new THREE.Group(), scenery = new THREE.Group(), gates = new Map<string, Gate>(), live = emptyLive(); gp.add(fixed); gp.add(scenery);
-    for (const part of kit.parts) {
-      if (!(part.type in partBuilders)) { console.warn('unknown part', part.type); continue; }
+    for (const kitPart of kit.parts) {
+      if (!(kitPart.type in partBuilders)) { console.warn('unknown part', kitPart.type); continue; }
+      const part = kitPart.type === 'rails' ? { ...kitPart, points: alongLine(net, st, frame, kitPart.points) } : kitPart;
       const needs = part.upgrade === undefined ? [] : Array.isArray(part.upgrade) ? part.upgrade : [part.upgrade];
       const put = (into: THREE.Group) => part.street ? onGround(part, into, live, frame) : build(part, into, live);
       if (part.scenery) put(scenery);

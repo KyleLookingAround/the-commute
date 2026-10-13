@@ -14,9 +14,7 @@ const kits = Object.fromEntries(readdirSync(dir).filter(f => f.endsWith('.json')
 
 /** What's still to re-lay, by rule and place: each goes once its place keeps the rule (and must, once it does). */
 const PENDING: [string, string][] = [
-  ['slope', 'Stockport'], ['cross', 'Stockport'], ['turnout', 'Stockport'], ['rails', 'Stockport'], ['deck', 'Stockport'],
   ['cross', 'Manchester Piccadilly'], ['turnout', 'Manchester Piccadilly'], ['rails', 'Manchester Piccadilly'],
-  ['room', 'Heaton Norris'], ['room', 'Slade Lane'],
 ];
 
 test('layout: the line keeps the track layout rule, but for what is still to re-lay', () => {

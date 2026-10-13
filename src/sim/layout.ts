@@ -5,7 +5,7 @@
 // junction has clear line either side before the next; on a viaduct or a bridge every track and rail is on the deck;
 // and every block section is as long as a train and its overlap, with no signal in a throat. Pure: the test runs it
 // (test/layout.test.ts), and it names the place for each fault.
-import { LAYOUT, newFrame, type Network } from './network.ts';
+import { LAYOUT, type Network } from './network.ts';
 import type { NetworkGeoDef } from './types.ts';
 
 /** A kit's drawn rails, as the layout needs them: polylines in the kit's frame (u along, v across). */
@@ -13,7 +13,6 @@ export interface KitRails { parts: { type: string; points?: number[][] }[] }
 /** One thing wrong: which rule, and where, in words a person can find on the map. */
 export interface Fault { rule: 'slope' | 'cross' | 'turnout' | 'rails' | 'room' | 'deck' | 'block'; at: string }
 
-const f0 = newFrame();
 
 /** Every fault in the network's layout, with the kits' rails (by kit id) and the structures in its data. */
 export function layoutFaults(net: Network, kits: Record<string, KitRails | undefined>, def: NetworkGeoDef): Fault[] {
@@ -65,10 +64,10 @@ export function layoutFaults(net: Network, kits: Record<string, KitRails | undef
   }
 
   // ---- a station's own rails (its bays' paths and its kit's rails): leave a track at a turnout, cross none ----
-  /** v of a kit point against the line as the map draws it there (the tracks' offsets are measured the same way). */
-  const vOn = (corridor: string, s: number, x: number, z: number) => { const f = net.place(corridor, s, 0, f0); return (x - f.x) * f.nx + (z - f.z) * f.nz; };
+  // a station's rails are drawn along the line (src/render/stations.ts, alongLine), as its bays' are by the trains, so
+  // their v is an offset across the line, as a track's is
   for (const st of net.stations) {
-    const F = net.stationFrame(st.id), kit = kits[st.kit];
+    const kit = kits[st.kit];
     const lines: { name: string; pts: number[][] }[] = [
       ...(st.platforms ?? []).filter(p => p.path).map(p => ({ name: `platform ${p.id}'s rails`, pts: p.path! })),
       ...(kit?.parts ?? []).filter(p => p.type === 'rails' && p.points).map((p, k) => ({ name: `rails ${k + 1} of the kit`, pts: p.points! })),
@@ -84,8 +83,7 @@ export function layoutFaults(net: Network, kits: Record<string, KitRails | undef
       for (let k = 1; k < pts.length; k++) {
         const [u0 = 0, v0 = 0] = pts[k - 1]!, [u1 = 0, v1 = 0] = pts[k]!, n = Math.max(1, Math.ceil(Math.abs(u1 - u0) / 2));
         for (let q = 0; q <= n; q++) {
-          const u = u0 + (u1 - u0) * q / n, v = v0 + (v1 - v0) * q / n, s = st.at + u;
-          const x = F.x + F.dx * u + F.nx * v, z = F.z + F.dz * u + F.nz * v, vv = vOn(st.corridor, s, x, z);
+          const u = u0 + (u1 - u0) * q / n, vv = v0 + (v1 - v0) * q / n, s = st.at + u;
           for (const t of net.tracks) {
             if (t.corridor !== st.corridor || !present(t.id, s)) continue;
             const d = vv - net.offsetAt(t.id, s), m = Math.abs(d), was = sides.get(t.id);
@@ -112,6 +110,11 @@ export function layoutFaults(net: Network, kits: Record<string, KitRails | undef
       if (on) marks.push({ s0: j.s, s1: j.s, name: j.name });
     }
     marks.sort((a, b) => a.s0 - b.s0);
+    // a junction at the end of a stretch where the tracks move is that stretch's own: its ways parting
+    for (let k = marks.length - 1; k > 0; k--) {
+      const a = marks[k - 1]!, b = marks[k]!;
+      if (b.s0 - a.s1 <= 2 * L.step && (a.s0 === a.s1) !== (b.s0 === b.s1)) { a.s1 = Math.max(a.s1, b.s1); a.name = a.s0 === a.s1 ? `${a.name} and ${b.name}` : `${a.name} at ${b.name}`; marks.splice(k, 1); }
+    }
     for (let k = 1; k < marks.length; k++) {
       const a = marks[k - 1]!, b = marks[k]!, gap = b.s0 - a.s1;
       if (gap < L.gap) add('room', `${a.name} and ${b.name} are ${Math.max(0, Math.round(gap))} m apart (${L.gap} m wanted)`);
@@ -128,14 +131,13 @@ export function layoutFaults(net: Network, kits: Record<string, KitRails | undef
     const a = c.nearest(...xz(m.from)), b = c.nearest(...xz(m.to)), s0 = Math.min(a, b), s1 = Math.max(a, b);
     for (const st of net.stations) {
       if (st.corridor !== corridor) continue;
-      const F = net.stationFrame(st.id);
       for (const p of kits[st.kit]?.parts ?? []) {
         if (p.type !== 'rails' || !p.points) continue;
         for (let k = 1; k < p.points.length; k++) {
           const [u0 = 0, v0 = 0] = p.points[k - 1]!, [u1 = 0, v1 = 0] = p.points[k]!, n = Math.max(1, Math.ceil(Math.abs(u1 - u0) / 2));
           for (let q = 0; q <= n; q++) {
-            const u = u0 + (u1 - u0) * q / n, v = v0 + (v1 - v0) * q / n, s = st.at + u; if (s < s0 || s > s1) continue;
-            const x = F.x + F.dx * u + F.nx * v, z = F.z + F.dz * u + F.nz * v, vv = vOn(corridor, s, x, z), [lo, hi] = net.deck(corridor, s, s);
+            const u = u0 + (u1 - u0) * q / n, vv = v0 + (v1 - v0) * q / n, s = st.at + u; if (s < s0 || s > s1) continue;
+            const [lo, hi] = net.deck(corridor, s, s);
             if (vv < lo + L.cess - L.together || vv > hi - L.cess + L.together) at('deck', `${st.id} ${m.id} ${p.points[0]}`, corridor, s, 0, (a, b) => `${st.name}'s kit rails run off ${m.name} from ${a} to ${b}`);
           }
         }

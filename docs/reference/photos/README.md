@@ -9,6 +9,8 @@ Photographs of the real stations, from several angles, for anyone building or ch
 - A station's photos of its surroundings are named `area-<what>-<n>.jpg` and have their own section, **Round the station**, in its `index.md`.
 - Photos are JPEGs at most 800 px on the long edge, named by angle (`platform-1-1.jpg`, `footbridge-1.jpg`, `entrance-1.jpg`, `overview-1.jpg`). `platform-view-n` means a view along a platform whose number the source doesn't give.
 
+- Views from above of every station, from the Environment Agency's LIDAR, are in [`docs/reference/aerial/`](../aerial/index.md): they say where and how big, these photos say what it looks like.
+
 ## Licences and credits
 
 - Every photo is freely licensed and credited in its station's `index.md`. Those from geograph.org.uk are © their photographers under [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/); reuse them with the photographer's name, the licence and a link to the source page. Those from Wikimedia Commons carry the licence their `index.md` row gives (CC BY-SA 2.0, 3.0 or 4.0, CC BY, or public domain), with the same credit.

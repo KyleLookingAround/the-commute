@@ -24,5 +24,5 @@ The terminus: bays 1 to 12 under the listed glazed train shed, the concourse at 
 
 ## Still unknown
 
-- How far each bay splays in the throat: no free photo shows the whole fan from above sharply enough.
+- How far each bay splays in the throat: no free photo shows the whole fan from above sharply enough; see the views from above, [`piccadilly.jpg`](../../aerial/piccadilly.jpg) and [`piccadilly-wide.jpg`](../../aerial/piccadilly-wide.jpg).
 - The full length of each bay's canopy beyond the shed.

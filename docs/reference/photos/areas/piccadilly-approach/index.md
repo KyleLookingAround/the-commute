@@ -35,4 +35,4 @@ The streets round Manchester Piccadilly: Station Approach and its forecourt off 
 ## Still unknown
 
 - A recent photo of the car park (the one here is from 2013).
-- A clear aerial view of the whole approach.
+- A clear aerial photo of the whole approach: the LIDAR view from above, [`piccadilly-wide.jpg`](../../../aerial/piccadilly-wide.jpg), shows its layout.

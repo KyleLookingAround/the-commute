@@ -36,6 +36,6 @@ The big through station south of the viaduct: island 3/4 and island 1/2, the pla
 
 ## Still unknown
 
-- Which side Station Road is on: the kit puts it on the east, but geograph 8413983's caption puts the Station Road car park on the west side of the station, and the bus stop on Station Road (area-bus-stop-1) is beside a high brick wall like the west side's. Worth checking against a map before the kit is next touched.
+- Which side Station Road is on: the kit puts it on the east, but geograph 8413983's caption puts the Station Road car park on the west side of the station, and the bus stop on Station Road (area-bus-stop-1) is beside a high brick wall like the west side's. Worth checking against a map, or the view from above ([`stockport.jpg`](../../aerial/stockport.jpg)), before the kit is next touched.
 - Where the taxi rank is now: geograph 5134243 (2016) says taxis no longer line up at the east entrance.
 - The multi-storey car park: no free photo of it.

@@ -36,6 +36,6 @@ Two side platforms on the Hazel Grove line in a shallow cutting, with Bramhall L
 
 ## Still unknown
 
-- Which side the car park is on, and how big it is.
+- Which side the car park is on, and how big it is: the view from above, [`docs/reference/aerial/davenport.jpg`](../../aerial/davenport.jpg), may settle it.
 - Any lift or ramp (none shows: the kit's lifts stay the game's).
 - A taxi rank or a bus stop by the station: neither shows.

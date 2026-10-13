@@ -43,6 +43,7 @@ Until there are several sessions at once this playbook is mostly §6: write a br
 - A brief that says "wait for #N" gets a message the moment #N merges.
 - Check on each new session about 30 minutes after it starts.
 - End a wave with a small loose-ends brief, and have each part list what it hands on in its PR under one heading.
+- End a phase with a visual audit session from `docs/briefs/visual-audit.md` (`node tools/shots.mjs --audit`), and brief the next phase's fixes from its file in `docs/audits/`.
 - One item per session: when its item merges, the session stops, and new work goes to a fresh session with its own brief.
 
 ## 7. The lessons tidy

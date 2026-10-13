@@ -19,7 +19,8 @@
 // 400 m along each corridor; the junctions and landmarks, the viaduct from the valley and the deck, the skyline; a
 // sample of views at dusk, at night (the engineering train out), in rain, snow (a winter day) and fog; all at phone
 // (390 px) and desktop sizes; and the page's own surfaces at 320 px. Files: <set>-<place>-<view>-<size>[-<light>].png,
-// and contact sheets of each set in build/shots/audit/sheets/. Prefixes keep only the shots whose names start so.
+// and contact sheets of each set in build/shots/audit/sheets/. Prefixes reshoot only the shots whose names start so
+// (station-, line- place- and ui- can run side by side), and --audit sheets rebuilds only the contact sheets.
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
@@ -112,8 +113,11 @@ async function auditShots(only) {
   const { simAtHour } = await import('../src/sim/day.ts');
   const { engineering } = await import('../src/render/trains.ts');
   const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def);
-  const dir = join(out, 'audit'); rmSync(dir, { recursive: true, force: true }); mkdirSync(join(dir, 'sheets'), { recursive: true });
-  const want = name => !only.length || only.some(p => name.startsWith(p));
+  const dir = join(out, 'audit'), want = name => !only.length || only.some(p => name.startsWith(p));
+  // a whole audit starts from nothing; one for some prefixes replaces only their shots, so a few can run side by side
+  if (!only.length) rmSync(dir, { recursive: true, force: true });
+  mkdirSync(join(dir, 'sheets'), { recursive: true });
+  if (only.length) for (const f of readdirSync(dir)) if (f.endsWith('.png') && want(f)) rmSync(join(dir, f));
   const calm = g => Object.assign(g.trouble, { next: 1e12, fail: null, caution: null, buses: [] });
   // everything the game offers, bought through the sim: buy round the line until nothing more can be (a failure seen,
   // so the spare unit is offered), with every perk in the run; then on to the clock hour asked
@@ -183,10 +187,14 @@ async function auditShots(only) {
         v['place-viaduct-valley'] = look(p.x, p.z, -18, 280, F.nx, F.nz, 1.5);
         v['place-viaduct-valley-far'] = look(p.x, p.z, -10, 600, ...turn(F.nx, F.nz, 0.5), 1.4);
         v['place-viaduct-deck'] = look(p.x, p.z, 3, 60, -F.dx, -F.dz, 1.42);
-      } else v[`place-${l.id}`] = look(p.x, p.z, 4, l.kind === 'arches' ? 220 : 320, ...turn(0.6, 0.8, 0), 1.05);
+      } else {
+        // the camera looks no further than 300 m from the line, as a player's does: from the line's side, out towards it
+        const c = net.corridor(l.corridor ?? 'main'), F = net.place(c.id, c.nearest(p.x, p.z), 0), dx = p.x - F.x, dz = p.z - F.z, d = Math.hypot(dx, dz) || 1, k = Math.min(d, 280) / d;
+        v[`place-${l.id}`] = d < 280 ? look(p.x, p.z, 4, l.kind === 'arches' ? 220 : 320, ...turn(0.6, 0.8, 0), 1.05) : look(F.x + dx * k, F.z + dz * k, 10, 260, -dx / d, -dz / d, 1.3);
+      }
     }
-    const pic = net.station('piccadilly'), F = net.stationFrame(pic.id), c = P(53.4745, -2.2475);
-    v['place-skyline'] = look(c.x, c.z, 30, 1400, ...turn(F.dx, F.dz, -0.8), 1.32);
+    const pic = net.station('piccadilly'), F = net.stationFrame(pic.id);
+    v['place-skyline'] = look(F.x - F.dx * 300, F.z - F.dz * 300, 40, 700, ...turn(F.dx, F.dz, Math.PI + 0.5), 1.42);
     v['place-skyline-ardwick'] = look(F.x, F.z, 20, 900, -F.dx, -F.dz, 1.3);
     return v;
   };
@@ -204,15 +212,20 @@ async function auditShots(only) {
       if (!sessionStorage.getItem('seeded')) { if (sv) localStorage.setItem('the-commute-save-v1', sv); if (cr) localStorage.setItem('the-commute-career-v1', cr); sessionStorage.setItem('seeded', '1'); }
       window.__frames = 0; const raf = window.requestAnimationFrame.bind(window); window.requestAnimationFrame = cb => raf(t => { window.__frames++; cb(t); });
       window.__pending = 0; const f = window.fetch.bind(window); window.fetch = (...a) => { window.__pending++; return f(...a).finally(() => window.__pending--); };
-    }, [hour, save ? JSON.stringify({ g: save.g, selected }) : null, save ? career : null, w]);
+    // the save stamped ahead of now, so no time away passes on loading and the selected station is kept
+    }, [hour, save ? JSON.stringify({ g: save.g, selected, at: Date.now() + 3600e3 }) : null, save ? career : null, w]);
     const page = await ctx.newPage(); await page.goto(url);
     await page.waitForSelector('html[data-sim="ready"]', { timeout: 60000 }).catch(() => {});
     await page.waitForFunction(() => window.__view && window.__view.rising() === 0 && window.__view.homes().rising === 0, null, { timeout: 120000 }).catch(() => console.log('still rising'));
     const settle = async n => { const f0 = await page.evaluate(() => window.__frames); await page.waitForFunction(([f0, n]) => window.__frames >= f0 + n && window.__pending === 0, [f0, n], { timeout: 60000 }).catch(() => {}); };
     if (ui) await ui(page, sz);
     else for (const n of names) {
-      await page.evaluate(o => window.__view.look(o), views[n]); await settle(3); await settle(2);
-      await page.screenshot({ path: join(dir, `${n}-${sz}${file}.png`) });
+      // a view given as a function finds its place in the page (the engineering train, wherever it is by now)
+      const o = typeof views[n] === 'function' ? await views[n](page) : views[n];
+      if (!o) { console.log(`${n}: nothing to look at`); continue; }
+      await page.evaluate(o => window.__view.look(o), o); await settle(3); await settle(2);
+      const path = join(dir, `${n}-${sz}${file}.png`);
+      await page.screenshot({ path, timeout: 120000 }).catch(() => page.screenshot({ path, timeout: 240000 })).catch(e => console.log(`${n}: ${e.message.split('\n')[0]}`));
     }
     await ctx.close();
   };
@@ -230,35 +243,44 @@ async function auditShots(only) {
   // the sample for light and weather
   const so = stationViews(net.station('stockport')), po = stationViews(net.station('piccadilly'));
   const sample = { 'station-stockport-above': so.above, 'station-stockport-platform': so.platform, 'station-piccadilly-above': po.above, 'place-viaduct-valley': lv['place-viaduct-valley'], 'place-town': lv['place-town'], 'line-main-040': lv['line-main-040'] };
+  const works = async page => { const w = await page.evaluate(() => window.__view.life().works); return w && look(w[0], w[1], 2, 90, 0.7, 0.7, 1.2); };
   for (const [light, o] of Object.entries({ dusk: { save: day, hour: 20.25 }, night: { save: night, hour: 1.5 }, rain: { save: day, weather: 'rain' }, snow: { save: winter, weather: 'snow' }, fog: { save: day, weather: 'fog' } }))
-    for (const size of SIZES) await shoot(`-${light}`, { ...o, views: sample, size });
+    for (const size of SIZES) await shoot(`-${light}`, { ...o, views: light === 'night' ? { ...sample, 'line-engineering': works } : sample, size });
   said('light and weather');
   // the page's own surfaces at 320 px: a new game (the sheet at its peek with the next station's edge marker, a
   // picked card's Buy bar, the sheet at half and full, settings) and the full game (the line panel, the contract sheet)
   const { reveal } = await import('./reveal.mjs');
   const small = ['phone-320', 320, 568, true], snap = (page, n) => page.screenshot({ path: join(dir, `ui-${n}-320.png`) });
-  const tap = async (page, sel) => { sel = await reveal(page, sel); await page.locator(sel).tap({ timeout: 30000 }).catch(e => console.log(`ui: ${sel}: ${e.message.split('\n')[0]}`)); await page.waitForTimeout(1500); };
+  // a click from inside the page: a software-drawn page is too slow for the driver's taps to settle
+  const tap = async (page, sel) => { sel = await reveal(page, sel); if (!await page.evaluate(s => { const e = document.querySelector(s); e?.click(); return !!e; }, sel)) console.log(`ui: no ${sel}`); await page.waitForTimeout(1500); };
   const drag = async (page, to) => { const b = await page.locator('#sheetHandle').boundingBox(); if (!b) return; await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down(); for (let k = 1; k <= 6; k++) await page.mouse.move(b.x + b.width / 2, b.y + (to - b.y) * k / 6); await page.mouse.up(); await page.waitForTimeout(1500); };
   await shoot('', { size: small, ui: async page => {
     await page.waitForTimeout(3000); await snap(page, 'peek');
     await tap(page, '[data-pick="building"]'); await page.waitForFunction(() => !window.__view.camera().flying, null, { timeout: 30000 }).catch(() => {}); await page.waitForTimeout(1500); await snap(page, 'buybar');
     await page.evaluate(() => document.getElementById('barClose')?.click()); await page.waitForTimeout(800);
-    await page.locator('#sheetHandle').tap(); await page.waitForTimeout(1500); await snap(page, 'half');
+    await tap(page, '#sheetHandle'); await snap(page, 'half');
     await drag(page, 10); await snap(page, 'full');
     await page.evaluate(() => document.getElementById('vSet')?.click()); await page.waitForTimeout(1500); await snap(page, 'settings');
   } });
   await shoot('', { save: day, size: small, ui: async page => {
     await page.waitForTimeout(3000); await snap(page, 'full-game-peek');
-    await page.locator('#sheetHandle').tap(); await page.waitForTimeout(1500); await snap(page, 'full-game-half');
+    await tap(page, '#sheetHandle'); await snap(page, 'full-game-half');
     await page.evaluate(() => document.getElementById('tabLine')?.click()); await page.waitForTimeout(1000); await snap(page, 'full-game-line');
     await tap(page, '#renew'); await snap(page, 'contract');
   } });
   said('ui');
-  // contact sheets: each set's shots, named, a sheet per set and size
+  // contact sheets: a sheet per set (a station, a corridor, the places, the page), size and light, every shot named;
+  // --audit sheets (a prefix no shot has) builds only these
   const groups = {};
-  for (const f of readdirSync(dir).filter(f => f.endsWith('.png')).sort()) { const k = f.replace(/-(phone|desktop|phone-320)(-[a-z]+)?\.png$/, '').split('-').slice(0, 2).join('-') + '-' + (f.match(/-(phone|desktop|phone-320)(-[a-z]+)?\.png$/)?.slice(1).join('') ?? ''); (groups[k] ??= []).push(f); }
+  rmSync(join(dir, 'sheets'), { recursive: true, force: true }); mkdirSync(join(dir, 'sheets'));
+  for (const f of readdirSync(dir).filter(f => f.endsWith('.png')).sort()) {
+    const [, name, size, light] = f.match(/^(.*?)-(phone|desktop|320)(-[a-z]+)?\.png$/) ?? [];
+    if (!name) continue;
+    const set = /^(station|line)-/.test(name) ? name.replace(/-[^-]+$/, '') : name.split('-')[0];
+    (groups[`${set}-${size}${light ?? ''}`] ??= []).push(f);
+  }
   for (const [k, fs] of Object.entries(groups)) {
-    try { execFileSync('montage', ['-label', '%t', '-pointsize', '14', ...fs.map(f => join(dir, f)), '-tile', '4x', '-geometry', k.includes('phone') ? '260x+4+4' : '480x+4+4', join(dir, 'sheets', `${k}.jpg`)]); } catch { console.log('no montage: the contact sheets need ImageMagick'); break; }
+    try { execFileSync('montage', ['-label', '%t', '-pointsize', '14', ...fs.map(f => join(dir, f)), '-tile', '5x', '-geometry', k.includes('phone') ? '260x+4+4' : '480x+4+4', join(dir, 'sheets', `${k}.jpg`)]); } catch { console.log('no montage: the contact sheets need ImageMagick'); break; }
   }
   said('all');
 }

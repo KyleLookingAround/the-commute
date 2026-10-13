@@ -80,12 +80,13 @@ export default async function ({ ok, open, root }) {
   for (const [w, h, touch] of [[390, 844, true], [1280, 800, false]]) {
     const { ctx, page, errs } = await open({ width: w, height: h }, { touch, save: save(failing) });
     await page.waitForTimeout(400);
-    let most = { hazards: 0, cautions: 0, buses: 0, spare: false };
-    for (let k = 0; k < 8; k++) {
-      const t = await page.evaluate(() => window.__view?.trouble?.() ?? null);
-      if (t) most = { hazards: Math.max(most.hazards, t.hazards), cautions: Math.max(most.cautions, t.cautions), buses: Math.max(most.buses, t.buses), spare: most.spare || t.spare };
-      await page.waitForTimeout(160);
-    }
+    // the lamps flash, and a software-rendered frame can take seconds: watch until all three have shown (or 30 s)
+    await page.waitForFunction(() => {
+      const t = window.__view?.trouble?.(), m = window.__most ??= { hazards: 0, cautions: 0, buses: 0, spare: false };
+      if (t) Object.assign(m, { hazards: Math.max(m.hazards, t.hazards), cautions: Math.max(m.cautions, t.cautions), buses: Math.max(m.buses, t.buses), spare: m.spare || t.spare });
+      return m.hazards >= 4 && m.cautions >= 4 && m.buses >= 1;
+    }, null, { timeout: 30000, polling: 100 }).catch(() => {});
+    const most = await page.evaluate(() => window.__most ?? { hazards: 0, cautions: 0, buses: 0, spare: false });
     const bad = [most.hazards < 4 && 'no hazard lights on the failed unit', most.cautions < 4 && 'no caution lamps', most.buses < 1 && 'no bus', most.spare && 'a spare unit nobody bought', errs[0]].filter(Boolean);
     ok(`trouble: at ${w}×${h} a failed train flashes its hazards, a signal failure has its caution lamps, and a replacement bus runs`, !bad.length, bad.join('; ') || JSON.stringify(most));
     if (!touch) await page.screenshot({ path: join(root, 'build/shots/trouble-bus.png') });

@@ -70,7 +70,11 @@ const unknown = named.filter(g => !groups.includes(g));
 if (unknown.length) { console.log(`no check group "${unknown[0]}"; the groups are ${groups.join(', ')}`); process.exit(1); }
 // Shards are balanced by each group's minutes on a CI runner (the "-- group took" lines in its log), heaviest first onto
 // the lightest shard; a group not listed counts as one minute. Update these when a shard runs long.
-const MINUTES = { camera: 10, reach: 4, life: 2.5, homes: 2 };
+// From the Publish run for 03240af (13 October 2026), with the real surroundings and the lines out in.
+const MINUTES = {
+  camera: 15.4, reach: 11, contract: 11, layout: 8.7, line: 8.1, saves: 7.1, homes: 4.7, preview: 4.4, access: 4.2,
+  weather: 3.8, life: 3.3, fullscreen: 3, offline: 2.7, trouble: 2.2, daylight: 2.1, perf: 1.7, contrast: 0.9,
+};
 const shardOf = new Map(), load = shard ? Array(shard[1]).fill(0) : [];
 if (shard) for (const g of [...groups].sort((a, b) => (MINUTES[b] ?? 1) - (MINUTES[a] ?? 1) || a.localeCompare(b))) {
   const i = load.indexOf(Math.min(...load)); shardOf.set(g, i); load[i] += MINUTES[g] ?? 1;

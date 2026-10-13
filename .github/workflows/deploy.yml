@@ -76,7 +76,8 @@ jobs:
       group: main-check-${{ matrix.shard }}
       cancel-in-progress: false
     # past the limit the job is cancelled, which opens no "main is red" issue, so keep it well clear of a shard's time
-    timeout-minutes: 30
+    # (about 25 minutes each, balanced by MINUTES in tools/check.mjs)
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

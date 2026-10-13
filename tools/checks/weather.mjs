@@ -1,6 +1,6 @@
 // Weather and seasons (docs/DESIGN.md, Weather and seasons), each from a save moved to a spell, a day and an hour: a
-// new game opens in spring sunshine with trees along the line and nothing falling; rain falls round the camera, the fog
-// draws in, umbrellas go up on the platforms and the rain patters once sound is on; Fair weather in the settings takes
+// new game opens in spring sunshine with trees along the line (the stand-in belt and the real squares' trees) and
+// nothing falling; rain falls round the camera, the fog draws in, umbrellas go up on the platforms and the rain patters once sound is on; Fair weather in the settings takes
 // the rain, the umbrellas and the murk off the map while the game's own weather is still rain; snow in winter falls and
 // settles; fog closes the view in to a few hundred metres; and the year moves dusk: lamp-lit at 17:30 in winter,
 // daylight at 17:30 in summer.
@@ -12,6 +12,11 @@ export default async function ({ ok, open, SAVE_KEY }) {
   const first = await open({ width: 1280, height: 800 });
   await first.page.waitForTimeout(600);
   const fresh = await first.page.evaluate(() => window.__view.weather());
+  // the trees along the line: the stand-in belt (weather.ts) where no real square is drawn, and the real squares' own
+  // trees (buildings.ts) where one is, which come in after the first frame; today every line has its real squares
+  const real = await first.page.waitForFunction(() => window.__view.buildings().then(s => s.trees > 100 ? s.trees : 0), null, { timeout: 120000, polling: 1000 })
+    .then(h => h.jsonValue()).catch(() => 0);
+  fresh.trees += real;
   ok('weather: a new game opens in spring sunshine, trees along the line and nothing falling', fresh.now === 'sun' && fresh.season === 0 && !fresh.falling && fresh.trees > 100 && !first.errs.length,
     JSON.stringify({ now: fresh.now, season: fresh.season, falling: fresh.falling, trees: fresh.trees, err: first.errs[0] }));
   // the page saves when it's hidden: say it is, rather than wait for its timer

@@ -85,11 +85,12 @@ export class Lineside {
     // the network's signal sites along the spine (the sim's block boundaries), the kth from the first
     const sites = [...net.spineOf].flatMap(id => net.signals[id] ?? []).filter(s => s < c.length);
     for (const s of sites) {
-      const k = Math.round((s - FIRST) / SITE), w = span(s); if (!w) continue;
+      // a site only where it's a block boundary on a track there (none too near a track's end, so no block is short)
+      const k = Math.round((s - FIRST) / SITE), w = span(s), here = net.tracks.filter(t => net.spineOf.has(t.corridor) && net.blocks(t.id).at.some(b => Math.abs(b - s) < 0.5));
+      if (!w || !here.length) continue;
       // the down lines (towards Manchester) are on the low side, so their signals face back down the line, at the trains
       // running towards Manchester; the high side's face the trains coming back
       sig.push([s, w[0] - OUT, -1], [s, w[1] + OUT, 1]);
-      const here = net.tracks.filter(t => net.spineOf.has(t.corridor) && net.blocks(t.id).at.some(b => Math.abs(b - s) < 0.5));
       for (const way of [1, -1] as const) this.faces.push({ s, tracks: here.filter(t => net.way(t.id) === way).map(t => t.id) });
       const sb = s + BOARD_AHEAD, wb = k % 2 === 0 && clear(sb) ? span(sb) : null;
       if (wb) board.push([sb, wb[0] - OUT, -1], [sb, wb[1] + OUT, 1]);

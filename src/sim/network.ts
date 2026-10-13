@@ -116,9 +116,22 @@ export class Route {
   uses(corridor: string): boolean { return this.legs.some(l => l.corridor === corridor); }
 }
 
+/** What a sensible layout keeps (docs/DESIGN.md, Where the tracks run; src/sim/layout.ts checks it all, the test runs it):
+ * step: metres between the points it samples. slope: the steepest a track or a station's rails shift sideways, across
+ * per along: a real 1 in 9 turnout's angle is about 1 in 7 across at the map's 1.25 times, and a throat on a curve fans
+ * a little faster (Stockport's north end, from OpenStreetMap, at up to about 1 in 5). still: slower than this a track
+ * isn't moving. apart: two tracks side by side are at least this far apart (trains are drawn 3.64 m wide), or within
+ * `together` of each other (one road worked both ways); in between they're in a turnout, merging, parting or crossing
+ * over, for no longer than `turnout`. gap: the clear line between one section (a station's throat, a junction, a
+ * crossover) and the next. cess: how far a structure's deck reaches beyond its outer track. block: the shortest block
+ * section, the longest train (an express's nine cars) and an overlap. */
+export const LAYOUT = { step: 5, slope: 0.2, still: 0.004, apart: 4.2, together: 0.3, turnout: 120, gap: 100, cess: 6, block: 9 * 23.6 + 50 };
+
 /** Signals: a site every SIGNAL_SITE metres of chainage from SIGNAL_FIRST (halfway between two masts), none within
- * SIGNAL_CLEAR of a station on its corridor (its kit fills that stretch). Each site is a block boundary on every track
- * there, and so are a track's ends (a junction, a buffer stop, the edge of the map). */
+ * SIGNAL_CLEAR of a station on its corridor (its kit fills that stretch) nor in a section where the tracks move (a
+ * throat, a crossover). Each site is a block boundary on every track there, and so are a track's ends (a junction, a
+ * buffer stop, the edge of the map), except a site closer than LAYOUT.block to the boundary before it or the track's
+ * end, so no block is shorter than a train and its overlap. */
 export const SIGNAL_SITE = 440, SIGNAL_FIRST = 57.5, SIGNAL_CLEAR = 280;
 /** A track's block sections: its boundaries in chainage order, and whether each block between two is open line (no
  * station in it: a station's own stretch is worked by its platforms). */
@@ -170,9 +183,9 @@ export class Network {
     this.byId = Object.fromEntries(this.stations.map(s => [s.id, s]));
     this.keys = Object.fromEntries(this.tracks.map(t => [t.id, this.profile(t)]));
     this.signals = Object.fromEntries(Object.values(this.corridors).map(c => {
-      const near = this.stations.filter(st => st.corridor === c.id), out: number[] = [];
+      const near = this.stations.filter(st => st.corridor === c.id), moving = this.sections(c.id), out: number[] = [];
       for (let k = Math.ceil((c.start - SIGNAL_FIRST) / SIGNAL_SITE), s = SIGNAL_FIRST + k * SIGNAL_SITE; s < c.end; k++, s = SIGNAL_FIRST + k * SIGNAL_SITE)
-        if (near.every(st => Math.abs(st.s - s) > SIGNAL_CLEAR)) out.push(s);
+        if (near.every(st => Math.abs(st.s - s) > SIGNAL_CLEAR) && moving.every(([a, b]) => s < a || s > b)) out.push(s);
       return [c.id, out];
     }));
     for (const v of def.services ?? []) for (const l of this.route(v).legs) { this.ways.set(l.north, 1); this.ways.set(l.south, -1); }
@@ -203,11 +216,55 @@ export class Network {
   /** A track's block sections (Blocks). */
   blocks(trackId: string): Blocks {
     let b = this.blockCache.get(trackId); if (b) return b;
-    const t = this.track(trackId), [e0, e1] = this.extent(trackId), at = [e0, ...(this.signals[t.corridor] ?? []).filter(s => s > e0 + 1 && s < e1 - 1), e1];
+    const t = this.track(trackId), [e0, e1] = this.extent(trackId), at = [e0];
+    for (const s of this.signals[t.corridor] ?? []) if (s - at[at.length - 1]! >= LAYOUT.block && e1 - s >= LAYOUT.block) at.push(s);
+    at.push(e1);
     const near = this.stations.filter(st => st.corridor === t.corridor);
     const open = at.slice(1).map((s1, k) => { const s0 = at[k]!; return near.every(st => (st.s < s0 || st.s > s1) && (st.at < s0 || st.at > s1)); });
     b = { at, open }; this.blockCache.set(trackId, b);
     return b;
+  }
+  /** The stretches of a corridor where its tracks, or a station's rails into a bay, move across it (its throats and
+   * crossovers): [s0, s1] in order. */
+  sections(corridorId: string): [number, number][] {
+    let out = this.sectionCache.get(corridorId); if (out) return out;
+    const c = this.corridor(corridorId), L = LAYOUT, moving = new Set<number>();
+    for (const t of this.tracks) {
+      if (t.corridor !== corridorId) continue;
+      const [e0, e1] = this.extent(t.id);
+      for (let s = e0 + L.step; s <= e1 - L.step; s += L.step) if (Math.abs(this.offsetAt(t.id, s + L.step) - this.offsetAt(t.id, s - L.step)) / (2 * L.step) > L.still) moving.add(Math.round(s / L.step));
+    }
+    for (const st of this.stations) if (st.corridor === corridorId) for (const p of st.platforms ?? []) {
+      const P = p.path ?? [];
+      for (let k = 1; k < P.length; k++) {
+        const [u0 = 0, v0 = 0] = P[k - 1]!, [u1 = 0, v1 = 0] = P[k]!;
+        if (Math.abs(v1 - v0) <= L.still * Math.abs(u1 - u0)) continue;
+        for (let s = st.at + Math.min(u0, u1); s <= st.at + Math.max(u0, u1); s += L.step) moving.add(Math.round(s / L.step));
+      }
+    }
+    out = [];
+    for (const k of [...moving].sort((a, b) => a - b)) {
+      const s = k * L.step, last = out[out.length - 1];
+      if (last && s - last[1] <= L.step + 1e-6) last[1] = s; else out.push([s, s]);
+    }
+    out = out.map(([a, b]) => [Math.max(c.start, a - L.step), Math.min(c.end, b + L.step)]);
+    this.sectionCache.set(corridorId, out);
+    return out;
+  }
+  private sectionCache = new Map<string, [number, number][]>();
+  /** How wide a structure's deck is drawn from s0 to s1 along a corridor: every track on it there, and the rails into a
+   * station's bay, with LAYOUT.cess beyond the outer ones either side ([low, high] across). */
+  deck(corridorId: string, s0: number, s1: number): [number, number] {
+    let lo = Infinity, hi = -Infinity;
+    const mark = (v: number) => { lo = Math.min(lo, v); hi = Math.max(hi, v); };
+    for (let s = s0; s <= s1 + 1e-6; s += Math.max(1, Math.min(LAYOUT.step, s1 - s0))) {
+      for (const t of this.tracks) { if (t.corridor !== corridorId) continue; const [e0, e1] = this.extent(t.id); if (s >= e0 && s <= e1) mark(this.offsetAt(t.id, s)); }
+      for (const st of this.stations) if (st.corridor === corridorId) for (const p of st.platforms ?? []) {
+        const P = p.path ?? [], u = s - st.at;
+        for (let k = 1; k < P.length; k++) { const [a = 0, va = 0] = P[k - 1]!, [b = 0, vb = 0] = P[k]!; if ((u - a) * (u - b) <= 0 && a !== b) mark(va + (vb - va) * (u - a) / (b - a)); }
+      }
+    }
+    return lo > hi ? [-LAYOUT.cess, LAYOUT.cess] : [lo - LAYOUT.cess, hi + LAYOUT.cess];
   }
   /** Which way a track's trains run: +1 towards Manchester, -1 the other way. */
   way(trackId: string): 1 | -1 { return this.ways.get(trackId) ?? 1; }

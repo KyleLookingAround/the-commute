@@ -89,3 +89,20 @@ Nothing runs alongside this session. If the coordinator starts another, it will 
 - **The file split** (item 5a) came after 13b had touched `tools/checks/` (line, reach, contract, layout, places), `tools/reveal.mjs`, `tools/shots.mjs` and `src/render/pick.ts`; the coordinator was told. 13c touched only `tools/checks/places.mjs`, `layout.mjs` and one line of `camera.mjs`.
 - **Budgets:** the script before the first frame is 447.6 of 450 KB with the real-scale session's kits in; Strain should load its drawing when the view is first turned on.
 - **Working here:** this container stalls `contract` at 1280×800 on its scroll to Begin, as it does `life` and `weather`; CI passes them. `reveal.mjs` now lowers the sheet to its peek for the strip and the map views, which hide while it's raised.
+
+13 October 2026, from the fourth pick-up session, stopping at about 490k of context as the cost budget says, partway through item 6.
+
+- **Runs 116 and 117 never finished:** later pushes cancelled them. Run 121, which carried both commits, failed only on `life` (fixed by fe545f5) and `weather`'s trees (fixed by d1e3f87). Every run since has been cancelled by the next push. **Run 126 (0909815) carries everything below.** The next session watches it and owns issue #7 ("main is red") until a run is green on all four shards.
+- **Item 5, part 13e, Strain, done** (d24b81a): as its commit message says. Reading is in `src/ui/strain.ts` and the glows in `src/render/strain.ts`; `strain` check group, 10/10 here.
+- **Item 6, the line between stations, parts 1 and 2 done.** Rebriefed to the buying design (7e5c2c5).
+  - Part 1 (8e51f84): `tools/osm-to-sections.mjs` puts each section's real speed and wires into the network data's `sections`, each corridor's list in chainage order.
+  - Part 2 (0909815): line speed by section on each section's card, and the stopper's Faster timetable stage folded into them. Its new signals come once the stopper's whole line is raised. Drawn in `src/render/sections.ts`; the bot buys it; SAVE_VERSION 19. The table is in the commit message.
+  - Also: the Buxton line's wires stop at Hazel Grove (302a2a9). The data's notes are left out of the bundle (1e9e1df): the script before the first frame went from 448.4 to 428.2 KB of 450.
+- **Next: item 6, parts 3 to 5.**
+  - Resignalling by section: closer blocks and fewer signal failures; take over `line.timetable`'s derived new signals.
+  - Electrification where `sections[...].wired` is 0: the Marple line, and the Buxton line beyond Hazel Grove. Masts drawn by `src/render/world.ts`'s `ohle()` from the corridor's `wires`, which would need to become per section.
+  - Flying junctions, offered where the sim counts trains held.
+  - Slow sections and held junctions in Strain.
+  - Real scale's handed-on list (things still placed at 1.25 times across: landmarks, bridge spans, the viaduct's edges, masts, signals, sidings, the bus roads into stations, in the roadmap's section 2): fold in where it touches the line, or leave it for its own item.
+- **Then item 8, Piccadilly's throat.** The real-scale session has finished, so `src/render/` and `tools/` are this list's again (the coordinator, 13 October 2026).
+- **Working here:** the browser groups take 3 to 12 minutes each in this container (strain about 8, line 7, perf 5). Run them in the background with `until grep -q "^[0-9]*/[0-9]* passed" log` to wait.

@@ -37,7 +37,8 @@ export default defineConfig({
     assetsInlineLimit: file => (file.endsWith('.txt') ? false : undefined),
     // three and the terrain base change least, so they're their own files: fetched alongside the game's own script
     // (the page preloads them), and still cached when only the game changes
-    rollupOptions: { output: { manualChunks: id => (id.includes('/node_modules/three/') ? 'three' : id.includes('/src/data/terrain/') ? 'terrain' : undefined) } },
+    // the tiles named by their hash alone: their list is in the script before the first frame, so each name kept short
+    rollupOptions: { output: { assetFileNames: a => ((a.names?.[0] ?? a.name ?? '').endsWith('.txt') ? 'assets/[hash][extname]' : 'assets/[name]-[hash][extname]'), manualChunks: id => (id.includes('/node_modules/three/') ? 'three' : id.includes('/src/data/terrain/') ? 'terrain' : undefined) } },
   },
   plugins: [offline()],
 });

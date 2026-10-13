@@ -4,7 +4,8 @@
 // Licence), into the world tiles the page draws (src/render/buildings.ts), one per kilometre square.
 //
 //    node tools/osm-to-world.mjs --station levenshulme --radius 600 [--station heaton-chapel --radius 600 ...]
-//    node tools/osm-to-world.mjs --corridor 900 [--from heaton-chapel --to piccadilly]
+//    node tools/osm-to-world.mjs --corridor 900 [--from heaton-chapel --to piccadilly]   (--from and --to on one line:
+//                                             the spine, or a corridor off it, as --from ashburys --to marple)
 //    node tools/osm-to-world.mjs --square 3_-41 [--square ...]
 //    node tools/osm-to-world.mjs --all        (writes again every square already in src/data/world/)
 //    node tools/osm-to-world.mjs --bridges --corridor 200 --from hazel-grove --to piccadilly
@@ -36,7 +37,8 @@
 //                                               spread (every 0.2 m)
 //    A  class n points                          an area of ground cover (cover() says the classes)
 //    L  width n points                          a street, its width every 0.5 m
-//    An area's or street's points: the first in full (x z, as a piece's), then each the step from the one before in
+//    H  height n points                         a hedge (hedges()), its height every 0.1 m
+//    An area's, street's or hedge's points: the first in full (x z, as a piece's), then each the step from the one before in
 //    whole metres, a character each way (-44 to 44), or '~' and the point in full for a longer step.
 //    Numbers are fixed-width base-90 digits (the terrain's alphabet): x, z every 0.25 m from 500 m before the square's
 //    corner, w, d and h every 0.1 m, yaw in 8100ths of a half turn. roof: f flat, p pitched, h hipped. wall and top
@@ -106,8 +108,10 @@ const addCircle = (x, z, r) => { for (let i = Math.floor((x - r) / SQ); i <= Mat
   st.forEach((id, k) => { const f = net.stationFrame(id); addCircle(f.x, f.z, +(rs[k] ?? rs[0] ?? 600)); });
   for (const r of opts('--corridor')) {
     const from = opts('--from')[0], to = opts('--to')[0];
-    const a = from ? net.station(from).s : 0, b = to ? net.station(to).s : c.length;
-    for (let s = Math.min(a, b); s <= Math.max(a, b); s += 50) { const p = c.at(s); addCircle(p.x, p.z, +r); }
+    // along the line the stations named are on (the spine, or a corridor off it: the Marple line, the Rose Hill branch)
+    const id = from ?? to, line = id ? net.lineOf(net.station(id).corridor) : c;
+    const a = from ? net.station(from).s : line.start, b = to ? net.station(to).s : line.end;
+    for (let s = Math.min(a, b); s <= Math.max(a, b); s += 50) { const p = line.at(s); addCircle(p.x, p.z, +r); }
   }
   for (const q of opts('--square')) squares.add(q);
   if (args.includes('--all')) for (const f of readdirSync(outDir)) if (f.endsWith('.txt')) squares.add(f.replace('.txt', ''));
@@ -540,6 +544,71 @@ function cover(key, els) {
   return { areas, streets };
 }
 const area_ = area;
+
+// ---------------------------------------------------------------------------------------------------------------
+// Hedges along field edges (the open stretches of the lines out): OSM's hedges (barrier=hedge), and the edges of its
+// fields and meadows where the LIDAR shows something growing along them (0.8 to 8 m over the ground, within 1.5 m of
+// the edge, no building), in runs of 12 m or more (a gap of up to 4 m bridged); each run at the median height grown
+// along it, 1.2 to 3 m (a hedgerow's taller trees are the trees'). Only the stretches within the square. OSM's own
+// hedges stand where it has them, at 2 m where the LIDAR shows nothing. Written as H lines (hedgeLines).
+const FIELD = t => ['farmland', 'meadow', 'orchard'].includes(t.landuse) || t.natural === 'grassland';
+function hedges(key, els, R) {
+  const { h, roof, taken, X, Z } = R, N = SQ, STEP = 2;
+  const nodes = new Map(), ways = new Map(); for (const e of els) { if (e.type === 'node') nodes.set(e.id, e); else if (e.type === 'way') ways.set(e.id, e); }
+  const line = ids => ids.map(id => nodes.get(id)).filter(Boolean).map(n => toGame(n.lat, n.lon));
+  // each edge once (a field's edge is often its neighbour's too), OSM's hedges first
+  const cands = [], seen = new Set(), edgeKey = (a, b) => [a, b].sort((p, q) => p - q).join('-');
+  const add = (ids, osm) => {
+    const run = [];
+    for (let k = 1; k < ids.length; k++) {
+      const e = edgeKey(ids[k - 1], ids[k]);
+      if (seen.has(e)) { if (run.length > 1) cands.push({ pts: line(run), osm }); run.length = 0; continue; }
+      seen.add(e); if (!run.length) run.push(ids[k - 1]); run.push(ids[k]);
+    }
+    if (run.length > 1) cands.push({ pts: line(run), osm });
+  };
+  for (const e of els) if (e.type === 'way' && e.tags?.barrier === 'hedge') add(e.nodes, true);
+  for (const e of els) {
+    if (e.type === 'way' && e.tags && !e.tags.building && FIELD(e.tags)) add(e.nodes, false);
+    if (e.type === 'relation' && e.tags?.type === 'multipolygon' && FIELD(e.tags)) for (const m of e.members) if (m.type === 'way' && m.role === 'outer' && ways.has(m.ref)) add(ways.get(m.ref).nodes, false);
+  }
+  // what grows at a point: the tallest within 1.5 m that isn't a building or a bridge (0 if none, NaN off the square)
+  const grows = (x, z) => {
+    const a0 = Math.floor(x - X), b0 = Math.floor(z - Z); if (a0 < 0 || b0 < 0 || a0 >= N || b0 >= N) return NaN;
+    let m = 0;
+    for (let b = Math.max(0, b0 - 1); b <= Math.min(N - 1, b0 + 1); b++) for (let a = Math.max(0, a0 - 1); a <= Math.min(N - 1, a0 + 1); a++) {
+      const k = b * N + a; if (taken[k] || roof[k]) continue; const v = h[k]; if (v >= 0.8 && v <= 8) m = Math.max(m, v);
+    }
+    return m;
+  };
+  const out = [];
+  for (const { pts, osm } of cands) {
+    // samples every STEP m along the line, in the square
+    const smp = [];
+    for (let k = 1; k < pts.length; k++) {
+      const [ax, az] = pts[k - 1], [bx, bz] = pts[k], L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(L / STEP));
+      for (let q = k > 1 ? 1 : 0; q <= n; q++) { const x = ax + (bx - ax) * q / n, z = az + (bz - az) * q / n; smp.push([x, z, grows(x, z)]); }
+    }
+    let run = [], gap = 0;
+    const flush = () => {
+      while (run.length && !(run[run.length - 1][2] > 0 || osm)) run.pop();
+      const len = run.reduce((s, p, k) => k ? s + Math.hypot(p[0] - run[k - 1][0], p[1] - run[k - 1][1]) : 0, 0);
+      if (len >= 12) {
+        const hs = run.map(p => p[2]).filter(v => v > 0).sort((a, b) => a - b), mid = hs.length ? hs[hs.length >> 1] : 2;
+        out.push({ h: Math.max(1.2, Math.min(3, mid)), pts: simplifyLine(run.map(p => [p[0], p[1]]), 0.8) });
+      }
+      run = []; gap = 0;
+    };
+    for (const p of smp) {
+      if (Number.isNaN(p[2])) { flush(); continue; }
+      if (p[2] > 0 || osm) { run.push(p); gap = 0; }
+      else if (run.length && (gap += STEP) <= 4) run.push(p);
+      else flush();
+    }
+    flush();
+  }
+  return out;
+}
 /** Douglas-Peucker on an open line. */
 function simplifyLine(pts, tol) {
   if (pts.length <= 2) return pts;
@@ -631,9 +700,11 @@ for (const key of [...squares].sort()) {
   const cov = cover(key, els);
   const coverLines = [...cov.areas.map(a => 'A' + a.cls + num(a.ring.length, 2) + pts(a.ring)), ...cov.streets.map(r => 'L' + num(r.w * 2, 1) + num(r.pts.length, 2) + pts(r.pts))];
   n.areas = cov.areas.length; n.streets = cov.streets.length;
+  const hedgeLines = hedges(key, els, extra.rasters).map(d => 'H' + num(d.h * 10, 1) + num(d.pts.length, 2) + pts(d.pts));
+  n.hedges = hedgeLines.length;
   // a tree's place every 1.25 m from 20 m before the square's corner, x and z in three characters together
   const treeLine = 'T' + trees.map(t => num(Math.round((t.x - si * SQ + 20) / 1.25) * 832 + Math.round((t.z - sj * SQ + 20) / 1.25), 3) + num(t.h * 2, 1) + num(t.r * 5, 1)).join('');
-  const text = JSON.stringify(head) + '\n' + encode(key, pieces) + '\n' + treeLine + '\n' + coverLines.join('\n') + '\n';
+  const text = JSON.stringify(head) + '\n' + encode(key, pieces) + '\n' + treeLine + '\n' + coverLines.join('\n') + '\n' + hedgeLines.map(l => l + '\n').join('');
   writeFileSync(join(outDir, `${key}.txt`), text);
   console.log(`\n${key}: ${head.note}; ${(text.length / 1024).toFixed(1)} KB`);
 }

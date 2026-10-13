@@ -7,7 +7,8 @@
 //   roads the replacement buses drive.
 // - Drawn merged by half-kilometre chunk, one draw call each: walls and roofs (pitched, hipped or flat) near the camera,
 //   blocks with a flat top further off; only the near chunks cast shadows (all take them), and Low (Settings, Graphics)
-//   leaves out the far ones.
+//   leaves out the far ones; a square wholly beyond the fog's far edge isn't drawn at all.
+// - Hedges along field edges (the lines out's open stretches), merged by chunk, drawn only near the camera.
 import * as THREE from 'three';
 import { PAL } from './scene.ts';
 import { partBoxes } from './terrain.ts';
@@ -44,10 +45,10 @@ export interface Piece { x: number; z: number; w: number; d: number; yaw: number
 /** Ground cover: an area's class and outline, or a street's width and line (x, z pairs, real). */
 export interface Cover { cls: string; w: number; pts: Float32Array }
 
-export function decodeWorld(key: string, text: string): { head: Record<string, unknown>; pieces: Piece[]; trees: Float32Array; cover: Cover[] } {
+export function decodeWorld(key: string, text: string): { head: Record<string, unknown>; pieces: Piece[]; trees: Float32Array; cover: Cover[]; hedges: Hedge[] } {
   const [i, j] = key.split('_').map(Number) as [number, number], X = i * SQUARE - 500, Z = j * SQUARE - 500;
   const lines = text.split('\n'), head = JSON.parse(lines[0]!) as Record<string, unknown>, pieces: Piece[] = [];
-  let trees = new Float32Array(0); const cover: Cover[] = [];
+  let trees = new Float32Array(0); const cover: Cover[] = [], hedges: Hedge[] = [];
   // an area's or street's points from p: the first in full, then steps of whole metres ('~' and in full for a long one)
   const points = (l: string, p: number, n: number): Float32Array => {
     const out = new Float32Array(n * 2); let qx = 0, qz = 0;
@@ -72,14 +73,18 @@ export function decodeWorld(key: string, text: string): { head: Record<string, u
       pieces.push({ x: (x0 + x1) / 2, z: (z0 + z1) / 2, w: x1 - x0, d: z1 - z0, yaw: 0, h: num(l, 1, 2) / 10, roof: 'f', wall: l[4]!, top: l[5]!, flags: INDEX[l.charCodeAt(6)]!, ring });
     } else if (l[0] === 'A') cover.push({ cls: l[1]!, w: 0, pts: points(l, 4, num(l, 2, 2)) });
     else if (l[0] === 'L') cover.push({ cls: 'r', w: num(l, 1, 1) / 2, pts: points(l, 4, num(l, 2, 2)) });
+    else if (l[0] === 'H') hedges.push({ h: num(l, 1, 1) / 10, pts: points(l, 4, num(l, 2, 2)) });
     else if (l[0] === 'T') {
       // each tree x, z, height, spread
       const n = (l.length - 1) / 5; trees = new Float32Array(n * 4);
       for (let q = 0; q < n; q++) { const p = 1 + q * 5, xz = num(l, p, 3); trees[q * 4] = X + 480 + Math.floor(xz / 832) * 1.25; trees[q * 4 + 1] = Z + 480 + (xz % 832) * 1.25; trees[q * 4 + 2] = num(l, p + 3, 1) / 2; trees[q * 4 + 3] = num(l, p + 4, 1) / 5; }
     }
   }
-  return { head, pieces, trees, cover };
+  return { head, pieces, trees, cover, hedges };
 }
+
+/** A hedge along a field's edge: its height and line (x, z pairs, real). */
+export interface Hedge { h: number; pts: Float32Array }
 
 /** A pitched or hipped roof's rise over its walls. */
 export const riseOf = (p: Piece): number => p.roof === 'f' ? 0 : Math.min(5, p.d * 0.35);
@@ -94,6 +99,9 @@ function corners(p: Piece): number[] {
 const NONE: [number, number, number, number][] = [];
 /** The trees as drawn: eight numbers each (x, ground y, z, height, spread, which kind, lightness, spare). */
 const TREE = 8;
+/** The hedges as drawn: a box every HEDGE_STEP m at most, seven numbers each (x, z at each end, ground y at each end,
+ * height). */
+const HEDGE = 7, HEDGE_STEP = 10, HEDGE_WIDTH = 1.3;
 
 /** What a piece may not stand on: the railway's land and its slopes, a station's kit, the buses' roads, the landmarks (their
  * buildings, the river and the M60). */
@@ -287,9 +295,9 @@ class Builder {
 interface Placed { p: Piece; cs: number[]; y0: number; y1: number }
 /** A square as drawn: one merged block mesh for far off, and its chunks in full (built while the camera's near). */
 interface Square { key: string; x0: number; z0: number; d: number; placed: Placed[]; far: THREE.Mesh; farTrees: THREE.InstancedMesh[]; chunks: Chunk[] }
-/** A chunk: its pieces and trees, and its meshes in full while the camera's near (buildings, the two kinds of crown,
- * the trunks). */
-interface Chunk { x: number; z: number; list: Placed[]; trees: number[]; mesh: THREE.Mesh | null; crowns: THREE.InstancedMesh[] | null }
+/** A chunk: its pieces, trees and hedges, and its meshes in full while the camera's near (buildings, the two kinds of
+ * crown, the trunks, the hedges; the hedges aren't drawn further off). */
+interface Chunk { x: number; z: number; list: Placed[]; trees: number[]; hedges: number[]; mesh: THREE.Mesh | null; crowns: THREE.InstancedMesh[] | null; hedge: THREE.Mesh | null }
 
 /** The real buildings, as the page draws them. */
 export class BuildingsLayer {
@@ -312,7 +320,7 @@ export class BuildingsLayer {
   /** Resolves once every square is in. */
   readonly ready: Promise<void>;
   /** What was read and what was left out, for the checks. */
-  readonly stats = { buildings: 0, pieces: 0, left: 0, trees: 0, treesLeft: 0 };
+  readonly stats = { buildings: 0, pieces: 0, left: 0, trees: 0, treesLeft: 0, hedges: 0, hedgesLeft: 0 };
 
   /** The ground's cover: a layer of a texture array for each square (COVER_PX across), painted as it comes in, and
    * which layer each square has; the terrain's material mixes it in (coverPatch). */
@@ -324,7 +332,7 @@ export class BuildingsLayer {
     this.ready = new Promise(r => { this.resolve = r; }); if (!this.squares.size) this.resolve();
     // a sentinel drawn every frame (it's empty): after the first frame, start fetching; then follow the camera
     const tick = new THREE.Mesh(new THREE.BufferGeometry(), this.material); tick.frustumCulled = false;
-    tick.onBeforeRender = (_r, _s, cam) => { if (cam instanceof THREE.PerspectiveCamera) this.follow(cam.position); };
+    tick.onBeforeRender = (_r, scene, cam) => { if (cam instanceof THREE.PerspectiveCamera) this.follow(cam.position, cam, scene.fog instanceof THREE.Fog ? scene.fog.far : Infinity); };
     this.group.add(tick);
   }
 
@@ -367,7 +375,7 @@ export class BuildingsLayer {
   setLow(low: boolean): void { this.low = low; this.last = -1; }
 
   /** Fetch the squares nearest the camera first; draw the near chunks in full, with shadows. Throttled. */
-  follow(at: THREE.Vector3): void {
+  follow(at: THREE.Vector3, cam: THREE.Camera | null = null, fogFar = Infinity): void {
     if (!this.started) {
       this.started = true;
       const order = [...this.squares].sort((a, b) => dist(a, at) - dist(b, at));
@@ -382,6 +390,13 @@ export class BuildingsLayer {
       sq.d = Math.hypot(dx, dz, Math.max(0, at.y - 300));
     }
     this.drawn.sort((a, b) => a.d - b.d);
+    // a square wholly deeper than the fog's far edge would be drawn in the fog's colour alone: its far meshes are left out
+    const fwd = cam ? cam.getWorldDirection(FWD) : null;
+    const fogged = (sq: Square): boolean => {
+      if (!fwd) return false;
+      const y = sq.far.geometry.boundingSphere?.center.y ?? at.y;
+      return (sq.x0 + SQUARE / 2 - at.x) * fwd.x + (y - at.y) * fwd.y + (sq.z0 + SQUARE / 2 - at.z) * fwd.z - SQUARE_REACH > fogFar;
+    };
     // the near squares' chunks in full, nearest first, for a few milliseconds a look (a fly-by never stalls a frame)
     this.pending = false;
     for (const sq of this.drawn) {
@@ -389,23 +404,24 @@ export class BuildingsLayer {
       for (const ch of sq.chunks) {
         if (ch.mesh) continue;
         if (performance.now() - now > 8) { this.pending = true; break; }   // cosmetic: how long a look may build
-        ch.mesh = this.mesh(ch.list, false); ch.crowns = this.trees(ch.trees, false);
+        ch.mesh = this.mesh(ch.list, false); ch.crowns = this.trees(ch.trees, false); ch.hedge = this.hedgeMesh(ch.hedges);
       }
       if (this.pending) break;
     }
     for (const sq of this.drawn) {
       const d = sq.d, near = d < NEAR;
       const full = near && sq.chunks.every(ch => ch.mesh);
-      const show = !(this.low && d > FAR_LOW) && d < FAR_ALL;
+      const show = !(this.low && d > FAR_LOW) && d < FAR_ALL && !fogged(sq);
       sq.far.visible = !full && show;
       for (const ch of sq.chunks) {
         if (!ch.mesh) continue;
         if (d > NEAR + 400) {
-          for (const m of [ch.mesh, ...(ch.crowns ?? [])]) { this.group.remove(m); if (m instanceof THREE.InstancedMesh) m.dispose(); else m.geometry.dispose(); }
-          ch.mesh = null; ch.crowns = null; continue;
+          for (const m of [ch.mesh, ...(ch.crowns ?? []), ...(ch.hedge ? [ch.hedge] : [])]) { this.group.remove(m); if (m instanceof THREE.InstancedMesh) m.dispose(); else m.geometry.dispose(); }
+          ch.mesh = null; ch.crowns = null; ch.hedge = null; continue;
         }
         const cd = Math.hypot(at.x - ch.x, at.z - ch.z, Math.max(0, at.y - 200)), shadow = full && cd < SHADOW, treesNear = full && cd < TREE_NEAR;
         ch.mesh.visible = full; ch.mesh.castShadow = shadow;
+        if (ch.hedge) { ch.hedge.visible = full; ch.hedge.castShadow = shadow; }
         for (const m of ch.crowns ?? []) { m.visible = treesNear; m.castShadow = shadow; }
       }
       // the far crowns: the big clumps, wherever the chunk's own trees aren't drawn
@@ -443,6 +459,18 @@ export class BuildingsLayer {
     const y = year * 4, i = Math.floor(y) % 4, f = y - Math.floor(y), t = f < 0.75 ? 0 : (f - 0.75) / 0.25;
     this.leaves.forEach((m, kind) => { leaf(i, kind, m.color); leaf((i + 1) % 4, kind, WALL); m.color.lerp(WALL, t).lerp(PAL.snow, 0.6 * settle); });
   }
+  /** A chunk's hedges, merged, in the first kind of crown's colour (so they take the seasons as the trees do). */
+  private hedgeMesh(list: number[]): THREE.Mesh | null {
+    if (!list.length) return null;
+    const b = new Builder(), w = HEDGE_WIDTH / 2;
+    for (let k = 0; k < list.length; k += HEDGE) {
+      const ax = list[k]!, az = list[k + 1]!, bx = list[k + 2]!, bz = list[k + 3]!, L = Math.hypot(bx - ax, bz - az) || 1, nx = -(bz - az) / L * w, nz = (bx - ax) / L * w;
+      const ya = list[k + 4]!, yb = list[k + 5]!;
+      b.prism([ax + nx, az + nz, bx + nx, bz + nz, bx - nx, bz - nz, ax - nx, az - nz], Math.min(ya, yb) - 0.3, (ya + yb) / 2 + list[k + 6]!, WALL, WALL);
+    }
+    const m = new THREE.Mesh(b.geometry(), this.leaves[0]); m.receiveShadow = true; m.castShadow = false; m.visible = false; m.name = 'hedges';
+    this.group.add(m); return m;
+  }
   /** A mesh of pieces, in full or as blocks. */
   private mesh(list: Placed[], blocks: boolean): THREE.Mesh {
     const b = new Builder();
@@ -458,14 +486,14 @@ export class BuildingsLayer {
     let text: string | null = null;
     try { const res = await fetch(this.files[key]!); if (res.ok) text = await res.text(); } catch { /* no connection */ }
     if (text === null) { this.placed.delete(key); setTimeout(() => void this.load(key), 30000); return; }
-    const { pieces, trees, cover } = decodeWorld(key, text);
+    const { pieces, trees, cover, hedges } = decodeWorld(key, text);
     const [i, j] = key.split('_').map(Number) as [number, number];
     if (this.terrain) await this.terrain.ensure((i + 0.5) * SQUARE, (j + 0.5) * SQUARE, SQUARE * 0.75);
     // in stages, a frame apart, so a phone never stalls long on one square
     const next = () => new Promise<void>(r => setTimeout(r, 0));
     const out = this.placeBuildings(key, pieces); await next();
-    const rows = this.placeTrees(trees); await next();
-    this.finish(key, out, rows); await next();
+    const rows = this.placeTrees(trees), hedged = this.placeHedges(hedges); await next();
+    this.finish(key, out, rows, hedged); await next();
     this.paint(key, cover);
     this.areas.set(key, cover.filter(c => c.cls !== 'r').map(c => {
       let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
@@ -476,8 +504,8 @@ export class BuildingsLayer {
   }
 
   /** A square's pieces, placed and drawn. */
-  add(key: string, pieces: Piece[], trees: Float32Array = new Float32Array(0)): Placed[] {
-    const out = this.placeBuildings(key, pieces); this.finish(key, out, this.placeTrees(trees)); return out;
+  add(key: string, pieces: Piece[], trees: Float32Array = new Float32Array(0), hedges: Hedge[] = []): Placed[] {
+    const out = this.placeBuildings(key, pieces); this.finish(key, out, this.placeTrees(trees), this.placeHedges(hedges)); return out;
   }
   /** A square's pieces, kept off what they may not stand on, and on their ground. */
   private placeBuildings(key: string, pieces: Piece[]): Placed[] {
@@ -516,18 +544,36 @@ export class BuildingsLayer {
     this.stats.trees += all.length / TREE;
     return all;
   }
-  /** A square's pieces and trees into chunks, and its far meshes. */
-  private finish(key: string, out: Placed[], all: number[]): void {
+  /** A square's hedges, in boxes of HEDGE_STEP m at most on their ground, each kept off what a
+   * tree may not stand on and the buildings (HEDGE numbers each). */
+  private placeHedges(hedges: Hedge[]): number[] {
+    const t = this.t, all: number[] = [];
+    for (const { h, pts } of hedges) {
+      for (let q = 2; q < pts.length; q += 2) {
+        const ax = pts[q - 2]!, az = pts[q - 1]!, bx = pts[q]!, bz = pts[q + 1]!, n = Math.ceil(Math.hypot(bx - ax, bz - az) / HEDGE_STEP);
+        for (let k = 0; k < n; k++) {
+          const x0 = ax + (bx - ax) * k / n, z0 = az + (bz - az) * k / n, x1 = ax + (bx - ax) * (k + 1) / n, z1 = az + (bz - az) * (k + 1) / n, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+          if (!this.keep.tree(mx, mz, 1) || this.blocked(mx, mz, 0.5)) { this.stats.hedgesLeft++; continue; }
+          all.push(x0, z0, x1, z1, t.groundY(x0, z0), t.groundY(x1, z1), h);
+        }
+      }
+    }
+    this.stats.hedges += all.length / HEDGE;
+    return all;
+  }
+  /** A square's pieces, trees and hedges into chunks, and its far meshes. */
+  private finish(key: string, out: Placed[], all: number[], hedges: number[] = []): void {
     // the chunks: each piece and tree in the chunk its middle's in
     const by = new Map<string, Chunk>(), chunk = (x: number, z: number) => {
       const a = Math.floor(x / CHUNK), b = Math.floor(z / CHUNK), k = `${a},${b}`;
-      let c = by.get(k); if (!c) { c = { x: (a + 0.5) * CHUNK, z: (b + 0.5) * CHUNK, list: [], trees: [], mesh: null, crowns: null }; by.set(k, c); } return c;
+      let c = by.get(k); if (!c) { c = { x: (a + 0.5) * CHUNK, z: (b + 0.5) * CHUNK, list: [], trees: [], hedges: [], mesh: null, crowns: null, hedge: null }; by.set(k, c); } return c;
     };
     for (const q of out) chunk(q.p.x, q.p.z).list.push(q);
     for (let k = 0; k < all.length; k += TREE) {
       chunk(all[k]!, all[k + 2]!).trees.push(...all.slice(k, k + TREE));
       const g = `${Math.floor(all[k]! / 20)},${Math.floor(all[k + 2]! / 20)}`; let l = this.treeGrid.get(g); if (!l) { l = []; this.treeGrid.set(g, l); } l.push(all[k]!, all[k + 2]!, all[k + 4]!);
     }
+    for (let k = 0; k < hedges.length; k += HEDGE) chunk((hedges[k]! + hedges[k + 2]!) / 2, (hedges[k + 1]! + hedges[k + 3]!) / 2).hedges.push(...hedges.slice(k, k + HEDGE));
     const [i, j] = key.split('_').map(Number) as [number, number];
     this.drawn.push({ key, x0: i * SQUARE, z0: j * SQUARE, d: Infinity, placed: out, far: this.mesh(out, true), farTrees: this.trees(all, true), chunks: [...by.values()] });
     this.last = -1;
@@ -576,6 +622,8 @@ export class BuildingsLayer {
     C.tex.addLayerUpdate(at); C.tex.needsUpdate = true;
   }
 
+  /** Every hedge's box placed so far, seven numbers each (the checks). */
+  hedgesPlaced(): number[] { return this.drawn.flatMap(sq => sq.chunks.flatMap(ch => ch.hedges)); }
   /** Every tree placed so far, eight numbers each (the checks). */
   treesPlaced(): number[] { return this.drawn.flatMap(sq => sq.chunks.flatMap(ch => ch.trees)); }
   /** The pieces drawn in a square (the checks). */
@@ -583,6 +631,10 @@ export class BuildingsLayer {
 }
 
 const PREV: [number, number, number, number] = [0, 0, 0, 0];
+const FWD = new THREE.Vector3();
+/** How far anything drawn for a square reaches from its middle (its corners, and 250 m up or down), with room for the
+ * camera to move between looks. */
+const SQUARE_REACH = Math.hypot(SQUARE / 2, SQUARE / 2, 250) + 150;
 
 // ---- the ground's cover ----
 /** A square's cover is painted this many pixels across (4 m each). */

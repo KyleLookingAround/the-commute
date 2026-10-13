@@ -1,9 +1,11 @@
 // The real surroundings (src/render/buildings.ts) from the world tiles on disk (tools/osm-to-world.mjs), placed as the
 // page places them on the terrain with every fine tile loaded. No browser.
 // - Every square loads: its header reads, it has buildings, and every piece is a sane size and height.
-// - Size: what's committed of the world tiles stays within its budget (2 MB for today's line).
+// - Size: what's committed of the world tiles stays within its budgets: 2 MB for today's line (its 52 squares, TODAY),
+//   1.5 MB for the lines out (every other square: the Buxton line beyond Hazel Grove, the Marple line, the Rose Hill branch).
 // - Clear of the line: no drawn building has any of its footprint (sampled every 2 m) on the railway's land or its
-//   cutting and embankment slopes, or on a station kit's parts; no tree stands on them either.
+//   cutting and embankment slopes, or on a station kit's parts; no tree or hedge stands on them either.
+// - Hedges: the lines out's open stretches have them along their field edges.
 // - The ground's cover: every square has its areas and streets.
 // - Clear of the landmarks: no corner of a building on a landmark's footprint (the town's named buildings, the Pyramid,
 //   the skyline's towers), the Mersey or the M60.
@@ -22,7 +24,10 @@ const { bridgesOf, buildLandmarks, standing, onCourses } = await import('../../s
 const THREE = await import('three');
 const { BuildingsLayer, decodeWorld } = await import('../../src/render/buildings.ts');
 
-const BUDGET = 2 * 1024 * 1024;
+const BUDGET = 2 * 1024 * 1024, BUDGET_OUT = 1.5 * 1024 * 1024;
+/** Today's line's squares (Hazel Grove to Piccadilly, and Stockport's valley); every other square is the lines out's. */
+const TODAY = new Set(('0_0 0_1 0_2 0_-1 0_-2 0_-3 1_0 1_1 1_2 1_3 1_-1 2_1 2_2 2_3 2_4 3_2 3_3 -1_0 -1_1 -1_2 -1_-1 -1_-2 -1_-3 -1_-4 -1_-5 -2_0 '
+  + '-2_1 -2_-1 -2_-2 -2_-3 -2_-4 -2_-5 -2_-6 -2_-7 -2_-8 -3_-3 -3_-4 -3_-5 -3_-6 -3_-7 -3_-8 -3_-9 -4_-5 -4_-6 -4_-7 -4_-8 -4_-9 -5_-7 -5_-8 -5_-9 -6_-8 -6_-9').split(' '));
 
 export default async function ({ ok, root }) {
   const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def), c = net.spine;
@@ -37,24 +42,27 @@ export default async function ({ ok, root }) {
   for (const f of files) {
     const key = f.replace('.txt', '');
     try {
-      const { head, pieces, trees, cover } = decodeWorld(key, readFileSync(join(dir, f), 'utf8'));
+      const { head, pieces, trees, cover, hedges } = decodeWorld(key, readFileSync(join(dir, f), 'utf8'));
       if (!pieces.length || !head.n) bad.push(`${key}: no buildings`);
       for (const p of pieces) if (![p.x, p.z, p.w, p.d, p.h].every(Number.isFinite) || p.w <= 0 || p.d <= 0 || p.w > 600 || p.h < 2 || p.h > 320 || !'fph'.includes(p.roof)) { bad.push(`${key}: a piece ${JSON.stringify({ ...p, ring: !!p.ring })}`); break; }
       if (!trees.length) bad.push(`${key}: no trees`);
-      squares.push({ key, head, pieces, trees, cover });
+      squares.push({ key, head, pieces, trees, cover, hedges });
     } catch (e) { bad.push(`${key}: ${e.message}`); }
   }
   ok(`world: every square loads (${files.length})`, files.length > 0 && !bad.length, bad.slice(0, 4).join('; '));
 
-  const size = files.reduce((n, f) => n + statSync(join(dir, f)).size, 0);
-  ok(`world: the tiles are within their budget (${(size / 1024).toFixed(0)} KB of ${BUDGET / 1048576} MB)`, size <= BUDGET);
+  const sizeOf = list => list.reduce((n, f) => n + statSync(join(dir, f)).size, 0);
+  const today = files.filter(f => TODAY.has(f.replace('.txt', ''))), out = files.filter(f => !TODAY.has(f.replace('.txt', '')));
+  const size = sizeOf(today), sizeOut = sizeOf(out);
+  ok(`world: today's line's tiles are within their budget (${(size / 1024).toFixed(0)} KB of ${BUDGET / 1048576} MB, ${today.length} squares)`, size <= BUDGET);
+  ok(`world: the lines out's tiles are within their budget (${(sizeOut / 1024).toFixed(0)} KB of ${BUDGET_OUT / 1048576} MB, ${out.length} squares)`, sizeOut <= BUDGET_OUT);
 
   // placed as the page places them
   // the landmarks first, so their footprints are known (as the page builds them before the buildings come in)
   const real = new Set(files.map(f => f.replace('.txt', '')));
   buildLandmarks(new THREE.Scene(), net, def, (x, z) => t.groundY(x, z), (x, z) => real.has(`${Math.floor(x / 1000)}_${Math.floor(z / 1000)}`));
   const layer = new BuildingsLayer(t, {}, net, def, kits), times = [];
-  const placed = squares.map(({ key, pieces, trees }) => { const t0 = performance.now(), out = layer.add(key, pieces, trees); times.push(performance.now() - t0); return out; });
+  const placed = squares.map(({ key, pieces, trees, hedges }) => { const t0 = performance.now(), out = layer.add(key, pieces, trees, hedges); times.push(performance.now() - t0); return out; });
   console.log(`      ${layer.stats.buildings} pieces read, ${layer.stats.pieces} drawn, ${layer.stats.left} left out; placing a square takes ${(times.reduce((a, b) => a + b, 0) / times.length).toFixed(0)} ms on average here, ${Math.max(...times).toFixed(0)} at most`);
 
   // clear of the railway's land and the kits: each footprint sampled every 2 m
@@ -91,6 +99,15 @@ export default async function ({ ok, root }) {
     }
   }
   ok(`world: no tree on the railway's land, its slopes or a kit's parts (${tr.length / 8} trees, ${layer.stats.treesLeft} left out)`, tr.length > 0 && !badTree.length, `${badTree.length}: ` + badTree.slice(0, 4).join(', '));
+  // the hedges: off the same, and along the lines out's field edges
+  const hg = layer.hedgesPlaced(), badHedge = [];
+  for (let k = 0; k < hg.length; k += 7) {
+    const x = (hg[k] + hg[k + 2]) / 2, z = (hg[k + 1] + hg[k + 3]) / 2;
+    if (t.railLand(x, z, 0)) { const L = t.locate(x, z); badHedge.push(`${L.s.toFixed(0)}:${L.o.toFixed(1)}`); }
+  }
+  const hedgeKm = hg.reduce((n, _, k) => k % 7 ? n : n + Math.hypot(hg[k + 2] - hg[k], hg[k + 3] - hg[k + 1]), 0) / 1000;
+  ok(`world: the lines out have hedges, none on the railway's land (${hedgeKm.toFixed(0)} km in ${hg.length / 7} boxes, ${layer.stats.hedgesLeft} left out)`,
+    (!out.length || squares.some(s => s.hedges.length)) && !badHedge.length, `${badHedge.length}: ` + badHedge.slice(0, 4).join(', '));
   const cov = squares.reduce((n, s) => n + s.cover.length, 0);
   ok(`world: the ground's cover is in the tiles (${cov} areas and streets)`, squares.every(s => s.cover.length > 0));
 

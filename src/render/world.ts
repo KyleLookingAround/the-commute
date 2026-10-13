@@ -181,6 +181,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
         if (seed(k, 4) > 0.35 + (near < 600 ? 0.3 : 0)) continue;
         const terrace = seed(k, 5) < 0.5, w = terrace ? 12 + seed(k, 6) * 26 : 8 + seed(k, 6) * 10, d = 9 + seed(k, 7) * 6, h = 6 + seed(k, 8) * 5;
         const p = l.at(s, off), rr = Math.max(w, d) / 2;
+        if (buildings.real(p.x, p.z)) continue;
         if (onRoad(p.x, p.z, 6 + rr) || offLine(p.x, p.z, rr)) continue;
         const ys = [groundY(p.x, p.z), groundY(p.x - rr, p.z - rr), groundY(p.x + rr, p.z - rr), groundY(p.x - rr, p.z + rr), groundY(p.x + rr, p.z + rr)];
         const y0 = Math.min(...ys); if (Math.max(...ys) - y0 > 5) continue;

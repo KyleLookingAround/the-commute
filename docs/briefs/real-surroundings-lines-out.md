@@ -38,3 +38,19 @@ The session pushes to `main` once the rules, tests, the world and perf groups an
 ## Cost budget
 
 - Estimate: about $25. The tool exists; the work is three runs, a budget, hedges and shots.
+
+## Handed on
+
+What landed (13 October 2026), `docs/DESIGN.md` (The surroundings):
+
+- 63 new squares within 900 m of the Buxton line from Hazel Grove to New Mills Newtown (Middlewood, Disley), the Marple line from Ashburys and the Rose Hill branch: 1,462 KB of their own 1.5 MB budget in the `world` group. `--corridor` with `--from` and `--to` now walks the line those stations are on, so a corridor off the spine runs as the spine does. Today's 52 squares were left as they were, not rewritten.
+- Hedges: `hedges()` in the tool, an `H` line each, from OSM's own and the field edges the LIDAR shows growing; 228 km on the lines out. Drawn only near the camera, in the trees' seasonal colour.
+- The stand-in houses along the lines out give way to the real squares, as the spine's already did (one line in `src/render/world.ts`); the lineside trees already did.
+- The perf group: a square wholly beyond the fog's far edge isn't drawn (it would be fog-coloured), so the opening stays at 438,000 triangles (439,000 before) and the busy save drops from 515,000 to 501,000. The tiles are named by their hash alone (`vite.config.ts`), so the script before the first frame stays at 447 KB with the longer list.
+- Screenshots: `real-surroundings/lines-out-<station>-<size>-before.jpg` and `-after.jpg`, Disley, Marple and Romiley from above with every square loaded.
+
+What's left:
+
+- `tools/shots.mjs --stations` doesn't load every square before it shoots, so far squares can be missing from its shots; the ones here were taken with every square loaded (`window.__view.loadBuildings()`).
+- The ground's cover keeps a 256-pixel layer a square on the GPU (about 30 MB for all 115 squares); a line out after these should halve it or page it.
+- Squares beyond the 900 m band (north of Marple, the hills above Disley) keep the stand-in houses until a wider run.

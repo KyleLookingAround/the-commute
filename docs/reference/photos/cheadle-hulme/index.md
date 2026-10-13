@@ -13,6 +13,19 @@ The junction station where the Crewe line (via Handforth and Wilmslow) and the M
 | [platform-3-1.jpg](platform-3-1.jpg) | Platform 3 under the white lattice footbridge, looking along the Stoke lines. | 2026-08-10 | DS Pugh | CC BY-SA 2.0 | [geograph 8385304](https://www.geograph.org.uk/photo/8385304) | [640 px](https://s0.geograph.org.uk/geophotos/08/38/53/8385304_376a9a2a.jpg) |
 | [platform-3-south-1.jpg](platform-3-south-1.jpg) | South along platform 3, the line curving away towards Bramhall. | 2026-08-10 | DS Pugh | CC BY-SA 2.0 | [geograph 8385305](https://www.geograph.org.uk/photo/8385305) | [640 px](https://s0.geograph.org.uk/geophotos/08/38/53/8385305_5ee08a2c.jpg) |
 
+## Round the station
+
+The station spans Station Road (A5149) on two bridges, one for each pair of lines; the old bank building stands between them, with shops, offices and the Waitrose car park round about.
+
+| Photo | What it shows | Taken | Photographer | Licence | Source | Image |
+| --- | --- | --- | --- | --- | --- | --- |
+| [area-bridgeway-house-1.jpg](area-bridgeway-house-1.jpg) | Bridgeway House, the old Williams Deacons bank between the station's two bridges, then becoming a bar (2019). | 2019-03-02 | Gerald England | CC BY-SA 2.0 | [geograph 6083958](https://www.geograph.org.uk/photo/6083958) | [640 px](https://s0.geograph.org.uk/geophotos/06/08/39/6083958_09e682bc.jpg) |
+| [area-bridges-1.jpg](area-bridges-1.jpg) | The two railway bridges over Station Road: the nearer carries the Stafford lines, the farther the Crewe lines (2026). | 2026-08-10 | DS Pugh | CC BY-SA 2.0 | [geograph 8385299](https://www.geograph.org.uk/photo/8385299) | [640 px](https://s0.geograph.org.uk/geophotos/08/38/52/8385299_ef1f7a91.jpg) |
+| [area-station-road-1.jpg](area-station-road-1.jpg) | Station Road from platform 1 (2018). | 2018-09-12 | philandju | CC BY-SA 2.0 | [geograph 5903231](https://www.geograph.org.uk/photo/5903231) | [640 px](https://s0.geograph.org.uk/geophotos/05/90/32/5903231_02e69033.jpg) |
+| [area-station-road-2.jpg](area-station-road-2.jpg) | Station Road from the station, looking north-west (2013). | 2013-02-02 | Nigel Thompson | CC BY-SA 2.0 | [geograph 3317893](https://www.geograph.org.uk/photo/3317893) | [640 px](https://s0.geograph.org.uk/geophotos/03/31/78/3317893_4f6ac7db.jpg) |
+| [area-footpath-1.jpg](area-footpath-1.jpg) | The public footpath between the railway and the Waitrose car park, south-west of Station Road (2021). | 2021-04-17 | Richard Vince | CC BY-SA 2.0 | [geograph 6821642](https://www.geograph.org.uk/photo/6821642) | [640 px](https://s0.geograph.org.uk/geophotos/06/82/16/6821642_ace54c62.jpg) |
+| [area-tower-block-1.jpg](area-tower-block-1.jpg) | A tower block near the station (2015). | 2015-03-22 | N Chadwick | CC BY-SA 2.0 | [geograph 4830247](https://www.geograph.org.uk/photo/4830247) | [640 px](https://s0.geograph.org.uk/geophotos/04/83/02/4830247_db35d3a6.jpg) |
+
 ## What the photos settle
 
 - Cheadle Hulme has four platforms in two pairs on diverging lines: 1–2 on the Crewe lines, 3–4 on the Stoke lines; both pairs cross Station Road on separate bridges.

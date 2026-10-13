@@ -13,6 +13,15 @@ A listed 1887 LNWR station on the electrified Stockport–Macclesfield line, in 
 | [platform-train-1.jpg](platform-train-1.jpg) | A CrossCountry Voyager passing through, with the canopy, the covered stairs and the road bridge behind. | 2019-04-12 | Graham Hogg | CC BY-SA 2.0 | [geograph 6118419](https://www.geograph.org.uk/photo/6118419) | [640 px](https://s0.geograph.org.uk/geophotos/06/11/84/6118419_dd81502f.jpg) |
 | [platform-1-sign-1.jpg](platform-1-sign-1.jpg) | The 'POYNTON' running-in board and benches on platform 1 in front of the palisade fence. | 2019-04-12 | Graham Hogg | CC BY-SA 2.0 | [geograph 6129883](https://www.geograph.org.uk/photo/6129883) | [640 px](https://s0.geograph.org.uk/geophotos/06/12/98/6129883_5b235687.jpg) |
 
+## Round the station
+
+The station is off Chester Road (A5149) at the Spinners Lane junction, among houses and gardens.
+
+| Photo | What it shows | Taken | Photographer | Licence | Source | Image |
+| --- | --- | --- | --- | --- | --- | --- |
+| [area-chester-road-1.jpg](area-chester-road-1.jpg) | The Spinners Lane and Chester Road junction, with the station car park behind (2013). | 2013-04-03 | John Topping | CC BY-SA 2.0 | [geograph 3427977](https://www.geograph.org.uk/photo/3427977) | [640 px](https://s0.geograph.org.uk/geophotos/03/42/79/3427977_194ab673.jpg) |
+| [area-chester-road-2.jpg](area-chester-road-2.jpg) | Chester Road near the station, cherry blossom over the footway (2019). | 2019-04-12 | Graham Hogg | CC BY-SA 2.0 | [geograph 6129703](https://www.geograph.org.uk/photo/6129703) | [640 px](https://s0.geograph.org.uk/geophotos/06/12/97/6129703_e3105ff2.jpg) |
+
 ## What the photos settle
 
 - The booking office is a separate listed building at road level by the car park, above the platforms.

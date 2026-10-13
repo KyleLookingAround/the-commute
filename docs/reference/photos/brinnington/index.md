@@ -13,6 +13,19 @@ A 1977 station in a tree-lined cutting on the Manchester–New Mills line: two s
 | [overview-2.jpg](overview-2.jpg) | From the road bridge with a Manchester train arriving at platform 1: the whole length of both platforms and the lamp posts. | 2015-06-23 | Graham Hogg | CC BY-SA 2.0 | [geograph 4539766](https://www.geograph.org.uk/photo/4539766) | [640 px](https://s0.geograph.org.uk/geophotos/04/53/97/4539766_a8a70398.jpg) |
 | [roadbridge-1.jpg](roadbridge-1.jpg) | The Link's road bridge over the railway at the station, with red parapet railings (2013). | 2013-03-04 | John Topping | CC BY-SA 2.0 | [geograph 3375577](https://www.geograph.org.uk/photo/3375577) | [640 px](https://s0.geograph.org.uk/geophotos/03/37/55/3375577_fbe06ae4.jpg) |
 
+## Round the station
+
+The station is on the edge of the Brinnington estate: The Link crosses the line at the station and meets Middlesex Road at a roundabout; 1960s tower blocks stand nearby.
+
+| Photo | What it shows | Taken | Photographer | Licence | Source | Image |
+| --- | --- | --- | --- | --- | --- | --- |
+| [area-middlesex-road-1.jpg](area-middlesex-road-1.jpg) | Middlesex Road, the estate's spine road beside the station (2026). | 2026-04-13 | Gerald England | CC BY-SA 2.0 | [geograph 8297638](https://www.geograph.org.uk/photo/8297638) | [640 px](https://s0.geograph.org.uk/geophotos/08/29/76/8297638_0687cbd0.jpg) |
+| [area-roundabout-1.jpg](area-roundabout-1.jpg) | The Middlesex Road roundabout seen from The Link (2013). | 2013-03-04 | John Topping | CC BY-SA 2.0 | [geograph 3375568](https://www.geograph.org.uk/photo/3375568) | [640 px](https://s0.geograph.org.uk/geophotos/03/37/55/3375568_8dd75590.jpg) |
+| [area-bus-turning-1.jpg](area-bus-turning-1.jpg) | The bus turning circle on Holtwood Walk off Blackberry Lane, now a bus layby for route 325 (2018). | 2018-05-12 | Richard Vince | CC BY-SA 2.0 | [geograph 5772659](https://www.geograph.org.uk/photo/5772659) | [640 px](https://s0.geograph.org.uk/geophotos/05/77/26/5772659_7999fc7c.jpg) |
+| [area-tower-block-1.jpg](area-tower-block-1.jpg) | One of the estate's seven similar 11-storey tower blocks (2015). | 2015-06-23 | Graham Hogg | CC BY-SA 2.0 | [geograph 4539760](https://www.geograph.org.uk/photo/4539760) | [640 px](https://s0.geograph.org.uk/geophotos/04/53/97/4539760_d0187dd6.jpg) |
+| [area-aerial-1.jpg](area-aerial-1.jpg) | From the air: three of the four tower blocks on or near Northumberland Road (2026). | 2026-07-10 | Thomas Nugent | CC BY-SA 2.0 | [geograph 8372607](https://www.geograph.org.uk/photo/8372607) | [640 px](https://s0.geograph.org.uk/geophotos/08/37/26/8372607_3028a95f.jpg) |
+| [area-school-1.jpg](area-school-1.jpg) | Westmorland Primary School's entrance on Middlesex Road (2026). | 2026-04-13 | Gerald England | CC BY-SA 2.0 | [geograph 8297644](https://www.geograph.org.uk/photo/8297644) | [640 px](https://s0.geograph.org.uk/geophotos/08/29/76/8297644_7c781d8c.jpg) |
+
 ## What the photos settle
 
 - Street level is above the platforms: the booking office stands at road level beside the bridge, and the platforms lie in a cutting below.

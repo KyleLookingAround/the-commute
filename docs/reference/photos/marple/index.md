@@ -13,6 +13,17 @@ Two platforms in a deep wooded cutting below Station Road (A626), on the Hope Va
 | [platform-2-north-2.jpg](platform-2-north-2.jpg) | Platform 2 towards the north end: the stone arch bridge and the tunnel mouth under the Peak Forest Canal beyond it. | 2015-06-05 | El Pollock | CC BY-SA 2.0 | [geograph 4512362](https://www.geograph.org.uk/photo/4512362) | [640 px](https://s0.geograph.org.uk/geophotos/04/51/23/4512362_5cb95719.jpg) |
 | [building-1.jpg](building-1.jpg) | The brick station building on the platform with ticket machine, posters and the Marple running-in board, red timber fence and the footbridge stairs behind. | 2015-06-05 | El Pollock | CC BY-SA 2.0 | [geograph 4512650](https://www.geograph.org.uk/photo/4512650) | [640 px](https://s0.geograph.org.uk/geophotos/04/51/26/4512650_bb46d5fe.jpg) |
 
+## Round the station
+
+The station lies at the foot of Brabyns Brow (A626) in the wooded Goyt valley, below St Martin's church and the Peak Forest Canal; see the Marple town centre folder in `areas/` for the town up the hill.
+
+| Photo | What it shows | Taken | Photographer | Licence | Source | Image |
+| --- | --- | --- | --- | --- | --- | --- |
+| [area-church-1.jpg](area-church-1.jpg) | St Martin's church on Brabyns Brow, built from 1869 (2015). | 2015-05-01 | Neil Theasby | CC BY-SA 2.0 | [geograph 4455870](https://www.geograph.org.uk/photo/4455870) | [640 px](https://s0.geograph.org.uk/geophotos/04/45/58/4455870_e6ad0ec1.jpg) |
+| [area-brabyns-brow-1.jpg](area-brabyns-brow-1.jpg) | Brabyns Brow, the road down to the station (2016). | 2016-05-15 | Mick Garratt | CC BY-SA 2.0 | [geograph 4969938](https://www.geograph.org.uk/photo/4969938) | [640 px](https://s0.geograph.org.uk/geophotos/04/96/99/4969938_d17fa5ec.jpg) |
+| [area-brabyns-brow-bridge-1.jpg](area-brabyns-brow-bridge-1.jpg) | From the Brabyns Brow bridge along the line towards New Mills (2024). | 2024-05-17 | Kevin Waterhouse | CC BY-SA 2.0 | [geograph 7785469](https://www.geograph.org.uk/photo/7785469) | [640 px](https://s0.geograph.org.uk/geophotos/07/78/54/7785469_17f08db5.jpg) |
+| [area-canal-1.jpg](area-canal-1.jpg) | The Peak Forest Canal from Brabyns Brow, above the station (2026). | 2026-08-14 | DS Pugh | CC BY-SA 2.0 | [geograph 8411570](https://www.geograph.org.uk/photo/8411570) | [640 px](https://s0.geograph.org.uk/geophotos/08/41/15/8411570_6947a930.jpg) |
+
 ## What the photos settle
 
 - Marple has a big car park, on the side away from the main building, alongside the platform.

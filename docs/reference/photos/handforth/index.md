@@ -13,6 +13,18 @@ Two side platforms in a cutting on the Crewe line between Cheadle Hulme and Wilm
 | [platform-train-1.jpg](platform-train-1.jpg) | A Class 323 arriving with a Manchester Piccadilly to Crewe service; the bridge behind it. | 2015-06-13 | El Pollock | CC BY-SA 2.0 | [geograph 4524465](https://www.geograph.org.uk/photo/4524465) | [640 px](https://s0.geograph.org.uk/geophotos/04/52/44/4524465_0d2a2e5d.jpg) |
 | [sign-1.jpg](sign-1.jpg) | The British Railways 'Handforth Station' sign in its planter, one of the station's heritage signs. | 2021-12-12 | N Chadwick | CC BY-SA 2.0 | [geograph 7401041](https://www.geograph.org.uk/photo/7401041) | [640 px](https://s0.geograph.org.uk/geophotos/07/40/10/7401041_3196a7f5.jpg) |
 
+## Round the station
+
+The ticket office is on the Station Road (B5358) bridge; the Railway pub faces it, and Station Road meets Wilmslow Road at the Freemasons Arms a short walk west.
+
+| Photo | What it shows | Taken | Photographer | Licence | Source | Image |
+| --- | --- | --- | --- | --- | --- | --- |
+| [area-entrance-1.jpg](area-entrance-1.jpg) | The station's entrance on Station Road (2012). | 2012-02-19 | David Dixon | CC BY-SA 2.0 | [geograph 2813193](https://www.geograph.org.uk/photo/2813193) | [640 px](https://s0.geograph.org.uk/geophotos/02/81/31/2813193_1b470ac9.jpg) |
+| [area-railway-pub-1.jpg](area-railway-pub-1.jpg) | The Railway pub on Station Road, opposite the station (2024). | 2024-05-30 | JThomas | CC BY-SA 2.0 | [geograph 7795481](https://www.geograph.org.uk/photo/7795481) | [640 px](https://s0.geograph.org.uk/geophotos/07/79/54/7795481_3897dba7.jpg) |
+| [area-freemasons-1.jpg](area-freemasons-1.jpg) | The Freemasons Arms on the corner of Wilmslow Road and Station Road (2015). | 2015-10-03 | Mike Faherty | CC BY-SA 2.0 | [geograph 4686984](https://www.geograph.org.uk/photo/4686984) | [640 px](https://s0.geograph.org.uk/geophotos/04/68/69/4686984_18b72299.jpg) |
+| [area-wilmslow-road-1.jpg](area-wilmslow-road-1.jpg) | Across Wilmslow Road towards Station Road (2017). | 2017-03-22 | DS Pugh | CC BY-SA 2.0 | [geograph 5343814](https://www.geograph.org.uk/photo/5343814) | [640 px](https://s0.geograph.org.uk/geophotos/05/34/38/5343814_df3a5449.jpg) |
+| [area-junction-1.jpg](area-junction-1.jpg) | Wilmslow Road at the Station Road junction (2014). | 2014-06-20 | Colin Pyle | CC BY-SA 2.0 | [geograph 4035851](https://www.geograph.org.uk/photo/4035851) | [640 px](https://s0.geograph.org.uk/geophotos/04/03/58/4035851_7d167c7a.jpg) |
+
 ## What the photos settle
 
 - The booking office is on the road bridge, at street level, not on a platform; the platforms are below in a cutting.

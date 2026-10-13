@@ -31,7 +31,18 @@ Photographs of the real stations, from several angles, for anyone building or ch
 | [Woodsmoor](woodsmoor/index.md) | 8 | 5 |
 | [Hazel Grove](hazel-grove/index.md) | 8 | 6 |
 
-The Buxton line beyond Hazel Grove is listed here once added.
+### The Buxton line beyond Hazel Grove
+
+| Station | Station photos | Round it |
+| --- | --- | --- |
+| [Middlewood](middlewood/index.md) | 7 | 2 |
+| [Disley](disley/index.md) | 8 | 4 |
+| [New Mills Newtown](new-mills-newtown/index.md) | 8 | 4 |
+| [Furness Vale](furness-vale/index.md) | 6 | 4 |
+| [Whaley Bridge](whaley-bridge/index.md) | 8 | 4 |
+| [Chapel-en-le-Frith](chapel-en-le-frith/index.md) | 8 | 4 |
+| [Dove Holes](dove-holes/index.md) | 8 | 2 |
+| [Buxton](buxton/index.md) | 8 | 3 |
 
 The other lines of phase 5:
 

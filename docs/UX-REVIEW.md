@@ -35,9 +35,8 @@ From the redesign's directions (12 October 2026, `docs/design/redesign.md`); sta
 
 From the buying design (13 October 2026, `docs/design/buying.md`), for phase 5 step 13 to fix:
 
-- The strip of station chips is one line long: it can't show bus stops, routes or two lines out. (The Station | Line switch went with part 13b's one card.)
+- Fixed by part 13c: the strip of station chips couldn't show bus stops, routes or two lines out (now the Places row, Next to and the full list); the edge marker only knew the next station up the line (now up to three offered stations).
 - Fixed by part 13b: the line panel mixed the trains, the timetable, the spare unit and the contract (now the stopper's, the sidings' and the Network cards); a train couldn't be tapped (it opens its service).
-- The edge marker only knows the next station up the line.
 - A halt's card opens with eight stages at once; the opening reads better with one a ladder.
 
 ## 3. Change

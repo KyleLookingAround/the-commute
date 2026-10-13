@@ -60,7 +60,7 @@ export default async function ({ ok, open }) {
     const i = 2, spot = await page.evaluate(i => window.__view.spot('station', i), i);
     if (spot) await page.mouse.click(spot[0], spot[1] - 10);
     await page.waitForTimeout(300); const mid = await cam(page); await settle(page);
-    const st = await page.evaluate(i => ({ sel: document.querySelectorAll('#strip .card')[i]?.getAttribute('aria-pressed'), h: document.getElementById('shName')?.textContent || '' }), i);
+    const st = await page.evaluate(() => ({ sel: String(document.getElementById('panel')?.dataset.place === 'station:levenshulme'), h: document.getElementById('shName')?.textContent || '' }));
     const c5 = await watch(page, 'station');
     ok('camera: tapping a station on the map flies there, lifting on the way, and opens its panel', !!spot && mid.flying && st.sel === 'true' && /Levenshulme/.test(st.h) && c5.r < 400, `spot ${spot?.map(Math.round)}, flying ${mid.flying}, selected ${st.sel}, panel "${st.h.slice(0, 30)}", r ${c5.r.toFixed(0)}`);
     // tap a train to ride alongside it

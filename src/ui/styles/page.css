@@ -22,6 +22,12 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .edge i{font-style:normal;color:var(--accent);flex:0 0 auto}
 .lbl.lock{color:var(--lock);border-style:dashed}
 .lbl b{color:var(--accent);font-weight:600}
+/* a station further out than the next ones keeps a dim price; an offered one's is bright, with a meter of how near the
+   cash is to it */
+.lbl.lock:not(.offer) b{color:var(--lock)}
+.lbl.offer{color:var(--fg);border:1px solid var(--accent-soft)}
+.lbl .lm{display:block;height:3px;margin-top:2px;border-radius:var(--r-pill);background:var(--panel-hi);overflow:hidden}
+.lbl .lm>i{display:block;height:100%;width:0;background:var(--accent)}
 /* the top: cash and clock to read, settings to tap (rarely), over the map */
 .top{position:absolute;left:var(--edge-l);right:var(--edge-r);top:var(--edge-t);display:flex;align-items:center;gap:6px;pointer-events:none}
 .top>*{pointer-events:auto}
@@ -96,7 +102,6 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .card meter::-webkit-meter-bar,.ucard .togo meter::-webkit-meter-bar{background:var(--panel-hi);border:0;border-radius:var(--r-pill);height:6px}
 .card meter::-webkit-meter-optimum-value,.card meter::-webkit-meter-suboptimum-value,.card meter::-webkit-meter-even-less-good-value,.ucard .togo meter::-webkit-meter-optimum-value,.ucard .togo meter::-webkit-meter-suboptimum-value,.ucard .togo meter::-webkit-meter-even-less-good-value{background:var(--accent);border-radius:var(--r-pill)}
 .card meter::-moz-meter-bar,.ucard .togo meter::-moz-meter-bar{background:var(--accent);border-radius:var(--r-pill)}
-/* the Station | Line switch, under the header once the sheet is raised (always, docked) */
 /* the Buy bar: the picked card while its ghost stands on the map */
 .buybar{display:flex;align-items:center;gap:8px;padding:0 12px 6px}
 .buybar[hidden]{display:none}
@@ -148,6 +153,13 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .built{margin:0}
 /* a Built chip is a tap target: it puts the camera on what it built */
 .built .chip{min-height:var(--touch);min-width:var(--touch);padding:0 var(--s-3);border:1px solid var(--ok-soft);border-radius:var(--r-pill);background:transparent;color:var(--ok);font-size:var(--text-sm)}
+/* Next to: a chip for each place touching the open one, owned or offered; and the full list of places by kind, shown
+   with the sheet raised to full or docked */
+.next,.prow{display:flex;flex-wrap:wrap;gap:var(--s-2);align-items:center}
+.next>span{flex:0 0 100%;font-size:var(--text-xs);color:var(--soft);font-weight:700}
+.plist{display:none;border-top:1px solid var(--line);padding-top:var(--s-3)}
+.sheet[data-at="full"] .plist,.sheet[data-at="docked"] .plist{display:block}
+.plist h3{margin:var(--s-3) 0 var(--s-2);font-size:var(--text-xs);color:var(--soft)}
 .ucard .act{display:flex;align-items:center;justify-content:flex-end;gap:var(--s-2);padding:0 var(--s-2) var(--s-2) var(--s-3);min-height:calc(var(--touch) + var(--s-2))}
 .ucard .togo meter{flex:1;min-width:40px}
 .ucard .togo{flex:1;display:flex;align-items:center;gap:var(--s-2);font-family:var(--mono);font-size:var(--text-sm);color:var(--muted);font-variant-numeric:tabular-nums}

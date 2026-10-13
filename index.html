@@ -58,6 +58,23 @@
     </div>
   </section>
 </div>
+<dialog class="settings" id="settings" aria-labelledby="setTitle">
+      <div class="set-head"><h2 id="setTitle">Settings</h2><button class="set-close" aria-label="Close">✕</button></div>
+      <section><h3>Sound</h3><div class="set-row"><button data-t="sound" aria-pressed="false">Sound</button>
+      <label class="set-vol">Volume<input type="range" min="0" max="1" step="0.05" aria-label="Volume"></label></div></section>
+      <section><h3>Graphics</h3><div class="set-row set-seg"><button data-q="high" aria-pressed="false">High</button><button data-q="low" aria-pressed="false">Low</button></div>
+      <div class="set-row"><button data-t="shadows" aria-pressed="false">Shadows</button><button data-t="fewer" aria-pressed="false">Fewer people</button><button data-t="sharp" aria-pressed="false">Sharp</button></div>
+      <p class="set-note">Low is lighter on older phones. Fewer people also leaves out the buildings far off.</p></section>
+      <section><h3>Weather</h3><div class="set-row"><button data-t="weather" aria-pressed="false">Weather</button></div>
+      <p class="set-note">Fair weather keeps rain, fog and snow off the map. The game plays the same. Settings stay on this device.</p></section>
+      <section class="set-screen"><h3>Screen</h3><div class="set-row"><button id="vFull" aria-pressed="false">Full screen</button></div></section>
+      <section><h3>Your game</h3><div class="set-row saves"><button id="saveFile">Save to file</button><button id="loadFile">Load from file</button><input id="loadPick" class="pick-file" type="file" tabindex="-1" aria-hidden="true"></div>
+      <div class="set-row"><button id="reset" class="warn">Start over</button><button id="resetAll" class="warn" hidden>Career too</button></div>
+      <p class="set-note">Progress saves on this device and catches up while you're away.</p>
+      <p class="set-note set-offline" hidden>Ready to play offline.</p></section>
+      <section><h3>About</h3><p class="set-note">Passengers arrive by the real demand curve, wait on your platforms and pay a fare when they board. Full platforms and long waits lose them. Buy the next station up the line to lift the fog: it starts as a halt and grows as you build it.</p>
+      <p class="set-note credits">The line, its tracks and its stations are drawn from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a> (ODbL); station details from photographs on geograph.org.uk. Where people live and work: contains Office for National Statistics data © Crown copyright and database right 2021 and NaPTAN data from the Department for Transport; the lie of the land contains Environment Agency information © Environment Agency and/or database right (<a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener">Open Government Licence</a>).</p></section>
+</dialog>
 <script type="module" src="./src/main.ts"></script>
 </body>
 </html>

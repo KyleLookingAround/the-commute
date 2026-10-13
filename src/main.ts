@@ -296,6 +296,8 @@ vLight.addEventListener('click', () => { const on = lightPop.hidden; lightPop.hi
 const lblBox = el('lbls');
 const lbls = built.map(() => { const d = document.createElement('div'); d.className = 'lbl'; lblBox.appendChild(d); return d; });
 const lblKey: number[] = built.map(() => NaN);
+/** The meter on an offered station's name: how near the cash is to its price. */
+const lblMeter: (HTMLElement | null)[] = built.map(() => null);
 // where each label stands this frame (its centre's x, its bottom, its depth) and its width, read only when its text
 // changes, so two names that line up in the distance can be told apart: the nearer one shows
 const lblX = built.map(() => 0), lblY = built.map(() => 0), lblZ = built.map(() => 0), lblW = built.map(() => 0), lblOn = built.map(() => false);
@@ -303,17 +305,27 @@ const LBL_H = 24;
 const v3 = new THREE.Vector3();
 /** Labels hide above this line, where the stage's own controls (and the minutes view's key, while it shows) sit. */
 let labelTop = 64;
-// edge markers for the next stations to buy, when they're off the open map: which they are and what they say, refreshed
-// with the panels (not every frame)
+// edge markers for the offered stations, at most three, nearest where the camera looks first, when they're off the open
+// map: which they are and what they say, refreshed with the panels (not every frame); and how near the cash is to each
+// offered station's price, for the meter on its name
+const EDGES = 3;
 const edges = new EdgeMarkers(el('edges'), built.length, i => ui.select(i));
 const edgeHtml: (string | null)[] = built.map(() => null), edgeLabel: string[] = built.map(() => '');
+const offered: boolean[] = built.map(() => false);
 function nextStations(): void {
-  sim.S.forEach((s, i) => {
-    const next = sim.offerable(i) && !sim.stationNeeds(i);
-    edgeHtml[i] = next ? `<em>${s.name.replace('Manchester ', '')}</em><b>${fmt(sim.stationPrice(i))}</b>` : null;
-    edgeLabel[i] = next ? `${s.name}, ${fmt(sim.stationPrice(i))}: open it` : '';
-  });
+  const near: number[] = [];
+  sim.S.forEach((s, i) => { offered[i] = sim.offerable(i) && !sim.stationNeeds(i); edgeHtml[i] = null; if (offered[i]) near.push(i); });
+  const d = (i: number) => Math.hypot(stationsXZ[i]![0] - rig.o.tx, stationsXZ[i]![1] - rig.o.tz);
+  for (const i of near.sort((a, b) => d(a) - d(b)).slice(0, EDGES)) {
+    const s = sim.station(i);
+    edgeHtml[i] = `<em>${s.name.replace('Manchester ', '')}</em><b>${fmt(sim.stationPrice(i))}</b>`;
+    edgeLabel[i] = `${s.name}, ${fmt(sim.stationPrice(i))}: open it`;
+  }
+  built.forEach((_, i) => { const m = lblMeter[i]; if (m) { const w = `${Math.min(100, Math.floor(100 * sim.g.cash / sim.stationPrice(i)))}%`; if (m.style.width !== w) m.style.width = w; } });
 }
+/** A station further out than the next ones (not offered) shows its dim price only within this of the camera; further,
+ * its name alone. */
+const DIM_FAR = 2500;
 function labels(): void {
   const w = canvas.clientWidth, h = canvas.clientHeight;
   built.forEach((b, i) => {
@@ -325,14 +337,20 @@ function labels(): void {
     // off screen, or in the top band where the stage's own controls sit
     lblOn[i] = false;
     if (v3.z > 1 || Math.abs(v3.x) > 1.1 || Math.abs(v3.y) > 1.1 || top < labelTop) { d.style.display = 'none'; return; }
+    const owned = !!sim.g.owned[i], far = !owned && !offered[i] && Math.hypot(camera.position.x - stationsXZ[i]![0], camera.position.y, camera.position.z - stationsXZ[i]![1]) > DIM_FAR;
     // a name whose point is on the open map near its side slides in to stay whole (its width known once its text is)
     const half = lblW[i]! / 2, x = (v3.x + 1) / 2 * w, lo = rig.cover.left + half + 4, hi = w - half - 4;
     lblOn[i] = true; lblX[i] = x >= rig.cover.left && x < lo ? lo : x <= w && x > hi ? hi : x; lblY[i] = top; lblZ[i] = v3.z;
     d.style.left = lblX[i] + 'px'; d.style.top = top + 'px';
-    // the text only when it changes (ownership, or the price with it), so a frame makes no strings; -1 for owned
-    const owned = !!sim.g.owned[i], key = owned ? -1 : sim.stationPrice(i);
+    // the text only when it changes (ownership, being offered, near or far, or the price), so a frame makes no strings;
+    // -1 for owned. An offered station's price is bright, with a meter of how near the cash is; the rest dim, and left
+    // off far from the camera, where the fogged station's name stands alone
+    const key = owned ? -1 : sim.stationPrice(i) * 4 + (offered[i] ? 1 : 0) + (far ? 2 : 0);
     if (lblKey[i] !== key) {
-      const s = b.station; lblKey[i] = key; d.innerHTML = owned ? s.name : `${s.name} · <b>${fmt(key)}</b>`; d.classList.toggle('lock', !owned);
+      const s = b.station, price = fmt(sim.stationPrice(i)); lblKey[i] = key;
+      d.innerHTML = owned || far ? s.name : `${s.name} · <b>${price}</b>${offered[i] ? '<i class="lm"><i></i></i>' : ''}`;
+      d.classList.toggle('lock', !owned); d.classList.toggle('offer', !owned && !!offered[i]);
+      lblMeter[i] = d.querySelector<HTMLElement>('.lm > i');
       d.style.display = ''; lblW[i] = d.offsetWidth;
     }
   });

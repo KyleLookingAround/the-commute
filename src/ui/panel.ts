@@ -1,6 +1,6 @@
-// The sheet's contents: its header (the open place), the strip of chips, one card for whatever place is open (a
-// station, a train service, the sidings, a bus stop, or the whole network), the Buy bar, and the cash, clock and toasts
-// over the map (docs/design/buying.md, One card for every place). Plain DOM, rebuilt on actions and lightly refreshed
+// The sheet's contents: its header (the open place), the Places row, one card for whatever place is open (a station, a
+// train service, the sidings, a bus stop, or the whole network) with Next to under it, the full list of places by kind,
+// the Buy bar, and the cash, clock and toasts over the map (docs/design/buying.md, One card for every place). Plain DOM, rebuilt on actions and lightly refreshed
 // on a timer. Picking a card in portrait sinks the sheet to its peek, where the Buy bar holds it, so its ghost stands
 // in open map.
 import { UPGRADES, LINE_UPGRADES } from '../sim/sim.ts';
@@ -149,35 +149,84 @@ export class UI {
   }
 
   buildAll(): void { this.buildStrip(); this.buildPanel(); }
-  /** The strip: a chip for each station, then one for each train service running and the sidings (until the Places row,
-   * part 13c). */
-  buildStrip(): void {
-    const { strip } = this.els, g = this.g, sim = this.sim, at = this.at; strip.innerHTML = '';
-    sim.S.forEach((s, i) => {
-      // a chip: the name and the waiting count, or fogged with the price; the next station to buy fills a meter
-      const next = sim.offerable(i) && !sim.stationNeeds(i);
-      const b = document.createElement('button'); b.className = 'card' + (g.owned[i] ? '' : ' lock'); b.setAttribute('aria-pressed', String(sim.P.station[i] === at));
-      b.innerHTML = `<span class="nm">${s.name.replace('Manchester ', '')}</span><span class="st" data-st="${i}"></span>${next ? `<meter min="0" max="${sim.stationPrice(i)}" value="0" data-sm="${i}"></meter>` : ''}`;
-      b.setAttribute('aria-label', `${s.name}, ${milesFrom(s.miles)}`);
-      b.addEventListener('click', () => this.select(i)); strip.appendChild(b);
-    });
-    for (const p of sim.P.all) {
-      if ((p.kind !== 'route' && p.kind !== 'depot') || !sim.owns(p.id)) continue;
-      const b = document.createElement('button'); b.className = 'card'; b.dataset['place'] = p.id; b.setAttribute('aria-pressed', String(p.id === at));
-      b.innerHTML = `<span class="nm">${SHORT[p.id] ?? p.name}</span><span class="st" data-pst="${p.id}"></span>`;
-      b.setAttribute('aria-label', p.name);
-      b.addEventListener('click', () => this.show(p.id)); strip.appendChild(b);
+  /** Whether the row lists a place: a station owned or next to one owned (even if it waits on something elsewhere), a
+   * stop owned or offered (its station owned), a service running, a depot owned. */
+  listed(id: string): boolean {
+    const sim = this.sim, p = sim.P.byId.get(id); if (!p) return false;
+    if (p.kind === 'station') return !!this.g.owned[p.station!] || sim.offerable(p.station!);
+    if (p.kind === 'stop') return sim.owns(id) || !!this.g.owned[p.station!];
+    return (p.kind === 'route' || p.kind === 'depot') && sim.owns(id);
+  }
+  /** The places the row lists, in network order: each line out from Stockport in turn, a station's stop and depot after
+   * it, a service after the last station it serves that's listed. */
+  order(): string[] {
+    const P = this.sim.P, seen = new Set<string>(), stations: string[] = [];
+    const walk = (k: string) => { seen.add(k); stations.push(k); for (const n of P.near.get(k) ?? []) if (!seen.has(n)) walk(n); };
+    walk(P.station[0]!);
+    for (const k of P.station) if (!seen.has(k)) walk(k);
+    const after = new Map<string, string[]>(), put = (k: string, id: string) => { const l = after.get(k) ?? []; l.push(id); after.set(k, l); };
+    for (const p of P.all) {
+      if (!this.listed(p.id)) continue;
+      if (p.kind === 'stop' || p.kind === 'depot') put(P.station[p.station!]!, p.id);
+      else if (p.kind === 'route') {
+        const calls = new Set(P.touching(p.id)), last = [...stations].reverse().find(k => calls.has(k) && this.listed(k));
+        put(last ?? P.station[0]!, p.id);
+      }
     }
+    return stations.filter(k => this.listed(k)).flatMap(k => [k, ...(after.get(k) ?? [])]);
+  }
+  /** A chip for a place: its name and figure, or fogged with its price and a meter of how near the cash is. */
+  private chip(id: string, key: 'place' | 'next' | 'list'): HTMLButtonElement {
+    const sim = this.sim, p = sim.P.get(id), owned = p.kind === 'station' ? !!this.g.owned[p.station!] : sim.owns(id);
+    const near = !owned && (p.kind === 'stop' ? !!this.g.owned[p.station!] : p.kind === 'station' && !sim.stationNeeds(p.station!));
+    const b = document.createElement('button'); b.className = 'card' + (owned ? '' : ' lock'); b.dataset[key] = id;
+    b.setAttribute('aria-pressed', String(id === this.at));
+    const name = SHORT[id] ?? p.name.replace('Manchester ', '');
+    b.innerHTML = `<span class="nm">${name}</span><span class="st" data-pst="${id}"${p.kind === 'station' ? ` data-st="${p.station}"` : ''}></span>${near ? `<meter min="0" max="${sim.price(id) ?? 0}" value="0" data-sm></meter>` : ''}`;
+    b.setAttribute('aria-label', p.kind === 'station' ? `${p.name}, ${milesFrom(sim.station(p.station!).miles)}` : p.name);
+    b.addEventListener('click', () => this.show(id));
+    return b;
+  }
+  /** The Places row: a chip for each place owned or offered, in network order (docs/design/buying.md, Finding places). */
+  buildStrip(): void {
+    const { strip } = this.els; strip.innerHTML = '';
+    for (const id of this.order()) strip.appendChild(this.chip(id, 'place'));
     this.updateStrip();
   }
+  /** Each chip's figure, or price and meter, in the row, the full list and Next to. */
   updateStrip(): void {
-    const g = this.g;
-    this.els.strip.querySelectorAll<HTMLElement>('[data-st]').forEach(el => {
-      const i = +(el.dataset['st'] ?? -1), S = g.st[i], s = this.sim.S[i]; if (!S || !s) return;
-      const txt = g.owned[i] ? `${S.waiting} waiting` : fmt(this.sim.stationPrice(i)); if (el.textContent !== txt) el.textContent = txt;
-    });
-    this.els.strip.querySelectorAll<HTMLElement>('[data-pst]').forEach(el => { const txt = this.figure(el.dataset['pst'] ?? ''); if (el.textContent !== txt) el.textContent = txt; });
-    this.els.strip.querySelectorAll<HTMLMeterElement>('[data-sm]').forEach(m => { const v = String(Math.max(0, Math.floor(g.cash))); if (m.getAttribute('value') !== v) m.setAttribute('value', v); });
+    const g = this.g, cash = String(Math.max(0, Math.floor(g.cash)));
+    for (const root of [this.els.strip, this.els.panel]) {
+      root.querySelectorAll<HTMLElement>('[data-pst]').forEach(el => { const txt = this.chipText(el.dataset['pst'] ?? ''); if (el.textContent !== txt) el.textContent = txt; });
+      root.querySelectorAll<HTMLMeterElement>('[data-sm]').forEach(m => { if (m.getAttribute('value') !== cash) m.setAttribute('value', cash); });
+    }
+  }
+  /** What a place's chip says under its name: its figure if it's the player's, its price if not. */
+  private chipText(id: string): string {
+    const sim = this.sim, g = this.g, p = sim.P.byId.get(id); if (!p) return '';
+    if (p.kind === 'station') { const i = p.station!; return g.owned[i] ? `${g.st[i]?.waiting ?? 0} waiting` : fmt(sim.stationPrice(i)); }
+    if (p.kind === 'stop') return sim.owns(id) ? `${num(g.st[p.station!]?.bus ?? 0)} by bus` : fmt(sim.price(id) ?? 0);
+    return this.figure(id);
+  }
+  /** Next to: a chip for each place touching this one that's owned or offered; a tap flies there and opens it. */
+  private nextTo(id: string): void {
+    const near = this.sim.P.touching(id).filter(k => this.listed(k));
+    if (!near.length) return;
+    const p = document.createElement('div'); p.className = 'next'; p.innerHTML = '<span>Next to</span>';
+    for (const k of near) p.appendChild(this.chip(k, 'next'));
+    this.els.panel.appendChild(p);
+  }
+  /** Raised to full (or docked), the sheet lists every place owned or offered by kind, under the open card. */
+  private list(): void {
+    const by = new Map<string, string[]>(), order = this.order();
+    for (const id of order) { const k = this.sim.P.get(id).kind; by.set(k, [...(by.get(k) ?? []), id]); }
+    const box = document.createElement('section'); box.className = 'plist'; box.setAttribute('aria-label', 'Places');
+    for (const [kind, head] of [['station', 'Stations'], ['stop', 'Bus stops'], ['route', 'Train services'], ['depot', 'Depots']] as const) {
+      const l = by.get(kind); if (!l?.length) continue;
+      const h = document.createElement('h3'); h.textContent = head; box.appendChild(h);
+      const row = document.createElement('div'); row.className = 'prow'; for (const id of l) row.appendChild(this.chip(id, 'list')); box.appendChild(row);
+    }
+    this.els.panel.appendChild(box);
   }
   /** A route's or depot's one figure, for its chip and its header. */
   figure(id: string): string {
@@ -211,9 +260,11 @@ export class UI {
       if (p.kind === 'station') this.stationCard(p.station!);
       else if (p.kind === 'stop') this.stopCard(id);
       else this.lineCard(id);
+      this.nextTo(id);
     }
+    this.list();
     this.markPicked();
-    this.updatePanel();
+    this.updateStrip(); this.updatePanel();
   }
   /** Four figures in a row, by id and label, and the rest behind More (if any). */
   private stats(four: [string, string][], more: [string, string][] = []): string {
@@ -274,7 +325,7 @@ export class UI {
     panel.innerHTML = this.stats([['pWait', 'Waiting'], ['pBoard', 'Boarded'], ['pRev', 'Revenue'], ['pLost', 'Gave up']], more);
     panel.querySelector('details')?.addEventListener('toggle', e => { this.more = (e.target as HTMLDetailsElement).open; });
     const bought = sim.ups(i);
-    this.stageCards(sim.visibleUpgrades(i).map((u: Upgrade) => {
+    this.stageCards(sim.visibleUpgrades(i).filter(u => !u.stop).map((u: Upgrade) => {
       const name = sim.upgradeName(i, u);
       const stage: Stage = {
         name, adds: sim.upgradeDesc(i, u), price: sim.upgradePrice(i, u), can: () => sim.canBuyUpgrade(i, u.id),
@@ -283,7 +334,7 @@ export class UI {
       };
       return bought[u.id] ? { id: u.id, stage: null, saves: null, opens: [], built: name }
         : { id: u.id, stage, grow: !!u.stage, saves: this.on.saves(i, u.id), opens: sim.opens(i, u.id), built: null };
-    }), k => { const stop = sim.P.stopOf[i]; if (k === 'bus' && stop) this.show(stop); else this.on.showBuilt(i, k); });
+    }), k => this.on.showBuilt(i, k));
   }
   /** A train service or the sidings: its figures, and its stages as cards like a station's. */
   private lineCard(id: string): void {

@@ -1,77 +1,71 @@
-# Coordinator handover, 13 October 2026, 04:00
+# Coordinator handover, 13 October 2026, 05:35
 
-The coordinator session that ran phases 2 to 5 so far (session_01Ru3gEy52pDNFEkGoPz4AkG) hands over to a fresh one, so the new session picks up the owner's widened network access. Read this, the project notes (`CLAUDE.md`) and `.claude/skills/coordinator/SKILL.md`, then carry on.
+The coordinator session that ran from 03:55 (session_01Dpn37g4zPrvw69VrGCSGjv) hands over at 500k of context, as the playbook says. Read this, the project notes (`CLAUDE.md`) and `.claude/skills/coordinator/SKILL.md`, then carry on.
 
 ## First
 
-1. Delete the old coordinator's pending check-in so two coordinators don't act at once: `delete_trigger` on `trig_01PrnHaCbrrLN7kfa36h4sRp` (and any other "The Commute coordinator check-in" trigger `list_triggers` shows that isn't yours). Leave the old session alone; it stops once the owner confirms the handover.
-2. Test the network: `curl -sS -o /dev/null -w "%{http_code}" https://overpass-api.de/api/status` and `https://download.geofabrik.de/`. OpenStreetMap's main API answered in the old container (`https://api.openstreetmap.org/api/0.6/map?bbox=W,S,E,N`, boxes a few hundred metres across), but Overpass and Geofabrik didn't. Tell the owner which answer now, and point briefs at whatever works.
-3. Sweep the running sessions (below), book a check-in with `send_later` for about 45 minutes, and give the owner a short report.
+1. Delete the old coordinator's pending check-in so two coordinators don't act at once: `list_triggers`, and delete any "The Commute coordinator check-in" trigger bound to session_01Dpn37g4zPrvw69VrGCSGjv. Then send that session a message saying the handover is done, so it stops.
+2. Tell each running session (below) with `send_message` that you're the coordinator now, acting for the owner, and that its reports come to you. The four running now were started by the old coordinator and send their reports to it.
+3. Sweep, book your check-in with `send_later` for about 45 minutes (written to stand alone), and give the owner a short report.
 
-## The role
+## The owner's direction tonight
 
-- Write briefs in `docs/briefs/` (from `TEMPLATE.md`; the recent ones are the pattern), commit them first, then start each session with `create_session` (source_url `https://github.com/KyleLookingAround/the-commute`, a tag `the-commute:phase-N`, and a prompt that names the brief, the sessions running beside it and the rules below).
-- **At each check-in** (about every 45 minutes, with `send_later`; write the next check-in's prompt so it stands alone):
-  - each session's status and cost against its brief
-  - its commits on main (authored KyleLookingAround <KyleMck10@hotmail.com>, no attribution, no mention of Claude, Anthropic, AI or an assistant)
-  - the Publish runs: build, deploy, four check shards and the report job
-  - "main is red" and needs-owner issues
-  - archive what's finished and green, mark the roadmap, start the next item
-- At most four item sessions at once. Start nothing new if `rate_limit_info` shows a warning. The coordinator writes no game code. Infrastructure and docs are fine (it fixed the Publish workflow's lock, sharded the checks and balanced the shards).
-- Report to the owner briefly, in plain UK English, after each batch. Relay what matters from sessions' commit messages; they aren't shown to the owner. When something lands that the owner would want to see (screenshots, the audit's findings, photos), `git pull` and send it with `SendUserFile`.
+- **All public transport is the game** (`docs/decisions/ADR-2026-10-13-all-public-transport.md`): the railway and the line between stations, buses, trams and the ways to reach them, with the car as the rival. The opening is unchanged, and the 192 is the player's first bus route.
+- **Buying is a growing network** (`docs/decisions/ADR-2026-10-13-buying-a-growing-network.md`, the owner chose options 1 and 2): every buyable thing is a place that grows in stages, offered when it touches what's owned, and fogged with its price. The map shows where the network hurts (Strain), never a recommended buy. The design is `docs/design/buying.md`, with mockups at https://kylelookingaround.github.io/the-commute/design/buying/. The owner has the link and its six open questions; the build takes the design's recommendations unless they answer.
+- **Real surroundings:** real buildings, trees and ground cover from OpenStreetMap and the Environment Agency's LIDAR (`docs/briefs/real-surroundings.md`).
+- **Views from above:** of every station (`docs/reference/aerial/`, `tools/aerial-views.mjs`), from the LIDAR surface model, since no free colour aerial photography covers the line.
+- Earlier decisions stand: those in the previous handover, the track spacing rule and the visual audit at each phase's end.
 
-## Standing rules and the owner's decisions
+## Network access
 
-- **Prototype phase:** sessions push straight to `main` (pull with rebase first, stage paths by name). Before a push: `npm run rules`, `npm test` and only the check groups the change touches. The full suite takes an hour in a session's software-GL container, while the Publish workflow runs it in four shards in about 13 to 15 minutes. Main deploys first and checks after; a red check opens a "main is red" issue and a green one closes it; a cancelled job opens nothing, so read the jobs. If a shard passes 20 minutes, rebalance `MINUTES` in `tools/check.mjs` from the "-- group took" lines.
-- **Don't wait on the owner:** where a call is theirs, take the option that changes the game less, and say so.
-- **Owner preferences** (also in the project notes):
-  - no managers or recommended buys
-  - hide locked things, except fogged stations with their price
-  - impacts shown on the map
-  - phones from 320 px
-  - saves on the device
-  - UK English
-  - colourful and alive
-  - an incremental upgrade game
-- **The owner's decisions:**
-  - Stockport's Manchester stoppers use platforms 3 and 4.
-  - Stations grow into their surroundings phase by phase, not all at once.
-  - Game speeds tripled.
-  - Shorter days with quick nights.
-  - Redesign direction A (the platform sheet) is built.
-- **New tonight:**
-  - **Track spacing:** "make sure we have good enough distances between stations and sections so we don't end up with this spaghetti junction". The new rule is a test every line must pass.
-  - **A visual audit at the end of every phase:** "take screenshots of everything fully upgraded and the areas around and make sure everything looks correct and if not add them to the next phase to fix". See `docs/briefs/visual-audit.md`; the coordinator playbook says when.
-  - **A reference photo library** of every station and the areas round it: `docs/reference/photos/`.
-  - **On the roadmap:** the A6 and the 192 (phase 5 step 8), the main roads (step 9), the inner ring road (phase 6) and the M60 all round (phase 8).
+- These answer from sessions:
+  - OpenStreetMap's main API, in boxes a few hundred metres across. Its rail ways carry `maxspeed` and `electrified`.
+  - The Environment Agency's LIDAR, both DTM and DSM, over WCS and WMS.
+  - The Agency's survey catalogue, for the vegetation, intensity and point cloud downloads.
+  - NaPTAN, Nomis and geograph.
+- Overpass and Geofabrik don't answer. Commons refuses or rate-limits.
 
-## Running now (13 October, about 04:00)
+## Running at 05:35 (four, the cap)
 
 | Session | Id | Brief | State |
 | --- | --- | --- | --- |
-| Track spacing (in the graph session) | session_019FzUqSzuchggwjfyVtBbVh | `docs/briefs/track-spacing.md` | The graph itself is built (f4b4e19 to 56b201f, $15.80 of $40); then given track spacing at 03:04, about $15 more; told about the OSM API at 03:52. Two parts: a track layout test in `npm test`, and Stockport's north end re-laid from the real layout, then what else the test finds. When it lands, send the owner its before and after views from Stockport looking north over the viaduct, and archive it. |
-| Phase 3 and 4 visual audit | session_011HtBxmUJkGH8Vh2JmK98BZ | `docs/briefs/visual-audit.md` | Builds `node tools/shots.mjs --audit`, looks at every image, writes `docs/audits/phase-3-4.md`, adds a phase 5 step listing the findings. Fixes nothing. When it lands, send the owner its contact sheet and worst findings, then brief "Fix what the phase 3 and 4 audit found", folding in the OSM checks of things from memory (the M60's course, the depots, Piccadilly's multi-storey, the kits' from-memory parts). |
-| Station photos A | session_01Cc2eZro44QxLLdY8fEgtvt | `docs/briefs/station-photos.md` | Today's eight stations, then Stockport Interchange, the town centre, the viaduct, Piccadilly's approach and the A6 along its whole course (`areas/`), then the Buxton line. About $15. Docs only. |
-| Station photos B | session_015dhoDLwQULvH7v6cxCPxwu | `docs/briefs/station-photos.md` | The Marple, Crewe and Macclesfield, Styal and Reddish South lines, with Marple, Wilmslow and the Airport's areas. About $15. Docs only. |
+| The Buxton line | session_01CcwnSQLDgMZiTp9um2gsuX | `docs/briefs/buxton-line.md` ($30) | Corridor and ground to New Mills Newtown landed (9417082); Middlewood, Disley and New Mills Newtown kits passing checks. **Main is red because of it** (issue #4): the bundled terrain pushed the script before the first frame to 452 KB against the `perf` group's 450. At 05:18 it was coarsening the far base terrain (64 m to 128 m, about 140 KB gzipped) and running checks before pushing. Confirm the next Publish run is green and #4 closes. |
+| The Marple line | session_01Ep7RuewgTGvLGfHqmHNENe | `docs/briefs/marple-line.md` ($35) | Started 04:45: Ardwick Junction through Ashburys, Belle Vue and Ryder Brow to Marple and Rose Hill. At 05:18 drafting nine station kits and its terrain. Watch the terrain budget (2 MB) and the entry budget (450 KB) the Buxton line just hit. |
+| The real surroundings | session_01NmWgBoXrHDXcXwY5QVTv1d | `docs/briefs/real-surroundings.md` ($35) | Pilot landed (4f8efbe, eb6ebd0): 10,255 buildings round Levenshulme and Heaton Chapel, well inside the perf budgets; shots sent to the owner. About $12 spent. Next: today's whole line, then trees and ground cover, then homes on real gaps. |
+| Phase 3 and 4 visual audit | session_011HtBxmUJkGH8Vh2JmK98BZ | `docs/briefs/visual-audit.md` ($15) | Started by the coordinator before last, so it may wait for the owner's yes on messages from a coordinator. At 05:18 it was on a final pass said to take about two hours. Nothing on main yet. |
+
+## When each lands
+
+- **The audit:**
+  1. `git pull`, send the owner the contact sheet and worst findings with `SendUserFile`, and archive the session.
+  2. Write `docs/briefs/fix-phase-3-4-audit.md` from `docs/audits/phase-3-4.md`. Keep it to kits, the view and the data, out of `src/sim/`. Fold in:
+     - OSM API and `docs/reference/aerial/` checks of the from-memory items: the M60's course, the depots, Piccadilly's multi-storey and the kits' from-memory parts;
+     - Piccadilly's throat (still on the layout test's list) and how far its bays splay;
+     - Stockport's Station Road side (the kit puts it east; geograph 8413983 puts the Station Road car park west);
+     - Davenport's car park side;
+     - Stockport's crossover ladder north of the throat and the viaduct deck's stepped edges (handed on by bb2d83e);
+     - any bridges over the line the real surroundings session lists.
+  3. Start it in the audit's slot.
+- **The Buxton and Marple lines:** archive each when its last part lands green. Then start **places in the sim** (`docs/briefs/places-in-sim.md`, part 13a, $30) in a quiet window: no other session changing `src/sim/`. It changes how ownership and buying work underneath everything.
+- **The real surroundings:** send the owner shots of each part.
 
 ## The queue, in order
 
-1. **The Buxton line** (`docs/briefs/buxton-line.md`, $30): starts once track spacing has landed and is green. It uses the OSM API and the photo library, and builds to the spacing rule.
-2. **The lines out**, one session each, side by side once the Buxton line is under way: Marple; Crewe with Macclesfield; Styal; Reddish South. Write their briefs from the Buxton line's. Mind the graph's decision record: a line beside the spine needs its own ground, and a route that turns back at a junction (Reddish South at Heaton Norris) needs a leg direction.
-3. **Fix what the phase 3 and 4 audit found:** when a slot is free, kept out of the line sessions' files.
-4. **The A6 and the 192**, then **the main roads round the lines** (phase 5 steps 8 and 9): once the lines out are under way.
-5. **Phase 5's later steps:** services (real calling patterns, through trains, TransPennine), the fleet, timetabling, Stockport as the hub. Then phase 5's visual audit and its release.
+1. **The audit fix**, in the audit's slot.
+2. **Buying, rethought, parts 13a to 13e** (phase 5 step 13), one at a time from the design's build plan: places in the sim (briefed); one card; finding places; the folds; Strain. These come before steps 11 and 12.
+3. **The line between stations** (step 11, `docs/briefs/line-between-stations.md`): rebrief it to the design first. Sections come with their stations, and their stages go on the place card.
+4. **The other lines out:** Crewe with Macclesfield; Styal; Reddish South. Write their briefs from the Marple line's, bought by touching per the design and running the real surroundings tool for their areas.
+5. **The 192 as the first bus route** (step 8), then **buses as a network** (step 12), then **the main roads** (step 9).
+6. **Phase 5's later steps:** services, the fleet, timetabling and Stockport as the hub. Then phase 5's visual audit and its release.
 
 ## Waiting on the owner (the safer option taken meanwhile)
 
-- **The first shareable release:** only they can call it. It switches on the full loop: PRs, specs, save compatibility.
-- **Contract renewal's pacing:** renewing often makes the opening very quick, 39% sooner to Piccadilly by the fourth contract.
-- **Grown homes on renewal:** they reset now.
-- **Quiet nights:** units stand only briefly. Stations visibly empty overnight would need a slower night.
-- **Redesign direction:** A is built; B or C is still possible.
+- **The buying design's six questions:** the build takes its recommendations.
+- **The 192 as the player's route** rather than a rival: taken from their direction. Say so if they'd rather it stayed a rival.
+- **From the previous handover:** the first shareable release; contract renewal's pacing; grown homes on renewal; quiet nights.
 
-## Where things are
+## Lessons from tonight
 
-- Recent briefs: `docs/briefs/`. The roadmap's phases 3 to 5 carry each item's state and its "Later" notes.
-- Decisions: `docs/decisions/` (the graph's record is the latest).
-- The check workflow: `.github/workflows/deploy.yml` (job-level locks, four shards, a report job).
+- **A session treats another session's message as information**, and may sit waiting for the owner's yes. Put everything a session must do in its brief or first prompt, and say there that the coordinator acts for the owner. This is in the playbook, section 4.
+- **The bundled terrain counts towards the script before the first frame.** New lines' ground can break the `perf` group's entry budget, so say so in each line's brief.
+- **The coordinator can take screenshots itself:** `npm run build`, then `node tools/shots.mjs --stations <id> name=du,dv,r,turn,tilt`. It did this for the viaduct's after views when the session that owed them went idle.

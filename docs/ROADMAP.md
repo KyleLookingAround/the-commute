@@ -153,9 +153,25 @@ Past the plausible the network goes science fiction, still a model railway in da
 - **Challenges:** runs with a twist (storm season, strike days, no barriers, one unit only), each with a lasting reward.
 - **What it needs:** the bot playing whole loops of renewals and eras; pacing targets per layer agreed with the owner.
 
+## 12. Beyond Greater Manchester (the very long term)
+
+The owner, 13 October 2026: the game could one day cover the whole of the UK, but Greater Manchester comes first and comes right, with every detail checked, before the map grows past it. Nothing here starts until phase 8 is done and its performance holds on phones.
+
+1. **Other cities as starting positions:** a renewal (the prestige layer) unlocks a fresh run in another city, such as Leeds, Liverpool, Birmingham or Glasgow, each a city-sized map built by the same tools from the same open data (OpenStreetMap, the Environment Agency's LIDAR or its equivalents, the census, NaPTAN). Starts are data, not code (`docs/briefs/gridlock-opening.md`).
+2. **Station kits generated at scale:** the kit tool drafts every station from OpenStreetMap, and only the big ones are finished by hand, each with its `note`.
+3. **Joining the cities up:** intercity services between the cities the player has built, drawn at whole-line detail between them, with a coarser long-distance journey layer in the sim and full detail only where the player is.
+
 ## Throughout
 
-- Phones first: portrait and landscape down to 320 px, tablets and big screens; a performance budget that grows with the map.
+- Phones first: portrait and landscape down to 320 px, tablets and big screens.
+- Performance as the game grows (the owner, 13 October 2026). Every phase keeps its budgets, so nothing gets slower as the map fills:
+  - the script before the first frame;
+  - triangles and draw calls at the opening and in the busy save;
+  - the terrain and world data;
+  - frame time on a mid-range phone.
+  - When a budget is nearly spent, the next step makes room first (drawing far things more simply, loading by square, instancing) rather than raising it. Raising a budget is the owner's call.
+  - Each phase's visual audit also records the budgets, so the trend shows.
+  - The heavy lifting (streaming the map by square and by zoom, simpler distant drawing) lands in phase 8 step 1, before the county's lines.
 - A visual audit at the end of each phase (the owner, 13 October 2026): screenshots of everything fully upgraded and the areas around and between the stations, at day, night and in weather, on a phone and a desktop (`node tools/shots.mjs --audit`, `docs/briefs/visual-audit.md`), each looked at; whatever doesn't look right is written up in `docs/audits/` and becomes a step of the next phase. Phases 3 and 4: audited 13 October 2026 (`docs/audits/phase-3-4.md`, phase 5 step 14).
 - A release at the end of each phase from the second on: What's new, save fixtures, and saves migrated.
 - Balance with the bot after any pacing or economy change; baselines moved on purpose, with the reason.

@@ -24,6 +24,9 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   // the viaduct's valley: the town centre fills it, so no suburb houses or new homes stand there
   const viaduct = viaductOf(c, def);
   const valley = viaduct ? { s0: Math.min(viaduct.from, viaduct.to) - 20, s1: Math.max(viaduct.from, viaduct.to) + 60 } : null;
+  // the town's edge: the wires end just beyond Hazel Grove, and the Buxton line on from there runs through fields and
+  // villages, unwired (OpenStreetMap: electrified=no), so the masts, the stand-in roads and the suburbs stop here
+  const hg = net.stations.find(st => st.id === 'hazel-grove'), edge = hg ? Math.max(0, hg.at - 360) : 0;
 
   // ---- the ground, from survey: the railway's land level with the line, the real lie of the land round it ----
   const terrain = new Terrain(net, kitFiles(), bridgesOf(c, def)); setTerrain(terrain);
@@ -47,6 +50,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   function ribbon(offset: number, width: number, height: number, y: number, mat: THREE.Material): void {
     const inst = new THREE.InstancedMesh(unit, mat, segs.length); inst.count = 0;
     for (const sg of segs) {
+      if (sg.s0 < edge) continue;
       if (valley && sg.s1 > valley.s0 - 100 && sg.s0 < valley.s1 + 100) continue;
       const a = c.at(sg.s0, offset), b = c.at(sg.s1, offset), mid = c.at((sg.s0 + sg.s1) / 2, offset);
       const ya = groundY(a.x, a.z), yb = groundY(b.x, b.z), len = Math.hypot(b.x - a.x, b.z - a.z);
@@ -77,10 +81,10 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
 
   // ---- OHLE: a mast outside each outer track with an arm reaching over it, and a wire over every track ----
   (function ohle() {
-    const n = Math.floor(c.length / 55) * 2;
+    const n = Math.floor((c.length - edge) / 55) * 2;
     const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.2, 0.25, 7.5, 6), MAT.steel, n), arms = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 0.3, 6), MAT.steel, n);
     let k = 0; const wire: number[] = [];
-    for (let s = 30; s < c.length && k < n; s += 55) {
+    for (let s = edge + 30; s < c.length && k < n; s += 55) {
       let lo = Infinity, hi = -Infinity;
       for (const t of net.tracks) { const [e0, e1] = net.extent(t.id); if (s < e0 || s > e1) continue; const o = net.offsetAt(t.id, s); lo = Math.min(lo, o); hi = Math.max(hi, o); }
       if (lo > hi) continue;
@@ -93,7 +97,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     poles.count = arms.count = k; scene.add(byCell(poles).group, byCell(arms).group);
     for (const t of net.tracks) {
       const [e0, e1] = net.extent(t.id);
-      for (let s = e0; s < e1; s += STEP) { net.trackAt(t.id, s, pa); net.trackAt(t.id, Math.min(e1, s + STEP), pb); wire.push(pa.x, 5.4, pa.z, pb.x, 5.4, pb.z); }
+      for (let s = t.corridor === hg?.corridor ? Math.max(e0, edge) : e0; s < e1; s += STEP) { net.trackAt(t.id, s, pa); net.trackAt(t.id, Math.min(e1, s + STEP), pb); wire.push(pa.x, 5.4, pa.z, pb.x, 5.4, pb.z); }
     }
     const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(wire), 3));
     scene.add(new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x8c93a3 })));
@@ -113,13 +117,16 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       const dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
       return Math.hypot(x - ax - dx * t, z - az - dz * t) < r;
     });
-    for (let k = 0; k < 14000 && n < 5000; k++) {
-      const s = seed(k, 1) * c.length, side = seed(k, 2) < 0.5 ? -1 : 1, off = side * (60 + seed(k, 3) * 600);
+    // beyond the town's edge, fewer: a scatter in the fields, and the villages round their stations, by how many live there
+    const rural = (s: number, near: number, st: number) => 0.05 + 0.5 * Math.exp(-((near / 450) ** 2)) * Math.min(1, (net.stations[st]?.catchment ?? 0) / 150);
+    const ruralN = Math.round(14000 * edge / Math.max(1, c.length - edge));
+    for (let k = 0; k < 14000 + ruralN && n < 5000; k++) {
+      const out = k >= 14000, s = out ? seed(k, 1) * edge : edge + seed(k, 1) * (c.length - edge), side = seed(k, 2) < 0.5 ? -1 : 1, off = side * (60 + seed(k, 3) * 600);
       if (valley && s > valley.s0 - 40 && s < valley.s1 + 40 && Math.abs(off) < 700) continue;
       const city = s > c.length - 1600;
-      const nearStation = Math.min(...stationS.map(x => Math.abs(x - s)));
+      const gaps = stationS.map(x => Math.abs(x - s)), nearStation = Math.min(...gaps);
       if (nearStation < 220 && Math.abs(off) < 180) continue;   // the station's own kit fills this
-      const dens = city ? 0.95 : 0.3 + 0.45 * Math.exp(-Math.pow((s - c.length * 0.55) / 2500, 2)) + (nearStation < 400 ? 0.25 : 0);
+      const dens = out ? rural(s, nearStation, gaps.indexOf(nearStation)) : city ? 0.95 : 0.3 + 0.45 * Math.exp(-Math.pow((s - edge - (c.length - edge) * 0.55) / 2500, 2)) + (nearStation < 400 ? 0.25 : 0);
       if (seed(k, 4) > dens) continue;
       const terrace = !city && seed(k, 5) < 0.5;
       // the city end is towers, but low-rise around its stations (Ardwick is yards and sheds, not a skyline)

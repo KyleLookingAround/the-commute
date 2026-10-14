@@ -13,8 +13,8 @@
 //   the station's own rank, stop or car park (the end of its approach);
 //   no kit road lies on the railway's land or its banks but on a bridge's deck (or a forecourt at grade, where the
 //   real ground is at rail level); the roads the replacement buses drive
-//   (`roads`), laid as the page lays them from stop to stop, cross the railway's land between streets on a bridge
-//   (straight from one side's height to the other's, not down at rail level) and never run along it.
+//   (`roads`), laid as the page lays them from stop to stop, cross the railway's land between streets straight from
+//   one side's height to the other's (over a cutting on a bridge, not down at rail level) and never run along it.
 // Covers: @sim src/render/** src/data/**
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -38,7 +38,7 @@ const ALONG = 80;     // m a road may run on the railway's land or its banks (a 
 const KINDS = ['taxi', 'carpark', 'busstop', 'buslink'];
 // the stations still to put right (docs/audits/station-surroundings.md), worst first, a few at a time: what's found
 // at them, and on the roads to them, is listed but doesn't fail yet. Piccadilly's kit waits on the services work.
-const LATER = new Set(['stockport', 'piccadilly', 'middlewood', 'disley', 'marple', 'bredbury']);
+const LATER = new Set(['piccadilly']);
 
 export default async function ({ ok, root, kits: given }) {
   const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def);
@@ -53,8 +53,9 @@ export default async function ({ ok, root, kits: given }) {
   const worldDir = join(root, 'src/data/world'), streets = [], buildings = [];
   const near = net.stations.map(st => net.stationFrame(st.id));
   for (const f of readdirSync(worldDir)) {
-    const key = f.replace('.txt', ''), [i, j] = key.split('_').map(Number), cx = i * SQUARE, cz = j * SQUARE;
-    if (!near.some(F => Math.abs(F.x - cx) < SQUARE && Math.abs(F.z - cz) < SQUARE)) continue;
+    // (a square spans i * SQUARE to (i + 1) * SQUARE: any within 600 m of a station)
+    const key = f.replace('.txt', ''), [i, j] = key.split('_').map(Number), x0 = i * SQUARE, z0 = j * SQUARE;
+    if (!near.some(F => Math.hypot(Math.max(x0 - F.x, 0, F.x - x0 - SQUARE), Math.max(z0 - F.z, 0, F.z - z0 - SQUARE)) < 600)) continue;
     const w = decodeWorld(key, readFileSync(join(worldDir, f), 'utf8'));
     for (const c of w.cover) if (c.cls === 'r') for (let k = 2; k < c.pts.length; k += 2) streets.push({ a: [c.pts[k - 2], c.pts[k - 1]], b: [c.pts[k], c.pts[k + 1]], half: c.w / 2 });
     for (const p of w.pieces) buildings.push(p);
@@ -157,6 +158,6 @@ export default async function ({ ok, root, kits: given }) {
   }
   setTerrain(null);
   ok('surroundings: both ends of every street a kit lays meet a street, a bridge or the map\'s edge', !loose.length, loose.join('; '));
-  ok('surroundings: every street crosses the railway on a bridge, and none runs along it', !cross.length, cross.join('; '));
+  ok('surroundings: every street crosses the railway straight from one side to the other, and none runs along it', !cross.length, cross.join('; '));
   if (later.length) console.log(`      still to put right at ${[...LATER].join(', ')}: ${later.join('; ')}`);
 }

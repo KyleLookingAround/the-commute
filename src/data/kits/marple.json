@@ -41,9 +41,10 @@
     { "type": "box", "u0": -90, "u1": 125, "v0": -7.9, "v1": -7.7, "y0": 0, "y1": 2.4, "mat": "timber", "scenery": true, "note": "Red timber fences along the platforms' backs (the photos)" },
     { "type": "box", "u0": 18, "u1": 125, "v0": 11, "v1": 11.3, "y0": 0, "y1": 2.4, "mat": "timber", "scenery": true },
     { "type": "box", "u0": -90, "u1": -24, "v0": 11, "v1": 11.3, "y0": 0, "y1": 2.4, "mat": "timber", "scenery": true },
-    { "type": "carpark", "u0": -80, "u1": -38, "v0": 13.6, "v1": 36.8, "upgrade": "carpark", "note": "Marple Station Car Park, from the export, the half nearest the booking office" },
-    { "type": "carpark", "u0": -66, "u1": -36, "v0": 38.4, "v1": 52.8, "upgrade": "carpark2", "note": "The far end of the same car park, from the export" },
-    { "type": "busstop", "u": -22, "v": 20, "back": [-1, 0], "kerb": -1, "door": [-12, 16], "note": "On the forecourt by the booking office, from memory, placed by eye" },
+    { "type": "carpark", "u0": -80, "u1": -38, "v0": 13.6, "v1": 36.8, "street": true, "upgrade": "carpark", "note": "Marple Station Car Park, from the export, the half nearest the booking office" },
+    { "type": "carpark", "u0": -66, "u1": -36, "v0": 38.4, "v1": 52.8, "street": true, "upgrade": "carpark2", "note": "The far end of the same car park, from the export" },
+    { "type": "busstop", "u": 4, "v": 21, "back": [0.96, -0.27], "kerb": -1, "door": [-12, 16], "street": true, "note": "On the station's road where it ends by the booking office, at street level, the replacement buses' stop the game's (OpenStreetMap, main API, 14 October 2026)" },
+    { "type": "road", "points": [[-63, 63], [-60, 61], [-48, 67], [-42, 72], [-37, 74], [-33, 70], [-37, 56], [-36, 48], [-33, 41], [-31, 39], [-9, 27], [-1, 23], [13, 21]], "w": 6, "scenery": true, "note": "The station's road off Brabyns Brow, round the car park to the booking office, a service road in OpenStreetMap (main API, 14 October 2026)" },
     { "type": "buslink", "u": -76, "v": 46.4, "back": [0.4, 0.9], "kerb": -1, "street": true, "upgrade": "bus", "note": "Stop B ('Brabyns Brow / Marple Station') by the car park entrance, from the export" }
   ]
 }

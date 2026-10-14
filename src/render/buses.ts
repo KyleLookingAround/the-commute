@@ -26,6 +26,7 @@ const MAX_BUSES = 8, MAX_WALKERS = 48;
 const ROAD_W = 7;          // the road's width on the map
 const GRADE = 0.1;         // the steepest a road comes down off a station's pad
 const STEP = 4;            // metres between a road's heights
+const UNDER = 40;          // the longest way across the railway's land a road passes under an embankment (the terrain check's)
 const DEPOT_SPEED = 14;
 const RELAY_MS = 3000;     // the least time between laying the roads again as the ground comes in finer    // m/s an empty bus runs to and from the depot, quicker than in service
 
@@ -91,15 +92,15 @@ export function pathThrough(raw: XZ[]): Path {
   for (let k = 1; k < y.length; k++) y[k] = Math.max(y[k]!, y[k - 1]! - GRADE * (d[k]! - d[k - 1]!));
   for (let k = y.length - 2; k >= 0; k--) y[k] = Math.max(y[k]!, y[k + 1]! - GRADE * (d[k + 1]! - d[k]!));
   for (let k = 0; k < y.length; k++) y[k] = Math.max(y[k]!, ground[k]!);
-  // where it crosses the railway's land between the streets either side, over a cutting, it's on a bridge: straight from
-  // the street's height on one side to the other's, never down into the cutting (a stretch from a stop on a station's
-  // pad keeps its ramp; under an embankment it still crosses the land at its level, as the ground is drawn there)
+  // where it crosses the railway's land between the streets either side it's straight from the street's height on one
+  // side to the other's: over a cutting on a bridge, never down into it, and under an embankment through it, never up
+  // over the tracks, where the way across is UNDER m or less (a stretch from a stop on a station's pad keeps its ramp)
   const rail = pts.map(([x, z]) => onRailway(x, z));
   for (let k = 1; k < pts.length - 1; k++) if (rail[k] && !rail[k - 1]) {
     let e = k; while (e < pts.length - 1 && rail[e]) e++;
     const a = y[k - 1]!, b = y[e]!, at = (j: number) => a + (b - a) * (d[j]! - d[k - 1]!) / (d[e]! - d[k - 1]!);
     let over = !rail[e]; for (let j = k; j < e && over; j++) if (at(j) < ground[j]!) over = false;
-    if (over) for (let j = k; j < e; j++) y[j] = at(j);
+    if (over || (!rail[e] && d[e]! - d[k - 1]! <= UNDER)) for (let j = k; j < e; j++) y[j] = at(j);
     k = e;
   }
   return { pts, d, y, len: d[d.length - 1]! };

@@ -41,7 +41,7 @@
     { "type": "barriers", "u0": 24, "u1": 28, "v": -3.7, "upgrade": "barriers" },
     { "type": "cycles", "u": 18, "v": 11.2, "n": 4, "upgrade": "crossing" },
     { "type": "carpark", "u0": -63, "u1": -22, "v0": 16, "v1": 54.4, "street": true, "upgrade": "carpark" },
-    { "type": "carpark", "u0": -22, "u1": 16, "v0": 16, "v1": 54.4, "street": true, "upgrade": "carpark2", "note": "The rest of the real car park, a second stage for the game" },
+    { "type": "carpark", "u0": -22, "u1": -2, "v0": 14, "v1": 52, "street": true, "upgrade": "carpark2", "note": "The rest of the real car park (OpenStreetMap, main API, 14 October 2026), a second stage for the game, short of the building at its east end" },
     { "type": "busstop", "u": 60, "v": 32, "back": [-0.5, 0.9], "kerb": 1, "door": [30, 20], "street": true, "note": "On Stockport Road East by the Rising Sun, at the foot of the path up to the station, placed by eye" },
     { "type": "box", "u0": 70, "u1": 94, "v0": -2.9, "v1": -2.4, "y0": 0, "y1": 1.6, "mat": "steel", "scenery": true },
     { "type": "box", "u0": 70, "u1": 94, "v0": 6.1, "v1": 6.6, "y0": 0, "y1": 1.6, "mat": "steel", "scenery": true },

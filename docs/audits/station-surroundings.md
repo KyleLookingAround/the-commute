@@ -42,14 +42,20 @@ Now:
 - **Rose Hill**: the stop stood on the pad 2.8 m above the ground, 31 m from a street, and the car parks were off the ground or far from a street. The station's road off Railway Road, round the car park to the forecourt, is now a kit `road`. The stop stands on it, and both car parks are at street level, clear of it.
 - `tools/osm-to-roads.mjs` now joins a way out to the nearest point on any street, not only to a node, so a stop on a long straight street isn't routed along a side street.
 
+### Stockport, Middlewood, Disley, Marple and Bredbury, the from-memory roads, and underpasses (14 October 2026)
+
+- **The check** read only the world's squares whose corner was within a square of a station, so it missed every street north of Stockport's middle (the square there spans z from -1000 to 0, and Stockport stands at z = 5): Station Road and the A6 are painted after all. It now reads every square within 600 m of a station.
+- **Stockport**: the Station Road loop outside the entrance is a closed way in OpenStreetMap, which the world's streets leave out (a closed line simplifies to its two ends). It's now a kit `road`, joined to Station Road's painted spur at its east end. The rank (the Railway Station rank) runs along its near side by the entrance, where OpenStreetMap has it, and the stop is on its far side (stop SS is by the rank in OpenStreetMap, but the rank fills the kerb).
+- **Middlewood**: the stop was 50 m from a street. The lane off Middlewood Road, over the Middlewood Way and along the foot of the line's bank, is now a kit `road` to the stop at its end; laid a few metres south of the real lane where it runs along the bank, as the map draws the railway's land a little wider than the real fence.
+- **Disley**: the stop was 50 m from a street, and the car park stood on a building (the LIDAR's, by the bus cafe). Station Approach, down off Buxton Road to the platform, is now a kit `road`, the stop at its end, and the car park is the real one's square west of the cafe.
+- **Marple**: the stop stood on the forecourt from memory, 44 m from a street, and the car parks on the station's pad above the real ground. The station's road off Brabyns Brow round the car park to the booking office is now a kit `road`, the stop at its end, and the car parks stand on the real ground.
+- **Bredbury**: the second car park ran onto the building at the real car park's east end; it now stops short of it.
+- **The roads from memory** (Hazel Grove to Middlewood, Middlewood to Disley, Disley to New Mills Newtown) and the roads to the stops that moved (Stockport to Heaton Chapel and to Davenport, Romiley to Marple) are redrawn from OpenStreetMap; where a kit lays the station's approach, the road leaves the street where the kit's does and follows it to the stop. Middlewood to Disley is now 5.5 km (it was 3.9 from memory): back up Middlewood Road to the A6 at High Lane.
+- **Underpasses**: a bus road crossing the railway's land between streets lower than the land now runs straight through under the embankment where the way across is 40 m or less (the `terrain` check's limit), rather than up over the tracks at rail level. Today that's only a few short crossings round Brinnington and Bredbury; the longer ones (the A6 under the Buxton line at High Lane, 95 m across at a skew, and one by Levenshulme, 86 m) still ride over, as the terrain check allows a road under the ground on the railway's land only for 40 m.
+
 ## Still to put right
 
 From the check (heights are against the real ground; streets are the real ones painted on the ground, the kits' roads and bridge decks):
 
-1. **Stockport**: the rank and the stop now stand at street level on the Station Road loop, where OpenStreetMap has the rank and stop SS, but the loop and Station Road aren't among the streets painted on the ground (the world's square there paints none), so the check finds no street within 40 m. Draw Station Road as a kit `road` to where it meets a painted street or a bus road, then take Stockport off the check's `LATER` list and redraw its two bus roads.
-2. **Middlewood, Disley, Marple**: the bus stops are 39 m to more than 50 m from a street.
-3. **Disley, Bredbury**: a car park stands on a real building.
-4. **The roads from memory**: Hazel Grove to Middlewood, Middlewood to Disley and Disley to New Mills Newtown (the last runs 80 m along the railway's land). They should be redrawn from OpenStreetMap with `tools/osm-to-roads.mjs`, once each station's stop is in its real place.
-5. **Piccadilly**: the taxi rank and bus stop are 8.8 m off the ground with no street within 50 m; the car park is 23 m off. The services work's first part (the Marple pair into platforms 1 to 4) has landed; the coordinator says when its kit is free.
-
-The buses' roads still cross the land at rail level where they pass under an embankment. The terrain check now allows a road under the line (5425002), so `pathThrough` can be let through.
+1. **Piccadilly**: the taxi rank and bus stop stand on the station's deck at platform level, 8.8 m above the real ground, 10 to 12 m from a street; the car park is a made-up multi-storey beside the station rather than the real one on Boad Street.
+2. **The long underpasses**: the A6 under the Buxton line at High Lane and the road by Levenshulme still cross the embankment at rail level; letting them through needs the `terrain` check to allow a longer run under the line where it's an embankment.

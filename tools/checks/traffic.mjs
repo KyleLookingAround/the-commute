@@ -2,8 +2,8 @@
 // Without a browser: drawing the roads changes nothing in the game (two runs of 6 sim hours on one seed, one with the
 // layer itself reading and placing its cars every step as the page does, end the same), and the script before the
 // first frame doesn't carry it (the stretches' data and the layer are in their own chunk). In the browser:
-// - At today's opening (06:30, the roads under capacity) the cars move, none queued, no brake lights, and the roads
-//   aren't washed.
+// - At 06:30 with Stockport open as a halt (Sim.halt: the roads under capacity) the cars move, none queued, no brake
+//   lights, and the roads aren't washed.
 // - The opening's morning peak (08:00 on day 1): at the M60 under the town and the A6 crossing it, the cars queue nose
 //   to tail with their brake lights lit, at most 300 of them, the A6 at Mersey Square past capacity, and the roads
 //   washed amber and coral; at 320 px (touch) the same, within the cap.
@@ -42,7 +42,9 @@ export default async function ({ ok, open, root }) {
   const assets = join(root, 'dist/assets'), files = readdirSync(assets).filter(f => f.endsWith('.js'));
   const entry = files.filter(f => f.startsWith('index-')).map(f => readFileSync(join(assets, f), 'utf8')).join('');
   const chunk = files.find(f => f.startsWith('traffic-'));
-  ok('traffic: the layer and its data load in their own chunk, after the first frame', !!chunk && readFileSync(join(assets, chunk), 'utf8').includes('m60-j27-j1') && !entry.includes('m60-j27-j1') && !entry.includes('a6-mersey-square'), chunk ?? 'no traffic chunk');
+  // (the stretches' names: their ids are in the entry too, where the opening's start names the roads it shows)
+  const NAME = 'A6 Wellington Road South, Mersey Square';
+  ok('traffic: the layer and its data load in their own chunk, after the first frame', !!chunk && readFileSync(join(assets, chunk), 'utf8').includes(NAME) && !entry.includes(NAME), chunk ?? 'no traffic chunk');
 
   // saves: the opening at 08:00 on day 1, and the main line to Piccadilly with everything bought at the same hour
   const peak = build => {
@@ -64,15 +66,15 @@ export default async function ({ ok, open, root }) {
   const roads = page => page.waitForFunction(() => { const t = window.__view?.traffic?.(); return t && t.wash >= 1 && Object.keys(t.loads).length ? t : null; }, null, { timeout: 60000 }).then(h => h.jsonValue(), () => null);
   const still = async page => { const a = await page.evaluate(() => window.__view.traffic().sig); await page.waitForTimeout(1200); const b = await page.evaluate(() => window.__view.traffic().sig); return a === b; };
 
-  // today's opening: under capacity at 06:30
+  // the roads under capacity, at 06:30 with Stockport open as a halt (the opening before it started shut, in the jam)
   {
-    const { ctx, page, errs } = await open({ width: 1280, height: 800 });
+    const { ctx, page, errs } = await open({ width: 1280, height: 800 }, { save: JSON.stringify({ g: Sim.halt(net, 1), selected: 0 }) });
     await page.evaluate(o => window.__view.look(o), LOOK);
     const t = await roads(page);
     const moved = t ? !(await still(page)) : false;
-    ok('traffic: at today\'s opening the cars move, none queued, no brake lights, the roads not washed', t && t.cars > 0 && t.queued === 0 && t.braking === 0 && moved && t.amber === 0 && t.coral === 0,
+    ok('traffic: at 06:30, under capacity, the cars move, none queued, no brake lights, the roads not washed', t && t.cars > 0 && t.queued === 0 && t.braking === 0 && moved && t.amber === 0 && t.coral === 0,
       t ? `${t.cars} cars, ${t.queued} queued, ${t.braking} braking, moving: ${moved}, wash ${t.amber}/${t.coral}` : 'no traffic drawn');
-    ok('traffic: no errors at the opening', !errs.length, errs.slice(0, 3).join(' | '));
+    ok('traffic: no errors at 06:30', !errs.length, errs.slice(0, 3).join(' | '));
     await ctx.close();
   }
 

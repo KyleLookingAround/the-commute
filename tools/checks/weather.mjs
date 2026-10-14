@@ -6,8 +6,10 @@
 // daylight at 17:30 in summer.
 // Covers: @page @sim src/render/weather.ts src/render/sky.ts src/render/buildings.ts src/render/world.ts src/render/passengers.ts
 import { register } from 'tsx/esm/api';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-export default async function ({ ok, open, SAVE_KEY }) {
+export default async function ({ ok, open, root, SAVE_KEY }) {
   register();
   const { simAtHour } = await import('../../src/sim/day.ts');
   const first = await open({ width: 1280, height: 800 });
@@ -26,8 +28,12 @@ export default async function ({ ok, open, SAVE_KEY }) {
   await first.ctx.close();
   if (!save) { ok('weather: a save to move to each spell', false, 'no save written'); return; }
   /** Open this game moved to a spell on a day at an hour (the spell long in, and going on a while yet). */
+  // (the game in it Stockport open as a halt, Sim.halt: a new game starts with it shut, and nobody waits on a platform)
+  const { Sim } = await import('../../src/sim/sim.ts'), { fromGeo } = await import('../../src/sim/network.ts');
+  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')));
   const at = async (now, day, hour, vp = { width: 1280, height: 800 }, touch = false) => {
     const s = JSON.parse(save), t = simAtHour(day, hour);
+    s.g = JSON.parse(JSON.stringify(Sim.halt(net, 1)));
     s.g.t = t; s.g.day = day; s.at = Date.now();
     s.g.weather = { ...s.g.weather, now, was: now, since: t - 2000, until: t + 6000 };
     return open(vp, { save: JSON.stringify(s), touch });

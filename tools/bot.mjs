@@ -23,10 +23,12 @@ const { spaces, parked } = await import('../src/sim/access.ts');
 const { WEATHER } = await import('../src/sim/weather.ts');
 const { clockAt } = await import('../src/sim/day.ts');
 const C = await import('../src/sim/contract.ts');
+const { traffic } = await import('../src/sim/traffic.ts');
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'));
 const baseline = JSON.parse(readFileSync(join(root, 'tools/baseline.json'), 'utf8'));
+const roadsDef = JSON.parse(readFileSync(join(root, 'src/data/traffic.json'), 'utf8'));
 
 const args = process.argv.slice(2);
 const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
@@ -148,6 +150,7 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
   // what things going wrong cost: who gave up while something was wrong or in the quarter hour after
   let troubleLost = 0, troubleEnd = -Infinity, nightLost = 0;
   const mark = (k, h) => { if (reached[k] === undefined) reached[k] = +h.toFixed(2); };
+  const roads = watchRoads(sim, t0);
   for (let step = 0; step < hoursToPlay * 60; step++) {          // one decision a game minute
     sim.advance(60);
     const h = step / 60, k = peakOf(sim);
@@ -160,7 +163,8 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
     // daytime quiet: hours between 06:00 and 22:00 with nothing bought (the night is quiet by design)
     const clock = sim.hour(); dayQuiet = clock >= 6 && clock < 22 ? dayQuiet + 1 / 60 : 0;
     sim.g.st.forEach((S, i) => { const n = spaces(sim, i); if (n && parked(S) >= n) { full.add(i); filled[i].add(sim.g.day); } });
-    let did; while ((did = act(sim))) { mark(did, h); quietSince = h; dayQuiet = 0; }
+    roads.step(sim, h);
+    let did; while ((did = act(sim))) { mark(did, h); quietSince = h; dayQuiet = 0; roads.bought(h); }
     longestDayQuiet = Math.max(longestDayQuiet, dayQuiet);
     if (sim.g.cash !== lastCash) { lastCash = sim.g.cash; }
     longestQuiet = Math.max(longestQuiet, h - quietSince);
@@ -175,6 +179,7 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
     'express £': Math.round(g.stats.express), 'express £ a game day': Math.round(g.stats.express / days), 'express calls a game day': +(expressCalls / days).toFixed(1), 'through': g.stats.through, 'by car': g.stats.car, 'by bus link': g.stats.bus,
     'homes grown': Math.round(g.homes.reduce((a, h, i) => a + h - sim.S[i].catchment, 0)),
     'within 5 min %': late.deps ? +(100 * late.within / late.deps).toFixed(1) : 100, 'worst late min': +(late.worst / 60).toFixed(1) };
+  Object.assign(measures, roads.measures());
   for (const p of Object.values(peaks)) { p.within = p.deps ? +(100 * p.within / p.deps).toFixed(1) : 100; p.worst = +(p.worst / 60).toFixed(1); }
   // what's owned and built as the sim reads it (each station's stages in a fixed order, whatever order they were bought in)
   const play = fingerprint({ v: g.v, owned: g.owned, ups: g.ups.map(u => Object.fromEntries(Object.entries(u).sort())), line: g.line, cash: Math.round(g.cash), boarded: g.stats.boarded, lost: g.stats.lost, cab: g.stats.cab, bused: g.trouble.bused, homes: g.homes.map(Math.round) });
@@ -186,7 +191,7 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
     const j = sim.destination(i), fare = j === null ? 0 : sim.fare(i, j) * (g.ups[i].barriers ? 1 : g.ups[i].building ? 0.9 : 0.82);
     access[st.id] = { car: S.car, bus: S.bus, earned: Math.round(S.car * (fare + TUNING.parkCharge) + S.bus * fare), 'days full': filled[i].size };
   });
-  return { seed, reached, measures, peaks, play, used, access, sim, repNow: C.reputation(g) };
+  return { seed, reached, measures, peaks, play, used, access, roads: roads.peaks, sim, repNow: C.reputation(g) };
 }
 
 function fingerprint(o) { const s = JSON.stringify(o); let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16).padStart(8, '0'); }
@@ -227,6 +232,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.log('| --- | --- | --- | --- | --- |');
     for (const id of acc) { const xs = runs.map(r => r.access[id] ?? { car: 0, bus: 0, earned: 0, 'days full': 0 }); console.log(`| ${id} | ${mean(xs.map(x => x.car))} | ${mean(xs.map(x => x.bus))} | ${mean(xs.map(x => x.earned))} | ${mean(xs.map(x => x['days full']))} |`); }
   }
+  roadsTable(runs);
   console.log(off ? `\n${off} measure${off === 1 ? '' : 's'} off the baseline` : '\nall within the baseline');
   if (jsonOut) { mkdirSync(dirname(join(root, jsonOut)), { recursive: true }); writeFileSync(join(root, jsonOut), JSON.stringify(runs, null, 2)); }
 }
@@ -262,4 +268,44 @@ function contracts() {
     for (const [k, r] of Object.entries(cb.ranges)) console.log(`| ${k} | ${r.join('–')} | ${+got[k].toFixed(2)} | ${band(got[k], r)} |`);
   }
   if (jsonOut) { mkdirSync(dirname(join(root, jsonOut)), { recursive: true }); writeFileSync(join(root, jsonOut), JSON.stringify(all, null, 2)); }
+}
+
+// ---- the roads (src/sim/traffic.ts, docs/design/gridlock.md §2): derived from the sim, never fed back, so PLAY is the
+// same with or without this block. At each morning peak (08:00) every stretch's load and the cars an hour over them all
+// (real vehicles); the cars at the first and last peaks and the share taken off (of every car, through traffic and
+// all, and of the drives the network could take: the start's cars less the traffic it never touches); the A6 at Mersey Square's and the M60's
+// loads at the last; the real seconds at 1x to the first fare, and the hour of the first buy.
+function watchRoads(sim, t0) {
+  const peaks = {}, out = {}; let was = sim.hour(), day = sim.g.day, fare = null, buy = null;
+  return {
+    step(sim, h) {
+      const now = sim.hour();
+      if (fare === null && sim.g.earned > 0) fare = Math.round((sim.g.t - t0) / 3);    // 3 sim seconds a real second at 1x (src/app/clock.ts)
+      if (sim.g.day === day && was < 8 && now >= 8) {
+        const t = traffic(sim, TUNING, roadsDef, 8);
+        const drives = t.start - t.roads.reduce((a, r) => a + r.through, 0);
+        peaks[`day ${sim.g.day}`] = { cars: Math.round(t.cars), off: Math.round(t.off), drives: +(100 * t.off / drives).toFixed(1), ...Object.fromEntries(t.roads.map(r => [r.id, +r.load.toFixed(2)])) };
+      }
+      was = now; day = sim.g.day;
+    },
+    bought(h) { if (buy === null) buy = +h.toFixed(2); },
+    measures() {
+      const ks = Object.keys(peaks), first = peaks[ks[0]], last = peaks[ks[ks.length - 1]];
+      if (first) Object.assign(out, { 'cars at the first peak': first.cars, 'cars at the last peak': last.cars, 'cars off %': +(100 * (1 - last.cars / first.cars)).toFixed(1), 'drives off %': last.drives, 'A6 load': last['a6-mersey-square'], 'M60 load': last['m60-j1-j2'] });
+      return Object.assign(out, { 'first fare s': fare, 'first buy': buy });
+    },
+    peaks,
+  };
+}
+/** Each stretch's load at each morning peak, mean of the seeds. */
+function roadsTable(runs) {
+  const days = [...new Set(runs.flatMap(r => Object.keys(r.roads)))], ids = roadsDef.stretches.map(s => s.id);
+  if (!days.length) return;
+  const mean = xs => +(xs.reduce((a, b) => a + b, 0) / xs.length).toFixed(2);
+  console.log(`\n| Roads at 08:00 (mean of seeds) | cars an hour | off | ${ids.join(' | ')} |`);
+  console.log(`| --- | --- | --- | ${ids.map(() => '---').join(' | ')} |`);
+  for (const d of days) {
+    const ps = runs.map(r => r.roads[d]).filter(Boolean);
+    console.log(`| ${d} | ${Math.round(mean(ps.map(p => p.cars)))} | ${Math.round(mean(ps.map(p => p.off)))} | ${ids.map(i => mean(ps.map(p => p[i]))).join(' | ')} |`);
+  }
 }

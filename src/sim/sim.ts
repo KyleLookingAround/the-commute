@@ -91,6 +91,8 @@ export const TUNING = {
   // waits busWait for the bus (felt as waiting) and changes onto the train (busChange felt) after a short busWalk; at
   // Stockport the Interchange makes that change busSave quicker and covered for those who already come by bus
   parkWalk: 3 * 60, parkStay: 9, parkCharge: 20, busWait: 6 * 60, busWalk: 2 * 60, busChange: 5 * 60, busSave: 4 * 60,
+  // the car (src/sim/traffic.ts, src/data/traffic.json): carShare of those the network doesn't carry drive, one to a car (Census 2021, Stockport), and carScale real cars to each of the game's
+  carShare: 0.72, carScale: 0.25,
 };
 export type Tuning = typeof TUNING;
 

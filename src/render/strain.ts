@@ -1,7 +1,8 @@
 // Strain on the map: where the network hurts, drawn as soft warm glows from amber (--map-strain-1) to coral
 // (--map-strain-2) while the Strain view is on (docs/design/buying.md, section 6): a glow on each crowded platform face,
 // the walk home of people giving up (a thin trail of figures into the station's streets), the stretch of line behind
-// each late departure, and the outline of a full car park. They breathe slowly (still with reduced motion), keep a
+// each late departure, the outline of a full car park, a section of line where trains lose time against its line speed
+// (along its ballast) and a junction where trains stand held (along the line through it). They breathe slowly (still with reduced motion), keep a
 // least size on screen so each stays tappable, and a strong one carries its figure on the glass pill, giving way as
 // station names do. While it's on, the reach glow steps back. Only the view: it reads src/ui/strain.ts's figures and
 // changes nothing in the game. Fetched the first time the view is turned on, and it runs its own frames only while
@@ -11,7 +12,7 @@ import type { Network } from '../sim/network.ts';
 import type { Sim } from '../sim/sim.ts';
 import type { BuiltStation } from './stations.ts';
 import { groundAt } from './terrain.ts';
-import { CROWD_FROM, LATE_CORAL, LATE_FROM, type StrainRead } from '../ui/strain.ts';
+import { CROWD_FROM, HELD_CORAL, HELD_FROM, LATE_CORAL, LATE_FROM, SLOW_CORAL, SLOW_FROM, type StrainRead } from '../ui/strain.ts';
 
 /** Glows keep at least this many CSS pixels across on screen, so a stretch or a stop stays tappable at 320 px. */
 const LEAST_PX = 40;
@@ -21,6 +22,8 @@ const STRONG = 0.6, FIG_NEAR = 2600;
 const FIG_H = 24;
 /** One slow breath, in seconds; and how fast the view fades in and out, a second. */
 const BREATH = 4.5, FADE = 3;
+/** A held junction glows along the line this many metres either side of it. */
+const HELD_REACH = 120;
 /** The walk home: its length (m), and the most figures on it. */
 const WALK = 140, WALKERS = 14;
 
@@ -31,7 +34,7 @@ export interface StrainView {
   /** Where the figures go (the station names' layer), and the sim as it is now. */
   labels: HTMLElement; sim: () => Sim; reduced: boolean;
 }
-type Kind = 'crowd' | 'walk' | 'late' | 'park';
+type Kind = 'crowd' | 'walk' | 'late' | 'park' | 'slow' | 'held';
 /** One glow as drawn: what it's of, the place its tap opens, how strong (0 to 1), its figure, and where it stands on
  * the screen this frame (points along it, for the tap). */
 interface Glow {
@@ -107,7 +110,7 @@ export class StrainLayer {
   /** For the checks: how many of each kind of glow are drawn, the strongest, the figures showing, the walkers, the
    * reach's step back, where each glow stands on screen, and whether the layer is running frames. */
   stats(): { on: number; kinds: Record<Kind, number>; strongest: number; figures: string[]; walkers: number; back: number; breath: number; running: boolean; spots: { place: string; kind: Kind; x: number; y: number; w: number }[] } {
-    const kinds: Record<Kind, number> = { crowd: 0, walk: 0, late: 0, park: 0 }, figures: string[] = [], spots: { place: string; kind: Kind; x: number; y: number; w: number }[] = [];
+    const kinds: Record<Kind, number> = { crowd: 0, walk: 0, late: 0, park: 0, slow: 0, held: 0 }, figures: string[] = [], spots: { place: string; kind: Kind; x: number; y: number; w: number }[] = [];
     let strongest = 0, on = 0;
     const r = this.o.canvas.getBoundingClientRect();
     for (const g of this.glows.values()) {
@@ -152,7 +155,7 @@ export class StrainLayer {
       const least = LEAST_PX * 2 * near * tan / H, pxm = LEAST_PX / least;
       const c = g.mat.uniforms['uC']!.value as THREE.Color; c.copy(this.c1).lerp(this.c2, g.s);
       g.mat.uniforms['uA']!.value = (0.32 + 0.36 * g.s) * breath * this.fade;
-      if (g.kind === 'late' || g.kind === 'walk') { const half = Math.max(g.kind === 'walk' ? 3 : 4, least / 2); g.mat.uniforms['uHalf']!.value = half; g.reach = half * pxm; }
+      if (g.kind === 'late' || g.kind === 'walk' || g.kind === 'slow' || g.kind === 'held') { const half = Math.max(g.kind === 'walk' ? 3 : g.kind === 'late' ? 4 : 6, least / 2); g.mat.uniforms['uHalf']!.value = half; g.reach = half * pxm; }
       else {
         const [w, d] = g.size, sw = Math.max(w, least), sd = Math.max(d, least);
         g.mesh.scale.set(sw, 1, sd); g.mesh.position.x = (g.mesh.userData['cu'] as number) - sw / 2; g.mesh.position.z = (g.mesh.userData['cv'] as number) - sd / 2;
@@ -201,6 +204,17 @@ export class StrainLayer {
       if (!g) continue;
       g.on = true; g.s = Math.min(1, Math.max(0, (L.min - LATE_FROM) / (LATE_CORAL - LATE_FROM)));
       g.place = sim.P.byId.has(route) ? route : sim.P.station[L.i]!; g.fig = `${Math.round(L.min)} min late`;
+    }
+    // slow sections along their ballast, held junctions along the line through them
+    for (const x of sim.secs) {
+      const m = read.slowOn(x.id); if (!m) continue;
+      const g = this.along(`slow|${x.id}`, 'slow', x.id, x.corridor, x.s0, x.s1);
+      g.on = true; g.s = Math.min(1, Math.max(0, (m - SLOW_FROM) / (SLOW_CORAL - SLOW_FROM))); g.fig = `${Math.round(m)} min lost`;
+    }
+    for (const j of o.net.junctions) {
+      const id = `junction:${j.id}`, m = read.heldAt(id); if (!m) continue;
+      const g = this.along(`held|${j.id}`, 'held', id, j.corridor, j.s - HELD_REACH, j.s + HELD_REACH);
+      g.on = true; g.s = Math.min(1, Math.max(0, (m - HELD_FROM) / (HELD_CORAL - HELD_FROM))); g.fig = `${m < 1 ? '<1' : Math.round(m)} min held`;
     }
   }
   /** Whether a kit's part shows with what's built at station i. */
@@ -259,6 +273,16 @@ export class StrainLayer {
     }
     const { mesh, mat } = this.ribbonMesh(pts, ns);
     const g: Glow = { kind: 'late', key, place: '', s: 0, fig: '', mesh, mat, pts, scr: [], size: [0, 0], reach: LEAST_PX / 2, on: false, label: null, labelW: 0, lx: 0, ly: 0, lz: 0 };
+    this.glows.set(key, g);
+    return g;
+  }
+  /** A ribbon along a corridor's middle from s0 to s1 (a section's ballast, or the line through a junction). */
+  private along(key: string, kind: Kind, place: string, corridor: string, s0: number, s1: number): Glow {
+    const had = this.glows.get(key); if (had) return had;
+    const net = this.o.net, steps = Math.max(2, Math.ceil((s1 - s0) / 40)), pts: THREE.Vector3[] = [], ns: [number, number][] = [];
+    for (let k = 0; k <= steps; k++) { const f = net.place(corridor, s0 + (s1 - s0) * k / steps); pts.push(new THREE.Vector3(f.x, 0.4, f.z)); ns.push([f.nx, f.nz]); }
+    const { mesh, mat } = this.ribbonMesh(pts, ns);
+    const g: Glow = { kind, key, place, s: 0, fig: '', mesh, mat, pts, scr: [], size: [0, 0], reach: LEAST_PX / 2, on: false, label: null, labelW: 0, lx: 0, ly: 0, lz: 0 };
     this.glows.set(key, g);
     return g;
   }

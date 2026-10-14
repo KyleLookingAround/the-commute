@@ -3,7 +3,8 @@
 // it's electrified; its card's stage ghosts them; once bought its masts stand outside its outer tracks only where the
 // line had no wires, rising into place, and a contact wire runs over its tracks; a section that starts wired offers no
 // wires. A flying junction (Ardwick's) ghosts on its card and, once bought, stands as a flyover climbing over the
-// tracks there on piers. No browser.
+// tracks there on piers. Strain reads a section where a train stands behind a failed one as slow (minutes lost
+// against its line speed this hour) and a junction where trains stand held, each with its line on the card. No browser.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';
@@ -17,6 +18,8 @@ const THREE = await import('three');
 const { fromGeo } = await import('../../src/sim/network.ts');
 const { Sim } = await import('../../src/sim/sim.ts');
 const { SectionLayer } = await import('../../src/render/sections.ts');
+globalThis.localStorage ??= { getItem: () => null, setItem: () => {} };
+const { StrainRead } = await import('../../src/ui/strain.ts');
 
 export default async function ({ ok, root }) {
   const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.fresh(net, 1));
@@ -49,4 +52,19 @@ export default async function ({ ok, root }) {
   sim.grant('junction:ardwick', 'flyover'); L.previewFlyover(null);
   const j = net.junctions.find(q => q.id === 'ardwick'), fly = L.flyoverBox('junction:ardwick');
   ok('sections: once bought it stands over the tracks at the junction, rising into place', L.flyovers() === 1 && !!fly && fly.min.x <= j.x && fly.max.x >= j.x && fly.min.z <= j.z && fly.max.z >= j.z, JSON.stringify(fly));
+
+  // Strain: a train failed between Heaton Chapel and Levenshulme, the next one held behind it
+  const s2 = new Sim(net, Sim.fresh(net, 1)); s2.g.cash = 1e7; s2.g.trouble.next = s2.g.t + 1e9;
+  for (const st of ['heaton-chapel', 'levenshulme']) s2.grant(s2.P.station[net.station(st).index]);
+  s2.grant(s2.P.stopper, 'units'); s2.ensureTrains(); s2.step(1);
+  const read = new StrainRead(s2), hl = s2.P.all.find(p => p.kind === 'section' && p.name === 'Heaton Chapel – Levenshulme').id, hx = s2.secs.find(q => q.id === hl);
+  const [a, b] = s2.g.trains.filter(t => t.svc === 'stopper'), mid = (hx.s0 + hx.s1) / 2;
+  Object.assign(a, { state: 'run', dir: 1, s: mid + 300, v: 0, next: net.station('levenshulme').index, bound: -1, pfAt: net.station('heaton-chapel').index });
+  Object.assign(b, { state: 'run', dir: 1, s: hx.s0 + 200, v: 15, next: net.station('levenshulme').index, bound: -1, pfAt: net.station('heaton-chapel').index, due: s2.g.t + 1e6 });
+  s2.g.trouble.fail = { train: a.id, from: s2.g.t, until: s2.g.t + 1e6, a: 0, b: 1, d: 0 };
+  for (let t = 0; t < 300; t++) { s2.step(1); if (t % 5 === 0) read.tick(s2); }
+  ok('sections: Strain reads the section a train stands held in as slow, with its line on the card', read.slowOn(hl) >= 1 && /lost \d+ min/.test(read.line(hl) ?? ''), `${read.line(hl)}`);
+  for (const st of ['ardwick', 'piccadilly']) s2.grant(s2.P.station[net.station(st).index]);
+  s2.g.held['ardwick'] = (s2.g.held['ardwick'] ?? 0) + 90; read.tick(s2);
+  ok('sections: and a junction where trains stood held', read.heldAt('junction:ardwick') >= 1.4 && /held 2 min/.test(read.line('junction:ardwick') ?? ''), `${read.line('junction:ardwick')}`);
 }

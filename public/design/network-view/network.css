@@ -1,0 +1,17 @@
+/* A network view you can read: the mockups page (docs/briefs/network-view.md). On top of ../design.css and
+   ../buying/buying.css, which have the tokens, the page and the mockups' frame; this adds only what's new. Nothing here
+   is loaded by the game. */
+.nv-key{display:flex;flex-wrap:wrap;gap:6px 14px;margin:14px 0 0;font-size:var(--text-sm);color:var(--soft)}
+.nv-key span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.nv-key i{display:inline-block;flex:0 0 auto}
+.nv-key .ln{width:22px;height:6px;border-radius:3px;box-shadow:0 0 0 1.5px #fff}
+.nv-key .bar{width:15px;height:9px;border-radius:3px;border:2px solid #1d2340;box-shadow:0 0 0 1px #fff}
+.nv-key .ring{width:16px;height:16px;border-radius:50%;background:#fff;border:2.5px solid #1d2340}
+.nv-key .ring.lost{border:3.5px solid #ff3b30}
+.pulse{animation:pulse 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes pulse{50%{opacity:.1;transform:scale(1.35)}}
+@media (prefers-reduced-motion:reduce){.pulse{animation:none}}
+.cost{border-collapse:collapse;font-size:var(--text-sm);max-width:620px;margin-top:8px}
+.cost th,.cost td{padding:8px 10px;border-bottom:1px solid var(--line-soft);text-align:left;vertical-align:top}
+.cost th{font-family:var(--mono);font-size:var(--text-xs);color:var(--soft);text-transform:uppercase;letter-spacing:.04em}
+.cost td:first-child{color:var(--soft)}

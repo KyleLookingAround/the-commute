@@ -323,6 +323,7 @@ function crossing(scene: THREE.Scene, c: Corridor, s: number, groundY: (x: numbe
     }
     cars.instanceMatrix.needsUpdate = true;
   };
+  cars.name = 'm60-cars';   // gridlock's cars (src/render/traffic.ts) take over from these once they're in
   scene.add(cars);
 }
 

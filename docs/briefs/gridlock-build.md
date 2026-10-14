@@ -29,6 +29,8 @@ G1 is done (87f55f4).
 
 **G3 goes before G2** (the coordinator, 14 October 2026). It's view only and draws today's opening's jams. G2 (the start, Reopen, the save) waits until the services session (`docs/briefs/services.md`) has finished, since both edit `sim.ts` and the save.
 
+G3 is done (gridlock on the map): `src/render/traffic.ts`, the tokens, the `traffic` check group; screenshots in `docs/briefs/gridlock-build/`.
+
 For G3, the files are:
 - a new `src/render/traffic.ts`, in a chunk after the first frame
 - the `--map-car-*`, `--map-brake` and `--map-jam-*` tokens

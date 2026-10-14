@@ -122,6 +122,12 @@ function more(): void {
       moves: () => rig.moves, release: () => { homes.hold = null; life.hold = null; life.fast = 2; }, toast: () => ui.toast(cb.msg) }, cb.earned, THREE.Vector3);
     Object.assign(view, { away: () => back ? { ...back.stats(), homesRising: homes.risingCount, held: !!homes.hold, parks: built.map(b => b.live.parks.reduce((n, f) => n + f.n, 0)) } : null });
   }); }
+  // gridlock on the map (src/render/traffic.ts): the roads' cars and wash, with the stretches' data, in their own chunk
+  void import('./render/traffic.ts').then(m => {
+    roads = new m.TrafficLayer({ scene, net, def: networkDef, sim: () => sim, focus: () => rig.o, ground: world.buildings.layer.then(() => world.ground), reduced: rig.reduced });
+    roads.setLow(prefs.fewer);
+    Object.assign(view, { traffic: () => roads?.stats() ?? null });
+  });
   void world.more().then(() => {
     for (const i of fillStations(net, built, kits)) {
       built[i]!.group.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = !o.userData['noShadow']; o.receiveShadow = true; } });
@@ -131,6 +137,7 @@ function more(): void {
   });
 }
 let kitsIn = false;
+let roads: import('./render/traffic.ts').TrafficLayer | null = null;
 let netView: import('./render/networkview.ts').NetworkView | null = null;
 /** After time away: what each station earned and the toast, until the welcome back plays (src/render/away.ts). */
 let cameBack: { earned: number[]; msg: string } | null = null;
@@ -277,7 +284,7 @@ function graphics(p: Prefs, was: Prefs | null): void {
     renderer.shadowMap.enabled = p.shadows;
     if (was) scene.traverse(o => { if (o instanceof THREE.Mesh) for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.needsUpdate = true; });
   }
-  pax.setFewer(p.fewer); weather.setLow(p.fewer); world.buildings.setLow(p.fewer); weather.setFair(!p.weather);
+  pax.setFewer(p.fewer); roads?.setLow(p.fewer); weather.setLow(p.fewer); world.buildings.setLow(p.fewer); weather.setFair(!p.weather);
   renderer.setPixelRatio(p.sharp ? Math.min(2, window.devicePixelRatio || 1) : 1);
 }
 graphics(prefs, null);
@@ -553,7 +560,7 @@ function frame(now: number): void {
   sound.update(sim, rig.o, light.daylight, stationsXZ, trains.meshes, realDt); pax.setDaylight(light.daylight);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
   syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt, sim); trains.sync(sim, dtGame); pax.sync(sim.g, dtGame); pax.placeCoin(camera); labels();
-  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim); netView?.update(sim, rig.o.r, realDt); back?.update(realDt);
+  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim); netView?.update(sim, rig.o.r, realDt); back?.update(realDt); roads?.sync(dt, dtGame, light.daylight);
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); nextStations(); followGlide(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
   const t2 = performance.now();

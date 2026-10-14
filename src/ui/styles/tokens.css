@@ -55,7 +55,9 @@
      Plaza's faience and sign, Merseyway's render and fascias, the city's towers on the horizon and their red lamps */
   --map-brick-new:#b8664a; --map-viaduct-lit:#ffb877; --map-pyramid-lit:#5fb4ff; --map-pyramid-frame:#1d3f66; --map-sandstone:#b8664c; --map-faience:#efe6cf;
   --map-plaza-sign:#c8322e; --map-merseyway:#ddd2bb; --map-fascia:#2f8f9d; --map-skyline:#5d6b84; --map-air-light:#ff3b30;
-  --map-car-1:#c8283a; --map-car-2:#2a5cb0; --map-car-3:#c9ccd1; --map-car-4:#f4f4f0; --map-car-5:#2b2e35; --map-car-6:#3a8a55;
+  --map-car-1:#c8283a; --map-car-2:#2a5cb0; --map-car-3:#c9ccd1; --map-car-4:#f4f4f0; --map-car-5:#f2c230; --map-car-6:#3a8a55;
+  /* gridlock on the map (src/render/traffic.ts): brake lights that read in daylight, and the roads' wash past 0.9 and 1.15 of capacity */
+  --map-brake:#ff4a26; --map-jam-1:#ffb347; --map-jam-2:#ff6f4f;
   /* weather and seasons (src/render/weather.ts): an overcast sky and its clouds, rain, snow and fog; bright umbrellas;
      the lineside trees through the year (spring blossom, summer green, autumn gold, winter bare), a wet platform's sheen */
   --map-sky-grey:#aab6c2; --map-zenith-grey:#7d8ea3; --map-cloud-grey:#c9d0d8; --map-rain:#dbe7f5; --map-snow:#f7f9fc; --map-fog:#c6ccd2;

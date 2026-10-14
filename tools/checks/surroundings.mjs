@@ -37,8 +37,8 @@ const MEET = 3;       // m from a road's end to the edge of what it meets
 const ALONG = 80;     // m a road may run on the railway's land or its banks (a crossing at a slant, a station's forecourt)
 const KINDS = ['taxi', 'carpark', 'busstop', 'buslink'];
 // the stations still to put right (docs/audits/station-surroundings.md), worst first, a few at a time: what's found
-// at them, and on the roads to them, is listed but doesn't fail yet. Piccadilly's kit waits on the services work.
-const LATER = new Set(['piccadilly']);
+// at them, and on the roads to them, is listed but doesn't fail yet (none now).
+const LATER = new Set([]);
 
 export default async function ({ ok, root, kits: given }) {
   const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def);

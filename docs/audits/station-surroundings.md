@@ -53,9 +53,15 @@ Now:
 - **The roads from memory** (Hazel Grove to Middlewood, Middlewood to Disley, Disley to New Mills Newtown) and the roads to the stops that moved (Stockport to Heaton Chapel and to Davenport, Romiley to Marple) are redrawn from OpenStreetMap; where a kit lays the station's approach, the road leaves the street where the kit's does and follows it to the stop. Middlewood to Disley is now 5.5 km (it was 3.9 from memory): back up Middlewood Road to the A6 at High Lane.
 - **Underpasses**: a bus road crossing the railway's land between streets lower than the land now runs straight through under the embankment where the way across is 40 m or less (the `terrain` check's limit), rather than up over the tracks at rail level. Today that's only a few short crossings round Brinnington and Bredbury; the longer ones (the A6 under the Buxton line at High Lane, 95 m across at a skew, and one by Levenshulme, 86 m) still ride over, as the terrain check allows a road under the ground on the railway's land only for 40 m.
 
+### Piccadilly (14 October 2026)
+
+The station stands on a deck over the real streets (the undercroft), so the kit's parts at platform level are 8 m over the ground beyond its pad.
+
+- **The taxi rank** stood on the London Road side at platform level, 8.9 m over the ground with no street, from memory. It's now the real Station Taxi Rank, at street level at the mouth of the undercroft on the Fairfield Street side, where OpenStreetMap has it. Its road is a kit `road`, joined to Fairfield Street at its east end: the real way in, from Fairfield Street's west end, runs where the map draws the station's throat.
+- **The bus stop** stood on the same deck, 8.8 m up. It's now at street level on the service road along the station's London Road side, under the concourse's end, which is a kit `road` off Ducie Street. The service buses' real stops are on Station Approach, but a bus from Ardwick or Ashburys would reach them only along Fairfield Street, which the map draws under the station's pad, or along Ducie Street's cycleway; the replacement coaches' stand is the game's. Both bus roads follow the service road in.
+- **The car park** was a made-up multi-storey across the platforms' end from the real one. It's now the real Piccadilly Station Car Park on Boad Street, across Sheffield Street, at its outline from OpenStreetMap (a `footprint`), with the decks for sale on its roof.
+
 ## Still to put right
 
-From the check (heights are against the real ground; streets are the real ones painted on the ground, the kits' roads and bridge decks):
-
-1. **Piccadilly**: the taxi rank and bus stop stand on the station's deck at platform level, 8.8 m above the real ground, 10 to 12 m from a street; the car park is a made-up multi-storey beside the station rather than the real one on Boad Street.
-2. **The long underpasses**: the A6 under the Buxton line at High Lane and the road by Levenshulme still cross the embankment at rail level; letting them through needs the `terrain` check to allow a longer run under the line where it's an embankment.
+1. **The long underpasses**: the A6 under the Buxton line at High Lane (95 m across the railway's land at a skew) and a road by Levenshulme (86 m) still cross the embankment at rail level; letting them through needs the `terrain` check to allow a longer run under the line where it's an embankment.
+2. **Piccadilly's pad** reaches over Fairfield Street, where the kit's Metrolink stop stands at platform level beside the station (the real one is in the undercroft at street level), so a bus road can't use Fairfield Street along the station.

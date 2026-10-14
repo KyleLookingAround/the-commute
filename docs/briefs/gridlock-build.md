@@ -2,7 +2,7 @@
 
 ## Goal and what it may touch
 
-- **The owner's call, 14 October 2026:** build `docs/design/gridlock.md`, going with the defaults on all eight of its open questions. The design is the spec. Its build plan's parts G1 to G4 are this brief, one at a time, in order. G5 (the jam pushes back) is not built.
+- **The owner's call, 14 October 2026:** build `docs/design/gridlock.md`, going with the defaults on all eight of its open questions. The design is the spec. Its build plan's parts G1 to G4 are this brief, one at a time, in order. G5 (the jam pushes back) is now built after G4: the ideas review changed this (roadmap step 20), because without it the roads hardly clear after the first morning.
   - **G1, the car in the sim:** sim, data, the bot and tests. Nothing shows on screen, and `PLAY` stays identical.
   - **G2, Stockport starts shut:** £4,000 to start; Reopen Stockport for £1,000; every station's button says Reopen; starts as data (§7). Raise `SAVE_VERSION`. Run the bot on seeds 1–3 at 8 and 16 h against `main`, with the table in the commit. The opening must be at least as quick to first income and the first next buy as today.
   - **G3, gridlock on the map:** load it in a chunk after the first frame. Its triangle budget comes from the owner's phone figures, which the budgets session (`docs/briefs/budgets.md`) is collecting. If those figures aren't in when you reach G3, build to today's 450,000 at the opening, using the design's wash for the far traffic, and say so.

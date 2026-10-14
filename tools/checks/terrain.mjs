@@ -8,7 +8,9 @@
 // - Levenshulme: its forecourt, taxi rank and bus stop at street level below the embankment, and the arched recesses
 //   at the foot of the wall under the east platform's building.
 // - Roads: the replacement buses' roads come down off a station's pad as a ramp no steeper than 1 in 10, and never
-//   run under the ground.
+//   run under the ground but where they pass under the railway: under a real bridge in the data (the viaduct's and
+//   the arches' spans), or across the railway's own land in 40 m or less. Shown on a made-up road under the line
+//   (passes) and one buried in a field (fails).
 // - The lines out's ring: the page fetches out.json after its first frame, never before it, and lays the ground it
 //   touches again, without an error.
 // - Size per line: what's committed of the terrain stays within each line's allowance (tools/lines.mjs: today's line
@@ -128,11 +130,38 @@ export default async function ({ ok, root, open }) {
   setTerrain(t);
   const scene = new THREE.Scene(), buses = new BusLayer(scene, net, buildStations(scene, net, kits));
   const ways = [...buses.paths.values(), ...net.stations.map((_, i) => buses.depotPath(i)).filter(Boolean)], steep = [];
-  for (const w of ways) for (let k = 1; k < w.pts.length; k++) {
-    const [x, z] = w.pts[k], hi = Math.max(w.y[k], w.y[k - 1]), lo = Math.min(w.y[k], w.y[k - 1]), ds = w.d[k] - w.d[k - 1];
-    if (w.y[k] < t.groundY(x, z) - 0.01 || (hi === 0 && hi - lo > 0.1 * ds + 0.05)) steep.push(`${x.toFixed(0)},${z.toFixed(0)} ${lo.toFixed(1)}→${hi.toFixed(1)}`);
+  // a road may pass below the ground only where it goes under the railway: every buried point of a run under a real
+  // bridge in the data (the viaduct's and the arches' spans), or on the railway's own land in a run of UNDER m or less
+  const UNDER = 40;
+  const underBridge = (x, z) => { const L = t.locate(x, z); return Math.abs(L.o) < 60 && t.bridged(L.s, t.lines[L.k]); };
+  const buried = w => {
+    const bad = []; let run = [];
+    const end = () => {
+      if (!run.length) return;
+      const len = w.d[run.at(-1)] - w.d[run[0]], bridge = run.every(k => underBridge(...w.pts[k])), land = run.every(k => t.railLand(...w.pts[k], 0));
+      if (!bridge && !(land && len <= UNDER)) { const [x, z] = w.pts[run[0]]; bad.push(`${x.toFixed(0)},${z.toFixed(0)} under the ground for ${len.toFixed(0)} m`); }
+      run = [];
+    };
+    for (let k = 0; k < w.pts.length; k++) { const [x, z] = w.pts[k]; if (w.y[k] < t.groundY(x, z) - 0.01) run.push(k); else end(); }
+    end(); return bad;
+  };
+  for (const w of ways) {
+    steep.push(...buried(w));
+    for (let k = 1; k < w.pts.length; k++) {
+      const [x, z] = w.pts[k], hi = Math.max(w.y[k], w.y[k - 1]), lo = Math.min(w.y[k], w.y[k - 1]), ds = w.d[k] - w.d[k - 1];
+      if (hi === 0 && hi - lo > 0.1 * ds + 0.05) steep.push(`${x.toFixed(0)},${z.toFixed(0)} ${lo.toFixed(1)}→${hi.toFixed(1)}`);
+    }
   }
   const ramps = ways.reduce((n, w) => n + w.pts.filter(([x, z], k) => w.y[k] > t.groundY(x, z) + 0.5).length, 0);
+  // the rule itself, on two made-up roads: one dipping under the line across the railway's land (passes), one buried
+  // in a field (fails)
+  {
+    const F = net.place('main', (net.station('stockport').s + net.station('heaton-chapel').s) / 2, 0), across = { pts: [], y: [], d: [] }, field = { pts: [], y: [], d: [] };
+    for (let o = -20; o <= 20; o += 2) { const x = F.x + F.nx * o, z = F.z + F.nz * o; across.pts.push([x, z]); across.y.push(t.railLand(x, z, 0) ? t.groundY(x, z) - 5.5 : t.groundY(x, z)); across.d.push(o + 20); }
+    for (let o = 0; o <= 100; o += 5) { const x = F.x + F.nx * 400 + F.dx * o, z = F.z + F.nz * 400 + F.dz * o; field.pts.push([x, z]); field.y.push(t.groundY(x, z) - 3); field.d.push(o); }
+    const a = buried(across), b = buried(field), dips = across.y.some((y, k) => y < t.groundY(...across.pts[k]) - 1);
+    ok('terrain: a road may pass under the line on the railway\'s land, but not run buried elsewhere', dips && !a.length && b.length > 0, `under the line: ${a.join(', ') || 'passes'}; in a field: ${b.join(', ') || 'passes'}`);
+  }
   setTerrain(null);
-  ok('terrain: the replacement buses\' roads come down off a station\'s pad as a ramp, never dropping off it or under the ground', ways.length > 8 && !steep.length, `${ways.length} ways, ${ramps} points on a ramp; ` + steep.slice(0, 4).join(', '));
+  ok('terrain: the replacement buses\' roads come down off a station\'s pad as a ramp, never dropping off it, and are under the ground only beneath the railway', ways.length > 8 && !steep.length, `${ways.length} ways, ${ramps} points on a ramp; ` + steep.slice(0, 4).join(', '));
 }

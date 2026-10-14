@@ -25,7 +25,17 @@ G1 owns:
 
 Add `carShare` and `carScale` to `TUNING` in `src/sim/sim.ts` as a two-line change. Nothing else in `src/sim/`.
 
-G2 onwards (the start, Reopen, the save) waits until the Crewe line's service part has landed. Tell the coordinator when G1 is done.
+G1 is done (87f55f4).
+
+**G3 goes before G2** (the coordinator, 14 October 2026). It's view only and draws today's opening's jams. G2 (the start, Reopen, the save) waits until the services session (`docs/briefs/services.md`) has finished, since both edit `sim.ts` and the save.
+
+For G3, the files are:
+- a new `src/render/traffic.ts`, in a chunk after the first frame
+- the `--map-car-*`, `--map-brake` and `--map-jam-*` tokens
+- a few lines where the page loads it
+- a new `traffic` check group
+
+G3 reads `roads` and `src/data/traffic.json` but doesn't edit them: the station surroundings session owns `roads`. The perf budgets are being re-set from the owner's phone figures. Until then, build to today's budgets (opening 450,000 triangles), with far traffic as the wash.
 
 ## Read first
 

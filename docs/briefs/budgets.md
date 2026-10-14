@@ -88,3 +88,23 @@ A Publish run takes about 35 minutes alone, and 70 or more when one queues behin
    - Prototype phase only: say in the workflow that from the first release, PRs run everything.
 
 Files: as above, plus the opening comments and the page set-up in `tools/checks/*.mjs`. A check's assertions stay as they are. Tell the coordinator before changing a group the Crewe line session is also changing.
+
+## Handed on (14 October 2026)
+
+Done, all on `main`:
+
+1. **Stats view** (a4726b6): `?stats` and `?stats&save=busy`, Copy, its own 1 KB file loaded after the first frame. The busy save is built by `src/app/busy.ts`, shared with the perf group. The links went to the coordinator; **the owner's phone figures haven't come back yet**, so the triangle budgets are still today's.
+2. **Per view** (a4726b6): perf's opening, busy save and Whole line (its own geometry and program budgets), counted after culling. What one view loads (e845c29): each view's own files after the first frame, budget 1.5 MB (CI saw 0.17, 0.17 and 0.95 MB); every world square comes in after the first frame wherever the camera is, against the lines' world allowances added up.
+3. **Tile allowances per line** (128537b): `tools/lines.mjs`, read by terrain and world. Today's line and the Marple line keep their own; every other corridor gets 0.5 MB of each.
+4. **Six shards** (1dd714d), then **eight** (547c55a), rebalanced on the first Check main run (bc6d4da).
+- **Check main** (a327002): the checks have their own workflow with one lock for the whole run, so a started run always finishes. This came from the coordinator, after runs 137 to 154 never finished.
+7. **Check mode** (4ddb067): no shadows and one pixel per CSS pixel, except perf, contrast, daylight and life; `CHECK_REAL=1` to compare. camera 16.2 → 5.5 min, layout 9.6 → 2.8 and others (bc6d4da's message).
+8. **Side by side** (5a6cfe0, bc6d4da): `side()` in `tools/check.mjs`. Not done: sharing one page between tests. Most groups open one page per screen size, and their reloads are what they test.
+9. **Selective runs** (7269237): `Covers:` lines and `--changed`, from the last green run; nightly full run at 02:23 UTC.
+- Also: terrain lets a bus road pass under the railway (5425002).
+
+Open:
+- Set the triangle budgets from the owner's figures when they come.
+- Item 5 (ground cover memory in `src/render/world.ts`) is not started: ask the coordinator first.
+- Time the side-by-side groups from the next Check main runs and update `MINUTES`.
+- The `wip/budgets`, `wip/check-mode` and `wip/side` branches can be deleted: the session's push to delete them was refused.

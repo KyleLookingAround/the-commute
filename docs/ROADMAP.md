@@ -83,8 +83,8 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
 - The Crewe line's stations, the Styal line and Reddish South wait.
 - Next come steps 4 to 9, 12 and 15, inside today's map: services, the fleet, timetabling, Stockport as the hub, the A6 and the 192, the main roads, buses as a network, and the gridlock opening.
 - The ideas review of 14 October 2026 (`docs/ideas/2026-10-14-review.md`) adds steps 16 to 23, inside today's map. The build order, once the sessions now running land:
-  1. 16 and 17, view only and small, beside anything.
-  2. 18, then 19 once services' frequencies are in.
+  1. 24 first (ideas review, second pass), so every later balance call is judged against a bot that buys the fix; 16, 17 and 25, view only and small, beside anything.
+  2. 18, then 19 once services' frequencies and step 24 are in.
   3. 20 after the gridlock's G4.
   4. 21, the feeder buses, before steps 6 and 12.
   5. 22, then 23.
@@ -112,7 +112,7 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
 14. **Fix what the phase 3 and 4 audit found** (M, from `docs/audits/phase-3-4.md`; built 13 October 2026 by the pick-up's item 3). Fixed: Revenue shortened to fit (£83.3k); Stockport Interchange's roof park takes the snow; Hazel Grove's link bus on the forecourt; homes off the railway's land; the coin just above its station's name; the farther of two overlapping names gives way; the engineering train works one site a night instead of crossing the line in a real minute; Stockport's multi-storey shows its floors; the road bridges over the line from the LIDAR (17 `overbridge` landmarks, Bramhall Lane and Moorland Road among them); both bus depots where OpenStreetMap has them; Stockport's Station Road side and Davenport's car park side checked against OpenStreetMap and noted in their kits. Checked and left: the cutting walls (the ground rises behind them where the LIDAR has a cutting), the viaduct's deck (full since the re-lay), the dark wedge at Ardwick (gone). Still to fix: the block hanging over the valley by the viaduct, a real building (big ones now stand on the lowest ground along their walls, which didn't settle this one: the ground read there seems to disagree with the valley drawn under the viaduct). Left, changing the game less: the roads and the road through Levenshulme's pad (steps 8 and 9); Ardwick's green patches and the light streaks (the terrain's cover, with the real surroundings' ground cover); the night's light (a call on looks); the sheet scrolled to the picked card (meant); Middlewood's bridge, which waits on its cutting (the real surroundings beyond Hazel Grove); Piccadilly's throat and Stockport's crossover ladder, which are the sim's own tracks (the throat's faults on the layout test's list, the stopper's long diagonal its route) and want their own brief; the viaduct deck's steps where the throat fans over its first spans (a deck tapering within a span would need its own geometry).
 15. **The gridlock opening** (the owner, 13 October 2026; designed: `docs/design/gridlock.md`, mockups at `design/gridlock/` on the live site, from `docs/briefs/gridlock-opening.md`): the game starts with nothing local running and the roads jammed; the first buy is Reopen Stockport (£1,000 of a £4,000 start, so the first fare comes in about 15 real seconds rather than 200), and the cars taken off the A6 and the M60 are the score, drawn as instanced cars in queues near the camera and a congestion wash on the streets beyond. In parts: G1 the car in the sim (derived from the journeys, `PLAY` unchanged), G2 Stockport starts shut, G3 gridlock on the map, G4 the road card and the score, G5 the jam pushing people onto the trains (built after G4: step 20, ideas review 14 October 2026; was: only if the owner wants it, changed because the bot shows the car figures barely move without it). G3 can run on today's stand-in roads; step 8 adds the A6's real course, junctions, lanes and count points.
 
-16. **A network view you can read** (M, ideas review 14 October 2026; review idea 3). At Whole line today the clouds sit over everything, the tracks are hairlines and no trains show.
+16. **A network view you can read** (M, ideas review 14 October 2026; review idea 3; built 14 October 2026, 400c5a1). Left: at 390 px the fogged stations' labels and price pills crowd round Middlewood and Disley, and the waiting rings are hard to tell apart in size until a station is very busy. Before it, at Whole line the clouds sit over everything, the tracks are hairlines and no trains show.
    - Fade the clouds out above a height.
    - Draw each service bold in its own colour, with trains as dots coloured by how full they are.
    - Draw stations as rings sized by who's waiting, red when people give up; Strain and the roads' wash stay readable.
@@ -133,7 +133,7 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
      - cycle racks to a cycle hub
    - Each station gets a signature stage from its real history or plans, each with its `note`, such as Heaton Chapel's building restored, Levenshulme's market or Stockport's Town Centre West.
    - The bot buys them, and the baselines move on purpose.
-19. **Late trains cost money** (M, ideas review 14 October 2026; idea 1). By day 7 on the bot's line under a seventh of departures leave within 5 minutes and a peak loses over 1,000, with no cost to the player.
+19. **Late trains cost money** (M, ideas review 14 October 2026; idea 1). By day 7 on the bot's line under a seventh of departures leave within 5 minutes and a peak loses over 1,000, with no cost to the player. The second pass found the fix exists (the third unit and the second longer trains cut days 6 and 7's lost by about 60% and put 77 to 99% on time); the bot never buys them, so build after step 24.
    - Delay Repay: riders 15 minutes or more late take back part of the fare, shown as red coins shed by the late train.
    - Punctuality (the share within 5 minutes) replaces the late-departure term in the contract's reputation.
    - The Network card shows punctuality and the day's Delay Repay.
@@ -150,7 +150,13 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
    - match days at Edgeley Park, Stepping Hill's shift changes and Christmas at Merseyway as seeded surges you can see and buy for
    - contract targets from the franchise (punctuality, cars off the A6, a station reached) that bank extra reputation, using the milestones already recorded
    - poster campaigns on billboards along the jammed A6 and M60, one a station at a time
-   - the bot's policy taught lifts, retail, the third unit and the second longer trains, so the baselines cover every buy
+
+24. **Teach the bot every buy** (S, ideas review 14 October 2026, second pass: `docs/ideas/2026-10-14-review-2.md`). On day 7 the bot runs two units with the first longer trains while holding over £200,000: its policy stops at `units < 2` and `cars < 1`, and never buys lifts or retail.
+   - Teach it to buy the third unit and the second longer trains when its trains leave full or late.
+   - Teach it to buy lifts and retail where they pay back within a game day or two.
+   - Re-propose the baselines at 8 and 16 h, saying why.
+   - `tools/bot.mjs` and `tools/baseline.json` only.
+25. **Show where the trouble comes from** (S, view only, ideas review 14 October 2026, second pass). When a station's trouble comes from another place, its card's what's-wrong line names that place as a chip that opens its card. For example, "Trains leave full · Stopper" leads to the stopper's card, which has the extra unit and longer trains. It's a fact about the network, not a recommended buy. It reads what Strain already works out.
 
 ## 6. Manchester city centre
 

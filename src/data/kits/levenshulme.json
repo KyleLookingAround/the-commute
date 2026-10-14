@@ -36,9 +36,10 @@
     { "type": "lamps", "u0": 82, "u1": 110, "v": 11.9, "every": 25, "upgrade": ["extend", "platform2"] },
     { "type": "cycles", "u": -62, "v": 28.8, "n": 4, "street": true, "upgrade": "crossing" },
     { "type": "taxi", "u": -60, "v": 32, "back": [1, 0], "kerb": -1, "n": 4, "door": [-64, 28], "street": true, "upgrade": "taxi", "note": "Cabs waiting on the forecourt off Station View at street level, below the booking hall and the subway's east end, placed by eye" },
-    { "type": "busstop", "u": -82, "v": 36.8, "back": [1, 0], "kerb": -1, "door": [-64, 28], "street": true, "note": "On Station View at street level beyond the taxi rank, placed by eye" },
+    { "type": "road", "points": [[-89, 30], [-62, 30]], "w": 6, "scenery": true, "note": "The forecourt's way in off Albert Road, where OSM's car park meets the road (OpenStreetMap (main API, 14 October 2026) maps no service road)" },
+    { "type": "busstop", "u": -82.5, "v": -38, "back": [0, 1], "kerb": -1, "door": [-80, -13], "street": true, "note": "Albert Road / outside Levenshulme Station, on Albert Road south of the line, from OpenStreetMap (main API, 14 October 2026), by the station's south entrance (OSM's entrance node)" },
     { "type": "recesses", "u0": -31, "u1": -5, "v": 20.3, "n": 5, "h": 0.9, "scenery": true, "street": true, "note": "The arched recesses in the brick embankment wall under the east platform's building, from the photos in the kit's note (from memory how many and how tall)" },
-    { "type": "carpark", "u0": -45, "u1": 15, "v0": 36.8, "v1": 60.8, "street": true, "upgrade": "carpark" },
+    { "type": "carpark", "u0": -45, "u1": -4, "v0": 36.8, "v1": 58, "street": true, "upgrade": "carpark" },
     { "type": "buslink", "u": -104, "v": 40, "back": [1, 0], "kerb": -1, "street": true, "upgrade": "bus", "note": "A stop on Station View below the station, for the buses off Stockport Road (the A6), placed by eye" }
   ]
 }

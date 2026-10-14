@@ -47,7 +47,8 @@
     { "type": "box", "u0": -110, "u1": -47, "v0": -6.7, "v1": -6.5, "y0": 0, "y1": 2.2, "mat": "timber", "scenery": true },
     { "type": "box", "u0": -15, "u1": 1, "v0": -6.7, "v1": -6.5, "y0": 0, "y1": 2.2, "mat": "timber", "scenery": true },
     { "type": "box", "u0": 39, "u1": 60, "v0": -6.7, "v1": -6.5, "y0": 0, "y1": 2.2, "mat": "timber", "scenery": true },
-    { "type": "carpark", "u0": -40, "u1": 14, "v0": 12, "v1": 28, "upgrade": "carpark", "note": "Along Station Approach east of the line, from the export's parking aisle and the view from above; its size a guess" },
+    { "type": "carpark", "u0": -40, "u1": 14, "v0": 12, "v1": 28, "street": true, "upgrade": "carpark", "note": "Along Station Approach east of the line, from the export's parking aisle and the view from above; its size a guess" },
+    { "type": "road", "points": [[-62, 30], [-52, 28], [-42, 26]], "w": 6, "scenery": true, "note": "Station Approach off Compstall Road to the car park, a service road in OpenStreetMap (main API, 14 October 2026)" },
     { "type": "busstop", "u": 24, "v": -29.6, "back": [0.8, -0.6], "kerb": -1, "door": [12, -16], "street": true, "note": "Stop B on Stockport Road by the Romiley Arms, from the export" },
     { "type": "buslink", "u": -90, "v": 43.2, "back": [-0.7, 0.7], "kerb": -1, "street": true, "upgrade": "bus", "note": "Stop A on Compstall Road by the station, from the export" }
   ]

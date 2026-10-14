@@ -31,9 +31,10 @@
     { "type": "box", "u0": 55, "u1": 66, "v0": 18.4, "v1": 19.2, "y0": 7.2, "y1": 8.3, "mat": "concrete", "scenery": true },
     { "type": "box", "u0": 55, "u1": 66, "v0": -20.8, "v1": -7.2, "y0": 0, "y1": 6.4, "mat": "brickDark", "scenery": true },
     { "type": "box", "u0": 55, "u1": 66, "v0": 8, "v1": 19.2, "y0": 0, "y1": 6.4, "mat": "brickDark", "scenery": true },
-    { "type": "carpark", "u0": -38, "u1": -2, "v0": -41.6, "v1": -12.8, "upgrade": "carpark", "note": "The station car park, from the export, the half nearest the platform" },
-    { "type": "carpark", "u0": -2, "u1": 18, "v0": -41.6, "v1": -22.4, "upgrade": "carpark2", "note": "The rest of the same car park, from the export" },
-    { "type": "busstop", "u": 4, "v": -16.8, "back": [1, 0], "kerb": -1, "door": [12, -8], "note": "On the forecourt outside the station building, from memory, placed by eye" },
+    { "type": "carpark", "u0": -38, "u1": -2, "v0": -41.6, "v1": -18, "street": true, "upgrade": "carpark", "note": "The station car park, from the export, the half nearest the platform" },
+    { "type": "carpark", "u0": -2, "u1": 18, "v0": -41.6, "v1": -22.4, "street": true, "upgrade": "carpark2", "note": "The rest of the same car park, from the export" },
+    { "type": "busstop", "u": -20, "v": -14.5, "back": [1, 0], "kerb": -1, "door": [12, -8], "street": true, "note": "On the station's road along the forecourt, at street level, the replacement buses' stop the game's (OpenStreetMap (main API, 14 October 2026))" },
+    { "type": "road", "points": [[-56, -70], [-58, -64], [-60, -54], [-62, -32], [-66, -21], [-61, -13], [-45, -12], [-34, -13], [11, -18]], "w": 6, "scenery": true, "note": "The station's road off Railway Road round the car park to the forecourt, a service road in OpenStreetMap (main API, 14 October 2026)" },
     { "type": "buslink", "u": 82, "v": 102.4, "back": [0, -1], "kerb": -1, "street": true, "upgrade": "bus", "note": "Stop A on Stockport Road (A626) at The Drive, from the export" }
   ]
 }

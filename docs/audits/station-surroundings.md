@@ -33,19 +33,23 @@ Now:
 - **Davenport**: the stop was 10 m from a street. It's now the real stop C on Bramhall Lane. Bramhall Lane joins each end of the square-drawn deck, and the buses' roads cross on it.
 - Every bus road to these stations is redrawn from OpenStreetMap: Levenshulme to Ardwick, Ardwick to Piccadilly, Piccadilly to Ashburys, Ashburys to Belle Vue, Ryder Brow to Reddish North, Reddish North to Brinnington, Stockport to Davenport, Davenport to Woodsmoor and Woodsmoor to Hazel Grove.
 
+### Levenshulme, Hazel Grove, Romiley, New Mills Newtown and Rose Hill (14 October 2026)
+
+- **Levenshulme**: the taxi rank was 12 m from a street. The forecourt's way in off Albert Road is now a kit `road`. The car park is trimmed off the real building at its east end. The bus stop is the real one outside the station on Albert Road; it was on the forecourt beside the embankment, and the buses' road ran along the railway's land from it.
+- **Hazel Grove**: the rank, the stop and the bus link were 21 to 25 m from a street, and both car parks stood on real buildings (the second ran across Station Street onto the houses). The station approach and the P&R's road are now kit `road`s off Station Street, and the car parks are the real P&R's two halves.
+- **Romiley**: the car park stood on the pad, 2.3 m above the real ground. It's now at street level, with Station Approach off Compstall Road.
+- **New Mills Newtown**: the stop was 2.4 m off the ground. It now stands on the station's road down from Albion Road, drawn as a kit `road`.
+- **Rose Hill**: the stop stood on the pad 2.8 m above the ground, 31 m from a street, and the car parks were off the ground or far from a street. The station's road off Railway Road, round the car park to the forecourt, is now a kit `road`. The stop stands on it, and both car parks are at street level, clear of it.
+- `tools/osm-to-roads.mjs` now joins a way out to the nearest point on any street, not only to a node, so a stop on a long straight street isn't routed along a side street.
+
 ## Still to put right
 
 From the check (heights are against the real ground; streets are the real ones painted on the ground, the kits' roads and bridge decks):
 
-1. **Stockport**: the taxi rank is 2.2 m off the ground and 40 m from a street; the bus stop is 2.8 m off.
-2. **Rose Hill**: the bus stop is 2.8 m off and 31 m from a street; the first car park is 27 m from a street; the second is 2.2 m off.
-3. **New Mills Newtown**: the bus stop is 2.4 m off the ground.
-4. **Romiley**: the car park is 2.3 m off the ground.
-5. **Middlewood, Disley, Marple**: the bus stops are 39 m to more than 50 m from a street.
-6. **Hazel Grove**: the taxi rank, bus stop and bus link are 21 to 25 m from a street; both car parks stand on real buildings.
-7. **Levenshulme**: the taxi rank is 12 m from a street; the car park stands on a real building.
-8. **Disley, Bredbury**: a car park stands on a real building.
-9. **The roads from memory**: Hazel Grove to Middlewood, Middlewood to Disley and Disley to New Mills Newtown (the last runs 80 m along the railway's land). They should be redrawn from OpenStreetMap with `tools/osm-to-roads.mjs`, once each station's stop is in its real place.
-10. **Piccadilly**: the taxi rank and bus stop are 8.8 m off the ground with no street within 50 m; the car park is 23 m off. Its kit waits until the services work's first part (the Marple pair into platforms 1 to 4) has landed.
+1. **Stockport**: the rank and the stop now stand at street level on the Station Road loop, where OpenStreetMap has the rank and stop SS, but the loop and Station Road aren't among the streets painted on the ground (the world's square there paints none), so the check finds no street within 40 m. Draw Station Road as a kit `road` to where it meets a painted street or a bus road, then take Stockport off the check's `LATER` list and redraw its two bus roads.
+2. **Middlewood, Disley, Marple**: the bus stops are 39 m to more than 50 m from a street.
+3. **Disley, Bredbury**: a car park stands on a real building.
+4. **The roads from memory**: Hazel Grove to Middlewood, Middlewood to Disley and Disley to New Mills Newtown (the last runs 80 m along the railway's land). They should be redrawn from OpenStreetMap with `tools/osm-to-roads.mjs`, once each station's stop is in its real place.
+5. **Piccadilly**: the taxi rank and bus stop are 8.8 m off the ground with no street within 50 m; the car park is 23 m off. The services work's first part (the Marple pair into platforms 1 to 4) has landed; the coordinator says when its kit is free.
 
 The buses' roads still cross the land at rail level where they pass under an embankment, because the terrain check holds them on or above the ground as it's drawn. A road under the line would need that rule to allow it.

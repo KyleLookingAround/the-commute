@@ -36,16 +36,18 @@
     { "type": "board", "u": 15, "v": 4.1, "serves": "both", "upgrade": "building" },
     { "type": "lamps", "u0": 165, "u1": 195, "v": -7.6, "every": 25, "upgrade": "extend" },
     { "type": "lamps", "u0": 165, "u1": 195, "v": 4.1, "every": 25, "upgrade": ["extend", "platform2"] },
-    { "type": "carpark", "u0": 20, "u1": 125, "v0": 19.2, "v1": 49.6, "upgrade": "carpark" },
+    { "type": "carpark", "u0": 20, "u1": 92, "v0": 18.5, "v1": 35, "upgrade": "carpark", "street": true, "note": "Hazel Grove Rail P&R, the half east of the station building, from OpenStreetMap (main API, 14 October 2026)" },
     { "type": "cycles", "u": 9, "v": 18.4, "n": 5, "upgrade": "crossing" },
     { "type": "taxi", "u": -20, "v": 20.8, "back": [1, 0], "kerb": -1, "n": 5, "door": [0, 16.8], "upgrade": "taxi", "note": "Cabs waiting outside the station building, from memory, placed by eye" },
+    { "type": "road", "points": [[7, 52], [3, 42], [3, 28], [5, 22], [-24, 20.5]], "w": 6, "scenery": true, "note": "The station approach off Station Street, along the forecourt, a service road in OpenStreetMap (main API, 14 October 2026)" },
+    { "type": "road", "points": [[5, 22], [17, 16], [46, 15], [82, 18], [84, 24], [84, 40]], "w": 6, "scenery": true, "note": "The P&R's road round to Station Street, a service road in OpenStreetMap (main API, 14 October 2026)" },
     { "type": "busstop", "u": -8, "v": 26.4, "back": [1, 0], "kerb": -1, "door": [0, 16.8], "note": "On the forecourt beyond the taxi rank, from memory" },
     { "type": "box", "u0": 125.8, "u1": 129.2, "v0": -16, "v1": 12.8, "y0": 6.6, "y1": 7.3, "mat": "steel", "scenery": true },
     { "type": "box", "u0": 125.8, "u1": 126.1, "v0": -16, "v1": 12.8, "y0": 6.2, "y1": 8.4, "mat": "steel", "scenery": true },
     { "type": "box", "u0": 128.9, "u1": 129.2, "v0": -16, "v1": 12.8, "y0": 6.2, "y1": 8.4, "mat": "steel", "scenery": true },
     { "type": "box", "u0": 125, "u1": 130, "v0": -20.8, "v1": -16, "y0": 0, "y1": 7.3, "mat": "concrete", "scenery": true },
     { "type": "box", "u0": 125, "u1": 130, "v0": 12.8, "v1": 17.6, "y0": 0, "y1": 7.3, "mat": "concrete", "scenery": true },
-    { "type": "carpark", "u0": 20, "u1": 125, "v0": 49.6, "v1": 73.6, "upgrade": "carpark2", "note": "The extension beyond the car park, a game choice for a bigger one; not survey" },
-    { "type": "buslink", "u": -30, "v": 29.6, "back": [1, 0], "kerb": -1, "upgrade": "bus", "note": "A stop on the station approach for the buses along the A6 (Buxton Road), from memory, placed by eye on the forecourt behind the rail replacement stop (it stood out on the grass, audit finding 7)" }
+    { "type": "carpark", "u0": -45, "u1": -4, "v0": 37, "v1": 52, "upgrade": "carpark2", "street": true, "note": "The P&R's west half, between its aisle and Station Street, from OpenStreetMap (main API, 14 October 2026)" },
+    { "type": "buslink", "u": -30, "v": 23, "back": [1, 0], "kerb": -1, "upgrade": "bus", "note": "A stop on the station approach for the buses along the A6 (Buxton Road), from memory, placed by eye on the forecourt behind the rail replacement stop (it stood out on the grass, audit finding 7)" }
   ]
 }

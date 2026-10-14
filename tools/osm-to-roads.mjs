@@ -72,8 +72,21 @@ for (const el of osm.elements) if (el.type === 'way' && ROADS.test(el.tags?.high
     for (const [p, q] of [[a, b], [b, a]]) { if (!adj.has(p)) adj.set(p, []); adj.get(p).push([q, c, el.tags.name ?? el.tags.highway]); }
   }
 }
-const nearest = pt => { let best = null, bd = Infinity; for (const id of adj.keys()) { const d = dist(pt, nodes.get(id)); if (d < bd) { bd = d; best = id; } } return best; };
-const start = nearest(A), goal = nearest(B);
+// each way out joins the streets at the nearest point on any of them (not only at a node: a long straight street has
+// few), as a node of its own between that stretch's two ends
+const nearest = (pt, id) => {
+  let best = null, bd = Infinity;
+  for (const [a, list] of adj) for (const [b] of list) {
+    const na = nodes.get(a), nb = nodes.get(b), kx = 111320 * Math.cos(pt.lat * Math.PI / 180), ky = 111320;
+    const ax = (na.lon - pt.lon) * kx, ay = (na.lat - pt.lat) * ky, bx = (nb.lon - pt.lon) * kx, by = (nb.lat - pt.lat) * ky, dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    const f = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0, d = Math.hypot(ax + dx * f, ay + dy * f);
+    if (d < bd) { bd = d; best = { a, b, f, lat: na.lat + (nb.lat - na.lat) * f, lon: na.lon + (nb.lon - na.lon) * f }; }
+  }
+  const n = { id, lat: best.lat, lon: best.lon }; nodes.set(id, n); adj.set(id, []);
+  for (const end of [best.a, best.b]) { const c = dist(n, nodes.get(end)) * 0.9; adj.get(id).push([end, c, null]); adj.get(end).push([id, c, null]); }
+  return id;
+};
+const start = nearest(A, 'way out a'), goal = nearest(B, 'way out b');
 
 const D = new Map([[start, 0]]), prev = new Map(), name = new Map(), open = new Set([start]);
 while (open.size) {

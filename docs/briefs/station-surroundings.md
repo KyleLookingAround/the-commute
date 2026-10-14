@@ -69,3 +69,27 @@ The owner has said not to wait. Follow the real place; say so in the commit.
 ## Cost budget
 
 About $30. At about 450k of context, stop after a batch of stations and add a "## Handed on" section here.
+
+## Handed on
+
+14 October 2026, after three batches on `main` (aa1ebf1, 693f44a and the commit after it). Done: Heaton Chapel, then Ardwick, Ashburys, Reddish North, Woodsmoor and Davenport, then Levenshulme, Hazel Grove, Romiley, New Mills Newtown and Rose Hill (`docs/audits/station-surroundings.md` says what moved where). The before-and-after shots of Heaton Chapel are in `station-surroundings/`.
+
+What's in place for the next session:
+- **The check.** `tools/checks/surroundings.mjs` (no browser, a few seconds). Its `LATER` list names the stations still to fix, and it prints what it finds at them; take each station off the list as it's fixed.
+- **The `road` kit part.** Streets laid on the ground, or at a point's own height over a deck, with a grass bank where they stand above the ground. They join decks, ranks and stops to the painted streets.
+- **Seating.** Street-level parts and roads are seated again as fine terrain tiles arrive (`groundVersion`).
+- **`tools/osm-to-roads.mjs`.** It fetches OSM's main API itself (Overpass is blocked from sessions), snaps each way out to the nearest point on a street, and `--write` replaces one entry in `roads`. Where a kit draws a bridge square to the line and the real street skews, splice the kit's deck and roads into the bus road by hand (see Heaton Chapel's and Davenport's `roads`), as `--write` puts the real skewed crossing back.
+
+Still to do, worst first, in the audit's list:
+1. Stockport's Station Road, which the world doesn't paint.
+2. Middlewood's, Disley's and Marple's stops.
+3. Disley's and Bredbury's car parks on real buildings.
+4. The three from-memory roads south of Hazel Grove.
+5. Piccadilly, once the coordinator frees its kit.
+
+Each time:
+- Take matching before-and-after shots of every station touched: one page with every station grown, moved round with `window.__view.look` after `loadBuildings()`. Comparing views on `main` and on the change is quicker than `tools/shots.mjs --stations`, which reloads the page for every view.
+- Run the bot on seeds 1 to 3. `PLAY` moved only on seed 2, after Heaton Chapel's roads changed length (bccd42c0 → 9bda2595); the second and third batches left it identical to `main` as it stood (1acb5b45, 9bda2595, 4f161e42 against 693f44a). Within the baselines throughout.
+
+For the coordinator: the terrain check (Budgets) holds a bus road on or above the ground as drawn, so a road under an embankment still crosses the tracks at rail level. Letting it pass under would need that rule changed.
+

@@ -11,7 +11,8 @@
 //   its own roads.
 // - Joined up: each end of every kit's `road` meets a real street, another road, a bridge's deck, the map's edge or
 //   the station's own rank, stop or car park (the end of its approach);
-//   no kit road lies on the railway's land or its banks but on a bridge's deck; the roads the replacement buses drive
+//   no kit road lies on the railway's land or its banks but on a bridge's deck (or a forecourt at grade, where the
+//   real ground is at rail level); the roads the replacement buses drive
 //   (`roads`), laid as the page lays them from stop to stop, cross the railway's land between streets on a bridge
 //   (straight from one side's height to the other's, not down at rail level) and never run along it.
 import { readFileSync, readdirSync } from 'node:fs';
@@ -36,8 +37,7 @@ const ALONG = 80;     // m a road may run on the railway's land or its banks (a 
 const KINDS = ['taxi', 'carpark', 'busstop', 'buslink'];
 // the stations still to put right (docs/audits/station-surroundings.md), worst first, a few at a time: what's found
 // at them, and on the roads to them, is listed but doesn't fail yet. Piccadilly's kit waits on the services work.
-const LATER = new Set(['stockport', 'piccadilly', 'hazel-grove', 'middlewood', 'disley', 'marple', 'rose-hill', 'levenshulme',
-  'new-mills-newtown', 'romiley', 'bredbury']);
+const LATER = new Set(['stockport', 'piccadilly', 'middlewood', 'disley', 'marple', 'bredbury']);
 
 export default async function ({ ok, root, kits: given }) {
   const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def);
@@ -131,7 +131,7 @@ export default async function ({ ok, root, kits: given }) {
   // along each road every 4 m: on the railway's land (or its cutting and bank sides) only on a deck
   const along = (pts, fn) => { for (let k = 1; k < pts.length; k++) { const [ax, az] = pts[k - 1], [bx, bz] = pts[k], n = Math.ceil(Math.hypot(bx - ax, bz - az) / 4); for (let j = 0; j <= n; j++) fn([ax + (bx - ax) * j / n, az + (bz - az) * j / n]); } };
   // (a stretch between points that give their own height is on a structure: a deck, an abutment)
-  for (const r of kitRoads) { let bad = 0; for (let k = 1; k < r.pts.length; k++) if (r.pts[k - 1][2] === undefined || r.pts[k][2] === undefined) along([r.pts[k - 1], r.pts[k]], q => { if (!onDeck(q) && t.railLand(q[0], q[1], 0)) bad++; }); if (bad) find(cross, [r.st.id], `${r.st.id}'s road on the railway's land for ${bad * 4} m`); }
+  for (const r of kitRoads) { let bad = 0; for (let k = 1; k < r.pts.length; k++) if (r.pts[k - 1][2] === undefined || r.pts[k][2] === undefined) along([r.pts[k - 1], r.pts[k]], q => { if (!onDeck(q) && t.railLand(q[0], q[1], 0) && Math.abs(real(q[0], q[1])) > RISE) bad++; }); if (bad) find(cross, [r.st.id], `${r.st.id}'s road on the railway's land for ${bad * 4} m`); }
   // the roads the replacement buses drive, laid as the page lays them, from stop to stop: over the railway's land between
   // streets they're on a bridge, straight from one side's height to the other's; and none runs along the land
   setTerrain(t);
@@ -139,11 +139,12 @@ export default async function ({ ok, root, kits: given }) {
   for (const r of def.roads ?? []) {
     const A = stopAt(r.from), B = stopAt(r.to); if (!A || !B) continue;
     const mid = r.points.map(([la, lo]) => { const p = projectLatLon(la, lo, def.origin); return [p.x, p.z]; }), path = pathThrough([A, ...mid, B]);
-    const rail = path.pts.map(([x, z]) => t.railLand(x, z, 0));
-    let dip = 0, run = 0, longest = 0;
+    // (the railway's land itself, drawn at rail level: a real street beside the line may run along its banks)
+    const rail = path.pts.map(([x, z]) => t.railLand(x, z, 0) && t.groundY(x, z) === 0);
+    let dip = 0, run = 0, longest = 0, where = '';
     for (let k = 1; k < path.pts.length - 1; k++) {
       if (!rail[k]) { run = 0; continue; }
-      run += path.d[k] - path.d[k - 1]; longest = Math.max(longest, run);
+      run += path.d[k] - path.d[k - 1]; if (run > longest) { longest = run; where = path.pts[k].map(n => n.toFixed(0)).join(', '); }
       if (rail[k - 1]) continue;
       // a crossing between streets: its ends' heights, and the lowest it goes between them
       let e = k; while (e < path.pts.length - 1 && rail[e]) e++;
@@ -151,7 +152,7 @@ export default async function ({ ok, root, kits: given }) {
       for (let j = k; j < e; j++) { const f = (path.d[j] - path.d[k - 1]) / (path.d[e] - path.d[k - 1]), want = path.y[k - 1] + (path.y[e] - path.y[k - 1]) * f; dip = Math.max(dip, want - path.y[j]); }
     }
     if (dip > RISE) find(cross, [r.from, r.to], `the road ${r.from} to ${r.to} drops ${dip.toFixed(1)} m into the railway`);
-    if (longest > ALONG) find(cross, [r.from, r.to], `the road ${r.from} to ${r.to} runs ${longest.toFixed(0)} m along the railway`);
+    if (longest > ALONG) find(cross, [r.from, r.to], `the road ${r.from} to ${r.to} runs ${longest.toFixed(0)} m along the railway, to ${where}`);
   }
   setTerrain(null);
   ok('surroundings: both ends of every street a kit lays meet a street, a bridge or the map\'s edge', !loose.length, loose.join('; '));

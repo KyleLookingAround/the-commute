@@ -82,6 +82,12 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
 - The Crewe line's tracks and ground stay as laid (c2561bf), with no stations offered.
 - The Crewe line's stations, the Styal line and Reddish South wait.
 - Next come steps 4 to 9, 12 and 15, inside today's map: services, the fleet, timetabling, Stockport as the hub, the A6 and the 192, the main roads, buses as a network, and the gridlock opening.
+- The ideas review of 14 October 2026 (`docs/ideas/2026-10-14-review.md`) adds steps 16 to 23, inside today's map. The build order, once the sessions now running land:
+  1. 16 and 17, view only and small, beside anything.
+  2. 18, then 19 once services' frequencies are in.
+  3. 20 after the gridlock's G4.
+  4. 21, the feeder buses, before steps 6 and 12.
+  5. 22, then 23.
 
 1. **The network as a graph** (L, built 13 October 2026: `docs/briefs/network-graph.md`, `docs/decisions/ADR-2026-10-13-network-as-a-graph.md`): corridors joined at junctions (Edgeley, with Heaton Norris, Slade Lane and Ardwick named for the lines to come), measured in chainage; services routed across them as legs of corridor and track; block signalling and junction conflicts, shown on the colour-light signals; journeys as paths of rides and changes. Today's game plays the same. Handed on: a leg that runs against chainage (the Stalybridge line from Stockport turns back at Heaton Norris); ground, trees and masts along corridors off the spine (the terrain is laid along the spine only); signals drawn on lines off the spine; junction conflicts first meet real traffic when the Crewe line joins at Edgeley.
    - **Track spacing** (built 13 October 2026: `docs/briefs/track-spacing.md`, c747a1d and bb2d83e; Piccadilly's throat re-laid 14 October 2026, `docs/briefs/piccadilly-throat.md`, so the layout test's list is empty, and the crossovers the trains take drawn with their rails, Stockport's ladder among them): the owner (13 October 2026), after tracks tangled across Stockport Viaduct: "make sure we have good enough distances between stations and sections so we don't end up with this spaghetti junction". A fast test holds every track to a turnout's sideways rate, no crossings but proper crossovers, room between throats, junctions, crossovers and structures, every track on its deck, and blocks no shorter than a train; Stockport's north end and Piccadilly's throat re-laid to pass it. The lines out build to it. Left: the Marple trains on their own pair into Piccadilly's platforms 1 to 4, as the real Hope Valley lines run (the owner's call; they join the slow lines at Ardwick Junction until then).
@@ -104,7 +110,47 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
     5. **Strain** (done 13 October 2026, `docs/briefs/buying-13e.md`; view only): the problems layer as a map view (docs/DESIGN.md, Strain): glows for crowded platforms, the walk home, late trains by stretch and full car parks; a glow opens its place's card, and every card says what's wrong now in plain figures; a `strain` check group.
     Then step 11 adds sections and junctions as places, step 12 bus routes, stops and garages, and the lines out are bought by touching rather than in order.
 14. **Fix what the phase 3 and 4 audit found** (M, from `docs/audits/phase-3-4.md`; built 13 October 2026 by the pick-up's item 3). Fixed: Revenue shortened to fit (£83.3k); Stockport Interchange's roof park takes the snow; Hazel Grove's link bus on the forecourt; homes off the railway's land; the coin just above its station's name; the farther of two overlapping names gives way; the engineering train works one site a night instead of crossing the line in a real minute; Stockport's multi-storey shows its floors; the road bridges over the line from the LIDAR (17 `overbridge` landmarks, Bramhall Lane and Moorland Road among them); both bus depots where OpenStreetMap has them; Stockport's Station Road side and Davenport's car park side checked against OpenStreetMap and noted in their kits. Checked and left: the cutting walls (the ground rises behind them where the LIDAR has a cutting), the viaduct's deck (full since the re-lay), the dark wedge at Ardwick (gone). Still to fix: the block hanging over the valley by the viaduct, a real building (big ones now stand on the lowest ground along their walls, which didn't settle this one: the ground read there seems to disagree with the valley drawn under the viaduct). Left, changing the game less: the roads and the road through Levenshulme's pad (steps 8 and 9); Ardwick's green patches and the light streaks (the terrain's cover, with the real surroundings' ground cover); the night's light (a call on looks); the sheet scrolled to the picked card (meant); Middlewood's bridge, which waits on its cutting (the real surroundings beyond Hazel Grove); Piccadilly's throat and Stockport's crossover ladder, which are the sim's own tracks (the throat's faults on the layout test's list, the stopper's long diagonal its route) and want their own brief; the viaduct deck's steps where the throat fans over its first spans (a deck tapering within a span would need its own geometry).
-15. **The gridlock opening** (the owner, 13 October 2026; designed: `docs/design/gridlock.md`, mockups at `design/gridlock/` on the live site, from `docs/briefs/gridlock-opening.md`): the game starts with nothing local running and the roads jammed; the first buy is Reopen Stockport (£1,000 of a £4,000 start, so the first fare comes in about 15 real seconds rather than 200), and the cars taken off the A6 and the M60 are the score, drawn as instanced cars in queues near the camera and a congestion wash on the streets beyond. In parts: G1 the car in the sim (derived from the journeys, `PLAY` unchanged), G2 Stockport starts shut, G3 gridlock on the map, G4 the road card and the score, G5 the jam pushing people onto the trains (only if the owner wants it). G3 can run on today's stand-in roads; step 8 adds the A6's real course, junctions, lanes and count points.
+15. **The gridlock opening** (the owner, 13 October 2026; designed: `docs/design/gridlock.md`, mockups at `design/gridlock/` on the live site, from `docs/briefs/gridlock-opening.md`): the game starts with nothing local running and the roads jammed; the first buy is Reopen Stockport (£1,000 of a £4,000 start, so the first fare comes in about 15 real seconds rather than 200), and the cars taken off the A6 and the M60 are the score, drawn as instanced cars in queues near the camera and a congestion wash on the streets beyond. In parts: G1 the car in the sim (derived from the journeys, `PLAY` unchanged), G2 Stockport starts shut, G3 gridlock on the map, G4 the road card and the score, G5 the jam pushing people onto the trains (built after G4: step 20, ideas review 14 October 2026; was: only if the owner wants it, changed because the bot shows the car figures barely move without it). G3 can run on today's stand-in roads; step 8 adds the A6's real course, junctions, lanes and count points.
+
+16. **A network view you can read** (M, ideas review 14 October 2026; review idea 3). At Whole line today the clouds sit over everything, the tracks are hairlines and no trains show.
+   - Fade the clouds out above a height.
+   - Draw each service bold in its own colour, with trains as dots coloured by how full they are.
+   - Draw stations as rings sized by who's waiting, red when people give up; Strain and the roads' wash stay readable.
+   - Tapping opens cards as now.
+   - This takes in a first form of phase 8 step 5's line diagram for today's map. It's a look, so a mockup goes to the owner.
+17. **Come back to a changed map** (S, ideas review 14 October 2026; idea 4). After time away, the camera starts wide and the map shows what happened in about three seconds before the toast:
+   - coins rise over each station by what it earned
+   - homes that grew rise
+   - car parks fill
+
+   `MAX_AWAY` stays at half a game day.
+18. **Stages that keep going, and one each station has alone** (M to L, ideas review 14 October 2026; idea 2). Every station buys the same five stages within an hour of opening, and late on £230,000 waits on £300,000 stations.
+   - The everyday stages get further tiers priced from what the station earns, each drawn:
+     - canopies to full length
+     - the booking office to a travel centre
+     - Greggs to a row of shops
+     - 6- then 8-car platforms
+     - cycle racks to a cycle hub
+   - Each station gets a signature stage from its real history or plans, each with its `note`, such as Heaton Chapel's building restored, Levenshulme's market or Stockport's Town Centre West.
+   - The bot buys them, and the baselines move on purpose.
+19. **Late trains cost money** (M, ideas review 14 October 2026; idea 1). By day 7 on the bot's line under a seventh of departures leave within 5 minutes and a peak loses over 1,000, with no cost to the player.
+   - Delay Repay: riders 15 minutes or more late take back part of the fare, shown as red coins shed by the late train.
+   - Punctuality (the share within 5 minutes) replaces the late-departure term in the contract's reputation.
+   - The Network card shows punctuality and the day's Delay Repay.
+   - After services' frequencies land, since they change lateness. Bot at 16 h.
+20. **Gridlock that keeps moving** (M, ideas review 14 October 2026; idea 5). Over 16 h the bot takes 0.6 to 4% of cars off and the M60 stays at 1.2. After G4:
+   - build G5
+   - add a view-only layer of the streets round each owned station clearing as its car park, stop and services come in, so every buy clears something near it
+21. **Feeder buses first** (M, ideas review 14 October 2026; idea 7): a first slice of step 12 ahead of steps 6 and 12. Each owned bus stop gets one real feeder route, with buses an hour and bigger buses to buy, drawn instanced.
+22. **Join the Bee Network** (M, ideas review 14 October 2026; idea 6), as Greater Manchester's rail lines really do from December 2026 (most of Stockport's in 2027). A network-wide chain of stages, the yellow spreading over the map:
+   1. contactless tap-in and tap-out
+   2. the yellow on stations and trains, bringing bus-only riders
+   3. one fare and a daily cap across bus and train, once the feeders run
+23. **Smaller depth** (S each, ideas review 14 October 2026; ideas 8 to 10):
+   - match days at Edgeley Park, Stepping Hill's shift changes and Christmas at Merseyway as seeded surges you can see and buy for
+   - contract targets from the franchise (punctuality, cars off the A6, a station reached) that bank extra reputation, using the milestones already recorded
+   - poster campaigns on billboards along the jammed A6 and M60, one a station at a time
+   - the bot's policy taught lifts, retail, the third unit and the second longer trains, so the baselines cover every buy
 
 ## 6. Manchester city centre
 

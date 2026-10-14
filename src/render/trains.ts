@@ -214,7 +214,8 @@ function berthOffset(net: Network, track: string | null, b: Berth, x: number): n
 /** Where a unit crosses from track `on` to berth b's platform, side -1 or 1 being the way the crossover lies from the
  * station: the berth's track (null: the rails drawn into a bay), where the crossover starts (x0, its station end) and
  * how long it is; null where the unit stays on its own track. The crossover is where the two come closest (within
- * 0.3 m), the nearest such place to the station clear of the longest unit standing there, and is 12 times as long as
+ * 0.3 m), the nearest such place to the station clear of the longest unit standing there (or of the platform's
+ * `cross`, where it's reached across the throat's other roads), and is 12 times as long as
  * they are apart (60 m at least). The same for every unit of a service, so the map draws its rails once
  * (`crossovers`) and the trains ride them. */
 export function crossing(net: Network, svc: ServiceDef, on: string, b: Berth, side: number, behind: boolean): { track: string | null; x0: number; len: number } | null {
@@ -227,7 +228,7 @@ export function crossing(net: Network, svc: ServiceDef, on: string, b: Berth, si
     // clear of the longest unit standing there: centred on the stop, or an express at the end of its run with its
     // front where the longest stopping unit's is
     const stop = b.def?.stop === undefined ? b.st.s : b.at + b.def.stop, reach = b.turn && cars > LONGEST ? (cars - LONGEST / 2) * PITCH : cars * PITCH / 2;
-    const start = stop + side * (reach + 5), [e0, e1] = net.extent(on), d = (y: number) => Math.abs(net.offsetAt(on, y) - berthOffset(net, track, b, y));
+    const near = stop + side * (reach + 5), start = b.def?.cross !== undefined && (b.at + b.def.cross - near) * side > 0 ? b.at + b.def.cross : near, [e0, e1] = net.extent(on), d = (y: number) => Math.abs(net.offsetAt(on, y) - berthOffset(net, track, b, y));
     let least = Infinity;
     for (let y = start; Math.abs(y - start) <= 1200 && y >= e0 && y <= e1; y += side * 5) least = Math.min(least, d(y));
     let x0 = start; for (let y = start; Math.abs(y - start) <= 1200 && y >= e0 && y <= e1; y += side * 5) if (d(y) <= least + 0.3) { x0 = y; break; }

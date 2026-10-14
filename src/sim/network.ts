@@ -6,7 +6,7 @@
 // The sim only ever talks in distances along a corridor; the renderer asks the network for world positions. A track's
 // offset changes along the line: each track has an open-line offset, and the layout list moves it around a station
 // (Stockport's tracks spread round two wide islands) or along a stretch, easing in and out.
-import type { CorridorDef, Frame, JunctionDef, LatLon, NetworkDef, NetworkGeoDef, RoadDef, ServiceDef, Station, StationPoint, TrackDef, XZ } from './types.ts';
+import type { CorridorDef, Frame, JunctionDef, JunctionPoint, LatLon, NetworkDef, NetworkGeoDef, RoadDef, ServiceDef, Station, StationPoint, TrackDef, XZ } from './types.ts';
 
 export const NORTH = -1; // trains heading north (towards Manchester) move towards lower z, so "north" is -1 along z,
                          // but along a corridor we measure s increasing in the direction the corridor is drawn (south to north).
@@ -216,8 +216,8 @@ export class Network {
     return null;
   }
 
-  /** A station point's distance along its corridor. */
-  pointS(p: StationPoint): number { return this.station(p.station).at + p.u; }
+  /** A station point's distance along its corridor, or a junction's. */
+  pointS(p: StationPoint | JunctionPoint): number { return 'junction' in p ? this.junction(p.junction).s : this.station(p.station).at + p.u; }
   /** Where a track begins and ends along its corridor. */
   extent(trackId: string): [number, number] {
     const t = this.track(trackId), c = this.corridor(t.corridor);

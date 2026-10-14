@@ -107,15 +107,19 @@ test('tracks: trains stand just clear of the platform their passengers wait on, 
   }
 });
 
-test('tracks: the stopper turns round at Piccadilly in the down slow\'s platform, its tracks keeping their order', () => {
-  // as at Stockport, where the stoppers come in on the up slow and cross over north of the throat to the down slow's
-  // platforms, a stopper leaving Piccadilly crosses over to the up slow beyond the throat: the tracks don't cross
+test('tracks: the stopper turns round at Piccadilly in the down slow\'s platform, the Marple trains on their own pair into 1 to 4', () => {
+  // the Longsight lines run into platform 5 and the bays west of it as one road (a stopper leaves on the road it came
+  // in on), and the Hope Valley lines from Ardwick Junction into 3 and 2 east of them, as the real ones run into 1 to 4
   // (docs/DESIGN.md, Where the tracks run)
-  const n = net(), st = n.station('piccadilly');
-  if (!stopper) throw new Error('no stopper');
+  const n = net(), st = n.station('piccadilly'), marple = def.services?.find(s => s.id === 'marple');
+  if (!stopper || !marple) throw new Error('no stopper or Marple trains');
   const north = n.route(stopper).track(st.s, 1), south = n.route(stopper).track(st.s, -1);
   assert.equal(st.platforms?.find(p => p.id === '5')?.track, north, 'platform 5 is the down slow\'s');
-  assert.ok(n.offsetAt(south, st.s) - n.offsetAt(north, st.s) >= 3.3, 'the up slow runs into its own platform, east of the down slow');
+  assert.ok(Math.abs(n.offsetAt(south, st.s) - n.offsetAt(north, st.s)) <= 0.24, 'the up slow runs into platform 5 as one road with the down slow');
+  const mn = n.route(marple).track(st.s, 1), ms = n.route(marple).track(st.s, -1);
+  assert.deepEqual([st.platforms?.find(p => p.id === '3')?.track, st.platforms?.find(p => p.id === '2')?.track], [mn, ms], 'the Marple pair runs into 3 and 2');
+  assert.ok(n.offsetAt(mn, st.s) - n.offsetAt(south, st.s) >= 3.3, 'east of the Longsight lines');
+  assert.ok(!['down-slow', 'up-slow'].includes(n.route(marple).track(n.junction('ardwick').s + 50, 1)), 'not on the slow lines beyond Ardwick Junction');
 });
 
 test('tracks: on the open line and through the stations the tracks there keep clear of each other', () => {

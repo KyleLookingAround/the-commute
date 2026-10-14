@@ -17,9 +17,11 @@ export interface JunctionGeoDef { id: string; name: string; corridor: string; la
 export interface JunctionDef { id: string; name: string; corridor: string; x: number; z: number; note?: string }
 /** A point on the line given by a station: u metres along from the station's own point. */
 export interface StationPoint { station: string; u: number }
+/** A junction's own point on its corridor (where a line's own pair begins beside the lines it meets). */
+export interface JunctionPoint { junction: string }
 /** offset: where the track runs across its corridor on the open line, in metres (positive is right of travel along +s).
  * start, end: where the track begins and ends, if not at the corridor's ends. */
-export interface TrackDef { id: string; corridor: string; offset: number; use?: string; start?: StationPoint; end?: StationPoint }
+export interface TrackDef { id: string; corridor: string; offset: number; use?: string; start?: StationPoint | JunctionPoint; end?: StationPoint | JunctionPoint }
 /** Where the tracks run somewhere other than their open-line offsets: around a station (u0 to u1 in the station's frame)
  * or along a stretch of corridor (s0 to s1). Tracks ease between layouts over the network's `ease` metres. */
 export interface LayoutDef {
@@ -61,10 +63,12 @@ export interface StationGeoDef {
 /** A platform face: the number on the boards; where its track runs (`track`, a network track along the face, or `path`,
  * the drawn rails from the platform out to where they join the line, as kit (u, v) points; neither: the train's own
  * track); the stage it comes with (none: the halt's); `stop`, the kit u a unit stands centred on if not the station's
- * stop; `ways`, which way trains calling there go where no service lists it. */
+ * stop; `ways`, which way trains calling there go where no service lists it; `cross`, the kit u nearest the platform
+ * that a train crossing over to it from another track starts its crossover (none: just clear of the longest unit
+ * standing there), for a platform reached across the throat's other roads. */
 export interface PlatformDef {
   id: string; v?: number; track?: string; path?: number[][]; upgrade?: string | string[]; stop?: number;
-  ways?: ('north' | 'south')[]; note?: string;
+  ways?: ('north' | 'south')[]; note?: string; cross?: number;
 }
 /** A service's platforms at a station, by the platform ids: calling going north or south, or turning round. */
 export interface ServicePlatforms { north?: string[]; south?: string[]; turn?: string[] }

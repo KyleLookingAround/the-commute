@@ -100,8 +100,10 @@ test('sections: a flying junction is offered only once trains have been held the
   sim.g.held['ardwick'] = 599; assert.equal(sim.price(j, 'flyover'), undefined);
   sim.g.held['ardwick'] = 600;
   assert.ok(sim.canBuy(j, 'flyover') && sim.buy(j, 'flyover') && sim.flown('ardwick') && !sim.canBuy(j, 'flyover'));
-  // the ways through it that cross without sharing a track stop conflicting; those onto the same track still do
-  const ways = sim.svcs.flatMap(v => [1, -1].flatMap(d => net.movements(v.def, d as 1 | -1).filter(m => m.junction === 'ardwick')));
+  // the ways through a junction that cross without sharing a track stop conflicting once it flies; those onto the same
+  // track still do. Ardwick's ways no longer cross (the Marple trains have their own pair on to Piccadilly), so Marple
+  // Wharf's, where the Rose Hill line towards Rose Hill crosses the Marple line towards Manchester on the flat
+  const ways = sim.svcs.flatMap(v => [1, -1].flatMap(d => net.movements(v.def, d as 1 | -1).filter(m => m.junction === 'marple-wharf')));
   const pairs = ways.flatMap(p => ways.map(q => [p, q] as const)).filter(([p, q]) => net.conflicts(p, q));
-  assert.ok(pairs.some(([p, q]) => !net.shares(p, q)), 'some ways through Ardwick Junction cross without sharing a track');
+  assert.ok(pairs.some(([p, q]) => !net.shares(p, q)), 'some ways through Marple Wharf Junction cross without sharing a track');
 });

@@ -3,7 +3,8 @@
 // this file as it stands in public/ is only the template; it's never registered in `npm run dev`.
 // - At install it caches the page, its scripts and styles, the icons and the manifest under a cache named for the
 //   build, and the terrain's fine tiles go in their own cache as they're fetched, so places already seen stay sharp.
-// - A new build waits, and takes over on the next load of the game when no other tab of it is open, never mid-game.
+// - A new build waits, and takes over on the next load of the game when no other tab of it is open, never mid-game:
+//   that load gets the new build's page straight from its cache, and the new worker claims it once this one is quiet.
 // - Saves aren't here: they stay in the page's local storage.
 const STAMP = 'dev';                // build: the build's stamp
 const PRECACHE = [];                // build: the files to cache at install, relative to this file
@@ -37,18 +38,28 @@ self.addEventListener('fetch', e => {
   if (isFont(req.url)) { e.respondWith(kept('commute-fonts', req)); return; }
   if (new URL(req.url).origin !== self.location.origin) return;
   if (isTile(req.url)) { e.respondWith(kept(TILE_CACHE, req)); return; }
-  e.respondWith(caches.open(BUILD).then(c => c.match(req, { ignoreSearch: true })).then(hit => hit || fetch(req)));
+  e.respondWith(file(req));
 });
 
-// the page: a new build waiting takes over now if this load is the only tab of the game (a reload or a new visit), by
-// sending the browser straight back to the same address; otherwise the cached page, or the network if it isn't cached
+// a file of the build: from this build's cache, else a newer build's (a page this worker handed over to a waiting build
+// asks it for that build's files until the new worker claims it), else the network
+async function file(req) {
+  const hit = await (await caches.open(BUILD)).match(req, { ignoreSearch: true });
+  return hit || (await caches.match(req, { ignoreSearch: true })) || fetch(req);
+}
+
+// the page: a new build waiting takes over now if this load is the only tab of the game (a reload or a new visit), and
+// this load is already the new build's page, from its own cache. Nothing here waits for the switch: the browser won't
+// let the new worker take over while this one is still answering a request, so waiting for it here would hold up the
+// very load it's waiting on. The new worker takes over once this one goes quiet and claims the page. Otherwise the
+// cached page, or the network if it isn't cached.
 async function page(req) {
   const next = self.registration.waiting;
   if (next && (await self.clients.matchAll({ type: 'window' })).length < 2) {
-    next.postMessage('take-over');
-    // wait (briefly) for it to take over, so the page asked for again comes from it, not back here
-    await new Promise(res => { const done = () => { if (next.state !== 'installed') res(); }; next.addEventListener('statechange', done); setTimeout(res, 2000); done(); });
-    return new Response('', { headers: { Refresh: '0' } });
+    // the newest build's cache: caches are listed in the order they were made, and the waiting build's is made last
+    const built = (await caches.keys()).filter(k => k.startsWith('commute-') && k !== BUILD && k !== TILE_CACHE && k !== 'commute-fonts');
+    const fresh = built.length ? await (await caches.open(built[built.length - 1])).match(at('./')) : undefined;
+    if (fresh) { next.postMessage('take-over'); return fresh; }
   }
   const c = await caches.open(BUILD);
   return (await c.match(at('./'))) || fetch(req);

@@ -11,12 +11,14 @@
 // regression without flaking on a slow machine: frame times are logged, never judged, since a software-rendered
 // container is no guide to a phone's. The budgets are to be set from a real phone's figures (the stats view).
 // - What one view loads: a fresh page at the opening, and at the Buxton and Marple lines framed (their stations out
-//   beyond today's line in view), counts every file it fetches after its first frame until nothing more comes for
-//   a few seconds: the bytes as served here, uncompressed, so a player on a compressing host downloads less. Each view
-//   has a budget (BUDGET.view), what a player pays for one look round.
+//   beyond today's line in view), counts every file of its own it fetches after its first frame (terrain tiles, data,
+//   scripts) until nothing more comes for 20 seconds: the bytes as served here, uncompressed, so a player on a
+//   compressing host downloads less. Each view has a budget (BUDGET.view), what a player pays for one look round. The
+//   world squares all come in after the first frame, nearest first, wherever the camera is, so they have one budget
+//   of their own (BUDGET.squares), measured from dist/.
 // - The stats view: ?stats shows its overlay with figures, from a file not loaded before the first frame; Copy gives
 //   one line of them; ?stats&save=busy opens the busy save without writing over the game on the device.
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { register } from 'tsx/esm/api';
@@ -32,6 +34,7 @@ const BUDGET = {
   geometries: { open: 400, busy: 400, wide: 650 }, textures: 16, programs: { open: 40, busy: 40, wide: 60 },
   // MB fetched after the first frame at one view, uncompressed (set above what each fetched when it was added)
   view: { open: 0, buxton: 0, marple: 0 },
+  squares: 0,   // MB of world squares, every one fetched after the first frame (set above the total when it was added)
 };
 const FRAMES = 6;   // frames to time on each page
 
@@ -95,8 +98,11 @@ export default async function ({ ok, open, root, url, SAVE_KEY, browser }) {
     const frameOf = ids => {
       const xz = ids.map(id => net.stationFrame(id)), xs = xz.map(f => f.x), zs = xz.map(f => f.z);
       const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs));
-      return { tx: (Math.max(...xs) + Math.min(...xs)) / 2, ty: 2, tz: (Math.max(...zs) + Math.min(...zs)) / 2, r: Math.max(800, span * 1.3), th: 5.5, ph: 0.9 };
+      return { tx: (Math.max(...xs) + Math.min(...xs)) / 2, ty: 2, tz: (Math.max(...zs) + Math.min(...zs)) / 2, r: Math.max(800, span * 0.8), th: 5.5, ph: 0.9 };
     };
+    const assets = join(dist, 'assets'), world = new Set(all.length ? readdirSync(assets).filter(f => f.endsWith('.txt') && readFileSync(join(assets, f), 'utf8').startsWith('{')) : []);
+    const squaresMB = [...world].reduce((n, f) => n + statSync(join(assets, f)).size, 0) / 1048576;
+    ok(`perf: every world square, fetched in the background after the first frame wherever the camera is, inside its budget (${squaresMB.toFixed(2)} of ${BUDGET.squares} MB, ${world.size} squares)`, squaresMB <= BUDGET.squares);
     const VIEWS = { open: null, buxton: frameOf(['middlewood', 'disley', 'new-mills-newtown']), marple: frameOf(['brinnington', 'bredbury', 'romiley', 'marple', 'rose-hill']) };
     for (const [tag, orbit] of Object.entries(VIEWS)) {
       const ctx = await (await browser).newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
@@ -104,16 +110,21 @@ export default async function ({ ok, open, root, url, SAVE_KEY, browser }) {
       const page = await ctx.newPage(), errs = [];
       page.on('pageerror', e => errs.push(e.message));
       await page.goto(url); await page.waitForSelector('html[data-sim="ready"]', { timeout: 15000 }).catch(() => {});
-      // until no new file for 5 s (the camera's squares and tiles come in as frames are drawn), two minutes at most
-      const got = await page.evaluate(async () => {
-        const n = () => performance.getEntriesByType('resource').length, t0 = performance.now();
+      // until no new file of the view's own for 20 s (its tiles come in as frames are drawn, a few seconds a frame
+      // here; the world squares keep coming whatever the view), three minutes at most
+      const got = await page.evaluate(async squares => {
+        const sq = new Set(squares), n = () => performance.getEntriesByType('resource').filter(r => !sq.has(r.name.split('/').pop())).length, t0 = performance.now();
         let last = n(), since = performance.now();
-        while (performance.now() - since < 5000 && performance.now() - t0 < 120000) { await new Promise(r => setTimeout(r, 500)); if (n() !== last) { last = n(); since = performance.now(); } }
-        const first = window.__view.perf().first, after = performance.getEntriesByType('resource').filter(r => r.startTime >= first);
-        const kind = r => /\.txt$/.test(r.name) ? 'tiles' : /\.js$/.test(r.name) ? 'script' : /\.json$/.test(r.name) ? 'data' : 'other';
-        const by = {}; for (const r of after) by[kind(r)] = (by[kind(r)] ?? 0) + (r.encodedBodySize || r.transferSize || 0);
-        return { files: after.length, bytes: after.reduce((a, r) => a + (r.encodedBodySize || r.transferSize || 0), 0), by, first };
-      });
+        while (performance.now() - since < 20000 && performance.now() - t0 < 180000) { await new Promise(r => setTimeout(r, 500)); if (n() !== last) { last = n(); since = performance.now(); } }
+        const first = window.__view.perf().first;
+        return { first, after: performance.getEntriesByType('resource').filter(r => r.startTime >= first).map(r => [r.name.split('/').pop().split('?')[0], r.encodedBodySize || r.transferSize || 0]) };
+      }, [...world]);
+      // by kind: a world square's text opens with its JSON header, a fine terrain tile's doesn't
+      const kind = f => !f.endsWith('.txt') ? (f.endsWith('.js') ? 'script' : f.endsWith('.json') ? 'data' : 'other') : world.has(f) ? 'squares' : 'terrain';
+      const by = {}; for (const [f, n] of got.after) by[kind(f)] = (by[kind(f)] ?? 0) + n;
+      got.files = got.after.length; got.by = by;
+      // the view's own: everything but the world squares, which all come in after the first frame wherever the camera is
+      got.bytes = got.after.filter(([f]) => kind(f) !== 'squares').reduce((a, [, n]) => a + n, 0);
       const mb = n => (n / 1048576).toFixed(2), budget = BUDGET.view[tag];
       ok(`perf: ${tag === 'open' ? 'the opening' : `the ${tag === 'buxton' ? 'Buxton' : 'Marple'} line framed`} loads inside its budget after the first frame (${mb(got.bytes)} of ${budget} MB)`,
         got.bytes <= budget * 1048576 && !errs.length, `${got.files} files: ${Object.entries(got.by).map(([k, v]) => `${k} ${mb(v)} MB`).join(', ')}${orbit ? `; camera ${orbit.r.toFixed(0)} m out` : ''}${errs.length ? '; ' + errs[0] : ''}`);

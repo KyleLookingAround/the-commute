@@ -1,0 +1,9 @@
+/* The stats view (?stats, src/ui/stats.ts): a small overlay at the top left of the open map, under the top bar,
+   beside the sheet when it's docked. */
+.perf-hud{position:absolute;z-index:30;left:calc(var(--cover-l) + var(--edge-l));top:calc(var(--edge-t) + 56px);max-width:min(220px,calc(100% - var(--cover-l) - 24px));
+  display:flex;flex-direction:column;gap:var(--s-1);padding:var(--s-1) var(--s-2);border-radius:var(--r-sm);background:var(--glass);border:1px solid var(--line);color:var(--ink);
+  font:var(--text-xs)/1.35 var(--mono);pointer-events:auto}
+.perf-hud pre{margin:0;font:inherit;white-space:pre-wrap;word-break:break-word;user-select:text;-webkit-user-select:text}
+.perf-hud button{align-self:flex-start;min-height:var(--touch);padding:0 var(--s-3);border:1px solid var(--line);border-radius:var(--r-pill);
+  background:var(--surface-2);color:var(--ink);font:inherit;cursor:pointer}
+.perf-hud button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}

@@ -137,7 +137,7 @@ Nothing is dropped. The kiosk is the one stage folded, and two stages wait on a 
 
 ## 5. The opening
 
-Replaced by `docs/design/gridlock.md` §1 (built 14 October 2026, part G2): Stockport starts shut at 06:30 on day 1 with £4,000, and the one thing offered is Reopen Stockport for £1,000. Reopening gives what this section used to describe, Stockport as a halt with £3,000, the stopper starting from platform 4 at once with the people who'd gathered aboard. From there the opening plays as before:
+Replaced by `docs/design/gridlock.md` §1 (built 14 October 2026, part G2): Stockport starts shut at 07:30 on day 1, in the morning peak, with £4,000, and the one thing offered is Reopen Stockport for £1,000. Reopening gives what this section used to describe, Stockport as a halt with £3,000, the stopper starting from platform 4 at once with the people who'd gathered aboard. From there the opening plays as before:
 
 - **On Stockport's card:** four stages, one from each ladder: Subway £2,000, Booking hall £4,500, Canopy £2,500, Taxi rank on Station Road £1,200.
 - **On the map, in the fog:** Heaton Chapel £9,000 up the line, Davenport £80,000 down the Hazel Grove line (waits on platforms 0, 1 and 2), and Stockport Interchange £50,000 by the station.

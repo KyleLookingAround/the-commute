@@ -30,9 +30,10 @@ export const TUNING = {
   dwell: 45, turnaround: 120, dwellMin: 30, turnMin: 60, overrun: 120,
   recoveryFast: 30,                            // the faster timetable keeps some of its saving as recovery at each end
   // a shut station reopening (docs/design/gridlock.md, section 1): the people who'd gathered outside it are those of
-  // its trips in the last `gather` clock minutes, at most gatherMax. Twenty minutes is about 26 at 06:30: the design's
-  // five were about 6, and from 25 the first load pays for Platform 3 at once and the whole opening comes 0.15 h sooner
-  gather: 20, gatherMax: 80,
+  // its trips in the last `gather` clock minutes, at most gatherMax. Eight minutes is about 18 at 07:30, the start: from
+  // twelve the first load pays for Platform 3 at once and the whole opening comes 0.2 h sooner, and five leave Heaton
+  // Chapel a tenth of an hour later on seed 1
+  gather: 8, gatherMax: 80,
   alight: 0.5,                                 // someone getting off takes half the door time of someone getting on
   squeeze: 1.0,                                // seconds a full train is held for each person left trying to get on
   dispatch: 15,                                // seconds from the platform clearing to leaving: doors shut, all clear
@@ -233,10 +234,12 @@ export class Sim {
     } as Omit<GameState, 'owned' | 'ups' | 'line'> as GameState, P);
   }
 
-  /** A new run with the start's offer already reopened and paid for (Stockport as a halt, £3,000): the opening before
-   * Stockport started shut, for tests and checks that start from there. It plays as that opening did: nothing is held. */
+  /** A new run with the start's offer already reopened and paid for (Stockport as a halt, £3,000) at 06:30 on day 1: the
+   * opening before Stockport started shut, for tests and checks that start from there. It plays as that opening did:
+   * nothing is held. */
   static halt(network: Network, seed: number = freshSeed(), perks: readonly string[] = [], start?: string): GameState {
     const g = Sim.fresh(network, seed, perks, start), P = places(network), from = P.startOf(g.start), fx = effects(network.def.contract, perks);
+    g.t = simAtHour(1, 6.5); g.day = 1; g.weather = freshWeather(seed, g.t);
     for (const id of from.offer) {
       const p = P.get(id), price = from.prices?.[id] ?? (p.kind === 'station' ? network.stations[p.station!]!.price : 0);
       g.places[id] = {}; g.cash -= fx.build ? Math.round(price * (1 - fx.build) / 10) * 10 : price;

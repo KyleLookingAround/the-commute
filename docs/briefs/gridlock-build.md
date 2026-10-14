@@ -67,3 +67,14 @@ The owner has said not to wait on them: take the option the design and the decis
 ## Cost budget
 
 About $30 a part. At about 450k of context, stop at the end of a part and add a "## Handed on" section here.
+
+## Handed on
+
+G2 is built (14 October 2026: `docs/DESIGN.md`, The start). G4 hasn't been started: the owner paused development after G2.
+
+- **Where it stands.** A fresh game opens from `starts[0]` in the network data at 07:30 on day 1, with nothing open and £4,000. The one thing offered is Reopen Stockport for £1,000. The start is 07:30, not the design's 06:30, so the opening is jammed from the first frame. At 06:30 the roads were under capacity with nothing open (A6 0.66). At 07:30 the A6 at Mersey Square is at 1.10 and the M60 at 1.24. Only the hour moved; the jam isn't authored.
+- **Reopening** releases the stopper from platform 4 with the last 8 clock minutes' trips aboard (about 18, `TUNING.gather`). The first fare comes a real second after the tap. On the bot, seeds 1–3, every 8 h and 16 h range holds. Platform 3 comes at 0.22 h (0.17 before), the second unit at 0.45 (0.4), and Heaton Chapel at 0.57–0.6 (as before). The gather window has a cliff: from 12 minutes the first load pays for Platform 3 at once, and the second unit drops below its range.
+- **Tests and checks** that start from the old opening use `Sim.halt`: Stockport reopened as a halt at 06:30 with £3,000, which plays exactly as before. The traffic check (G3's) uses it too.
+- **Not done in G2:** the held stopper isn't drawn dark, and Stockport's lamps and board stay as the fogged halt draws them. The shutter part stands on the grass by the taxi rank's door, placed by eye, since the booking hall it would sit in comes later. The map pill still reads "Stockport · £1,000", not "Reopen · £1,000".
+- **Checks not run here in full.** On this container the desktop pages of the contract, life and reach groups time out under load; their phone pages pass. The "Check main" workflow is the judge.
+- **Next:** G4, the road card and the score (`docs/design/gridlock.md` §6, The road card): road stretches as places with a card, the Network card's cars-off score and sparkline, Strain's traffic row and the car park's card line. Then G5 (roadmap step 20).

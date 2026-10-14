@@ -1025,7 +1025,7 @@
       "offer": ["station:stockport"],
       "prices": { "station:stockport": 1000 },
       "cash": 4000,
-      "clock": { "day": 1, "hour": 6.5 },
+      "clock": { "day": 1, "hour": 7.5 },
       "held": { "route:stopper": "stockport" },
       "camera": { "at": "station:stockport" },
       "roads": ["a6-mersey-square", "m60-j1-j2", "a6-heaton-chapel", "a6-davenport"],

@@ -1,4 +1,5 @@
-// The start (docs/design/gridlock.md, sections 1, 4 and 7): a fresh game opens from the network data's first start,
+// The start (docs/design/gridlock.md, sections 1, 4 and 7): a fresh game opens from the network data's first start, at
+// 07:30 in the morning peak with the roads jammed,
 // Stockport shut: nothing owned, £4,000, Reopen Stockport the one thing offered at £1,000, the stopper standing dark
 // at platform 4 and the expresses running through. Reopening releases the stopper from there with the people who'd
 // gathered aboard, and from then on the game plays as the halt's opening did.
@@ -61,4 +62,13 @@ test('start: the same seed gives the same game, and a start named that the data 
 test('start: halt opens as the shut start reopened, cash and all', () => {
   const g = Sim.halt(net, 1);
   assert.equal(g.cash, 3000); assert.ok(g.owned[0]); assert.ok(!g.owned.slice(1).some(Boolean));
+});
+
+test('start: the first game opens in the morning peak with the roads past capacity, the jam following from nothing open', async () => {
+  const { traffic } = await import('../src/sim/traffic.ts');
+  const { TUNING } = await import('../src/sim/sim.ts');
+  const roads = JSON.parse(readFileSync(new URL('../src/data/traffic.json', import.meta.url), 'utf8'));
+  const sim = shut(), t = traffic(sim, TUNING, roads, sim.hour()), load = (id: string) => t.roads.find(r => r.id === id)!.load;
+  assert.ok(load('a6-mersey-square') > 1.05, `the A6 at Mersey Square at ${load('a6-mersey-square').toFixed(2)}`);
+  assert.ok(load('m60-j1-j2') > 1.1, `the M60 at ${load('m60-j1-j2').toFixed(2)}`);
 });

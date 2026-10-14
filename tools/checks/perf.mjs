@@ -32,8 +32,9 @@ const BUDGET = {
   // geometries and shader programs held: the whole line holds more (every square's far ground and buildings made, and
   // their materials), 535 and 51 when it was added
   geometries: { open: 400, busy: 400, wide: 650 }, textures: 16, programs: { open: 40, busy: 40, wide: 60 },
-  // MB fetched after the first frame at one view, uncompressed (set above what each fetched when it was added)
-  view: { open: 0, buxton: 0, marple: 0 },
+  // MB of a view's own fetched after the first frame, uncompressed: each fetched 0.05 MB (out.json) when it was added,
+  // since from 4 km out no fine terrain is wanted; the budget leaves room for a little near ground
+  view: { open: 0.25, buxton: 0.25, marple: 0.25 },
   // MB of world squares, every one fetched after the first frame: the lines' world allowances added up (tools/lines.mjs)
 };
 const FRAMES = 6;   // frames to time on each page

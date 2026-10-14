@@ -33,6 +33,7 @@
     { "type": "lamps", "u0": 50, "u1": 75, "v": 15.1, "every": 25, "upgrade": ["extend", "platform2"] },
     { "type": "lamps", "u0": -55, "u1": -55, "v": -4.1, "upgrade": "extend" },
     { "type": "lamps", "u0": -55, "u1": -55, "v": 15.1, "upgrade": ["extend", "platform2"] },
-    { "type": "busstop", "u": -24, "v": -20.8, "back": [1, 0], "kerb": 1, "door": [-24, -15.2], "note": "On the cobbled approach by the hut, placed by eye (the real way in is a gate in the viaduct wall on a cobbled street, geograph 4247105)" }
+    { "type": "busstop", "u": 15, "v": -12.5, "back": [1, 0], "kerb": -1, "door": [-18, -12], "street": true, "note": "On the station approach at the foot of the line's south side, beyond the booking office's door (the real way in is a gate in the viaduct wall, geograph 4247105), from OpenStreetMap (main API, 14 October 2026)" },
+    { "type": "road", "points": [[158, -45], [147, -28], [135, -17], [121, -14], [100, -14.5], [84, -13.5], [40, -12.5], [4, -12.5]], "w": 6, "scenery": true, "note": "The approach off Devonshire Street North along the foot of the line, a service road in OpenStreetMap (main API, 14 October 2026), laid 3 m off the railway's land" }
   ]
 }

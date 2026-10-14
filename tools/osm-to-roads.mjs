@@ -12,7 +12,7 @@
 // the world as src/render/buses.ts places it, else the station's own point), the quickest path between them by road
 // (main roads count as shorter, so it keeps to the A6 as a bus would; no footways), and prints a road entry resampled
 // every N metres along the real streets. --write puts it into `roads` in place of the entry for the same two stations,
-// changing nothing else in the file (the road's `via` kept unless --via gives one).
+// changing nothing else in the file, its `via` the streets it takes (or --via's).
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -96,14 +96,16 @@ const pts = out.map(p => [+p.lat.toFixed(6), +p.lon.toFixed(6)]);
 const names = []; for (let u = goal; u !== undefined; u = prev.get(u)) { const n = name.get(u); if (n && n !== names[0]) names.unshift(n); }
 console.log(`road ${from} -> ${to}: ${(len / 1000).toFixed(2)} km, ${pts.length} points, by ${names.join(', ')}`);
 const old = def.roads?.find(r => (r.from === from && r.to === to) || (r.from === to && r.to === from));
-const entry = { from, to, via: via ?? old?.via ?? 'from OpenStreetMap (tools/osm-to-roads.mjs)', points: pts };
+const named = names.filter(n => !/^(service|primary|secondary|tertiary|trunk|unclassified|residential)(_link)?$/.test(n));
+const entry = { from, to, via: via ?? `from OpenStreetMap (tools/osm-to-roads.mjs, ${new Date().toISOString().slice(0, 10)}): ${named.join(', ')}`, points: pts };
 if (!write) { console.log(JSON.stringify(entry)); process.exit(0); }
 // in place of the old entry's two lines (its head and its points), nothing else in the file touched
 const lines = text.split('\n'), at = lines.findIndex(l => l.includes(`"from": "${old?.from}", "to": "${old?.to}"`) && l.includes('"via"'));
 const fmt = `    { "from": ${JSON.stringify(entry.from)}, "to": ${JSON.stringify(entry.to)}, "via": ${JSON.stringify(entry.via)},\n      "points": [${pts.map(p => `[${p[0]}, ${p[1]}]`).join(', ')}] }`;
-if (old && at >= 0 && lines[at + 1]?.trim().startsWith('"points"')) {
-  const comma = lines[at + 1].trimEnd().endsWith(',') ? ',' : '';
-  lines.splice(at, 2, ...(fmt + comma).split('\n'));
+const n = lines[at]?.includes('"points"') ? 1 : lines[at + 1]?.trim().startsWith('"points"') ? 2 : 0;   // on one line, or two
+if (old && at >= 0 && n) {
+  const comma = lines[at + n - 1].trimEnd().endsWith(',') ? ',' : '';
+  lines.splice(at, n, ...(fmt + comma).split('\n'));
 } else { console.error('no entry for these two stations in roads to replace'); process.exit(1); }
 writeFileSync(netFile, lines.join('\n'));
 JSON.parse(readFileSync(netFile, 'utf8'));

@@ -33,7 +33,9 @@
     { "type": "board", "u": -20, "v": 7.2, "serves": "south", "upgrade": "platform2" },
     { "type": "lamps", "u0": -80, "u1": -55, "v": -3.7, "every": 25, "upgrade": "extend" },
     { "type": "lamps", "u0": -80, "u1": -55, "v": 7.2, "every": 25, "upgrade": ["extend", "platform2"] },
-    { "type": "busstop", "u": 48, "v": 13.6, "back": [1, 0], "kerb": -1, "door": [34, 8], "note": "On the lane by the entrance, from memory" },
+    { "type": "busstop", "u": 61.3, "v": 52, "back": [-0.17, 0.98], "kerb": -1, "door": [34, 8], "street": true, "note": "No stop by the station in OpenStreetMap (main API, 14 October 2026): placed on Moorland Road north of the bridge, where one would go" },
+    { "type": "road", "points": [[74.5, -17.6, 7.2], [78, -25, 6], [82, -30, 5.1], [86, -36, 4.1], [95, -48], [105, -60]], "w": 9, "scenery": true, "note": "Moorland Road down off the bridge's south end, from OpenStreetMap (main API, 14 October 2026); the bridge is drawn square to the line, the real one skews, and its deck stands higher than the real road, so the road comes down a bank" },
+    { "type": "road", "points": [[74.5, 20.8, 7.2], [71, 29, 5.9], [67, 37, 4.5], [63, 45, 3.2], [60, 52], [58, 62]], "w": 9, "scenery": true, "note": "Moorland Road down off the bridge's north end, from OpenStreetMap (main API, 14 October 2026)" },
     { "type": "ramp", "u0": 32, "u1": 68, "v": -4.7, "w": 2, "y0": 1, "y1": 7.2, "upgrade": "crossing" },
     { "type": "ramp", "u0": 33, "u1": 69, "v": 8.2, "w": 2, "y0": 1, "y1": 7.2, "upgrade": ["crossing", "platform2"] }
   ]

@@ -36,6 +36,8 @@
     { "type": "lamps", "u0": -135, "u1": -110, "v": -3.7, "every": 25, "upgrade": "extend" },
     { "type": "lamps", "u0": -135, "u1": -110, "v": 7.2, "every": 25, "upgrade": ["extend", "platform2"] },
     { "type": "cycles", "u": 26, "v": -5.1, "n": 4, "y": 1, "upgrade": "crossing" },
-    { "type": "busstop", "u": 48, "v": 19.2, "back": [1, 0], "kerb": -1, "door": [59, 14.4], "note": "On the road beside the booking office, from memory" }
+    { "type": "busstop", "u": 50.1, "v": -25.6, "back": [0.46, 0.88], "kerb": 1, "door": [59, 14.4], "street": true, "note": "Bramhall Lane / Davenport Station (stop C), on Bramhall Lane south-west of the bridge, from OpenStreetMap (main API, 14 October 2026)" },
+    { "type": "road", "points": [[68.5, -12.8, 7.2], [64, -20, 6.3], [57, -28], [49, -36], [36, -60]], "w": 10, "scenery": true, "note": "Bramhall Lane on from the bridge's south-west end, from OpenStreetMap (main API, 14 October 2026); the bridge is drawn square to the line, the real one skews" },
+    { "type": "road", "points": [[68.5, 16, 7.2], [74, 21, 6.3], [84, 26], [95, 38], [100, 44]], "w": 10, "scenery": true, "note": "Bramhall Lane on from the bridge's north-east end, from OpenStreetMap (main API, 14 October 2026)" }
   ]
 }

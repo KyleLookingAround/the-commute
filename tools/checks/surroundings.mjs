@@ -9,7 +9,8 @@
 // - Clear of the buildings: none of them stands on a real building (the map would leave the building out), but a car
 //   park on a `deck`, which stands on the real building that carries it at its own height; a bus station's bays are
 //   its own roads.
-// - Joined up: each end of every kit's `road` meets a real street, another road, a bridge's deck or the map's edge;
+// - Joined up: each end of every kit's `road` meets a real street, another road, a bridge's deck, the map's edge or
+//   the station's own rank, stop or car park (the end of its approach);
 //   no kit road lies on the railway's land or its banks but on a bridge's deck; the roads the replacement buses drive
 //   (`roads`), laid as the page lays them from stop to stop, cross the railway's land between streets on a bridge
 //   (straight from one side's height to the other's, not down at rail level) and never run along it.
@@ -26,7 +27,8 @@ const { bridgesOf } = await import('../../src/render/landmarks.ts');
 const { decodeWorld, SQUARE } = await import('../../src/render/buildings.ts');
 const { streetBox } = await import('../../src/render/stations.ts');
 
-const RISE = 1.5;     // m a part may stand off the real ground under it
+const RISE = 1.5;     // m a part may stand off the real ground under its middle
+const RISE_END = 2;   // ...and a rank's or stop's bay off it at its ends (it's drawn level, the street may not be)
 const TOUCH = 3;      // m from a rank's or stop's bay to the edge of a street
 const REACH = 25;     // m from a car park to the edge of a street (its own way in between)
 const MEET = 3;       // m from a road's end to the edge of what it meets
@@ -34,8 +36,8 @@ const ALONG = 80;     // m a road may run on the railway's land or its banks (a 
 const KINDS = ['taxi', 'carpark', 'busstop', 'buslink'];
 // the stations still to put right (docs/audits/station-surroundings.md), worst first, a few at a time: what's found
 // at them, and on the roads to them, is listed but doesn't fail yet. Piccadilly's kit waits on the services work.
-const LATER = new Set(['stockport', 'piccadilly', 'ardwick', 'hazel-grove', 'middlewood', 'disley', 'marple', 'rose-hill',
-  'levenshulme', 'davenport', 'woodsmoor', 'new-mills-newtown', 'ashburys', 'reddish-north', 'romiley', 'bredbury']);
+const LATER = new Set(['stockport', 'piccadilly', 'hazel-grove', 'middlewood', 'disley', 'marple', 'rose-hill', 'levenshulme',
+  'new-mills-newtown', 'romiley', 'bredbury']);
 
 export default async function ({ ok, root, kits: given }) {
   const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def);
@@ -95,9 +97,11 @@ export default async function ({ ok, root, kits: given }) {
       const kerb = p.type === 'taxi' || p.type === 'busstop' || p.type === 'buslink';
       const under = [[(u0 + u1) / 2, (v0 + v1) / 2], ...(kerb ? [[u0, v0], [u1, v1]] : [])].map(([u, v]) => W(u, v));
       // drawn: a street-level part on the ground as the page seats it, else at its own height on the station's pad
-      const drawn = p.street ? Math.max(...(p.type === 'taxi' || p.type === 'busstop' ? [[u0, v0], [u0, v1], [u1, v0], [u1, v1], [(u0 + u1) / 2, (v0 + v1) / 2]].map(([u, v]) => t.groundY(...W(u, v))) : [t.groundY(...under[0])])) : (p.y ?? 0);
+      const seat = p.type === 'taxi' || p.type === 'busstop' ? [[(u0 + u1) / 2, (v0 + v1) / 2], [u0, v0], [u0, v1], [u1, v0], [u1, v1]] : [[(u0 + u1) / 2, (v0 + v1) / 2]];
+      const drawn = p.street ? seat.reduce((a, [u, v]) => a + t.groundY(...W(u, v)), 0) / seat.length : (p.y ?? 0);
       // a car park on a deck stands on the real building that carries it, its own height above the ground
-      const worst = p.deck ? 0 : Math.max(...under.map(q => Math.abs(drawn - real(...q))));
+      // (its middle within RISE; a rank's or stop's ends, level on a sloping street, within RISE_END)
+      const worst = p.deck ? 0 : Math.max(...under.map((q, k) => Math.abs(drawn - real(...q)) - (k ? RISE_END - RISE : 0)));
       if (worst > RISE) find(sunk, [st.id], `${name} ${worst.toFixed(1)} m off the ground`);
       // touching a street: a rank's or stop's bay along its length, a car park anywhere round its edge
       const edge = kerb ? under : [[u0, v0], [u1, v0], [u1, v1], [u0, v1], [(u0 + u1) / 2, v0], [(u0 + u1) / 2, v1], [u0, (v0 + v1) / 2], [u1, (v0 + v1) / 2]].map(([u, v]) => W(u, v));
@@ -119,7 +123,9 @@ export default async function ({ ok, root, kits: given }) {
   for (const r of kitRoads) {
     for (const end of [r.pts[0], r.pts[r.pts.length - 1]]) {
       const p = [end[0], end[1]];
-      if (!(onDeck(p, MEET) || toStreet(p, r) <= MEET || edgeOfMap(p))) find(loose, [r.st.id], `${r.st.id} road end at ${toStreet(p, r).toFixed(0)} m from a street`);
+      // (or at the station's own rank, stop or car park, the end of its approach)
+      const atPart = kits[r.st.kit].parts.some(q => KINDS.includes(q.type) && (() => { const [u0, u1, v0, v1] = streetBox(q), F = net.stationFrame(r.st.id), x = p[0] - F.x, z = p[1] - F.z, u = x * F.dx + z * F.dz, v = x * F.nx + z * F.nz; return u > u0 - MEET && u < u1 + MEET && v > v0 - MEET && v < v1 + MEET; })());
+      if (!(onDeck(p, MEET) || toStreet(p, r) <= MEET || edgeOfMap(p) || atPart)) find(loose, [r.st.id], `${r.st.id} road end at ${toStreet(p, r).toFixed(0)} m from a street`);
     }
   }
   // along each road every 4 m: on the railway's land (or its cutting and bank sides) only on a deck

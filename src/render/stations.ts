@@ -342,7 +342,10 @@ const partBuilders: Builders = {
   taxi(gp, p, live) { buildRank(gp, p, live); },
   busstop(gp, p, live) { buildBusStop(gp, p, live); },
   buslink(gp, p, live) { buildLink(gp, p, live); },
-  road(gp, p) { const m = new THREE.Mesh(new THREE.BufferGeometry(), MAT.road); m.receiveShadow = true; gp.add(m); ROADS.set(m, p); layRoad(m, p, null); },
+  road(gp, p) {
+    const m = new THREE.Mesh(new THREE.BufferGeometry(), MAT.road), bank = new THREE.Mesh(new THREE.BufferGeometry(), BANK_MAT ??= new THREE.MeshLambertMaterial({ color: PAL.bank, side: THREE.DoubleSide }));
+    m.receiveShadow = true; bank.receiveShadow = true; m.userData['bank'] = bank; gp.add(m, bank); ROADS.set(m, p); layRoad(m, p, null);
+  },
   plaque(gp, p) {
     const g = new THREE.Group(); g.position.set(p.u, 0, p.v); g.rotation.y = p.facing > 0 ? 0 : Math.PI; g.visible = false; gp.add(g);
     const pier = box(g, PLAQUE_W + 0.6, 1, 0.5, MAT.sandstone, 0, 0.5, 0);
@@ -388,6 +391,8 @@ const ROADS = new Map<THREE.Mesh, Extract<Part, { type: 'road' }>>();
 const SEATS: { g: THREE.Group; under: [number, number][]; roads: { m: THREE.Mesh; f: Seat }[] }[] = [];
 type Seat = { x: number; z: number; dx: number; dz: number; nx: number; nz: number };
 const ROAD_STEP = 4, ROAD_LIFT = 0.08;
+/** The grass bank a street stands on where it's above the ground (coming down off a bridge's deck). */
+let BANK_MAT: THREE.Material | null = null;
 /** A street's ribbon: every ROAD_STEP m or less along its points, each at the ground's height there in the world (with
  * the station at `f`), or at its own height; with no frame yet, at 0 (laid properly once the station is placed). */
 function layRoad(m: THREE.Mesh, p: Extract<Part, { type: 'road' }>, f: Seat | null): void {
@@ -397,22 +402,29 @@ function layRoad(m: THREE.Mesh, p: Extract<Part, { type: 'road' }>, f: Seat | nu
     if (prev) { const n = Math.max(1, Math.ceil(Math.hypot(q[0] - prev[0], q[1] - prev[1]) / ROAD_STEP)); for (let k = 1; k < n; k++) { const t = k / n, a = prev[2], b = q[2]; pts.push([prev[0] + (q[0] - prev[0]) * t, prev[1] + (q[1] - prev[1]) * t, a !== undefined && b !== undefined ? a + (b - a) * t : undefined]); } }
     pts.push([q[0], q[1], q[2]]);
   });
-  const P: number[] = [], idx: number[] = [];
+  const P: number[] = [], idx: number[] = [], S: number[] = [], sidx: number[] = [];
   pts.forEach(([u, v, y], i) => {
     // the ribbon's width square to the street there (the mean of the pieces either side)
     const a = pts[Math.max(0, i - 1)]!, b = pts[Math.min(pts.length - 1, i + 1)]!, l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
     const nu = -(b[1] - a[1]) / l * w, nv = (b[0] - a[0]) / l * w;
     const h = (uu: number, vv: number) => y !== undefined ? y : f ? groundAt(f.x + f.dx * uu + f.nx * vv, f.z + f.dz * uu + f.nz * vv) : 0;
-    P.push(u + nu, h(u + nu, v + nv) + ROAD_LIFT, v + nv, u - nu, h(u - nu, v - nv) + ROAD_LIFT, v - nv);
+    const yl = h(u + nu, v + nv), yr = h(u - nu, v - nv);
+    P.push(u + nu, yl + ROAD_LIFT, v + nv, u - nu, yr + ROAD_LIFT, v - nv);
     if (i) { const k = 2 * i; idx.push(k - 2, k, k - 1, k - 1, k, k + 1); }
+    // its bank: from each edge down to the ground below it (nothing where it lies on the ground)
+    const gl = f ? groundAt(f.x + f.dx * (u + nu) + f.nx * (v + nv), f.z + f.dz * (u + nu) + f.nz * (v + nv)) : yl, gr = f ? groundAt(f.x + f.dx * (u - nu) + f.nx * (v - nv), f.z + f.dz * (u - nu) + f.nz * (v - nv)) : yr;
+    S.push(u + nu, yl, v + nv, u + nu * 1.6, Math.min(gl, yl) - 0.3, v + nv * 1.6, u - nu, yr, v - nv, u - nu * 1.6, Math.min(gr, yr) - 0.3, v - nv * 1.6);
+    if (i) { const k = 4 * i; for (const o of [0, 2]) sidx.push(k - 4 + o, k + o, k - 3 + o, k - 3 + o, k + o, k + 1 + o); }
   });
   const g = m.geometry; g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setIndex(idx); g.computeVertexNormals(); g.computeBoundingSphere();
+  const bank = m.userData['bank'] as THREE.Mesh | undefined;
+  if (bank) { const b = bank.geometry; b.setAttribute('position', new THREE.Float32BufferAttribute(S, 3)); b.setIndex(sidx); b.computeVertexNormals(); b.computeBoundingSphere(); }
 }
 let seatedAt = -1;
 /** Seat every street-level part and street on the ground as it's drawn now. */
 function seatAll(): void { for (const s of SEATS) seatOn(s); }
 function seatOn(s: (typeof SEATS)[number]): void {
-  if (s.under.length) s.g.position.y = Math.max(...s.under.map(([x, z]) => groundAt(x, z)));
+  if (s.under.length) s.g.position.y = s.under.reduce((a, [x, z]) => a + groundAt(x, z), 0) / s.under.length;
   for (const r of s.roads) layRoad(r.m, ROADS.get(r.m)!, r.f);
 }
 
@@ -422,19 +434,22 @@ const build = (part: Part, into: THREE.Group, live: Live) => (partBuilders[part.
  * group placed at `frame` (the ground is in the world's frame; the station's group only turns about y). */
 function onGround(part: Part, into: THREE.Group, live: Live, frame: { x: number; z: number; dx: number; dz: number; nx: number; nz: number }): void {
   const [u0, u1, v0, v1] = streetBox(part), at = (u: number, v: number): [number, number] => [frame.x + frame.dx * u + frame.nx * v, frame.z + frame.dz * u + frame.nz * v];
-  // seated on the ground under its middle; a rank or a stop, a strip of kerb along a street, on the highest of the
-  // ground along it, so neither end of its bay sinks into the street's camber or a bank
+  // seated on the ground under its middle; a rank or a stop, a strip of kerb along a street, on the mean of the ground
+  // under its bay's middle and corners, so on a hill neither end stands far off it
   const under = [at((u0 + u1) / 2, (v0 + v1) / 2), ...(part.type === 'taxi' || part.type === 'busstop' ? [at(u0, v0), at(u0, v1), at(u1, v0), at(u1, v1)] : [])];
   const g = new THREE.Group(); into.add(g); build(part, g, live);
   const seat = { g, under, roads: [] }; SEATS.push(seat); seatOn(seat);
 }
-/** The box (u0, u1, v0, v1) a street-level part stands on: a rank's or stop's queue back from its front, else what the
- * terrain would clear for it (its last box, the part's own). */
+/** The box (u0, u1, v0, v1) a street-level part stands on: a rank's or stop's bay and kerb as drawn (a rank's from a
+ * cab's length before its front back past its last space, a stop's centred on it), else what the terrain would clear
+ * for it (its last box, the part's own). */
 export function streetBox(part: Part): [number, number, number, number] {
-  const q = part as unknown as { u?: number; v?: number; back?: [number, number]; n?: number };
+  const q = part as unknown as { u?: number; v?: number; back?: [number, number]; n?: number; kerb?: number };
   if ((part.type === 'taxi' || part.type === 'busstop') && q.u !== undefined && q.v !== undefined) {
-    const [bu0, bv0] = q.back ?? [1, 0], l = Math.hypot(bu0, bv0) || 1, L = part.type === 'taxi' ? (q.n ?? 4) * 6.5 : 14, eu = q.u + bu0 / l * L, ev = q.v + bv0 / l * L;
-    return [Math.min(q.u, eu), Math.max(q.u, eu), Math.min(q.v, ev), Math.max(q.v, ev)];
+    const [bu0, bv0] = q.back ?? [1, 0], l = Math.hypot(bu0, bv0) || 1, bu = bu0 / l, bv = bv0 / l, k = q.kerb ?? 1, su = -bv * k, sv = bu * k;
+    const [a0, a1] = part.type === 'taxi' ? [-6.25, (q.n ?? 5) * 6.5 - 0.25] : [-9, 9], us: number[] = [], vs: number[] = [];
+    for (const a of [a0, a1]) for (const c of [-2, 2.4]) { us.push(q.u + bu * a + su * c); vs.push(q.v + bv * a + sv * c); }
+    return [Math.min(...us), Math.max(...us), Math.min(...vs), Math.max(...vs)];
   }
   const boxes = partBoxes({ ...part, street: false } as unknown as Parameters<typeof partBoxes>[0]), b = boxes[boxes.length - 1];
   return b ?? [0, 0, 0, 0];

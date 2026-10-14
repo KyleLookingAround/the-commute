@@ -30,6 +30,6 @@
     { "type": "box", "u0": -102, "u1": -72, "v0": 9.6, "v1": 10.8, "y0": 0, "y1": 1.4, "mat": "brickDark", "scenery": true },
     { "type": "box", "u0": -70, "u1": 130, "v0": 19.2, "v1": 19.4, "y0": 0, "y1": 2.2, "mat": "steel", "scenery": true },
     { "type": "footprint", "outline": [[35.2, -61.4], [34.7, -12.6], [-25.7, -13.1], [-25.2, -62.1]], "y0": 0, "y1": 8, "mat": "concrete", "scenery": true },
-    { "type": "busstop", "u": -78, "v": -24.8, "back": [0, 1], "kerb": -1, "door": [-70, -9.6], "street": true, "note": "Pottery Lane/Ashburys Station (stop A), on Pottery Lane below the rail bridge (OpenStreetMap)" }
+    { "type": "busstop", "u": -78, "v": -31, "back": [0, 1], "kerb": -1, "door": [-70, -9.6], "street": true, "note": "Pottery Lane/Ashburys Station (stop A), on Pottery Lane below the rail bridge (OpenStreetMap), its bay clear of the bridge" }
   ]
 }

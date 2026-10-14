@@ -144,7 +144,7 @@ export default async function ({ ok, open, root, url, SAVE_KEY, browser }) {
     const { ctx, page, errs } = await open({ width: 320, height: 640 }, { touch: true, save: mine });
     await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto(url + '?stats&save=busy'); await page.waitForSelector('html[data-sim="ready"]', { timeout: 15000 }).catch(() => {});
-    const shown = await page.waitForFunction(() => /\d+ fps[\s\S]*\d+k? triangles · \d+ calls/.test(document.querySelector('.perf-hud pre')?.textContent ?? ''), null, { timeout: 60000 }).then(() => true, () => false);
+    const shown = await page.waitForFunction(() => /[\d.]+ fps[\s\S]*\d+k? triangles · \d+ calls/.test(document.querySelector('.perf-hud pre')?.textContent ?? ''), null, { timeout: 60000 }).then(() => true, () => false);
     const owned = await page.evaluate(() => window.__view.contract().owned);
     const box = await page.evaluate(() => { const r = document.querySelector('.perf-hud').getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom, text: document.querySelector('.perf-hud pre').textContent }; });
     const b = await page.evaluate(() => { const r = document.querySelector('.perf-hud button').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
@@ -157,8 +157,8 @@ export default async function ({ ok, open, root, url, SAVE_KEY, browser }) {
     const after = await page.evaluate(() => ({ owned: window.__view.contract().owned, stats: !!document.querySelector('.perf-hud') }));
     ok('perf: ?stats&save=busy shows the stats view over the busy save, inside a 320 px screen', shown && owned === 5 && box.l >= 0 && box.r <= 320 && box.b <= 640,
       `${shown ? 'figures shown' : 'no figures'}; ${owned} stations owned; overlay ${box.l.toFixed(0)}–${box.r.toFixed(0)} × ${box.t.toFixed(0)}–${box.b.toFixed(0)}: ${JSON.stringify(box.text)}`);
-    ok('perf: the stats view\'s Copy gives one line of its figures', copied && /^commute stats · busy · 320×640@2 · \d+ fps · slowest \d+ ms · \d+ triangles · \d+ calls · \d+ geometries · \d+ textures · /.test(line) && !line.includes('\n'), JSON.stringify(line));
-    ok('perf: the busy save leaves the game on the device as it was, and a plain load shows no stats view', after.owned === JSON.parse(mine).g.owned.filter(Boolean).length && !after.stats && !errs.length,
+    ok('perf: the stats view\'s Copy gives one line of its figures', copied && /^commute stats · busy · 320×640@2 · [\d.]+ fps · slowest \d+ ms · \d+ triangles · \d+ calls · \d+ geometries · \d+ textures · /.test(line) && !line.includes('\n'), JSON.stringify(line));
+    ok('perf: the busy save leaves the game on the device as it was, and a plain load shows no stats view', after.owned === new Sim(net, JSON.parse(mine).g).g.owned.filter(Boolean).length && !after.stats && !errs.length,
       `${after.owned} stations owned after${after.stats ? '; the stats view still shown' : ''}${errs.length ? '; ' + errs[0] : ''}`);
     await ctx.close();
   }

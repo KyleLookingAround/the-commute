@@ -8,7 +8,7 @@
 import { rand, freshSeed } from './random.ts';
 import { BASE, DAY, clockAt, clockText, hourAt, simAtHour } from './day.ts';
 import { SAVE_VERSION } from './save.ts';
-import type { Blocks, Movement, Network, Route } from './network.ts';
+import { variants, type Blocks, type Movement, type Network, type Route } from './network.ts';
 import { journeys, cycle, runTime, waitWeight, type Journey } from './journeys.ts';
 import { freshWeather, stepWeather, feel, weatherKey } from './weather.ts';
 import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
@@ -115,6 +115,8 @@ export function demandCurve(h: number): number {
  * from off the map (src/sim/expresses.ts): portal is where it comes on and goes off, along the corridor. */
 export interface Svc {
   id: string; route: number[]; home: number | null; def: ServiceDef; path: Route;
+  /** Its data as the network has it; `def` is the variant it runs now (through to Manchester once bought). */
+  base: ServiceDef;
   plats: Map<number, { north?: number[]; south?: number[]; turn?: number[] }>;
   express: { south: string; first: number; every: number; last: number; portal: number } | null;
 }
@@ -167,20 +169,17 @@ export class Sim {
     this.P = places(network);
     this.g = derive(state || Sim.fresh(network), this.P);
     this.fx = effects(network.def.contract, this.g.perks);
-    this.svcs = network.services().map(s => ({ id: s.def.id, route: s.route, home: s.home, def: s.def, path: network.route(s.def), plats: new Map(), express: null }));
+    this.svcs = network.services().map(s => ({ id: s.def.id, route: s.route, home: s.home, def: s.def, base: s.def, path: network.route(s.def), plats: new Map(), express: null }));
     if (!this.svcs.length || this.svcs[0]!.def.through) throw new Error('network.json names no passenger service first');
     this.fixedEnds = new Set(this.local().filter(v => v.home === null).flatMap(v => [v.route[0]!, v.route[v.route.length - 1]!]));
     this.plats = this.S.map((st, i) => st.platforms?.map(def => ({ def, ways: (def.ways ?? ['north', 'south']).map(w => w === 'north' ? 0 : 1) as (0 | 1)[] }))
       ?? [{ def: { id: '1' }, ways: [this.haltDir(i)] }, ...(st.grow?.platform2 ? [{ def: { id: '2', upgrade: 'platform2' as const }, ways: [1 - this.haltDir(i) as 0 | 1] }] : [])]);
     for (const v of this.svcs) {
-      for (const [id, P] of Object.entries(v.def.platforms ?? {})) {
-        if (!P) continue;
-        const i = network.station(id).index, ix = (ids?: string[]) => ids?.map(p => { const k = this.plats[i]!.findIndex(q => q.def.id === p); if (k < 0) throw new Error(`${v.id}: no platform ${p} at ${id}`); return k; });
-        v.plats.set(i, { north: ix(P.north), south: ix(P.south), turn: ix(P.turn) });
-      }
+      this.runAs(v, v.def);
       const th = v.def.through;
       if (th) v.express = { ...th, portal: v.path.start + v.def.cars * TUNING.carPitch / 2 };
     }
+    for (const v of this.svcs) this.throughNow(v);
     const stopperLine = new Set(this.P.stopperSections);
     const nth = new Map<string, number>();
     this.secs = this.P.all.filter(p => p.kind === 'section').map(p => {
@@ -192,6 +191,24 @@ export class Sim {
     });
     this.rates = new Float64Array(this.S.length); this.crowding = new Float64Array(this.svcs.length * 2); this.trainsEachWay = new Float64Array(this.svcs.length * 2);
     this.growth = new Float64Array(this.S.length);
+  }
+  /** Set the variant a service runs: its route, its way through the graph and its platforms. */
+  private runAs(v: Svc, def: ServiceDef): void {
+    const net = this.net;
+    v.def = def; v.route = (def.route ?? []).map(id => net.station(id).index); v.home = def.home ? net.station(def.home).index : null; v.path = net.route(def); v.plats = new Map();
+    for (const [id, P] of Object.entries(def.platforms ?? {})) {
+      if (!P) continue;
+      const i = net.station(id).index, ix = (ids?: string[]) => ids?.map(p => { const k = this.plats[i]!.findIndex(q => q.def.id === p); if (k < 0) throw new Error(`${v.id}: no platform ${p} at ${id}`); return k; });
+      v.plats.set(i, { north: ix(P.north), south: ix(P.south), turn: ix(P.turn) });
+    }
+  }
+  /** Whether a service runs through to Manchester now (its `manchester` stage bought). */
+  runsThrough(v: Svc): boolean { return !!v.base.manchester && (this.g.places[placeId('route', v.id)]?.['through'] ?? 0) > 0; }
+  /** Run a service as its through variant once that's bought: its units carry on from where they are. */
+  private throughNow(v: Svc): void {
+    const want = this.runsThrough(v) ? variants(v.base)[0]! : v.base; if (want === v.def || want.key === v.def.key && v.def !== v.base) return;
+    this.runAs(v, want);
+    for (const tr of this.g.trains) if (tr.svc === v.id) { tr.leg = v.path.legAt(tr.s); tr.next = null; tr.bound = -1; }
   }
   /** A new run from Stockport as a halt, with the perks the career has bought (none on a first contract). */
   static fresh(network: Network, seed: number = freshSeed(), perks: readonly string[] = []): GameState {
@@ -734,7 +751,7 @@ export class Sim {
    * waits and platforms, the line's units and speed, and the weather and season. */
   journeyKey(): number {
     const g = this.g; let h = g.line.units * 7 + g.line.timetable + 97 * weatherKey(g);
-    for (const v of this.svcs) h = (Math.imul(h, 31) + this.freqLevel(v)) | 0;
+    for (const v of this.svcs) h = (Math.imul(h, 31) + this.freqLevel(v) + (this.runsThrough(v) ? 64 : 0)) | 0;
     for (const x of this.secs) h = (Math.imul(h, 31) + (g.places[x.id]?.[SECTION_SPEED.id] ?? 0) + (this.wiredSec(x) ? 16 : 0)) | 0;
     for (let i = 0; i < this.S.length; i++) {
       const u = g.ups[i] ?? {};
@@ -922,6 +939,10 @@ export class Sim {
     if (p.kind === 'station') { const u = UPGRADES.find(x => x.id === stage && !x.stop); return u ? this.upgradePrice(p.station!, u) : undefined; }
     if (p.kind === 'junction') return stage === JUNCTION_FLYOVER.id && this.flyoverOffered(id) ? this.cost(JUNCTION_FLYOVER.price) : undefined;
     if (p.kind === 'section') { const x = this.sectionAt(id); return stage === SECTION_SPEED.id ? x?.price : stage === SECTION_SIGNALS.id ? x?.signalsPrice : stage === SECTION_WIRES.id ? x?.wiresPrice : undefined; }
+    if (p.kind === 'route' && stage === 'through') {
+      const v = this.svc(p.svc!), m = v.base.manchester;
+      return !m || this.runsThrough(v) ? undefined : this.cost(m.price);
+    }
     if (p.kind === 'route' && stage === 'units') {
       const v = this.svc(p.svc!), f = frequencyStage(v.def), lvl = this.freqLevel(v), price = f?.prices[lvl];
       return price === undefined ? undefined : p.id === this.P.stopper && lvl === 0 && this.fx.unit ? 0 : this.cost(price);
@@ -933,7 +954,10 @@ export class Sim {
   stageLevel(id: string, stage: string): number { return this.g.places[id]?.[stage] ?? 0; }
   /** Whether a route's or depot's stage can be seen yet: the stopper's extra units once Stockport's platform 3 is
    * built, the spare unit once a train has failed; a branch's frequency once it runs. */
-  stageReady(id: string, stage: string): boolean { return id === this.P.stopper || stage !== 'units' ? this.lineReady(stage) : this.owns(id); }
+  stageReady(id: string, stage: string): boolean {
+    if (stage === 'through') { const n = this.svc(this.P.get(id).svc!).base.manchester?.needs, i = n ? this.net.station(n.station).index : -1; return this.owns(id) && (!n || (!!this.g.owned[i] && !!this.ups(i)[n.upgrade as UpgradeId])); }
+    return id === this.P.stopper || stage !== 'units' ? this.lineReady(stage) : this.owns(id);
+  }
   /** Whether a place can be bought now (offered: touching one owned, its needs built) or its stage built (on a place
    * owned, offered there, what it needs there built, and not all built), with the cash for it. */
   canBuy(id: string, stage?: string): boolean {
@@ -954,7 +978,7 @@ export class Sim {
       if (stage === 'taxi') this.state(i).cabs = new Array<number>(TUNING.cabs).fill(0);   // the rank opens with every cab in
       openAccess(this, i, stage as UpgradeId);
     } else if (p.kind === 'stop') openAccess(this, p.station!, 'bus');
-    else if (stage !== undefined) this.ensureTrains();
+    else if (stage !== undefined) { if (stage === 'through') for (const v of this.svcs) this.throughNow(v); this.ensureTrains(); }
     this.refreshJourneys(); return true;
   }
   /** Give the player a place, or a stage of it, without paying or asking what it waits on (tests and checks setting up a
@@ -964,6 +988,7 @@ export class Sim {
     derive(this.g, this.P); this.resectioned();
     if (stage === 'taxi') { const i = this.P.get(id).station!; if (!this.state(i).cabs.length) this.state(i).cabs = new Array<number>(TUNING.cabs).fill(0); }
     if (stage === 'carpark') openAccess(this, this.P.get(id).station!, 'carpark');
+    if (stage === 'through') for (const v of this.svcs) this.throughNow(v);
     this.jkey = -1;
   }
   /** The place a station upgrade is a stage of (the station's own, or for `bus` the stop by it), and the stage. */

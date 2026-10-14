@@ -26,7 +26,7 @@ register();
 // a part that paints a sign on a canvas (a taxi rank's) gets one that paints nothing: only its shape is measured here
 globalThis.document ??= { createElement: () => ({ getContext: () => null }) };
 const THREE = await import('three');
-const { fromGeo } = await import('../../src/sim/network.ts');
+const { fromGeo, variants } = await import('../../src/sim/network.ts');
 const { partGroup } = await import('../../src/render/stations.ts');
 const { unitPoses, serviceRange, offsetOn, crossovers, NO_BERTHS } = await import('../../src/render/trains.ts');
 const { Sim, UPGRADES } = await import('../../src/sim/sim.ts');
@@ -41,7 +41,8 @@ const STEP = 1;                     // metres between sampled positions along th
 export default async function ({ ok, root, kits: given }) {
   const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def);
   const kits = given ?? Object.fromEntries(net.stations.map(st => [st.kit, JSON.parse(readFileSync(join(root, 'src/data/kits', st.kit + '.json'), 'utf8'))]));
-  const services = def.services ?? [];
+  // every service as it can run: its own and its variants (the Hazel Grove trains through to Manchester)
+  const services = (def.services ?? []).flatMap(d => [d, ...variants(d)]);
   const poses = [];
   const lengths = svc => svc.scenery || svc.through ? [svc.cars] : CARS;
   // the crossovers the map draws, and none sharper than a turnout
@@ -51,11 +52,13 @@ export default async function ({ ok, root, kits: given }) {
   ok('geometry: the crossovers drawn shift sideways no faster than 1 in 6', drawn.length > 0 && sharp.k <= 1 / 6 + 1e-6, `${drawn.length} drawn; the sharpest 1 in ${(1 / sharp.k).toFixed(1)} ${sharp.at}`);
   // the line fully built and every station owned, so every platform is there
   const sim = new Sim(net); sim.P.station.forEach((id, i) => { sim.grant(id); for (const u of UPGRADES) { const at = sim.upgradePlace(i, u.id); if (at) sim.grant(...at); } });
+  // and the same with every service running through where it can, for its variants' platforms
+  const through = new Sim(net, JSON.parse(JSON.stringify(sim.g))); for (const v of through.svcs) if (v.base.manchester) through.grant(`route:${v.id}`, 'through');
   /** Where each service stands at a station, and on which platforms: [service, kind, the way it runs in, the way it
    * stands, platform indices]. A line turns at its ends (a line with a home, wherever it's been opened to as well). */
   const standsAt = i => {
     const out = [];
-    for (const v of sim.svcs) {
+    for (const v of [...sim.svcs, ...through.svcs.filter(v => v.def !== v.base)]) {
       const k = v.route.indexOf(i); if (k < 0) continue;
       const last = v.route.length - 1, home = v.home === null ? -1 : v.route.indexOf(v.home), kinds = [];
       if (v.express) { kinds.push(k === last ? ['turn', 1, -1] : ['north', 1, 1], ...(k === last ? [] : [['south', -1, -1]])); }
@@ -168,8 +171,9 @@ export default async function ({ ok, root, kits: given }) {
 
     // ---- every track a service runs on, through the station ----
     // (the services whose route runs along this station's corridor here: chainage runs on through the junctions, so
-    // a line out shares it with the line it joins, and its trains are elsewhere on the map)
-    for (const svc of services.filter(v => net.route(v).leg(st.at).corridor === st.corridor)) for (const [dir, id] of [1, -1].map(d => [d, net.route(svc).track(st.at, d)])) {
+    // a line out shares it with the line it joins, and its trains are elsewhere on the map; not where a service
+    // changes track at the station, which its trains always call at, so they're on their platforms there, below)
+    for (const svc of services.filter(v => net.route(v).leg(st.at).corridor === st.corridor && !(v.switches ?? []).includes(st.id))) for (const [dir, id] of [1, -1].map(d => [d, net.route(svc).track(st.at, d)])) {
       const [r0, r1] = serviceRange(net, svc);
       for (const cars of lengths(svc)) for (let s = Math.max(r0, st.at + umin - reachOut); s <= Math.min(r1, st.at + umax + reachOut); s += STEP) {
         const bs = bodies(svc, s, dir, cars, null);

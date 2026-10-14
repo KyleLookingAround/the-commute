@@ -17,6 +17,8 @@ export type PlaceKind = 'station' | 'section' | 'junction' | 'route' | 'stop' | 
 export interface Upgrade { id: UpgradeId; name: string | null; price: number; desc: string; requires?: UpgradeId[]; stage?: boolean; stop?: boolean }
 /** A stage bought more than once, on a route or a depot: its price each time, up to max. */
 export interface LineUpgrade { id: LineUpgradeId; name: string; prices: number[]; desc: string; max: number; steps?: { name: string; desc: string }[] }
+/** A stage of a route: the line's (units, cars), or a branch's own through running. */
+export type RouteStage = Omit<LineUpgrade, 'id'> & { id: LineUpgradeId | 'through' };
 /** A service's frequency as a stage of its route: its data's steps (ServiceDef.frequency), one level each. */
 export function frequencyStage(def: ServiceDef): LineUpgrade | null {
   const f = def.frequency; if (!f?.steps.length) return null;
@@ -203,13 +205,14 @@ export class Places {
   /** The stages a place grows through: a station those its `grow` lists and the everyday ones; the stopper its units,
    * longer trains; the sidings the spare unit. A section's line speed is the sim's (Sim.sectionAt); junctions get
    * theirs with the line between stations, stops theirs with buses as a network. */
-  stagesFor(net: Network, id: string): (Upgrade | LineUpgrade)[] {
+  stagesFor(net: Network, id: string): (Upgrade | LineUpgrade | RouteStage)[] {
     const p = this.get(id);
     if (p.kind === 'station') { const grow = net.stations[p.station!]?.grow; return UPGRADES.filter(u => !u.stop && (!u.stage || !!grow?.[u.id as StageId])); }
     if (p.kind === 'route') {
       const def = net.def.services?.find(v => v.id === p.svc), f = def && frequencyStage(def);
       const own = id === this.stopper ? LINE_UPGRADES.filter(u => LINE_PLACE[u.id as keyof typeof LINE_PLACE] === 'route') : [];
-      return f ? [f, ...own.filter(u => u.id !== 'units')] : own;
+      const m = def?.manchester, through: RouteStage[] = m ? [{ id: 'through', name: m.name, prices: [m.price], desc: m.desc, max: 1 }] : [];
+      return [...(f ? [f, ...own.filter(u => u.id !== 'units')] : own), ...through];
     }
     if (id === this.sidings) return LINE_UPGRADES.filter(u => LINE_PLACE[u.id as keyof typeof LINE_PLACE] === 'depot');
     return [];

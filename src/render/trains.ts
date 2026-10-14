@@ -24,7 +24,7 @@ import { yawFor } from './world.ts';
 import { MAT, PAL } from './scene.ts';
 import { byCell } from './cells.ts';
 import { LINE_UPGRADES, TUNING, type Sim } from '../sim/sim.ts';
-import { SPINE, newFrame, type Network } from '../sim/network.ts';
+import { SPINE, newFrame, variants, type Network } from '../sim/network.ts';
 import { clockAt } from '../sim/day.ts';
 import type { Train } from '../sim/types.ts';
 import type { Frame, GameState, PlatformDef, ServiceDef, Station } from '../sim/types.ts';
@@ -200,7 +200,16 @@ function berthTrack(net: Network, svc: ServiceDef, on: string, b: Berth, behind:
 }
 /** A platform's offset at x: its track's, or along the rails drawn into a bay (held at their ends beyond them). */
 function berthOffset(net: Network, track: string | null, b: Berth, x: number): number {
-  if (track) return net.offsetAt(track, x);
+  if (track) {
+    // beyond the end of the platform's track (a branch's into Stockport's platform 1), the track it runs on as there
+    const [e0, e1] = net.extent(track); if (x >= e0 && x <= e1) return net.offsetAt(track, x);
+    const end = x > e1 ? e1 : e0, o = net.offsetAt(track, end), c = net.track(track).corridor;
+    for (const t of net.tracks) {
+      if (t.id === track || t.corridor !== c) continue;
+      const [a0, a1] = net.extent(t.id); if (end >= a0 && end <= a1 && Math.abs(net.offsetAt(t.id, end) - o) < 1.5) return net.offsetAt(t.id, x);
+    }
+    return net.offsetAt(track, x);
+  }
   const P = b.def?.path ?? [], u = x - b.at, U = (k: number) => P[k]?.[0] ?? 0, V = (k: number) => P[k]?.[1] ?? 0, n = P.length - 1;
   // beyond the buffers, the end's offset; beyond the far end, the track the rails join there (or the end's offset)
   if ((u - U(0)) * (U(n) - U(0)) <= 0) return V(0);
@@ -379,7 +388,7 @@ export class TrainLayer {
     this.beacons.count = 0; this.beacons.frustumCulled = false; scene.add(this.beacons);
     // the crossovers the units take into and out of their platforms: rails along the path they ride, as the tracks'
     // are (their ballast runs under them), each in pieces so they follow its curve
-    const xs = crossovers(net, services), pieces = xs.reduce((n, c) => n + Math.ceil((c.s1 - c.s0) / XSTEP), 0);
+    const xs = crossovers(net, services.flatMap(d => [d, ...variants(d)])), pieces = xs.reduce((n, c) => n + Math.ceil((c.s1 - c.s0) / XSTEP), 0);
     const rails = new THREE.InstancedMesh(xGeo, MAT.rail, Math.max(1, 2 * pieces)); rails.count = 0;
     const pa = newFrame(), pb = newFrame(), q = new THREE.Quaternion(), e = new THREE.Euler(), v3 = new THREE.Vector3(), sc = new THREE.Vector3();
     for (const c of xs) for (let s = c.s0; s < c.s1 - 0.01; s += XSTEP) {
@@ -404,7 +413,7 @@ export class TrainLayer {
     this.spareHad = has;
     if (this.spareRise < 1) { this.spareRise = Math.min(1, this.spareRise + dtReal); this.spare.scale.y = Math.max(0.01, this.spareRise); }
     // out on the line while a failed train is being rescued, and back again after
-    if (tb.fail && has) { if (!this.rescue || this.rescue.from !== tb.fail.from) this.rescue = rescueFor(this.net, this.svcList, g); }
+    if (tb.fail && has) { if (!this.rescue || this.rescue.from !== tb.fail.from) this.rescue = rescueFor(this.net, this.live, g); }
     const x = this.rescue && has ? rescueAt(this.rescue, g.t) : null;
     if (x === null) { if (this.rescue && !tb.fail) this.rescue = null; if (this.spareOut) this.spareHome(); }
     else this.spareOn(this.rescue!, x);
@@ -441,6 +450,8 @@ export class TrainLayer {
       m.position.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2); m.rotation.y = Math.atan2(-dz, dx); m.updateMatrix();
     });
   }
+  /** The services' data as they run now (Sim.svcs' defs), in the sim's order. */
+  private live: ServiceDef[] = [];
   /** Which of each station's resting roads are taken this frame. */
   private roadsUsed = new Map<string, number>();
   /** A unit standing overnight in Stockport's sidings, on the kth of their other roads, or resting on a road at
@@ -524,10 +535,14 @@ export class TrainLayer {
     const at = this.counts; at.r = 0; at.s = 0; this.lamps.count = 0;
     let yard = 0;
     const roads = this.roadsUsed; roads.clear();
+    // the services as they run now, for the rescue (a new list only when one changes variant)
+    if (sim.svcs.some((v, k) => this.live[k] !== v.def)) this.live = sim.svcs.map(v => v.def);
     g.trains.forEach((tr, i) => {
-      const u = this.units[i], svc = this.services[tr.svc]; if (!u || !svc) return;
+      const u = this.units[i], base = this.services[tr.svc]; if (!u || !base) return;
+      // the variant it runs now (the Hazel Grove trains through to Manchester once bought)
+      const svc = sim.svc(tr.svc).def;
       // an express off the map isn't drawn
-      if (tr.state === 'away' && svc.through) { u.group.visible = false; return; }
+      if (tr.state === 'away' && base.through) { u.group.visible = false; return; }
       if (u.cars.length !== tr.cars || u.livery !== svc.operator) { this.unit(tr.cars, liveryFor(svc.operator), u); u.livery = svc.operator; }
       // a peak unit resting between the peaks: in Stockport's sidings, or on the roads its service rests on
       if (tr.state === 'away') {

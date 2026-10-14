@@ -95,6 +95,14 @@ export interface ServiceDef {
    * units all day (`units`) or more in the peaks only (`peak`); `stable`, the station at the end of its run where a
    * peak unit rests between the peaks, on `roads` (kit u, v) there (Stockport's carriage sidings have their own). */
   frequency?: { note?: string; stable: string; roads?: number[][]; steps: FrequencyStep[] };
+  /** Through running as an upgrade (docs/DESIGN.md, Through to Manchester): once its stage `through` is bought on the
+   * route (offered with `needs`, a station, owned), the service runs `route` on `tracks` with `platforms` instead,
+   * changing between two tracks of one corridor at each of `switches` (stations, in route order). */
+  manchester?: { name: string; desc: string; price: number; needs?: { station: string; upgrade: string }; note?: string; home?: string; stable?: string; roads?: number[][]; route: string[]; tracks: { north: string[]; south: string[] }; switches?: string[]; platforms?: Record<string, ServicePlatforms | undefined> };
+  /** Where a leg changes to the next on the same corridor (a through service's, at a station): see `manchester`. */
+  switches?: string[];
+  /** A through service's own key for the network's caches: its id, or the id and the variant. */
+  key?: string;
   /** The first and last trains by the clock (hours): no unit leaves the end of its run after the last until the first
    * next morning, and it stands there overnight (a service with a home runs out from there to stand at its far end). */
   hours?: { first: number; last: number };

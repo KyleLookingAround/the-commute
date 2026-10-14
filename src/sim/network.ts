@@ -193,7 +193,7 @@ export class Network {
         if (near.every(st => Math.abs(st.s - s) > SIGNAL_CLEAR) && moving.every(([a, b]) => s < a || s > b)) out.push(s);
       return [c.id, out];
     }));
-    for (const v of def.services ?? []) for (const l of this.route(v).legs) { this.ways.set(l.north, 1); this.ways.set(l.south, -1); }
+    for (const v of (def.services ?? []).flatMap(v => [v, ...variants(v)])) for (const l of this.route(v).legs) { this.ways.set(l.north, 1); this.ways.set(l.south, -1); }
     this.straights = this.stations.filter(st => st.straight).map(st => ({
       corridor: st.corridor, s0: st.at + (st.straight?.[0] ?? 0), s1: st.at + (st.straight?.[1] ?? 0), at: st.at, F: this.stationFrame(st.id),
     }));
@@ -302,14 +302,15 @@ export class Network {
   /** The ways a service's trains take through junctions heading dir, in the order they reach them: from one leg's track
    * onto the next's where the route changes corridor, and straight on along its track past a junction on its corridor. */
   movements(def: ServiceDef, dir: 1 | -1): Movement[] {
-    const key = `${def.id}:${dir}`; let m = this.moveCache.get(key); if (m) return m;
+    const key = `${def.key ?? def.id}:${dir}`; let m = this.moveCache.get(key); if (m) return m;
     const r = this.route(def), out: Movement[] = [], f = newFrame();
     const end = (track: string, s: number) => { const [e0, e1] = this.extent(track); this.trackAt(track, Math.max(e0, Math.min(e1, s)), f); return [f.x, f.z] as const; };
     const add = (j: Junction, a: string, b: string) => { const [ax, az] = end(a, j.s - 100), [bx, bz] = end(b, j.s + 100); out.push({ junction: j.id, s: j.s, a, b, ax, az, bx, bz }); };
     r.legs.forEach((l, k) => {
       const t = dir > 0 ? l.north : l.south;
       for (const j of this.junctions) if (j.corridor === l.corridor && j.s > l.s0 && j.s < l.s1) add(j, t, t);
-      const n = r.legs[k + 1]; if (n) add(this.junctions.find(j => j.s === l.s1 && j.joins.includes(l.corridor) && j.joins.includes(n.corridor))!, t, dir > 0 ? n.north : n.south);
+      // onto the next leg at a junction (a change of track on the same corridor, at a station, is the platforms')
+      const n = r.legs[k + 1]; if (n && n.corridor !== l.corridor) add(this.junctions.find(j => j.s === l.s1 && j.joins.includes(l.corridor) && j.joins.includes(n.corridor))!, t, dir > 0 ? n.north : n.south);
     });
     out.sort((p, q) => (p.s - q.s) * dir); this.moveCache.set(key, out);
     return out;
@@ -328,19 +329,23 @@ export class Network {
   }
   /** A service's route through the graph: its tracks each way, leg by leg, joined where their corridors meet. */
   route(def: ServiceDef): Route {
-    let r = this.routes.get(def.id); if (r) return r;
+    let r = this.routes.get(def.key ?? def.id); if (r) return r;
     const { north, south } = def.tracks;
     if (!north.length || north.length !== south.length) throw new Error(`${def.id}: a track each way for every leg`);
     const legs: RouteLeg[] = north.map((n, k) => {
       const c = this.track(n).corridor; if (this.track(south[k]!).corridor !== c) throw new Error(`${def.id}: leg ${k}'s tracks are on two corridors`);
       return { corridor: c, north: n, south: south[k]!, s0: -Infinity, s1: Infinity };
     });
+    const switches = [...(def.switches ?? [])];
     for (let k = 1; k < legs.length; k++) {
-      const a = legs[k - 1]!.corridor, b = legs[k]!.corridor, j = this.junctions.find(j => j.joins.includes(a) && j.joins.includes(b));
+      const a = legs[k - 1]!.corridor, b = legs[k]!.corridor;
+      // two legs on one corridor change track at a station (its stop), the next of the service's switches
+      if (a === b) { const at = switches.shift(); if (!at) throw new Error(`${def.id}: legs ${k - 1} and ${k} both on ${a} with no switch`); legs[k - 1]!.s1 = legs[k]!.s0 = this.station(at).s; continue; }
+      const j = this.junctions.find(j => j.joins.includes(a) && j.joins.includes(b));
       if (!j) throw new Error(`${def.id}: no junction joins ${a} and ${b}`);
       legs[k - 1]!.s1 = legs[k]!.s0 = j.s;
     }
-    r = new Route(legs, this.extent(north[0]!)[0]); this.routes.set(def.id, r);
+    r = new Route(legs, this.extent(north[0]!)[0]); this.routes.set(def.key ?? def.id, r);
     return r;
   }
   /** The stretches of a track's corridor the layout list moves it in, in order: [s0, s1, offset, ease]. */
@@ -418,6 +423,13 @@ export class Network {
   }
   /** The frame a station's kit stands in: its own point on the corridor, u along the line, v across it. */
   stationFrame(stationId: string): Frame { const st = this.station(stationId); return this.corridor(st.corridor).at(st.at, 0); }
+}
+
+/** A service's variants as services of their own (its through running, `manchester`): the same id, its own key. */
+export function variants(def: ServiceDef): ServiceDef[] {
+  const m = def.manchester; if (!m) return [];
+  const frequency = def.frequency && { ...def.frequency, stable: m.stable ?? def.frequency.stable, roads: m.roads ?? def.frequency.roads };
+  return [{ ...def, key: `${def.id}:manchester`, home: m.home ?? def.home, route: m.route, tracks: m.tracks, switches: m.switches, platforms: m.platforms ?? def.platforms, frequency, manchester: undefined, note: m.note ?? def.note }];
 }
 
 export function smoothPolyline(points: XZ[], subdivisions = 6): XZ[] {

@@ -12,7 +12,7 @@ import { register } from 'tsx/esm/api';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-export default async function ({ ok, open, root, side }) {
+export default async function ({ ok, open, root }) {
   register();
   const { fromGeo } = await import('../../src/sim/network.ts');
   const { Sim } = await import('../../src/sim/sim.ts');
@@ -26,8 +26,8 @@ export default async function ({ ok, open, root, side }) {
   const rep = reputation(sim.g), save = JSON.stringify({ g: sim.g, selected: 0 });
   const perk = id => def.contract.perks.find(p => p.id === id);
   mkdirSync(join(root, 'build/shots'), { recursive: true });
-  // each size side by side where the runner can (side, tools/check.mjs)
-  await side(...([[320, 640, true], [1280, 800, false]]).map(([w, h, touch]) => async () => {
+  // one size at a time: side by side, the panels' scrolling waits outran their time on a software-rendered page
+  for (const [w, h, touch] of [[320, 640, true], [1280, 800, false]]) {
     const tap = async (page, sel) => { sel = await reveal(page, sel); return touch ? page.locator(sel).tap({ timeout: 60000 }) : page.locator(sel).click({ timeout: 60000 }); };
     const look = page => page.evaluate(() => window.__view?.contract?.() ?? null);
     // a new game: nothing to renew
@@ -97,5 +97,5 @@ export default async function ({ ok, open, root, side }) {
     ok(`contract: at ${w}×${h} Start over offers the career too, and by default starts only the run again`, offered && kept2?.renewals === 1 && c2?.plaque === 1 && c2?.cash === 3000 + perk('capital1').cash && c2?.stabled, JSON.stringify({ offered, kept: kept2?.renewals, ...c2 }));
     ok(`contract: at ${w}×${h} no errors`, !errs.length, errs[0]);
     await ctx.close();
-  }));
+  }
 }

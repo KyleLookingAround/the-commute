@@ -66,3 +66,25 @@ The owner has said not to wait on them: take the safer option, say so, and carry
 ## Cost budget
 
 About $25. At about 450k of context, stop at the end of a part and add a "## Handed on" section here.
+
+## Added by the owner, 14 October 2026: faster check runs
+
+A Publish run takes about 35 minutes alone, and 70 or more when one queues behind another. Run 131's shards took 23, 29, 23 and 35 minutes. After the six shards, in this order:
+
+6. **Eight shards, balanced on fresh timings.**
+   - Put every group in `MINUTES`: signals, sections, geometry, kits, terrain, world and the others count as one minute today.
+   - Take the figures from the latest run's "-- group took" lines.
+7. **A cheaper way to draw in the checks.**
+   - Add a check mode, set by the check harness only: no shadows, a lower pixel ratio and fewer far details.
+   - Leave alone any group that measures the look or the cost: perf, contrast, daylight and the screenshots. Those keep the real settings.
+   - Say what each group took before and after.
+8. **Share the page.**
+   - Where a group loads the game afresh for each test, load it once and reset between tests where that's safe: new saves through `window.__seed` and the save key, not a new page.
+   - Where the runner has the cores, run a group's independent pages side by side.
+   - Report the minutes saved.
+9. **Run only what a push can break.**
+   - Each group's opening comment names the paths it covers. For pushes to `main`, run only the groups whose paths the push changed, plus a small always-run set (perf, life, saves).
+   - Run the whole suite once a night on a schedule. If that run fails, it opens the "main is red" issue too.
+   - Prototype phase only: say in the workflow that from the first release, PRs run everything.
+
+Files: as above, plus the opening comments and the page set-up in `tools/checks/*.mjs`. A check's assertions stay as they are. Tell the coordinator before changing a group the Crewe line session is also changing.

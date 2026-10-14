@@ -105,6 +105,8 @@ Done, all on `main`:
 
 Open:
 - Set the triangle budgets from the owner's figures when they come.
-- Item 5 (ground cover memory in `src/render/world.ts`) is not started: ask the coordinator first.
-- Time the side-by-side groups from the next Check main runs and update `MINUTES`.
+- Item 5, half done (df4ad28): the ground cover (it lives in `src/render/buildings.ts`, not `world.ts`) holds about 8 MB on the GPU in place of 30. Every square has a 64-pixel layer, and the 24 nearest the camera a 256-pixel one, repainted as it moves. `src/render/traffic.ts`'s `jamStreet` reads both tiers. **Not done: fetching the world squares by distance.** All 115 are fetched after the first frame, nearest first (3.3 MB). `main.ts` waits on all of them (`world.buildings.ready`, then `homes.replan`). Paging needs the station squares fetched first, plus a radius round the camera that grows with its height, so Whole line still loads everything; `ready` would then mean the station squares. perf's "every world square" check would then count per view.
+- Time the side-by-side groups from the next Check main runs and update `MINUTES` (run 12 of Check main: shards 10 to 15.5 min).
+- Also done since: a time limit per check group (7b8f854) and on offline's takeover steps (ec4fca4). The offline takeover itself (the page stops answering as a new worker takes over) is with the offline takeover fix session. contract runs one size at a time again (dd5c727). Terrain allows a road under a skewed underbridge for up to 120 m where the way's `under` flags mark it (168a66a).
+- perf's whole-line view holds 61 programs against 60 since the traffic layer came in. The roads session is sharing materials to fix it.
 - The `wip/budgets`, `wip/check-mode` and `wip/side` branches can be deleted: the session's push to delete them was refused.

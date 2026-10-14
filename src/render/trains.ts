@@ -35,6 +35,7 @@ export const LIVERIES: Record<string, Livery> = {
   northern: { body: [0.93, 0.93, 0.95], roof: [0.35, 0.36, 0.4], band: [0.52, 0.3, 0.72], door: [0.2, 0.25, 0.55], win: [0.95, 0.85, 0.55], nose: [0.17, 0.17, 0.25] },
   avanti: { body: [0.9, 0.91, 0.92], roof: [0.3, 0.32, 0.34], band: [0.12, 0.5, 0.36], door: [0.14, 0.55, 0.4], win: [0.95, 0.85, 0.55], nose: [0.1, 0.1, 0.12] },
   crosscountry: { body: [0.62, 0.63, 0.67], roof: [0.3, 0.3, 0.33], band: [0.56, 0.12, 0.32], door: [0.45, 0.1, 0.27], win: [0.95, 0.85, 0.55], nose: [0.12, 0.12, 0.14] },
+  transpennine: { body: [0.16, 0.2, 0.38], roof: [0.3, 0.31, 0.36], band: [0.5, 0.36, 0.78], door: [0.36, 0.62, 0.9], win: [0.95, 0.85, 0.55], nose: [0.1, 0.1, 0.14] },
 };
 const NORTHERN = LIVERIES['northern']!;
 const GHOST_SPARE = new THREE.MeshBasicMaterial({ color: PAL.ghost, transparent: true, opacity: 0.5, depthWrite: false, fog: false });

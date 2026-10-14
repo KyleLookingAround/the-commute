@@ -32,7 +32,7 @@ const FALLBACK = {
   'bld-glass': '#8fbcdc', 'bld-shed': '#a9b8c6', 'bld-slate': '#5c6577', 'bld-tile': '#a95440', 'bld-felt': '#8d8a93', 'bld-metal': '#93a2b0',
   'cover-park': '#6fb85a', 'cover-pitch': '#7ccc5e', 'cover-field': '#9fbf5a', 'cover-wood': '#3f7f3c', 'cover-scrub': '#7a9a4e', 'cover-water': '#4a86c0',
   'cover-yard': '#b3aea4', 'cover-car': '#8d8f96', 'cover-bare': '#a8916e', 'cover-allot': '#5f9a4a', 'cover-street': '#7d8088',
-  'svc-stopper': '#2f7fe8', 'svc-hazel-grove': '#a05ce0', 'svc-avanti': '#12a39a', 'svc-crosscountry': '#8e2b5e', 'svc-marple': '#ff8f1f', 'svc-rose-hill': '#ff6fb1',
+  'svc-stopper': '#2f7fe8', 'svc-hazel-grove': '#a05ce0', 'svc-avanti': '#12a39a', 'svc-crosscountry': '#8e2b5e', 'svc-transpennine': '#4f6fd8', 'svc-marple': '#ff8f1f', 'svc-rose-hill': '#ff6fb1',
   'svc-1': '#1fb5e0', 'svc-2': '#e0c21f', 'svc-3': '#5fd068', 'svc-edge': '#ffffff',
   'full-0': '#ffffff', 'full-1': '#ffd23f', 'full-2': '#ff5a36', ring: '#ffffff', 'ring-edge': '#1d2340', 'ring-lost': '#ff3b30', 'ring-locked': '#e9ecf5',
   trunk: '#6a5040', wet: '#8fa6bd', brass: '#c9a24a', 'brass-ink': '#3b2a0e',

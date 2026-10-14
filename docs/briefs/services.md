@@ -63,3 +63,17 @@ The owner has said not to wait. Realism calls follow the real railway. Economy c
 ## Cost budget
 
 About $35. At about 450k of context, stop at the end of a part and add a "## Handed on" section here.
+
+## Handed on
+
+Built 14 October 2026, all four parts: the Marple pair into Piccadilly 1 to 4 (7ca364e), frequencies to buy (e714f8f), the Hazel Grove trains through to Manchester (2f2e85c), and TransPennine as a third express (the commit after). What's left:
+
+- **Real frequencies on the clock.** One scale for every line (a real train an hour is 1.5 units), because the clock runs 6 to 60 times faster than the trains. The expresses keep their every-two-hours (TransPennine every four). A clock that ran nearer the trains' speed would let the real numbers stand.
+- **Peak units rest on Piccadilly's 13 and 14 roads** (the Marple lines', and the through Hazel Grove trains') until those platforms are in service (phase 6), and in Stockport's carriage sidings otherwise.
+- **The Rose Hill trains run by Bredbury**, not by Hyde as the real ones do: the Hyde loop is off today's map.
+- **TransPennine's real platforms and its run on to Liverpool** through 13 and 14; here it turns in the bays 7 and 6. The Hazel Grove chord is placed from memory, 700 m beyond the station, with no junction marked; mark it when the Hope Valley line comes. The East Midlands Railway trains that use the chord too aren't in yet.
+- **Express frequencies stay as they were** (an economy call). Platform capacity was already something to buy (Stockport's 3, 2 and 1, Piccadilly's bays), so part (d) added no new stage for it.
+- **Through running jams without Piccadilly's bays**, which is why it waits on them. The Marple line's frequency doesn't wait on them, so two Marple units and the stoppers can still queue for platform 5 at an owned Piccadilly without its shed. The bot now builds the shed for through running at about 10.5 h, so it doesn't see that.
+- **Late-game pacing moved a lot with part (c)**, as the platform-5 queue ended: boarded over 16 h up about 20%, worst late down from 28-85 to 10-16 min. The re-proposed ranges (Ryder Brow 13-16.5, Ashburys 9.5-12) want the owner's look.
+- **Not looked at on screen:** TransPennine's livery, the peak units resting at Piccadilly and the through trains' crossover north of Stockport. They were checked by the geometry group, not by eye.
+

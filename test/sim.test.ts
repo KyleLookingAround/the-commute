@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { fromGeo } from '../src/sim/network.ts';
+import { fromGeo, variants } from '../src/sim/network.ts';
 import { Sim, demandCurve, TUNING } from '../src/sim/sim.ts';
 import { migrate, SAVE_VERSION, SaveError } from '../src/sim/save.ts';
 import type { NetworkGeoDef, Train } from '../src/sim/types.ts';
@@ -62,10 +62,12 @@ test('network: a service is a route of legs of corridor and track, passing from 
   assert.equal(r.legs[0]!.s1, j.s); assert.equal(r.legs[1]!.s0, j.s);
   assert.equal(r.track(n.station('davenport').s, 1), 'hazel-grove-north');
   assert.equal(r.track(n.station('stockport').s, -1), 'branch-south');
-  // every leg's tracks run on into the next's at the junction, at the same place across the line
-  for (const v of def.services!) {
+  // every leg's tracks run on into the next's at the junction, at the same place across the line (a change of track
+  // on one corridor, at a station, is its platforms' and their crossovers')
+  for (const v of def.services!.flatMap(v => [v, ...variants(v)])) {
     const R = n.route(v);
     for (let k = 1; k < R.legs.length; k++) for (const way of ['north', 'south'] as const) {
+      if (R.legs[k - 1]!.corridor === R.legs[k]!.corridor) continue;
       const a = n.trackAt(R.legs[k - 1]![way], R.legs[k]!.s0), b = n.trackAt(R.legs[k]![way], R.legs[k]!.s0);
       assert.ok(Math.hypot(a.x - b.x, a.z - b.z) < 0.05, `${v.id}: ${way} tracks meet at the junction`);
     }
@@ -628,6 +630,24 @@ test('expresses: they come on by the clock, one of each every two hours through 
   assert.deepEqual(on['avanti']?.map(c => c.slice(0, 2)), ['06', '08', '10', '12', '14', '16', '18', '20', '22'], `Avanti: ${on['avanti']}`);
   assert.deepEqual(on['crosscountry']?.map(c => c.slice(0, 2)), ['07', '09', '11', '13', '15', '17', '19', '21'], `CrossCountry: ${on['crosscountry']}`);
   assert.ok([...on['avanti']!, ...on['crosscountry']!].every(c => +c.slice(3) >= 30 && +c.slice(3) < 35), 'on time, at half past');
+});
+
+test('expresses: TransPennine comes off the Hazel Grove chord every four hours, calls at Stockport\'s platform 1 once built, pays and turns at Piccadilly', () => {
+  const n = net(), sim = new Sim(n, Sim.fresh(n, 1)); sim.g.cash = 1e7;
+  sim.grant('station:stockport', 'crossing'); sim.grant('station:stockport', 'platform2'); sim.grant('station:stockport', 'platforms');
+  const v = sim.svc('transpennine'), hg = n.station('hazel-grove');
+  assert.ok(v.express && Math.abs(v.express.portal - (hg.at - 700) - v.def.cars * TUNING.carPitch / 2) < 1e-6, 'on the map at the chord');
+  const on: string[] = [], calls: string[] = [], turns: number[] = [];
+  sim.onDepart = (tr, i) => { if (tr.svc !== 'transpennine') return; if (i === 0) calls.push(sim.plats[0]![tr.pf]!.def.id); if (i === n.station('piccadilly').index) turns.push(i); };
+  const was = new Map(sim.g.trains.map(t => [t, t.state])), paid0 = sim.g.stats.express;
+  while (sim.g.t < simAtHour(2, 0)) {
+    sim.advance(10);
+    for (const tr of sim.g.trains) { if (tr.svc === 'transpennine' && was.get(tr) === 'away' && tr.state !== 'away') on.push(clockText(sim.g.t)); was.set(tr, tr.state); }
+  }
+  assert.deepEqual(on.map(c => c.slice(0, 2)), ['10', '14', '18', '22'], `on at ${on}`);
+  assert.ok(calls.length >= 6 && calls.every(p => p === '1'), `calls at platform 1 (${calls})`);
+  assert.ok(turns.length >= 3, 'turns at Piccadilly');
+  assert.ok(sim.g.stats.express > paid0, 'pays');
 });
 
 test('expresses: an express standing in platform 3 holds a stopper that wants it until it leaves', () => {

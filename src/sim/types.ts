@@ -109,7 +109,7 @@ export interface ServiceDef {
   /** A long-distance train running through from beyond the map: it comes in where its tracks begin, calls at its
    * route's stations where it has a platform, turns at the last, and goes back off the map to `south`: by the clock,
    * the first at clock hour `first`, then one every `every` clock hours to `last`. */
-  through?: { south: string; first: number; every: number; last: number };
+  through?: { south: string; first: number; every: number; last: number; from?: StationPoint };
 }
 /** A bus stop or bus station by a station (src/sim/places.ts): a place of its own, offered once its station is owned.
  * Its first state brings the census's bus pool beyond a walk in by bus (src/sim/access.ts); `part` is the kit part

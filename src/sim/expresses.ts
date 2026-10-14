@@ -1,5 +1,6 @@
-// The expresses (docs/DESIGN.md, Expresses): Avanti West Coast and CrossCountry trains running through from beyond the
-// map. Each comes on where the fast lines begin, south of Stockport, every two clock hours through the day by its own
+// The expresses (docs/DESIGN.md, Expresses): Avanti West Coast, CrossCountry and TransPennine trains running through from
+// beyond the map. Each comes on where its line joins the map (the fast lines south of Stockport, or TransPennine's off the
+// Hazel Grove chord), every few clock hours through the day by its own
 // timetable (none through the night), calls at
 // Stockport where the player has built a platform it uses that way (running through without stopping until then),
 // turns round at Piccadilly, and goes back off the map. At a stop it takes a platform face like any train, so it can

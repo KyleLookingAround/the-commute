@@ -177,7 +177,8 @@ export class Sim {
     for (const v of this.svcs) {
       this.runAs(v, v.def);
       const th = v.def.through;
-      if (th) v.express = { ...th, portal: v.path.start + v.def.cars * TUNING.carPitch / 2 };
+      // it comes on where its first track begins, or where its line joins the map's (`from`: the Hazel Grove chord)
+      if (th) v.express = { ...th, portal: (th.from ? network.pointS(th.from) : v.path.start) + v.def.cars * TUNING.carPitch / 2 };
     }
     for (const v of this.svcs) this.throughNow(v);
     const stopperLine = new Set(this.P.stopperSections);

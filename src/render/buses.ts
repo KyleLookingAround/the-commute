@@ -132,7 +132,7 @@ export class BusLayer {
   /** A bus's parts, which all move together (made once, so a frame makes no arrays). */
   private readonly parts: THREE.InstancedMesh[];
   /** The roads drawn (laid again once the lines out's ring is in: relay). */
-  private roads: THREE.Mesh | null = null; private roadMat: THREE.MeshLambertMaterial | undefined;
+  private roads: THREE.Mesh | null = null;
   constructor(private readonly scene: THREE.Scene, private readonly net: Network, private readonly built: { live: object; group: THREE.Group }[]) {
     this.stops = built.map(b => stops.get(b.live) ?? null);
     const mk = (geo: THREE.BufferGeometry, mat: THREE.Material, n: number) => { const m = new THREE.InstancedMesh(geo, mat, n); m.count = 0; m.frustumCulled = false; scene.add(m); return m; };
@@ -156,7 +156,8 @@ export class BusLayer {
   }
   private lay(): void {
     const net = this.net;
-    // the roads themselves, as ribbons a little above the ground or the ramp: each road from stop to stop, and from each
+    // the roads themselves, as ribbons a little above the ground or the ramp (wound to face up, in the one road material
+    // every road shares, so gridlock's wash adds no shader of its own for them): each road from stop to stop, and from each
     // depot to the stop of the station nearest it
     const ways: Path[] = [];
     for (const r of net.def.roads ?? []) {
@@ -172,7 +173,7 @@ export class BusLayer {
     }
     if (P.length) {
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.computeVertexNormals();
-      const m = new THREE.Mesh(g, this.roadMat ??= new THREE.MeshLambertMaterial({ color: PAL.road, side: THREE.DoubleSide })); m.receiveShadow = true; this.scene.add(m); this.roads = m;
+      const m = new THREE.Mesh(g, MAT.road); m.receiveShadow = true; this.scene.add(m); this.roads = m;
     }
   }
   /** The station whose stop is nearest a point, or -1. */

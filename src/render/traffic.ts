@@ -266,7 +266,8 @@ export class TrafficLayer {
   /** Fewer figures (the Low setting): fewer cars, the wash as it is. */
   setLow(low: boolean): void { this.cap = low ? LOW_CARS : MAX_CARS; }
 
-  /** The buses' roads take the wash too (their material is found by its colour: the road's, but not MAT.road). */
+  /** Any other road material takes the wash too (found by its colour: the road's, but not MAT.road; the buses' roads
+   * draw with MAT.road itself). */
   private washRoads(): void {
     this.p.scene.traverse(o => {
       if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh) return;

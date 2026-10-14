@@ -19,7 +19,12 @@ mkdirSync(out, { recursive: true });
 const argv = process.argv.slice(2), shardAt = argv.indexOf('--shard'), shard = shardAt < 0 ? null : argv[shardAt + 1].split('/').map(Number);
 const args = shardAt < 0 ? argv : argv.filter((_, i) => i !== shardAt && i !== shardAt + 1);
 const except = args[0] === '--except', named = except ? args.slice(1) : args;
-const SAVE_KEY = 'the-commute-save-v1';
+const SAVE_KEY = 'the-commute-save-v1', PREFS_KEY = 'the-commute-prefs-v1';
+// The groups that measure the look or the cost, or the settings themselves, keep the real settings; every other page a
+// group opens draws the cheaper way (open's `real`): the check mode
+const REAL = new Set(['perf', 'contrast', 'daylight', 'life']);
+let running = '';
+const REAL_ALL = process.env.CHECK_REAL === '1';   // CHECK_REAL=1: every page with the real settings, to compare
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.map': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 // the base path the page was built for: its assets are under it, so the server mounts dist/ there
 const base = (readFileSync(join(dist, 'index.html'), 'utf8').match(/src="(\/[^"]*?\/)assets\//) || [, '/'])[1];
@@ -41,15 +46,23 @@ const results = []; const ok = (name, pass, info) => { results.push([name, !!pas
 const ignorable = m => /fonts\.(googleapis|gstatic)|ERR_TUNNEL|ERR_NAME_NOT_RESOLVED|net::|WebGL|GPU stall/.test(m);
 
 // open the built page at a viewport. seed: the game's seed; save: a save's JSON text put in localStorage first; touch: a phone;
+// real: the player's real settings rather than the check mode (REAL's groups always);
 // steady: the most milliseconds one frame may count for. A software-rendered page under load can take over a second a
 // frame, and the view eases by the real time between frames, so one slow frame finishes an ease that a check wants to
 // watch. With steady, each frame's time (requestAnimationFrame's argument, also window.__frameT) moves on by at most that
 // much, so an ease takes the same number of frames however slow the machine; the page simply runs slower. Wait on what a
 // check needs with page.waitForFunction rather than a fixed delay.
-async function open(vp = { width: 1280, height: 800 }, { save = null, touch = false, seed = 1, dsf = touch ? 2 : 1, steady = 0 } = {}) {
+async function open(vp = { width: 1280, height: 800 }, { save = null, touch = false, seed = 1, dsf = touch ? 2 : 1, steady = 0, real = REAL_ALL || REAL.has(running) } = {}) {
   const b = await getBrowser();
   const ctx = await b.newContext({ viewport: vp, deviceScaleFactor: dsf, hasTouch: touch, isMobile: touch });
   await ctx.addInitScript(seed => { window.__seed = seed; }, seed);
+  // the check mode: no shadows, and one pixel per CSS pixel (the player's own settings, as Low sets them but for the
+  // figures), set once per tab before the page reads them, so a group that changes the settings keeps its change
+  if (!real) await ctx.addInitScript(k => {
+    if (sessionStorage.getItem('checkMode')) return;
+    let p = {}; try { p = JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch { /* the defaults */ }
+    localStorage.setItem(k, JSON.stringify({ ...p, shadows: false, sharp: false })); sessionStorage.setItem('checkMode', '1');
+  }, PREFS_KEY);
   if (steady) await ctx.addInitScript(step => {
     const raf = window.requestAnimationFrame.bind(window); let last = -1;
     window.requestAnimationFrame = cb => raf(now => {
@@ -85,7 +98,7 @@ if (shard) for (const g of [...groups].sort((a, b) => (MINUTES[b] ?? 1) - (MINUT
 }
 const wanted = g => (!shard || shardOf.get(g) === shard[0] - 1) && (except ? !named.includes(g) : !named.length || named.includes(g));
 for (const g of groups) if (wanted(g)) {
-  const t0 = Date.now();
+  const t0 = Date.now(); running = g;
   try { await (await import(pathToFileURL(join(root, 'tools/checks', g + '.mjs')).href)).default({ open, ok, root, out, url, SAVE_KEY, get browser() { return getBrowser(); } }); }
   catch (e) { const msg = String(e && e.message || e).split('\n')[0].slice(0, 200); ok(`${g}: *`, false, 'the group stopped: ' + msg); }
   console.log(`-- ${g} took ${((Date.now() - t0) / 60000).toFixed(1)} min`);

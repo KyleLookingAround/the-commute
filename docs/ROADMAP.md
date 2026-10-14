@@ -83,11 +83,12 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
 - The Crewe line's stations, the Styal line and Reddish South wait.
 - Next come steps 4 to 9, 12 and 15, inside today's map: services, the fleet, timetabling, Stockport as the hub, the A6 and the 192, the main roads, buses as a network, and the gridlock opening.
 - The ideas review of 14 October 2026 (`docs/ideas/2026-10-14-review.md`) adds steps 16 to 23, inside today's map. The build order, once the sessions now running land:
-  1. 24 first (ideas review, second pass), so every later balance call is judged against a bot that buys the fix; 16, 17 and 25, view only and small, beside anything.
-  2. 18, then 19 once services' frequencies and step 24 are in.
-  3. 20 after the gridlock's G4.
-  4. 21, the feeder buses, before steps 6 and 12.
-  5. 22, then 23.
+  1. 26 first (ideas review, third pass: with every buy taken, day 7's morning peak has nobody waiting at Stockport, so the late game needs its pressure back before anything else). 16, 17, 24 and 25 are built.
+  2. 18, whose tiers are the fixes for 26's pressure.
+  3. 19's punctuality part.
+  4. 20 after the gridlock's G4.
+  5. 21, the feeder buses, before steps 6 and 12.
+  6. 22, then the rest of 23.
 
 1. **The network as a graph** (L, built 13 October 2026: `docs/briefs/network-graph.md`, `docs/decisions/ADR-2026-10-13-network-as-a-graph.md`): corridors joined at junctions (Edgeley, with Heaton Norris, Slade Lane and Ardwick named for the lines to come), measured in chainage; services routed across them as legs of corridor and track; block signalling and junction conflicts, shown on the colour-light signals; journeys as paths of rides and changes. Today's game plays the same. Handed on: a leg that runs against chainage (the Stalybridge line from Stockport turns back at Heaton Norris); ground, trees and masts along corridors off the spine (the terrain is laid along the spine only); signals drawn on lines off the spine; junction conflicts first meet real traffic when the Crewe line joins at Edgeley.
    - **Track spacing** (built 13 October 2026: `docs/briefs/track-spacing.md`, c747a1d and bb2d83e; Piccadilly's throat re-laid 14 October 2026, `docs/briefs/piccadilly-throat.md`, so the layout test's list is empty, and the crossovers the trains take drawn with their rails, Stockport's ladder among them): the owner (13 October 2026), after tracks tangled across Stockport Viaduct: "make sure we have good enough distances between stations and sections so we don't end up with this spaghetti junction". A fast test holds every track to a turnout's sideways rate, no crossings but proper crossovers, room between throats, junctions, crossovers and structures, every track on its deck, and blocks no shorter than a train; Stockport's north end and Piccadilly's throat re-laid to pass it. The lines out build to it. The Marple trains on their own pair into Piccadilly's platforms 1 to 4 came with step 4 (14 October 2026).
@@ -138,6 +139,7 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
    - Punctuality (the share within 5 minutes) replaces the late-departure term in the contract's reputation.
    - The Network card shows punctuality and the day's Delay Repay.
    - After services' frequencies land, since they change lateness. Bot at 16 h.
+   - Cut by the third pass (`docs/ideas/2026-10-14-review-3.md`): with the bot buying every buy, day 7's trains all leave within 5 minutes, so refunds would cost nothing. Build only the punctuality part now: the share within 5 minutes in the contract's reputation and on the Network card. Delay Repay waits until step 26 brings lateness back, and only if the bot shows it does.
 20. **Gridlock that keeps moving** (M, ideas review 14 October 2026; idea 5). Over 16 h the bot takes 0.6 to 4% of cars off and the M60 stays at 1.2. After G4:
    - build G5
    - add a view-only layer of the streets round each owned station clearing as its car park, stop and services come in, so every buy clears something near it
@@ -147,7 +149,7 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
    2. the yellow on stations and trains, bringing bus-only riders
    3. one fare and a daily cap across bus and train, once the feeders run
 23. **Smaller depth** (S each, ideas review 14 October 2026; ideas 8 to 10):
-   - match days at Edgeley Park, Stepping Hill's shift changes and Christmas at Merseyway as seeded surges you can see and buy for
+   - (the surges moved to step 26, third pass)
    - contract targets from the franchise (punctuality, cars off the A6, a station reached) that bank extra reputation, using the milestones already recorded
    - poster campaigns on billboards along the jammed A6 and M60, one a station at a time
 
@@ -157,6 +159,13 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
    - Re-propose the baselines at 8 and 16 h, saying why.
    - `tools/bot.mjs` and `tools/baseline.json` only.
 25. **Show where the trouble comes from** (S, view only, ideas review 14 October 2026, second pass; built 14 October 2026). When a station's trouble comes from another place, its card's what's-wrong line names that place as a chip that opens its card. For example, "Trains leave full · Stopper" leads to the stopper's card, which has the extra unit and longer trains. It's a fact about the network, not a recommended buy. It reads what Strain already works out.
+
+26. **Pressure that grows with success** (M, ideas review 14 October 2026, third pass: `docs/ideas/2026-10-14-review-3.md`). With the bot buying every buy, late peaks lose 8 to 250 where they lost up to 1,370, every day-7 train is on time, and at 09:08 on day 7 nobody waits at Stockport. Demand should keep rising as the network does well, at a designed level:
+   - **The city's jobs come back.** Piccadilly's draw rises day by day from the lockdown census towards a normal year's figure, from the ONS Business Register and Employment Survey (BRES, by area, on Nomis).
+   - **Homes grow faster and further where the line is good.** Ceilings rise with what's bought nearby, including step 18's regeneration stages.
+   - **Surges you can see**, as seeded demand: match days at Edgeley Park (Life's crowd made real), Stepping Hill's shift changes at Woodsmoor, Christmas at Merseyway.
+   - **A pressure band in the baselines:** the share lost at each peak from day 4 stays within about 2 to 6%, so the bot measures that pressure is there.
+   - Bot at 16 and 32 h.
 
 ## 6. Manchester city centre
 

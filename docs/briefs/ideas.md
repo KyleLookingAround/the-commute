@@ -35,11 +35,11 @@ This session thinks and writes. It doesn't build.
    - the owner's call it needs, if any
 
    Mark which ideas improve what exists and which are new.
-4. **Edit the roadmap.**
-   - Add the strongest ideas where they belong, marked "(proposed, ideas review 14 October 2026)".
+4. **Edit the roadmap.** The owner, 14 October 2026: the ideas session adds to the roadmap without the owner's approval.
+   - Put the strongest ideas straight into the roadmap where they belong, marked "(ideas review <date>)", in the order you'd build them. The coordinator briefs and builds from that order.
    - Reorder or rewrite existing items where the review shows a better shape, and say why in the commit.
-   - Don't remove anything the owner asked for. Where you'd change an owner's item, propose it in the review instead.
-   - The owner decides what moves up, so the coordinator passes the top five to them.
+   - Keep everything the owner asked for and their preferences in the project notes. Where you'd change an owner's item, write the change in the review and tell the coordinator, rather than editing the item.
+   - The coordinator tells the owner the top five as news, not as a question.
 
 **Files:**
 - `docs/ideas/` (new)
@@ -66,9 +66,13 @@ KyleLookingAround <KyleMck10@hotmail.com>. No attribution lines.
 
 Push straight to `main`: the review first, then the roadmap edits. Send the coordinator the top five ideas in a few plain lines each, with any owner calls they need.
 
-## Afterwards
+## Always running
 
-Stay available. The coordinator may send you new questions from the owner, or ask for another pass after big changes land. Each pass is a new dated file in `docs/ideas/`.
+The owner wants an ideas session running at all times.
+- When a pass is done, start the next: look at what has landed since, and play the game again.
+- Each pass is a new dated file in `docs/ideas/`, which says what changed since the last one.
+- Between passes, answer the coordinator's questions.
+- At about 450k of context, add a "## Handed on" section here and tell the coordinator, which starts the next ideas session.
 
 ## Cost budget
 

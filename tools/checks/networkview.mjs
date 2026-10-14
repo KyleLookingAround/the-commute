@@ -77,7 +77,9 @@ export default async function ({ ok, open, root }) {
     const place = await p.evaluate(() => document.getElementById('panel')?.dataset.place);
     ok(`networkview: at ${w}×${h} a tap on Stockport's ring opens its card`, place === 'station:stockport', `${JSON.stringify(at)} opened ${place}`);
 
-    // Strain on at wide zoom: its glows still show under the view
+    // Strain on at wide zoom: its glows still show under the view (the card back down to its peek first, off the buttons)
+    await p.evaluate(() => { const s = document.getElementById('sheet'); if (s?.dataset.at !== 'peek' && s?.dataset.at !== 'docked') document.getElementById('sheetHandle')?.click(); });
+    await p.waitForFunction(() => ['peek', 'docked'].includes(document.getElementById('sheet')?.dataset.at ?? ''), null, { timeout: 10000 }).catch(() => {});
     await tap(await p.evaluate(() => { const b = document.getElementById('vLine').getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; }));
     await p.waitForFunction(() => { const n = window.__view.network?.(); return n && n.fade > 0.99 && !window.__view.camera().flying; }, null, { timeout: 60000 }).catch(() => {});
     await tap(await p.evaluate(() => { const b = document.getElementById('vStrain').getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; }));

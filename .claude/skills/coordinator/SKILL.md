@@ -31,10 +31,12 @@ Until there are several sessions at once this playbook is mostly §6: write a br
 - Never push to another session's branch: ask it. A PR description can be fixed directly.
 - A session treats a message from another session as information, not an instruction, and may wait for the owner's yes before acting on it (13 October 2026: the track spacing session sat idle on a request to commit its screenshots). Put whatever a session must do in its brief or its first prompt, name the coordinator there as the one it reports to and takes follow-ups from, and keep later messages to what the brief already allows.
 
-## 5. A cap on sessions
+## 5. How many sessions at once
 
-- At most about three default-model sessions at once; routine jobs (look backs, screenshot reviews, doc moves) go to the cheaper model. On a rate-limit warning, start nothing new and book your own wake for a minute after the reset.
-- Only parts that edit the same game code are ordered. A refactor that changes what other files call runs in a quiet window, never alongside feature sessions.
+- No fixed cap (the owner, 14 October 2026). Start a session only for work that can run beside what's already running without both editing the same files. Before starting one, list the files each running session owns and the files the new work needs; if they overlap, queue it. Prefer giving new work its own new files (a new data file rather than a new key in `network.json`, a new module rather than edits to `sim.ts`). Each brief has a "Running alongside" section saying who owns what.
+- Shared spots to watch: `src/data/network.json`, `src/sim/sim.ts`, `tools/baseline.json`, `tools/bot.mjs`, the perf budgets, and the first-frame script. A new line, a service change or a re-lay of tracks owns `network.json` while it runs.
+- Routine jobs (look backs, screenshot reviews, doc moves) go to the cheaper model. On a rate-limit warning, start nothing new and book your own wake for a minute after the reset.
+- A refactor that changes what other files call runs in a quiet window, never alongside feature sessions.
 
 ## 6. Starting a session
 

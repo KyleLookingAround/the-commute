@@ -15,7 +15,7 @@ The owner agreed to all of the coordinator's proposals.
 1. **The script before the first frame keeps its 450 KB, but holds only the opening.** That means Stockport, the spine to Piccadilly and what the first view needs. Every line out's network data, kits and ground load after the first frame. The `perf` group checks it.
 2. **Triangle budgets come from a real phone.** The owner opens a stats view on a mid-range phone, and the budgets are set from what holds a steady frame there. The count is of what's on screen at each view, not the whole map.
 3. **Committed tile budgets are per line** (about 0.5 MB of terrain and 0.5 MB of world squares per line out), plus a check of what one view loads, which is what a player pays for. The total grows with the network by design.
-4. **Up to two sessions at once,** each with files it owns. The browser checks run as six shards rather than four.
+4. **Sessions run in parallel where their files don't overlap,** each with files it owns (amended the same day: no fixed number, the coordinator picks work that can run beside what's running). The browser checks run as six shards rather than four.
 5. **The real railway is the default** where a call is only about realism. A session follows the real line's layout, routes, traction and service pattern, rather than the option that changes the game less. Whatever it moves, it still runs the bot on seeds 1–3 and says what moves. A move past the baselines' tolerance is re-proposed in the commit, not avoided. Economy tuning (prices, fares, demand) is not a realism call, and "changes the game less" still holds there.
 
 ## Consequences

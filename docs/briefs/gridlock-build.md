@@ -11,6 +11,22 @@
 - **The real railway by default** (`docs/decisions/ADR-2026-10-14-budgets-and-the-real-railway.md`) holds for realism calls. Economy tuning keeps "changes the game less".
 - Prototype phase: push straight to `main` after `git pull --rebase origin main`, one part at a time. Then confirm the Publish run is green.
 
+## Running alongside (14 October 2026)
+
+Two other sessions are running. Keep G1 to your own new files so they don't collide:
+- **The Crewe line** (`docs/briefs/crewe-line.md`) owns `src/data/network.json`, `src/data/kits/`, `src/render/`, `tools/baseline.json` and the sim's network and services. It's moving the lines out's data out of the first frame now.
+- **Budgets** (`docs/briefs/budgets.md`) owns `tools/checks/perf.mjs`, `terrain.mjs` and `world.mjs`, `tools/check.mjs`, `.github/workflows/deploy.yml` and the stats view.
+
+G1 owns:
+- `src/sim/traffic.ts` (new)
+- `src/data/traffic.json` (new): the traffic stretches with their real counts and sources. These go in their own file, not `network.json`, and load after the first frame.
+- `test/traffic.test.ts` (new)
+- the bot's traffic report, as its own block in `tools/bot.mjs`
+
+Add `carShare` and `carScale` to `TUNING` in `src/sim/sim.ts` as a two-line change. Nothing else in `src/sim/`.
+
+G2 onwards (the start, Reopen, the save) waits until the Crewe line's service part has landed. Tell the coordinator when G1 is done.
+
 ## Read first
 
 The project notes (`CLAUDE.md`), `docs/design/gridlock.md` in full, `docs/design/buying.md`, `docs/DESIGN.md` (Journeys, Car parks and bus links, Performance), the decision record above, and `.claude/skills/balance/SKILL.md`.

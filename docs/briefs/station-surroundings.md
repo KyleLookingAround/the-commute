@@ -91,5 +91,5 @@ Each time:
 - Take matching before-and-after shots of every station touched: one page with every station grown, moved round with `window.__view.look` after `loadBuildings()`. Comparing views on `main` and on the change is quicker than `tools/shots.mjs --stations`, which reloads the page for every view.
 - Run the bot on seeds 1 to 3. `PLAY` moved only on seed 2, after Heaton Chapel's roads changed length (bccd42c0 → 9bda2595); the second and third batches left it identical to `main` as it stood (1acb5b45, 9bda2595, 4f161e42 against 693f44a). Within the baselines throughout.
 
-For the coordinator: the terrain check (Budgets) holds a bus road on or above the ground as drawn, so a road under an embankment still crosses the tracks at rail level. Letting it pass under would need that rule changed.
+Underpasses: the buses' roads still cross the railway's land at rail level where they pass under an embankment (`pathThrough` in `src/render/buses.ts` bridges only over cuttings). The terrain check now lets a road pass under the line (5425002), so the next session can let `pathThrough` run straight under the land too.
 

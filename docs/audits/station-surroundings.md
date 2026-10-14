@@ -52,4 +52,4 @@ From the check (heights are against the real ground; streets are the real ones p
 4. **The roads from memory**: Hazel Grove to Middlewood, Middlewood to Disley and Disley to New Mills Newtown (the last runs 80 m along the railway's land). They should be redrawn from OpenStreetMap with `tools/osm-to-roads.mjs`, once each station's stop is in its real place.
 5. **Piccadilly**: the taxi rank and bus stop are 8.8 m off the ground with no street within 50 m; the car park is 23 m off. The services work's first part (the Marple pair into platforms 1 to 4) has landed; the coordinator says when its kit is free.
 
-The buses' roads still cross the land at rail level where they pass under an embankment, because the terrain check holds them on or above the ground as it's drawn. A road under the line would need that rule to allow it.
+The buses' roads still cross the land at rail level where they pass under an embankment. The terrain check now allows a road under the line (5425002), so `pathThrough` can be let through.

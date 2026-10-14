@@ -2,8 +2,9 @@
 // valley under the viaduct, the cuttings and the embankments. The railway is the datum: the tracks, stations and trains
 // stay at y = 0, and the ground is drawn at its real height less the rail's real level there, so it rises into cuttings
 // and falls away under embankments and the viaduct without moving a kit.
-// - Base tiles (src/data/terrain/base.json, every 128 m over the map, and every 32 m in blocks within 1.5 km of the spine and 75 m of a
-//   line out) come with the page, and a line out's on to 800 m (out.json) just after the first frame; fine tiles (every 2 m within
+// - Base tiles (src/data/terrain/base.json, every 128 m over the map, and every 32 m in blocks within 1.5 km of the opening's line,
+//   Edgeley Junction to Piccadilly) come with the page, and every line out's, the Buxton line's among them (out.json), just after
+//   the first frame; fine tiles (every 2 m within
 //   100 m of the line) are fetched as the camera comes near. A wider map (phase 8) adds tiles and levels the same way.
 // - The railway's land is flat at 0: every track with its cess, and each station's pad, the ground its kit's parts
 //   stand on. The tracks and kits are drawn at real scale, so the ground beside the land is read where it is, and its
@@ -84,9 +85,8 @@ export class Terrain {
       const [i, j] = key.split(',').map(Number) as [number, number], n = data.block + 1;
       this.near.set(key, { x0: i * this.nearSize, z0: j * this.nearSize, cell: data.cell, n, v: decodeGrid(text, n, n) });
     }
-    // and within 75 m of a line out, smaller blocks every cell m (out to 800 m once addOut has them)
+    // a line out's ground, in smaller blocks every cell m, once addOut has them (out.json, after the first frame)
     this.cell = data.cell; this.outBlock = data.outBlock; this.outSize = data.cell * data.outBlock;
-    this.addOut(data.outNear);
     for (const [key, text] of Object.entries(data.tiles)) {
       const n = this.baseSize / data.farCell + 1;
       const [i, j] = key.split(',').map(Number) as [number, number], t: Tile = { x0: i * this.baseSize, z0: j * this.baseSize, cell: data.farCell, n, v: decodeGrid(text, n, n) };
@@ -140,24 +140,8 @@ export class Terrain {
       for (let k = 0; k < g.n; k++) if (g.lo[k] === Infinity) { g.lo[k] = -CESS; g.hi[k] = CESS; }
       g.tlo = g.lo.slice(); g.thi = g.hi.slice();
     }
-    for (const st of net.stations) {
-      const kit = kits[st.kit]; if (!kit) continue;
-      const F = net.stationFrame(st.id), g = lineOf(st.corridor);
-      // each part's box, every couple of metres round its edge and through it
-      for (const p of kit.parts) for (const [u0, u1, v0, v1] of partBoxes(p)) {
-        const nu = Math.ceil((u1 - u0) / 2), nv = Math.ceil((v1 - v0) / 2);
-        for (let a = 0; a <= nu; a++) for (let b = 0; b <= nv; b++) {
-          const u = u0 + (u1 - u0) * a / nu, v = v0 + (v1 - v0) * b / nv;
-          mark(F.x + F.dx * u + F.nx * v, F.z + F.dz * u + F.nz * v, 0, true, g, st.at + u, v);
-        }
-      }
-    }
-    // the edges change by no more than they run along, so a wall never cuts back across a row of the strip
-    for (const g of this.lines) for (const [arr, sign] of [[g.lo, -1], [g.hi, 1]] as const) for (let pass = 0; pass < 2; pass++)
-      for (let k = pass ? g.n - 2 : 1; pass ? k >= 0 : k < g.n; k += pass ? -1 : 1) {
-        const prev = arr[k + (pass ? 1 : -1)]! - sign * BAND_STEP;
-        if (sign > 0 ? prev > arr[k]! : prev < arr[k]!) arr[k] = prev;
-      }
+    this.mark = mark; this.lineOf = lineOf;
+    this.pads(kits);
     // the far ground's level: the median of the base mesh's edge, relative to the line
     const ring: number[] = [];
     for (let t = 0; t < 1; t += 0.01) for (const [x, z] of [[x0 + (x1 - x0) * t, z0 + 1], [x0 + (x1 - x0) * t, z1 - 1], [x0 + 1, z0 + (z1 - z0) * t], [x1 - 1, z0 + (z1 - z0) * t]] as const) ring.push(this.raw(x, z) - this.datumAt(x, z));
@@ -301,6 +285,33 @@ export class Terrain {
     for (let i = Math.floor(x0 / S); i <= Math.floor(x1 / S); i++) for (let j = Math.floor(z0 / S); j <= Math.floor(z1 / S); j++) if (keys.has(`${i},${j}`)) return true;
     return false;
   }
+  private mark: (x: number, z: number, r: number, pad: boolean, own?: GroundLine, at?: number, off?: number) => void;
+  private lineOf: (corridor: string) => GroundLine;
+  /** Lay the stations' pads on the railway's land, from the kits there are (the opening's at start; every line out's
+   * once they're in, after the first frame: addKits): each line's land is its tracks' and the pads of its stations. */
+  private pads(kits: Record<string, KitDef | undefined>): void {
+    for (const g of this.lines) { g.lo = g.tlo.slice(); g.hi = g.thi.slice(); g.padLo.fill(0); g.padHi.fill(0); }
+    for (const st of this.net.stations) {
+      const kit = kits[st.kit]; if (!kit) continue;
+      const F = this.net.stationFrame(st.id), g = this.lineOf(st.corridor);
+      // each part's box, every couple of metres round its edge and through it
+      for (const p of kit.parts) for (const [u0, u1, v0, v1] of partBoxes(p)) {
+        const nu = Math.ceil((u1 - u0) / 2), nv = Math.ceil((v1 - v0) / 2);
+        for (let a = 0; a <= nu; a++) for (let b = 0; b <= nv; b++) {
+          const u = u0 + (u1 - u0) * a / nu, v = v0 + (v1 - v0) * b / nv;
+          this.mark(F.x + F.dx * u + F.nx * v, F.z + F.dz * u + F.nz * v, 0, true, g, st.at + u, v);
+        }
+      }
+    }
+    // the edges change by no more than they run along, so a wall never cuts back across a row of the strip
+    for (const g of this.lines) for (const [arr, sign] of [[g.lo, -1], [g.hi, 1]] as const) for (let pass = 0; pass < 2; pass++)
+      for (let k = pass ? g.n - 2 : 1; pass ? k >= 0 : k < g.n; k += pass ? -1 : 1) {
+        const prev = arr[k + (pass ? 1 : -1)]! - sign * BAND_STEP;
+        if (sign > 0 ? prev > arr[k]! : prev < arr[k]!) arr[k] = prev;
+      }
+  }
+  /** The stations' kits as there are now (every line out's in after the first frame): their pads laid again. */
+  addKits(kits: Record<string, KitDef | undefined>): void { this.pads(kits); }
   // ---- the fine tiles ----
   /** The fine tiles a circle touches that exist and aren't loaded yet. */
   fineWanted(x: number, z: number, r: number, have: (key: string) => boolean): string[] {
@@ -405,7 +416,7 @@ export class TerrainLayer {
   private relay: (() => void)[] = []; private relaid: () => void = () => {};
   /** Resolves once the lines out's ring is in and the ground it touches laid again (at once without one to fetch). */
   readonly outReady: Promise<void>;
-  constructor(readonly t: Terrain, private bands: Bands, files: Record<string, string> = {}, outUrl = '') {
+  constructor(readonly t: Terrain, private bands: Bands, files: Record<string, string> = {}, private outUrl = '') {
     this.files = files;
     this.outReady = outUrl ? new Promise(r => { this.relaid = r; }) : Promise.resolve();
     this.material = new THREE.MeshLambertMaterial({ vertexColors: true });
@@ -419,11 +430,7 @@ export class TerrainLayer {
     // a sentinel drawn every frame (it's empty) that keeps the strip's detail and tiles following the camera
     const tick = new THREE.Mesh(new THREE.BufferGeometry(), this.material); tick.frustumCulled = false;
     tick.onBeforeRender = (_r, _s, cam) => { if (cam instanceof THREE.PerspectiveCamera) this.follow(cam.position); };
-    // after the first frame: the base mesh casts no shadows, and the lines out's ring is fetched
-    tick.onAfterRender = () => {
-      for (const m of this.baseMeshes) m.castShadow = false; tick.onAfterRender = () => {};
-      if (outUrl) setTimeout(() => void fetch(outUrl).then(r => r.ok ? r.json() as Promise<{ near: Record<string, string> }> : { near: {} }).catch(() => ({ near: {} })).then(d => this.layOut(d.near)), 0);
-    };
+    tick.onAfterRender = () => { for (const m of this.baseMeshes) m.castShadow = false; tick.onAfterRender = () => {}; };
     this.group.add(tick);
   }
   /** Fine chunks near the camera, coarse ones further off; fetch the fine tiles the near ones need. Throttled. */
@@ -447,20 +454,29 @@ export class TerrainLayer {
   }
   /** The lines out's ring (out.json's blocks) is in: lay again the base mesh's chunks and the strip's chunks it
    * touches, a few each look (all at once with `now`, for the checks). */
-  layOut(blocks: Record<string, string>, now = false): void {
-    const keys = this.t.addOut(blocks), t = this.t;
-    for (const b of this.baseLods) if (t.outIn(...b.box, keys)) this.relay.push(() => {
+  layOut(blocks: Record<string, string>, now = false, at: { x: number; z: number }[] = []): void {
+    const keys = this.t.addOut(blocks), t = this.t, R = 400;
+    // what a box touches: the new blocks, or within R of a station whose kit (and so its pad) just came in
+    const touched = (x0: number, z0: number, x1: number, z1: number) => t.outIn(x0, z0, x1, z1, keys) || at.some(p => p.x > x0 - R && p.x < x1 + R && p.z > z0 - R && p.z < z1 + R);
+    for (const b of this.baseLods) if (touched(...b.box)) this.relay.push(() => {
       const lod = this.baseChunk(b.ci, b.cj, b.nx, b.nz), on = b.mesh.geometry === b.full;
       b.full.dispose(); b.far.dispose(); Object.assign(b, lod); b.mesh.geometry = on ? b.full : b.far;
     });
     const reach = CHUNK / 2 + STRIP + 120;
-    for (const ch of this.chunks) if (t.outIn(ch.mid.x - reach, ch.mid.z - reach, ch.mid.x + reach, ch.mid.z + reach, keys)) this.relay.push(() => {
+    for (const ch of this.chunks) if (touched(ch.mid.x - reach, ch.mid.z - reach, ch.mid.x + reach, ch.mid.z + reach)) this.relay.push(() => {
       const old = ch.coarse; ch.coarse = this.strip(ch.g, ch.s0, ch.s1, ROW_COARSE, OUT_COARSE);
       if (ch.mesh.geometry === old) ch.mesh.geometry = ch.coarse;
       old.dispose(); ch.dirty = true;
     });
     this.last = -1;
     if (now || !this.relay.length) { for (const f of this.relay.splice(0)) f(); this.relaid(); }
+  }
+  /** After the first frame: fetch the lines out's ground (out.json) and, with their kits (from `kitsIn`), lay their
+   * stations' pads and the ground there again (outReady once it's all laid). */
+  loadOut(kitsIn: Promise<Record<string, KitDef>>, at: { x: number; z: number }[]): Promise<void> {
+    const blocks = this.outUrl ? fetch(this.outUrl).then(r => r.ok ? r.json() as Promise<{ near: Record<string, string> }> : { near: {} }).catch(() => ({ near: {} })) : Promise.resolve({ near: {} });
+    // resolves once the ground's data is in (what stands on it can be placed), before the meshes are laid again
+    return Promise.all([blocks, kitsIn.catch(() => ({}))]).then(([d, k]) => { this.t.addKits({ ...kitFiles(), ...k }); this.layOut(d.near, false, at); });
   }
   /** Every chunk of the strip as it's drawn fine, built now (for the checks). */
   fineStrips(): THREE.BufferGeometry[] { return this.chunks.map(ch => this.strip(ch.g, ch.s0, ch.s1, ROW_FINE, OUT_FINE)); }
@@ -651,10 +667,8 @@ export function worldFiles(): Record<string, string> {
     return Object.fromEntries(Object.entries(found).map(([path, url]) => [path.replace(/^.*\//, '').replace('.txt', ''), url]));
   } catch { return {}; }
 }
-/** The station kits by name, for the pads they stand on (empty outside a build). */
-export function kitFiles(): Record<string, KitDef> {
-  try {
-    const found = import.meta.glob<KitDef>('../data/kits/*.json', { import: 'default', eager: true });
-    return Object.fromEntries(Object.entries(found).map(([path, kit]) => [path.replace(/^.*\//, '').replace('.json', ''), kit]));
-  } catch { return {}; }
-}
+/** The station kits there are so far, by name, for the pads they stand on (src/render/kits.ts: the opening's, then
+ * every line out's after the first frame; empty outside a build). */
+let kitsNow: Record<string, KitDef> = {};
+export function useKits(k: Record<string, KitDef>): void { kitsNow = k; }
+export function kitFiles(): Record<string, KitDef> { return kitsNow; }

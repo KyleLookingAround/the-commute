@@ -191,6 +191,14 @@ export class PassengerLayer {
     });
   }
 
+  /** A station whose kit has just come in (a line out's, after the first frame): where its people stand, from it. */
+  refit(i: number, b: BuiltStation, platforms?: PlatformDef[]): void {
+    const L = this.layers[i]; if (!L) return;
+    const f = b.kit.faces;
+    L.stands = standsOf(b.kit, platforms); L.concourse = b.kit.entrance !== undefined; L.lamps = lampsOf(b.kit);
+    L.faces[0].face = f.north; L.faces[0].entrance = entranceOf(b.kit, f.north); L.faces[1].face = f.south; L.faces[1].entrance = entranceOf(b.kit, f.south);
+  }
+
   /** Where the k-th arrival stands: scattered along the platform, more of them near the stairs, and spread back from
    * the edge into the platform rather than in a line along it. */
   private spot(F: FaceLayer, k: number): [number, number] {

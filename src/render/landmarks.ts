@@ -65,11 +65,18 @@ export function bridgesOf(c: Corridor, def: NetworkGeoDef): [number, number][] {
  * leave these out, so nothing stands twice. */
 export const standing: [number, number, number][] = [];
 
-/** real: whether real buildings stand round a point (src/render/buildings.ts), so the town's made-up streets keep out. */
-export function buildLandmarks(scene: THREE.Scene, net: Network, def: NetworkGeoDef, groundY: (x: number, z: number) => number, real: (x: number, z: number) => boolean = () => false): void {
+/** real: whether real buildings stand round a point (src/render/buildings.ts), so the town's made-up streets keep out.
+ * part: the opening's (the line from Edgeley Junction to Piccadilly, its viaduct, river, M60, town and skyline), or the
+ * lines out's bridges and arches, built once their ground is in (after the first frame). */
+export function buildLandmarks(scene: THREE.Scene, net: Network, def: NetworkGeoDef, groundY: (x: number, z: number) => number, real: (x: number, z: number) => boolean = () => false, part: 'opening' | 'out' = 'opening'): void {
+  const c = net.spine, all = (def.landmarks ?? []) as Mark[];
+  const marks = all.filter(m => !m.corridor || (m.corridor === 'main') === (part === 'opening')), byId = (id: string) => all.find(m => m.id === id);
+  if (part === 'out') {
+    for (const l of net.lines) for (const m of marks) if (m.kind === 'arches' && m.from && m.to && alongLine(m.corridor, l, def)) arcade(scene, net, l, l.nearest(...xz(def, m.from)), l.nearest(...xz(def, m.to)), groundY);
+    overbridges(scene, net, def, marks, groundY);
+    return;
+  }
   standing.length = 0;
-  const c = net.spine;
-  const marks = (def.landmarks ?? []) as Mark[], byId = (id: string) => marks.find(m => m.id === id);
   const along = (m: Mark | undefined): number | null => m && m.at ? c.nearest(...xz(def, m.at)) : null;
   const river = along(byId('mersey')), m60 = along(byId('m60'));
   const via = viaductOf(c, def);

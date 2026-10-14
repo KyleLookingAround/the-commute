@@ -3,8 +3,10 @@ import * as THREE from 'three';
 import { MAT, PAL } from './scene.ts';
 import { byCell, type Split } from './cells.ts';
 import { bridgesOf, buildLandmarks, onCourses, viaductOf } from './landmarks.ts';
-import { Terrain, TerrainLayer, fineFiles, kitFiles, outFile, setTerrain, worldFiles } from './terrain.ts';
+import { Terrain, TerrainLayer, type KitDef, fineFiles, kitFiles, outFile, setTerrain, useKits, worldFiles } from './terrain.ts';
+import { kits, loadOutKits } from './kits.ts';
 import type { BuildingsLayer } from './buildings.ts';
+import type { Kit } from './stations.ts';
 import { SPINE, newFrame } from '../sim/network.ts';
 import type { Network } from '../sim/network.ts';
 import type { NetworkGeoDef } from '../sim/types.ts';
@@ -23,7 +25,7 @@ export const yawFor = (p: { dx: number; dz: number }): number => Math.atan2(-p.d
  * land, the river, the M60, the town in the viaduct's valley, the roads and the houses already drawn, on ground level
  * enough to build on (for homes that grow, src/render/homes.ts); terrain: the ground itself; buildings: the real ones
  * (src/render/buildings.ts). */
-export interface World { groundY: (x: number, z: number) => number; yawFor: typeof yawFor; ground: THREE.MeshLambertMaterial; buildable: (x: number, z: number, r: number) => boolean; terrain: TerrainLayer; buildings: Buildings }
+export interface World { groundY: (x: number, z: number) => number; yawFor: typeof yawFor; ground: THREE.MeshLambertMaterial; buildable: (x: number, z: number, r: number) => boolean; terrain: TerrainLayer; buildings: Buildings; more: () => Promise<Record<string, Kit>> }
 
 /** The real buildings (src/render/buildings.ts), whose script is fetched after the page's own, so the first frame never
  * waits on it: which squares have them from the start, the layer once it's in. */
@@ -39,6 +41,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   const hg = net.stations.find(st => st.id === 'hazel-grove'), edge = hg ? Math.max(0, hg.at - 360) : 0;
 
   // ---- the ground, from survey: the railway's land level with the line, the real lie of the land round it ----
+  useKits(kits as unknown as Record<string, KitDef>);   // the same JSON, read as the terrain needs it
   const terrain = new Terrain(net, kitFiles(), l => bridgesOf(l, def)); setTerrain(terrain);
   const end = c.at(c.length - 700);
   const layer = new TerrainLayer(terrain, { city: { x: end.x, z: end.z, r: 1700 } }, fineFiles(), outFile());
@@ -48,7 +51,8 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   // the real buildings, where there are tiles for them: the made-up houses keep out of those squares
   const files = worldFiles(), squares = new Set(Object.keys(files));
   let real: BuildingsLayer | null = null, low = false, year = 0.4, settle = 0;
-  const loaded = import('./buildings.ts').then(m => { real = new m.BuildingsLayer(terrain, files, net, def, kitFiles(), layer); real.setLow(low); real.season(year, settle); scene.add(real.group); return real; });
+  // (once the lines out's ground and kits are in, so they keep off every station)
+  const loaded = layer.outReady.then(() => import('./buildings.ts')).then(m => { real = new m.BuildingsLayer(terrain, files, net, def, kitFiles(), layer); real.setLow(low); real.season(year, settle); scene.add(real.group); return real; });
   const buildings: Buildings = {
     real: (x, z) => squares.has(`${Math.floor(x / 1000)}_${Math.floor(z / 1000)}`), blocked: (x, z, r) => !!real?.blocked(x, z, r),
     layer: loaded, ready: loaded.then(l => l.ready), setLow: v => { low = v; real?.setLow(v); },
@@ -104,9 +108,9 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     scene.add(byCell(inst).group);
   }
   for (const t of net.tracks) { trackRibbon(t.id, 0, 3.4, 0.5, -0.25, MAT.ballast); for (const dx of [-0.72, 0.72]) trackRibbon(t.id, dx, 0.1, 0.16, 0.08, MAT.rail); }
-  ribbon(-95, 12, 0.2, 0.1, MAT.road); ribbon(126, 12, 0.2, 0.1, MAT.road);
+  const roads = [ribbon(-95, 12, 0.2, 0.1, MAT.road), ribbon(126, 12, 0.2, 0.1, MAT.road)];
   // a road along each line out, on one side (the Marple line runs through suburbs most of the way)
-  const outRoads = net.lines.slice(1).map(l => ribbon(-95, 12, 0.2, 0.1, MAT.road, l));
+  for (const l of net.lines.slice(1)) roads.push(ribbon(-95, 12, 0.2, 0.1, MAT.road, l));
 
   // ---- OHLE: a mast outside each outer track (open-ended: its foot is in the ground, its top under the arm) with an
   // arm reaching over it, and a wire over every track, along each
@@ -140,7 +144,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   // ---- houses: terraces through the suburbs, towers at the city end ----
   // each house's footprint (x, z, radius) in cells of HOUSE_CELL metres, so homes that grow keep off them
   const HOUSE_CELL = 60, houses = new Map<string, number[]>();
-  const outHouses: { i: number; x: number; z: number; yaw: number; w: number; d: number; h: number; rr: number }[] = [];
+  const placed: { i: number; x: number; z: number; yaw: number; w: number; d: number; h: number; rr: number }[] = [];
   /** A house's matrix: on the ground's lowest corner, its walls running down into it. */
   const house = (x: number, z: number, yaw: number, w: number, d: number, h: number, rr: number) => {
     const ys = [groundY(x, z), groundY(x - rr, z - rr), groundY(x + rr, z - rr), groundY(x - rr, z + rr), groundY(x + rr, z + rr)], y0 = Math.min(...ys), rise = Math.max(...ys) - y0;
@@ -182,8 +186,8 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       // on the ground's lowest corner, its walls running down into it; none on a bank too steep to build on
       const rr = Math.max(w, d) / 2, ys = [groundY(p.x, p.z), groundY(p.x - rr, p.z - rr), groundY(p.x + rr, p.z - rr), groundY(p.x - rr, p.z + rr), groundY(p.x + rr, p.z + rr)];
       const y0 = Math.min(...ys); if (Math.max(...ys) - y0 > 5) continue;
-      e.set(0, yawFor(p) + (seed(k, 11) - 0.5) * 0.3, 0); q.setFromEuler(e);
-      v3.set(p.x, (h + 1 + Math.max(...ys) - y0) / 2 + y0 - 0.5, p.z); sc.set(w, h + Math.max(...ys) - y0 + 1, d); m4.compose(v3, q, sc); inst.setMatrixAt(n, m4);
+      const yaw = yawFor(p) + (seed(k, 11) - 0.5) * 0.3;
+      inst.setMatrixAt(n, house(p.x, p.z, yaw, w, d, h, rr)); placed.push({ i: n, x: p.x, z: p.z, yaw, w, d, h, rr });
       { const k2 = cellKey(p.x, p.z), list = houses.get(k2) ?? []; list.push(p.x, p.z, Math.hypot(w, d) / 2); houses.set(k2, list); }
       col.setHSL(0.04 + seed(k, 9) * 0.06, city ? PAL['tower-sat'] : PAL['house-sat'], (city ? PAL['tower-light'] : PAL['house-light']) + seed(k, 10) * 0.15); inst.setColorAt(n, col);
       n++;
@@ -204,17 +208,19 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
         const y0 = Math.min(...ys); if (Math.max(...ys) - y0 > 5) continue;
         const yaw = yawFor(p) + (seed(k, 11) - 0.5) * 0.3;
         inst.setMatrixAt(n, house(p.x, p.z, yaw, w, d, h, rr));
-        outHouses.push({ i: n, x: p.x, z: p.z, yaw, w, d, h, rr });
+        placed.push({ i: n, x: p.x, z: p.z, yaw, w, d, h, rr });
         { const k2 = cellKey(p.x, p.z), list = houses.get(k2) ?? []; list.push(p.x, p.z, Math.hypot(w, d) / 2); houses.set(k2, list); }
         col.setHSL(0.04 + seed(k, 9) * 0.06, PAL['house-sat'], PAL['house-light'] + seed(k, 10) * 0.15); inst.setColorAt(n, col);
         n++;
       }
     });
     inst.count = n; const split = byCell(inst); scene.add(split.group);
-    // once the lines out's ring is in, theirs stand again on the ground as it is there now (the same houses)
+    // once the lines out's ground is in (the Buxton line's too), the houses and roads stand again on the ground as it
+    // is now (the same houses), and the lines out's bridges and arches go up on it
     void layer.outReady.then(() => {
-      for (const o of outHouses) setAt(split, o.i, house(o.x, o.z, o.yaw, o.w, o.d, o.h, o.rr));
-      settled(split); for (const f of outRoads) f();
+      for (const o of placed) setAt(split, o.i, house(o.x, o.z, o.yaw, o.w, o.d, o.h, o.rr));
+      settled(split); for (const f of roads) f();
+      buildLandmarks(scene, net, def, groundY, buildings.real, 'out');
     });
   })();
 
@@ -245,6 +251,11 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     return true;
   };
 
-  return { groundY, yawFor, ground, buildable, terrain: layer, buildings };
+  // after the first frame: the lines out's kits and ground, resolving with the kits once the ground they stand on is in
+  const more = () => {
+    const k = loadOutKits();
+    return layer.loadOut(k as unknown as Promise<Record<string, KitDef>>, net.stations.filter(st => st.corridor !== 'main').map(st => net.stationFrame(st.id))).then(() => k);
+  };
+  return { groundY, yawFor, ground, buildable, terrain: layer, buildings, more };
 }
 

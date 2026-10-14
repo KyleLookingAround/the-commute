@@ -83,8 +83,15 @@ export class StrainLayer {
     const fig = new THREE.CylinderGeometry(0.5, 0.5, 2.2, 6).translate(0, 1.1, 0);
     this.walkers = new THREE.InstancedMesh(fig, new THREE.MeshBasicMaterial({ color: this.c2, transparent: true, depthTest: false, fog: false }), o.built.length * WALKERS);
     this.walkers.count = 0; this.walkers.frustumCulled = false; this.walkers.renderOrder = 6; this.group.add(this.walkers);
-    this.side = o.built.map(b => { let n = 0; for (const p of b.kit.parts) if (p.street && 'v0' in p) n += (p.v0 + p.v1) > 0 ? 1 : -1; return n < 0 ? -1 : 1; });
+    this.side = o.built.map(() => 0);
     this.stepBack(o.ground);
+  }
+  /** Which side of the line a station's street is (from its kit's street parts), worked out the first time it's asked
+   * once its kit is in (a line out's comes after the first frame). */
+  private sideOf(i: number): number {
+    const b = this.o.built[i]!; if (this.side[i] || !b.kit.parts.length) return this.side[i] || 1;
+    let n = 0; for (const p of b.kit.parts) if (p.street && 'v0' in p) n += (p.v0 + p.v1) > 0 ? 1 : -1;
+    return this.side[i] = n < 0 ? -1 : 1;
   }
   /** Turn the view on or off: the glows fade in (at once with reduced motion) and the reach steps back. */
   setOn(on: boolean): void {
@@ -289,7 +296,7 @@ export class StrainLayer {
   /** The walk home from station i: a soft trail on the ground from its platforms out into its streets. */
   private walkGlow(i: number, b: BuiltStation, place: string): Glow {
     const key = `walk|${i}`, had = this.glows.get(key); if (had) return had;
-    const f = this.o.net.stationFrame(b.station.id), sd = this.side[i]!, F = b.kit.faces, edge = Math.max(Math.abs(F.north.v), Math.abs(F.south.v)) + 6;
+    const f = this.o.net.stationFrame(b.station.id), sd = this.sideOf(i), F = b.kit.faces, edge = Math.max(Math.abs(F.north.v), Math.abs(F.south.v)) + 6;
     const pts: THREE.Vector3[] = [], ns: [number, number][] = [];
     for (let k = 0; k <= 10; k++) {
       const d = edge + WALK * k / 10, u = 12 * Math.sin(k * 0.6), x = f.x + f.dx * u + f.nx * sd * d, z = f.z + f.dz * u + f.nz * sd * d;

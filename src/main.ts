@@ -1,33 +1,14 @@
 // Wires it together: the sim, the scene, the UI, saving and the frame loop. The only file that knows about all of them.
 import * as THREE from 'three';
 import networkJson from './data/network.json';
-import kitStockport from './data/kits/stockport.json';
-import kitHeaton from './data/kits/heaton-chapel.json';
-import kitLevenshulme from './data/kits/levenshulme.json';
-import kitArdwick from './data/kits/ardwick.json';
-import kitPiccadilly from './data/kits/piccadilly.json';
-import kitDavenport from './data/kits/davenport.json';
-import kitWoodsmoor from './data/kits/woodsmoor.json';
-import kitHazelGrove from './data/kits/hazel-grove.json';
-import kitMiddlewood from './data/kits/middlewood.json';
-import kitDisley from './data/kits/disley.json';
-import kitNewMills from './data/kits/new-mills-newtown.json';
-import kitAshburys from './data/kits/ashburys.json';
-import kitBelleVue from './data/kits/belle-vue.json';
-import kitRyderBrow from './data/kits/ryder-brow.json';
-import kitReddishNorth from './data/kits/reddish-north.json';
-import kitBrinnington from './data/kits/brinnington.json';
-import kitBredbury from './data/kits/bredbury.json';
-import kitRomiley from './data/kits/romiley.json';
-import kitMarple from './data/kits/marple.json';
-import kitRoseHill from './data/kits/rose-hill.json';
 import { SPINE, fromGeo, newFrame } from './sim/network.ts';
 import { Sim, TUNING } from './sim/sim.ts';
 import type { NetworkGeoDef } from './sim/types.ts';
 import { createScene } from './render/scene.ts';
 import { groundAt } from './render/terrain.ts';
 import { buildWorld } from './render/world.ts';
-import { buildStations, syncStations, previewUpgrade, partsBox, setReducedMotion, setPlaque, foldingCount } from './render/stations.ts';
+import { kits, loadOutKits } from './render/kits.ts';
+import { buildStations, fillStations, syncStations, previewUpgrade, partsBox, setReducedMotion, setPlaque, foldingCount } from './render/stations.ts';
 import type { Kit } from './render/stations.ts';
 import { Lineside } from './render/lineside.ts';
 import { StationLife } from './render/life.ts';
@@ -87,12 +68,6 @@ const networkDef: NetworkGeoDef = {
   ...networkJson, corridors: networkJson.corridors.map(c => ({ ...c, waypoints: c.waypoints as [number, number][] })),
   roads: networkJson.roads.map(r => ({ ...r, points: r.points as [number, number][] })),
 };
-const kits: Record<string, Kit> = {
-  stockport: kitStockport as Kit, 'heaton-chapel': kitHeaton as Kit, levenshulme: kitLevenshulme as Kit, ardwick: kitArdwick as Kit, piccadilly: kitPiccadilly as Kit,
-  davenport: kitDavenport as Kit, woodsmoor: kitWoodsmoor as Kit, 'hazel-grove': kitHazelGrove as Kit,
-  middlewood: kitMiddlewood as Kit, disley: kitDisley as Kit, 'new-mills-newtown': kitNewMills as Kit,
-  ashburys: kitAshburys as Kit, 'belle-vue': kitBelleVue as Kit, 'ryder-brow': kitRyderBrow as Kit, 'reddish-north': kitReddishNorth as Kit, brinnington: kitBrinnington as Kit, bredbury: kitBredbury as Kit, romiley: kitRomiley as Kit, marple: kitMarple as Kit, 'rose-hill': kitRoseHill as Kit,
-};
 const net = fromGeo(networkDef);
 
 // ---- state ----
@@ -131,6 +106,18 @@ const buses = new BusLayer(scene, net, built);
 // the lines out's ground comes in after the first frame: the buses' roads are laid on it again
 let outIn = false;
 void world.terrain.outReady.then(() => { buses.relay(); outIn = true; });
+/** After the first frame: the lines out's kits and ground (the script before it holds only the opening). Their
+ * stations, empty until then, are built as their kits come, and whatever reads a kit takes them in. */
+function more(): void {
+  void world.more().then(() => {
+    for (const i of fillStations(net, built, kits)) {
+      built[i]!.group.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = !o.userData['noShadow']; o.receiveShadow = true; } });
+      pax.refit(i, built[i]!, net.stations[i]?.platforms);
+    }
+    taxis.refit(); links.refit(); kitsIn = true;
+  });
+}
+let kitsIn = false;
 const links = new LinkLayer(scene, built);
 // where the track runs beside each platform face, from the service that boards there that way (at Stockport the main
 // line northbound, the Hazel Grove line southbound), so passengers stand back from the right edge
@@ -163,7 +150,7 @@ const view = {
   loadBuildings: () => world.buildings.layer.then(l => l.loadAll()),
   access: () => ({ cars: built.map(b => b.live.parks.reduce((a, f) => a + f.mesh.count, 0)), buses: links.count }),
   // the ground: whether the lines out's ring (fetched after the first frame) is in and laid
-  ground: () => ({ outIn }),
+  ground: () => ({ outIn, kitsIn }),
   trouble: () => ({ hazards: trains.hazards.count, cautions: trains.posts.count, buses: buses.count, spare: trains.spare.visible }),
   // life as drawn: suitcases and bikes beside the figures, figures drawn, and what the sound has started
   life: () => ({ cases: pax.layers.reduce((n, L) => n + L.cases.count, 0), bikes: pax.layers.reduce((n, L) => n + L.bikes.count, 0), figures: pax.layers.reduce((n, L) => n + L.im.count, 0), shadows: renderer.shadowMap.enabled, ratio: renderer.getPixelRatio(), heard: { ...sound.heard },
@@ -545,7 +532,7 @@ function frame(now: number): void {
   const t2 = performance.now();
   renderer.info.reset(); renderer.render(scene, camera);
   const t3 = performance.now();
-  if (!cost.frames) cost.first = t3;
+  if (!cost.frames) { cost.first = t3; setTimeout(more, 0); }
   cost.frames++; cost.sim += t1 - t0; cost.sync += t2 - t1; cost.draw += t3 - t2;
   requestAnimationFrame(frame);
 }

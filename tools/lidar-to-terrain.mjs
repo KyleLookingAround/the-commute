@@ -17,12 +17,12 @@
 // 3. Writes the tiles, in game metres (x east, z south of the network's origin), heights in decimetres above Ordnance
 //    Datum, so a wider map (phase 8) can reuse them:
 //    - src/data/terrain/base.json: every FAR_CELL m over the whole area (tiles of TILE cells of BASE_CELL m) and every
-//      BASE_CELL m within FAR_RING of the spine (`near`, in blocks of BLOCK cells) and OUT_NEAR of a line out
-//      (`outNear`, in blocks of OUT_BLOCK cells), the rail level every
+//      BASE_CELL m within FAR_RING of the opening's line, Edgeley Junction to Piccadilly (`near`, in blocks of BLOCK
+//      cells), the rail level every
 //      RAIL_STEP m along the corridor, and the datum, a smooth field of the rail level away from the line (DATUM_CELL);
 //      bundled with the page, since the world is built from it at start.
-//    - src/data/terrain/out.json: every BASE_CELL m on out to OUT_RING of a line out, fetched by the page after its first
-//      frame (the ground and the houses out there are laid again once it's in).
+//    - src/data/terrain/out.json: every BASE_CELL m within OUT_RING of a line out (FAR_RING of the Buxton line), fetched
+//      by the page after its first frame (the ground and the houses out there are laid again once it's in).
 //    - src/data/terrain/fine/<i>_<j>.txt: every FINE_CELL m within FINE_BAND of the line, fetched by the page as the
 //      camera comes near.
 //    The text encoding is decodeGrid's in src/render/terrain.ts: each sample's difference from a plane through its
@@ -44,10 +44,10 @@ const BASE_CELL = 32, FINE_CELL = 2, TILE = 128;
 const FINE_BAND = 100;     // fine samples within this many metres of the corridor (the line's widest layouts reach 80 m)
 const RAIL_STEP = 5, DATUM_CELL = 64;
 const FAR_CELL = 128, BLOCK = 32, FAR_RING = 1500;   // the far ring: see nearBlock
-// a line out's ring: blocks of OUT_BLOCK cells within OUT_RING of it, those within OUT_NEAR in base.json (what the kits,
-// bridges and buses stand on at start) and the rest in out.json, fetched after the first frame, so the lines out's
-// ground keeps out of the script before it
-const OUT_BLOCK = 8, OUT_RING = 800, OUT_NEAR = 75;
+// a line out's ring (and the Buxton line's, the spine beyond Edgeley Junction): blocks of OUT_BLOCK cells within
+// OUT_RING of it (FAR_RING of the Buxton line), all in out.json, fetched after the first frame, so the script before it
+// holds only the opening's ground: the line from Edgeley Junction to Piccadilly's
+const OUT_BLOCK = 8, OUT_RING = 800;
 const COARSE_CHUNK = 2000, COARSE_RES = 4, FINE_CHUNK = 500;
 
 const fresh = process.argv.includes('--fresh');
@@ -113,17 +113,20 @@ function encodeGrid(v, w, h) {
 // ---------------------------------------------------------------------------------------------------------------
 // The far ring: the base tiles are every FAR_CELL m, and only the BLOCK-cell blocks within FAR_RING of the line are
 // every BASE_CELL m besides, since further out the base mesh (every 48 m) is all that's drawn, seen from a kilometre off
-const linePts = [], spinePts = [], outPts = []; for (const l of lines) for (let s = l.start; s <= l.end; s += 20) { const p = l.at(Math.min(s, l.end)); linePts.push(p); (l === c ? spinePts : outPts).push(p); }
+const main = net.corridor('main'), linePts = [], openPts = [], outPts = [];
+for (const l of lines) for (let s = l.start; s <= l.end; s += 20) {
+  const p = l.at(Math.min(s, l.end)); linePts.push(p);
+  if (l === c && s >= main.start) openPts.push(p); else outPts.push([p, l === c ? FAR_RING : OUT_RING]);
+}
 const BS = BASE_CELL * BLOCK, OS = BASE_CELL * OUT_BLOCK;
-const within = (pts, x0, z0, x1, z1, r) => pts.some(p => Math.hypot(Math.max(x0 - p.x, 0, p.x - x1), Math.max(z0 - p.z, 0, p.z - z1)) < r);
-/** Whether the near block (bi, bj) has any of it within FAR_RING of the spine. */
-const nearBlock = (bi, bj) => within(spinePts, bi * BS, bj * BS, (bi + 1) * BS, (bj + 1) * BS, FAR_RING);
-/** A line out's block (oi, oj), outside the spine's near blocks: 0 if none, 1 within OUT_NEAR of a line out, 2 within
- * OUT_RING. */
+const dist = (p, x0, z0, x1, z1) => Math.hypot(Math.max(x0 - p.x, 0, p.x - x1), Math.max(z0 - p.z, 0, p.z - z1));
+/** Whether the near block (bi, bj) has any of it within FAR_RING of the opening's line (Edgeley to Piccadilly). */
+const nearBlock = (bi, bj) => openPts.some(p => dist(p, bi * BS, bj * BS, (bi + 1) * BS, (bj + 1) * BS) < FAR_RING);
+/** Whether a line out's block (oi, oj), outside the opening's near blocks, is within its ring of a line out. */
 const outBlock = (oi, oj) => {
-  const per = BLOCK / OUT_BLOCK; if (nearBlock(Math.floor(oi / per), Math.floor(oj / per))) return 0;
+  const per = BLOCK / OUT_BLOCK; if (nearBlock(Math.floor(oi / per), Math.floor(oj / per))) return false;
   const x0 = oi * OS, z0 = oj * OS, x1 = x0 + OS, z1 = z0 + OS;
-  return within(outPts, x0, z0, x1, z1, OUT_NEAR) ? 1 : within(outPts, x0, z0, x1, z1, OUT_RING) ? 2 : 0;
+  return outPts.some(([p, r]) => dist(p, x0, z0, x1, z1) < r);
 };
 // --coarsen: no fetching; rewrite a base.json written before the far ring (every tile every BASE_CELL m) from its own
 // samples: every other one for the tiles, and the near blocks cut out as they are
@@ -313,7 +316,7 @@ function grid(x0, z0, cell, n) {
   }
   return encodeGrid(v, n, n);
 }
-const base = {}, nearBase = {}, outNear = {}, outFar = {};
+const base = {}, nearBase = {}, outFar = {};
 for (let ti = ti0; ti <= ti1; ti++) for (let tj = tj0; tj <= tj1; tj++) {
   base[`${ti},${tj}`] = grid(ti * BT, tj * BT, FAR_CELL, BT / FAR_CELL + 1);
   const per = TILE / BLOCK;
@@ -323,8 +326,8 @@ for (let ti = ti0; ti <= ti1; ti++) for (let tj = tj0; tj <= tj1; tj++) {
   }
   const op = TILE / OUT_BLOCK;
   for (let a = 0; a < op; a++) for (let b = 0; b < op; b++) {
-    const oi = ti * op + a, oj = tj * op + b, k = outBlock(oi, oj);
-    if (k) (k === 1 ? outNear : outFar)[`${oi},${oj}`] = grid(oi * OS, oj * OS, BASE_CELL, OUT_BLOCK + 1);
+    const oi = ti * op + a, oj = tj * op + b;
+    if (outBlock(oi, oj)) outFar[`${oi},${oj}`] = grid(oi * OS, oj * OS, BASE_CELL, OUT_BLOCK + 1);
   }
 }
 // fine tiles: only the samples within the band, so most of a tile along a diagonal stretch is '!'
@@ -353,7 +356,7 @@ for (let ti = fi0; ti <= fi1; ti++) for (let tj = fj0; tj <= fj1; tj++) {
 const out = {
   note: 'From the Environment Agency LIDAR Composite DTM 1 m (Open Government Licence), by tools/lidar-to-terrain.mjs: heights in decimetres above Ordnance Datum, in game metres from the network origin (x east, z south). Contains Environment Agency information © Environment Agency and/or database right.',
   cell: BASE_CELL, tile: TILE, farCell: FAR_CELL, block: BLOCK, fineCell: FINE_CELL, fineBand: FINE_BAND,
-  tiles: base, near: nearBase, outBlock: OUT_BLOCK, outNear,
+  tiles: base, near: nearBase, outBlock: OUT_BLOCK,
   rail: { step: RAIL_STEP, dm: dmRail },
   datum: { x0: dx0, z0: dz0, cell: DATUM_CELL, w: dw, h: dh, dm: encodeGrid(Array.from(datum), dw, dh) },
 };

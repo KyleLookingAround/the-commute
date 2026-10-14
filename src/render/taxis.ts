@@ -132,9 +132,11 @@ function place(r: Rank): void {
 
 /** Brings every station's ranks round: how many cabs stand at each from the sim, on a timer; the cabs moving every frame. */
 export class TaxiLayer {
-  private readonly ranks: Rank[][];
+  private ranks: Rank[][];
   private acc = TICK;
-  constructor(built: { live: object }[]) { this.ranks = built.map(b => ranks.get(b.live) ?? []); }
+  constructor(private built: { live: object }[]) { this.ranks = built.map(b => ranks.get(b.live) ?? []); }
+  /** The ranks again, once the lines out's stations are built (after the first frame). */
+  refit(): void { this.ranks = this.built.map(b => ranks.get(b.live) ?? []); }
 
   /** dt: real seconds since the last frame; dtGame: sim seconds, which is how fast time is running. */
   sync(sim: Sim, dt: number, dtGame: number): void {

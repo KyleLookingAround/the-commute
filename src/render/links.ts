@@ -66,17 +66,19 @@ const hash = (n: number) => { let x = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b); x ^
 export class LinkLayer {
   /** How many buses are drawn. */
   count = 0;
-  private readonly links: (Link | null)[];
+  private links: (Link | null)[];
   private readonly body: THREE.InstancedMesh; private readonly band: THREE.InstancedMesh; private readonly glass: THREE.InstancedMesh;
   /** A bus's parts (made once, so a frame makes no arrays). */
   private readonly parts: THREE.InstancedMesh[];
-  constructor(scene: THREE.Scene, built: { live: object }[]) {
+  constructor(scene: THREE.Scene, private built: { live: object }[]) {
     this.links = built.map(b => links.get(b.live) ?? null);
     const mk = (geo: THREE.BufferGeometry, mat: THREE.Material) => { const m = new THREE.InstancedMesh(geo, mat, MAX_BUSES); m.count = 0; m.frustumCulled = false; scene.add(m); return m; };
     this.body = mk(BODY, lam(PAL['link-bus'])); this.band = mk(BAND, lam(PAL['link-band'])); this.glass = mk(GLASS, MAT.glass);
     this.parts = [this.body, this.band, this.glass];
     this.body.castShadow = true;
   }
+  /** The links again, once the lines out's stations are built (after the first frame). */
+  refit(): void { this.links = this.built.map(b => links.get(b.live) ?? null); }
   /** Each frame: where every built link's buses are, from the sim's clock. A bay sees a bus every `every` sim seconds
    * (twelve minutes by the clock, five in the peaks): it drives in along the bays, stands a while, and pulls away. */
   sync(sim: Sim): void {

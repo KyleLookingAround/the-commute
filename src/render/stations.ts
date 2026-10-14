@@ -420,31 +420,48 @@ export function alongLine(net: Network, st: Station, F: Frame, points: [number, 
 
 export function buildStations(scene: THREE.Scene, net: Network, kits: Record<string, Kit>): BuiltStation[] {
   return net.stations.map(st => {
-    const kit = kits[st.kit]; if (!kit) throw new Error(`no kit "${st.kit}" for ${st.name}`);
     const frame = net.stationFrame(st.id);
     const gp = new THREE.Group(); gp.position.set(frame.x, 0, frame.z); gp.rotation.y = yawFor(frame); scene.add(gp);
-    const fixed = new THREE.Group(), scenery = new THREE.Group(), gates = new Map<string, Gate>(), live = emptyLive(); gp.add(fixed); gp.add(scenery);
-    for (const kitPart of kit.parts) {
-      if (!(kitPart.type in partBuilders)) { console.warn('unknown part', kitPart.type); continue; }
-      const part = kitPart.type === 'rails' ? { ...kitPart, points: alongLine(net, st, frame, kitPart.points) } : kitPart;
-      const needs = part.upgrade === undefined ? [] : Array.isArray(part.upgrade) ? part.upgrade : [part.upgrade];
-      const put = (into: THREE.Group) => part.street ? onGround(part, into, live, frame) : build(part, into, live);
-      if (part.scenery) put(scenery);
-      else if (needs.length || part.until) {
-        const key = `${needs.join('+')}|${part.until ?? ''}`;
-        let gate = gates.get(key);
-        if (!gate) { gate = { group: new THREE.Group(), needs, until: part.until ?? null, shown: false, rise: 1, ghost: false, fold: 0 }; gate.group.visible = false; gp.add(gate.group); gates.set(key, gate); }
-        put(gate.group);
-      } else put(fixed);
-    }
-    const gated = [...gates.values()];
-    // what life moves or changes stays as it is; the rest is folded together
-    const keep = new Set<THREE.Object3D>();
-    for (const o of [...live.boards.map(x => x.mesh), ...live.shops.map(x => x.shutter)]) o.traverse(q => keep.add(q));
-    for (const into of [fixed, scenery, ...gated.map(gt => gt.group)]) mergeStill(into, keep);
     const label = new THREE.Object3D(); label.position.set(0, 14, 0); gp.add(label);
-    return { station: st, kit, group: gp, fixed, gated, label, lockedNow: null, rise: 1, fold: 0, live };
+    const b: BuiltStation = { station: st, kit: EMPTY_KIT, group: gp, fixed: new THREE.Group(), gated: [], label, lockedNow: null, rise: 1, fold: 0, live: emptyLive() };
+    const kit = kits[st.kit]; if (kit) fill(net, b, kit);
+    return b;
   });
+}
+/** A station whose kit isn't in yet (a line out's, before the first frame's done): an empty group where it stands. */
+const EMPTY_KIT: Kit = { id: '', faces: { north: { v: 0, u0: 0, u1: 0 }, south: { v: 0, u0: 0, u1: 0 } }, parts: [] };
+/** Whether a station's kit is in. */
+export function filled(b: BuiltStation): boolean { return b.kit !== EMPTY_KIT; }
+/** Build the stations whose kits have come in since (every line out's, after the first frame) into the groups they
+ * already have, so whatever holds them sees them; the indices of those built. */
+export function fillStations(net: Network, built: BuiltStation[], kits: Record<string, Kit>): number[] {
+  const done: number[] = [];
+  built.forEach((b, i) => { const kit = kits[b.station.kit]; if (!filled(b) && kit) { fill(net, b, kit); done.push(i); } });
+  return done;
+}
+/** Build a station's kit into its group: the halt, the scenery, a group for each set of stages. */
+function fill(net: Network, b: BuiltStation, kit: Kit): void {
+  const st = b.station, gp = b.group, frame = net.stationFrame(st.id);
+  const fixed = b.fixed, scenery = new THREE.Group(), gates = new Map<string, Gate>(), live = b.live; gp.add(fixed); gp.add(scenery);
+  for (const kitPart of kit.parts) {
+    if (!(kitPart.type in partBuilders)) { console.warn('unknown part', kitPart.type); continue; }
+    const part = kitPart.type === 'rails' ? { ...kitPart, points: alongLine(net, st, frame, kitPart.points) } : kitPart;
+    const needs = part.upgrade === undefined ? [] : Array.isArray(part.upgrade) ? part.upgrade : [part.upgrade];
+    const put = (into: THREE.Group) => part.street ? onGround(part, into, live, frame) : build(part, into, live);
+    if (part.scenery) put(scenery);
+    else if (needs.length || part.until) {
+      const key = `${needs.join('+')}|${part.until ?? ''}`;
+      let gate = gates.get(key);
+      if (!gate) { gate = { group: new THREE.Group(), needs, until: part.until ?? null, shown: false, rise: 1, ghost: false, fold: 0 }; gate.group.visible = false; gp.add(gate.group); gates.set(key, gate); }
+      put(gate.group);
+    } else put(fixed);
+  }
+  const gated = [...gates.values()];
+  // what life moves or changes stays as it is; the rest is folded together
+  const keep = new Set<THREE.Object3D>();
+  for (const o of [...live.boards.map(x => x.mesh), ...live.shops.map(x => x.shutter)]) o.traverse(q => keep.add(q));
+  for (const into of [fixed, scenery, ...gated.map(gt => gt.group)]) mergeStill(into, keep);
+  b.kit = kit; b.gated = gated; b.lockedNow = null;   // the next sync fogs it (or not) as at the start
 }
 
 /** Fold a group's still parts into one mesh for each material (and shape of geometry): a station is hundreds of boxes,

@@ -102,7 +102,7 @@ const where = { x: 0, z: 0, y: 0, dx: 0, dz: 1 };
 export class BusLayer {
   /** How many buses are drawn. */
   count = 0;
-  private readonly stops: (Stop | null)[];
+  private stops: (Stop | null)[];
   private readonly paths = new Map<string, Path>();
   /** The depots in the world, and each station's way to its nearer one (null where it has no stop). */
   private readonly depots: XZ[];
@@ -115,7 +115,7 @@ export class BusLayer {
   private readonly parts: THREE.InstancedMesh[];
   /** The roads drawn (laid again once the lines out's ring is in: relay). */
   private roads: THREE.Mesh | null = null; private roadMat: THREE.MeshLambertMaterial | undefined;
-  constructor(private readonly scene: THREE.Scene, private readonly net: Network, built: { live: object; group: THREE.Group }[]) {
+  constructor(private readonly scene: THREE.Scene, private readonly net: Network, private readonly built: { live: object; group: THREE.Group }[]) {
     this.stops = built.map(b => stops.get(b.live) ?? null);
     const mk = (geo: THREE.BufferGeometry, mat: THREE.Material, n: number) => { const m = new THREE.InstancedMesh(geo, mat, n); m.count = 0; m.frustumCulled = false; scene.add(m); return m; };
     this.body = mk(BODY, lam(PAL.bus), MAX_BUSES); this.band = mk(BAND, lam(PAL['bus-band']), MAX_BUSES);
@@ -128,8 +128,10 @@ export class BusLayer {
       .map(l => { const p = projectLatLon(l.lat!, l.lon!, net.def.origin); return [p.x, p.z] as XZ; });
     this.lay();
   }
-  /** Lay the ways and the roads again on the ground as it is now (once the lines out's ring is in). */
+  /** Lay the ways and the roads again on the ground as it is now, from the stops there are now (once the lines out's
+   * kits and ground are in). */
   relay(): void {
+    this.stops = this.built.map(b => stops.get(b.live) ?? null);
     this.paths.clear(); this.toDepot.clear();
     if (this.roads) { this.scene.remove(this.roads); this.roads.geometry.dispose(); this.roads = null; }
     this.lay();

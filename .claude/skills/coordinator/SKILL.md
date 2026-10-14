@@ -38,7 +38,7 @@ Until there are several sessions at once this playbook is mostly §6: write a br
 - Routine jobs (look backs, screenshot reviews, doc moves) go to the cheaper model. On a rate-limit warning, start nothing new and book your own wake for a minute after the reset.
 - A refactor that changes what other files call runs in a quiet window, never alongside feature sessions.
 
-- **Always one ideas session** (the owner, 14 October 2026; `docs/briefs/ideas.md`). It adds to the roadmap without the owner's approval, and the coordinator builds from the roadmap's order. When it hands over, start the next one from its Handed on.
+- **Always one ideas session** (the owner, 14 October 2026; `docs/briefs/ideas.md`). It adds to and changes the roadmap and the owner's preferences without the owner's approval, recording what it changed, and the coordinator builds from the roadmap's order. When it hands over, start the next one from its Handed on.
 
 ## 6. Starting a session
 

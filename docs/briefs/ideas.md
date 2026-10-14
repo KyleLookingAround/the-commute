@@ -38,10 +38,14 @@ This session thinks and writes. It doesn't build.
 4. **Edit the roadmap.** The owner, 14 October 2026: the ideas session adds to the roadmap without the owner's approval.
    - Put the strongest ideas straight into the roadmap where they belong, marked "(ideas review <date>)", in the order you'd build them. The coordinator briefs and builds from that order.
    - Reorder or rewrite existing items where the review shows a better shape, and say why in the commit.
-   - Keep everything the owner asked for and their preferences in the project notes. Where you'd change an owner's item, write the change in the review and tell the coordinator, rather than editing the item.
+   - The owner, 14 October 2026: you may also change the owner's own roadmap items and the owner's preferences in the project notes. When you do:
+     - say what changed and why in the review and in the commit
+     - mark the preference "(changed by the ideas review <date>; was: ...)" so the old wording stays visible
+     - tell the coordinator, which tells the owner
    - The coordinator tells the owner the top five as news, not as a question.
 
 **Files:**
+- the owner's preferences in the project notes (`CLAUDE.md`)
 - `docs/ideas/` (new)
 - `docs/ROADMAP.md`
 - new design notes under `docs/design/` for an idea big enough to need one, with no mockups unless asked
@@ -54,7 +58,7 @@ The services, budgets, gridlock G1 and station-surroundings sessions are buildin
 
 ## What it must keep
 
-- The owner's preferences in the project notes.
+- The owner's preferences in the project notes, unless a review changes them as above.
 - UK English.
 - Concise, plain writing.
 

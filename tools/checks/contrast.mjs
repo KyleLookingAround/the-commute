@@ -3,6 +3,7 @@
 // accent, and borders (--line) at 3:1 on the surface, the cards and the page. On the page at 320×568 (touch) and
 // 1440×900, with settings open too: no text shown under 12 px, and on the phone every control at least 44 px (the
 // strip's slider aside: it's dragged along its whole width, never tapped).
+// Covers: src/ui/styles/**
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 

@@ -1,6 +1,7 @@
 // The source rules (tools/rules.mjs) hold on the real tree, and each rule is proved to catch a slip on a throwaway
 // fixture: a Math.random() in the sim, an import of three from the sim, the word localStorage in a data file, a file
 // with no opening comment. No browser.
+// Covers: src/** tools/rules.mjs
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { problems, randomSlips, layerSlips, headerSlips } from '../rules.mjs';

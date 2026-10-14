@@ -15,6 +15,7 @@
 //   real ground is at rail level); the roads the replacement buses drive
 //   (`roads`), laid as the page lays them from stop to stop, cross the railway's land between streets on a bridge
 //   (straight from one side's height to the other's, not down at rail level) and never run along it.
+// Covers: @sim src/render/** src/data/**
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';

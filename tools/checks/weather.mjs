@@ -4,6 +4,7 @@
 // the rain, the umbrellas and the murk off the map while the game's own weather is still rain; snow in winter falls and
 // settles; fog closes the view in to a few hundred metres; and the year moves dusk: lamp-lit at 17:30 in winter,
 // daylight at 17:30 in summer.
+// Covers: @page @sim src/render/weather.ts src/render/sky.ts src/render/buildings.ts src/render/world.ts src/render/passengers.ts
 import { register } from 'tsx/esm/api';
 
 export default async function ({ ok, open, SAVE_KEY }) {

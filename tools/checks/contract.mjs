@@ -6,6 +6,7 @@
 // discounted price on the strip, the unit stabled in the sidings, and the plaque by Stockport's entrance with a line
 // for the contract renewed. Start over then offers the career too, and its default (tap again) starts only the run
 // again: the career, the perks and the plaque stay. No errors. A screenshot of the plaque goes to build/shots/plaque.png.
+// Covers: @page @sim src/render/stations.ts src/render/trains.ts
 import { reveal } from '../reveal.mjs';
 import { register } from 'tsx/esm/api';
 import { readFileSync, mkdirSync } from 'node:fs';

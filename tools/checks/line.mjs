@@ -7,6 +7,7 @@
 // Chapel, from Next to on Heaton Chapel's card, owned with it): its line speed card ghosts the renewed track
 // (window.__view.sections) and frames it, buying it shows it at 90 mph, and its Built chip frames it. One phone page
 // (320 px, touch) and one desktop page.
+// Covers: @page @sim src/render/trains.ts src/render/lineside.ts src/render/sections.ts
 import { reveal } from '../reveal.mjs';
 export default async function ({ ok, open, SAVE_KEY, side }) {
   // each size side by side where the runner can (side, tools/check.mjs)

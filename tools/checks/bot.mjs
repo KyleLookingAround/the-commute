@@ -2,6 +2,7 @@
 // the same seed gives the same PLAY twice. It also plays two whole contracts on seed 1 (renewing at Piccadilly, buying
 // perks, playing again) twice over with the same runs, reputation and perks, and the second contract holds the perks.
 // Its numbers against tools/baseline.json are reported by the Balance workflow, not judged here. No browser.
+// Covers: @sim tools/bot.mjs tools/baseline.json
 import { play, career } from '../bot.mjs';
 
 export default async function ({ ok }) {

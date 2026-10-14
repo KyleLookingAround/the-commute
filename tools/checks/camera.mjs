@@ -7,6 +7,7 @@
 // tilt; a double tap zooms in where it lands; the compass shows while north isn't up and a tap puts it back. With
 // reduced motion, Whole line is there at once, with every station on the screen. Gestures land on the open map, beside
 // or above the sheet. Throughout, the camera is never below the ground nor far from the line.
+// Covers: @page src/render/camera.ts src/render/terrain.ts src/render/world.ts src/render/trains.ts src/render/stations.ts
 export default async function ({ ok, open, side }) {
   const cam = page => page.evaluate(() => window.__view.camera());
   const settle = page => page.waitForFunction(() => !window.__view.camera().flying, null, { timeout: 20000 }).catch(() => {});

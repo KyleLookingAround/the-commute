@@ -5,6 +5,7 @@
 // the Built line, where tapping its chip frames what it built (window.__view.framed counts framings) with no ghost.
 // On the phone, picking a card sinks the sheet to its peek with a Buy bar (its Buy is the bar's). One phone page (320 px,
 // touch) and one desktop page.
+// Covers: @page @sim src/render/stations.ts src/render/kits.ts src/render/kitsOut.ts src/data/kits/**
 import { reveal } from '../reveal.mjs';
 export default async function ({ ok, open }) {
   for (const [w, h, touch] of [[320, 568, true], [1280, 800, false]]) {

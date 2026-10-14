@@ -6,6 +6,7 @@
 // homes that grew rising and the car parks filling; and the camera settles back on the station the player left. With
 // reduced motion the coins stand still from the start and the camera moves at once. Screenshots go to
 // build/shots/away-*.png. No errors.
+// Covers: @page @sim src/render/away.ts src/render/camera.ts
 import { register } from 'tsx/esm/api';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';

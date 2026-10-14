@@ -4,6 +4,7 @@
 // resignalled and a failed train in an open block, the signal at its entry shows red, the one before yellow and the
 // rest of that line green, each lamp in its token's colour; once it clears they all show green again. A train behind
 // it stands at the red signal. No browser.
+// Covers: @sim src/render/lineside.ts
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';

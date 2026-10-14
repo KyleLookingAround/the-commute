@@ -17,6 +17,7 @@
 //   1.5 MB, each line out about 0.5 MB), and each line's figure is reported. The base (base.json) is today's line's; a
 //   fine tile, and each block of the lines out's ring (out.json, its share of the file), go to the line its middle is
 //   in or nearest.
+// Covers: @sim src/render/terrain.ts src/render/landmarks.ts src/render/stations.ts src/render/buses.ts src/data/** tools/lines.mjs
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';

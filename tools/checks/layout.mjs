@@ -5,6 +5,7 @@
 // sideways, every tap target is at least 44 px on touch (40 px otherwise), and the cash and clock show over the map. Picking a card (Booking hall at Stockport) frames its ghost in the open
 // map, above the sheet sunk to its peek with the Buy bar in portrait, beside the docked sheet otherwise. Heaton Chapel,
 // off the open map at the start, stands at its edge with its price (an edge marker). One page per size; a screenshot of each goes to build/check/ for a human to look at.
+// Covers: @page
 import { join } from 'node:path';
 import { reveal } from '../reveal.mjs';
 

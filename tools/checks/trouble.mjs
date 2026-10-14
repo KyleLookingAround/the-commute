@@ -6,6 +6,7 @@
 // save: Bus replacement from the station behind it, Cancelled for the failed unit, and calling points in order; and
 // the spare unit's run out of the sidings to buffer up to the failed unit and back; and the buses driving in from the
 // depot and back. One phone page (390 px, touch) and one desktop page.
+// Covers: @page @sim src/render/trains.ts src/render/buses.ts src/render/lineside.ts
 import { register } from 'tsx/esm/api';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';

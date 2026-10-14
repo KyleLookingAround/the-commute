@@ -18,6 +18,7 @@
 //   of their own (BUDGET.squares), measured from dist/.
 // - The stats view: ?stats shows its overlay with figures, from a file not loaded before the first frame; Copy gives
 //   one line of them; ?stats&save=busy opens the busy save without writing over the game on the device.
+// Covers: ** (and it runs on every push to main: ALWAYS in tools/check.mjs)
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';

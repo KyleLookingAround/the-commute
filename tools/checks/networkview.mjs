@@ -6,6 +6,7 @@
 // (some busy or full at the peak) and the owned stations' rings are sized by who's waiting; a tap on Stockport's ring
 // opens its card; with Strain on its glows still show; and close in at a station the view is hidden and the clouds are
 // back. Screenshots go to build/shots/networkview-*.png. No errors.
+// Covers: @page @sim src/render/networkview.ts src/render/camera.ts
 import { register } from 'tsx/esm/api';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';

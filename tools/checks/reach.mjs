@@ -4,6 +4,7 @@
 // about a second; the extra unit's card, on the stopper's, says it cuts the wait. The Minutes control shades the ground by minutes to
 // Manchester and shows its key, and turns it off again. Screenshots of the glow before and after, and of the minutes
 // view, go to build/shots/reach-*.png. One phone page (320 px, touch) and one desktop page.
+// Covers: @page @sim src/render/reach.ts
 import { reveal } from '../reveal.mjs';
 import { register } from 'tsx/esm/api';
 import { readFileSync, mkdirSync } from 'node:fs';

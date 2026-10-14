@@ -18,6 +18,7 @@
 // - Crossovers: wherever a unit running in to or out of a platform is drawn between tracks (on no track and no
 //   platform's rails), it's on a crossover the map draws with its rails (`crossovers`), within ON m, and no crossover
 //   shifts sideways faster than 1 in 6.
+// Covers: @sim src/render/** src/data/kits/**
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';

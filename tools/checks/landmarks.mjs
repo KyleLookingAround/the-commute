@@ -3,6 +3,7 @@
 // railway's land, the river, the M60 (along their real courses) and the roads the buses drive, and Merseyway clear of all
 // but the river it's built over; the viaduct's span lies on the main corridor, and the river and the M60 run under it;
 // the arches into Piccadilly; the skyline's towers have heights. No browser.
+// Covers: @sim src/render/landmarks.ts src/render/terrain.ts src/data/terrain/** src/data/world/**
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';

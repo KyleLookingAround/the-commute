@@ -1,5 +1,6 @@
 // The browser checks on the built page (dist/), run with: npm run check, or node tools/check.mjs <group>, or
-// node tools/check.mjs --shard <i>/<n> for the ith of n shards balanced by time (see MINUTES)
+// node tools/check.mjs --shard <i>/<n> for the ith of n shards balanced by time (see MINUTES), and --changed <commit> (or a..b) for
+// only the groups the changes since that commit can break (see COVERS)
 // (npm run check also runs the rules, the sim tests and the build first).
 // Each file in tools/checks/ is a group named after it: it exports a default async function that gets the helpers below
 // and reports through ok(name, pass, info), and its opening comment says what it covers. Add a group by adding a file.
@@ -13,12 +14,15 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { cpus } from 'node:os';
+import { execFileSync } from 'node:child_process';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..'), dist = join(root, 'dist'), out = join(root, 'build/check');
 mkdirSync(out, { recursive: true });
 // --shard i/n runs the ith of n shards (CI runs the groups as parallel jobs this way)
 const argv = process.argv.slice(2), shardAt = argv.indexOf('--shard'), shard = shardAt < 0 ? null : argv[shardAt + 1].split('/').map(Number);
-const args = shardAt < 0 ? argv : argv.filter((_, i) => i !== shardAt && i !== shardAt + 1);
+const changedAt = argv.indexOf('--changed'), since = changedAt < 0 ? null : argv[changedAt + 1];
+const flags = new Set([shardAt, changedAt].filter(i => i >= 0).flatMap(i => [i, i + 1]));
+const args = argv.filter((_, i) => !flags.has(i));
 const except = args[0] === '--except', named = except ? args.slice(1) : args;
 const SAVE_KEY = 'the-commute-save-v1', PREFS_KEY = 'the-commute-prefs-v1';
 // The groups that measure the look or the cost, or the settings themselves, keep the real settings; every other page a
@@ -107,7 +111,33 @@ const shardOf = new Map(), load = shard ? Array(shard[1]).fill(0) : [];
 if (shard) for (const g of [...groups].sort((a, b) => (MINUTES[b] ?? 1) - (MINUTES[a] ?? 1) || a.localeCompare(b))) {
   const i = load.indexOf(Math.min(...load)); shardOf.set(g, i); load[i] += MINUTES[g] ?? 1;
 }
-const wanted = g => (!shard || shardOf.get(g) === shard[0] - 1) && (except ? !named.includes(g) : !named.length || named.includes(g));
+// --changed <commit>: only the groups whose opening comment's "Covers:" line matches a file changed since that commit
+// (globs, with @page for what every page loads and @sim for the game), plus ALWAYS, plus any group whose own file
+// changed. A group with no Covers line always runs, and so does every group when the harness, the packages or the
+// workflow changed, or the commit can't be read (then it's a full run).
+const ALWAYS = new Set(['perf', 'life', 'saves']);
+const SETS = {
+  '@page': ['src/main.ts', 'index.html', 'src/ui/**', 'src/app/**', 'src/render/scene.ts', 'src/render/pick.ts', 'src/render/palette.ts', 'vite.config.ts', 'public/**'],
+  '@sim': ['src/sim/**', 'src/data/network.json', 'src/data/traffic.json'],
+};
+const EVERYTHING = ['tools/check.mjs', 'package.json', 'package-lock.json', '.github/workflows/main-check.yml', 'tools/build.mjs'];
+const glob = g => new RegExp('^' + g.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\0').replace(/\*/g, '[^/]*').replace(/\0/g, '.*') + '$');
+let selected = null;
+if (since) {
+  let files = null;
+  try { files = execFileSync('git', ['diff', '--name-only', ...(since.includes('..') ? [since] : [since, 'HEAD'])], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean); } catch { console.log(`--changed: can't read ${since}; running every group`); }
+  if (files && !files.some(f => EVERYTHING.includes(f))) {
+    selected = new Set(groups.filter(g => {
+      if (ALWAYS.has(g) || files.includes(`tools/checks/${g}.mjs`)) return true;
+      const line = readFileSync(join(root, 'tools/checks', g + '.mjs'), 'utf8').split('\n').find(l => /^\/\/ Covers:/.test(l));
+      if (!line) return true;
+      const pats = line.replace(/^\/\/ Covers:/, '').trim().split(/\s+/).flatMap(w => SETS[w] ?? [w]).map(glob);
+      return files.some(f => pats.some(p => p.test(f)));
+    }));
+    console.log(`--changed since ${since.slice(0, 7)}: ${files.length} files; ${selected.size} of ${groups.length} groups (${[...selected].join(', ')})`);
+  }
+}
+const wanted = g => (!selected || selected.has(g)) && (!shard || shardOf.get(g) === shard[0] - 1) && (except ? !named.includes(g) : !named.length || named.includes(g));
 for (const g of groups) if (wanted(g)) {
   const t0 = Date.now(); running = g;
   try { await (await import(pathToFileURL(join(root, 'tools/checks', g + '.mjs')).href)).default({ open, ok, side, root, out, url, SAVE_KEY, get browser() { return getBrowser(); } }); }

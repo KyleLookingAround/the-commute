@@ -8,6 +8,7 @@
 // among them; the stopper offers no extra unit before platform 3 and the sidings no spare before a train has failed; the
 // Network card no renewal before Piccadilly), and has Next to chips for what touches it. The offered bus stop at
 // Levenshulme opens with Buy. The full list of places by kind is under each card. No errors.
+// Covers: @page @sim src/render/stations.ts
 import { reveal } from '../reveal.mjs';
 import { register } from 'tsx/esm/api';
 import { readFileSync } from 'node:fs';

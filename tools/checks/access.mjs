@@ -4,6 +4,7 @@
 // buses pull in at Stockport Interchange and the stops, and the reach has its outer ring where they bring people from.
 // The station panel shows By car and By bus. Screenshots of the Interchange, Stockport's and Levenshulme's car parks
 // and the outer ring go to build/shots/access-*.png. One desktop page and one phone page (320 px, touch).
+// Covers: @page @sim src/render/links.ts src/render/taxis.ts src/render/stations.ts src/data/kits/**
 import { register } from 'tsx/esm/api';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';

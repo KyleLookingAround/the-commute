@@ -5,6 +5,7 @@
 // wires. A flying junction (Ardwick's) ghosts on its card and, once bought, stands as a flyover climbing over the
 // tracks there on piers. Strain reads a section where a train stands behind a failed one as slow (minutes lost
 // against its line speed this hour) and a junction where trains stand held, each with its line on the card. No browser.
+// Covers: @sim src/render/sections.ts src/render/lineside.ts
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';

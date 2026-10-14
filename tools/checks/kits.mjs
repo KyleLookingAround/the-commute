@@ -1,6 +1,7 @@
 // Everything bought shows on the map: at every station, each upgrade it offers has a kit part gated on it (alone, or with
 // others it needs), and every platform has a departure board (one at least for the halt, one with the second platform
 // where it's offered); every station's kit is one the page loads (src/render/kits.ts for the opening's, kitsOut.ts after the first frame for the lines out's); and the hipped roofs on Davenport's, Hazel Grove's and Heaton Chapel's booking offices. No browser.
+// Covers: @sim src/data/kits/** src/render/stations.ts src/render/kits.ts src/render/kitsOut.ts
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';

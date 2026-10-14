@@ -13,6 +13,7 @@
 // - Terraces joined: houses sharing walls are drawn as rows: at least 40% of the buildings are in rows and there are at
 //   most three pieces for every four buildings.
 // - Load time: how long placing and drawing each square takes here (logged, not judged).
+// Covers: @sim src/render/buildings.ts src/render/landmarks.ts src/render/terrain.ts src/data/** tools/lines.mjs
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';

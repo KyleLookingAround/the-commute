@@ -4,6 +4,9 @@ name: Check main
 # One lock for the whole run: a run that has started always finishes, every shard of it, and while it runs only the
 # newest push waits (an older waiting run is replaced), so a full check of main up to then finishes every 20 minutes or
 # so however fast the pushes come. The report says which commit it checked: that one and every push before it.
+# Prototype phase only: a push runs only the groups its changes can break since the last green run (each group's
+# "Covers:" line, tools/check.mjs --changed), plus perf, life and saves; the whole suite runs every night, and a red
+# night opens the "main is red" issue too. From the first release, PRs (checks.yml) and main run everything.
 on:
   push:
     branches: [main]
@@ -24,11 +27,14 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/main-check.yml'
+  schedule:
+    - cron: '23 2 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
   issues: write
+  actions: read
 
 concurrency:
   group: main-check
@@ -48,6 +54,15 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # a push checks the groups its changes since the last green run of this workflow can break; the nightly and a
+      # run by hand check everything
+      - id: since
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "sha=$(gh run list --repo '${{ github.repository }}' --workflow main-check.yml --branch main --status success --limit 1 --json headSha -q '.[0].headSha')" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -67,10 +82,12 @@ jobs:
         if: steps.pw-cache.outputs.cache-hit == 'true'
         timeout-minutes: 5
       - name: Check main
+        env:
+          SINCE: ${{ steps.since.outputs.sha }}
         run: |
           mkdir -p build/check
           set -o pipefail
-          (node tools/rules.mjs && npm test && node tools/build.mjs && node tools/check.mjs --shard ${{ matrix.shard }}/8) 2>&1 | tee build/check/shard-${{ matrix.shard }}.log
+          (node tools/rules.mjs && npm test && node tools/build.mjs && node tools/check.mjs --shard ${{ matrix.shard }}/8 ${SINCE:+--changed $SINCE}) 2>&1 | tee build/check/shard-${{ matrix.shard }}.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -8,6 +8,7 @@
 // Boarding, with no browser: people waiting for the stopper at Stockport's platform 4 walk by the subway to platform 3
 // when the stopper stands there, and board from its edge; at Piccadilly they walk along the concourse to the bay it
 // turns in; and those getting off a train at platform 3 step out onto platform 3.
+// Covers: ** (and it runs on every push to main: ALWAYS in tools/check.mjs)
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';

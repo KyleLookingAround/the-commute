@@ -1,6 +1,7 @@
 // The time-of-day control, in the Light popover from the map views: tapping Light opens it, the slider tracks the game's clock, sliding it locks the light to that hour and shows the
 // "Live" button, pressing the button releases the lock, and none of it touches the sim's own clock (the
 // ticker keeps the game's time). One desktop page, one phone page.
+// Covers: @page src/render/sky.ts src/render/weather.ts
 export default async function ({ ok, open }) {
   for (const [w, h, touch] of [[1280, 800, false], [390, 844, true]]) {
     const { ctx, page, errs } = await open({ width: w, height: h }, { touch });

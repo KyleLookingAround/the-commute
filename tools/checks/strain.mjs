@@ -8,6 +8,7 @@
 // they breathe, every glow is at least 40 px across on screen, and a tap on Stockport's opens its card at half height
 // with the line at its top; with reduced motion they stand still; the view is remembered on reload, and turned off it
 // fades out and stops drawing. Screenshots go to build/shots/strain-*.png. No errors.
+// Covers: @page @sim src/render/strain.ts
 import { reveal } from '../reveal.mjs';
 import { register } from 'tsx/esm/api';
 import { readFileSync, mkdirSync } from 'node:fs';

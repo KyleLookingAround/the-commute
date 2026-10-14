@@ -3,6 +3,7 @@
 // as the game; Load from file opens the picker, a file that isn't a save (or is from a newer version) says so in a
 // toast and leaves the game as it was; a good save asks once (the button says so), and the second tap loads it: the page
 // shows its money, caught up for the time since it was written, and the device keeps it. No requests leave the page.
+// Covers: ** (and it runs on every push to main: ALWAYS in tools/check.mjs)
 import { reveal } from '../reveal.mjs';
 import { register } from 'tsx/esm/api';
 import { readFileSync } from 'node:fs';

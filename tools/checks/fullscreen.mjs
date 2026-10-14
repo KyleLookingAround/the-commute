@@ -2,6 +2,7 @@
 // the whole page in full screen and takes it out again, its label saying which; where it hasn't (Safari on iPhone,
 // faked here), the button and its section are hidden, not greyed. The page links a valid web app manifest (names, start URL, display, the tokens'
 // colours, icons that load at their stated sizes) and the meta tags iOS reads for the home screen.
+// Covers: @page
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 

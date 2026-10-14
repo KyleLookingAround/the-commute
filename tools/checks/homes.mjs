@@ -4,6 +4,7 @@
 // next building's mark while you watch raises it into place, settling within about a second. Screenshots of Heaton
 // Chapel and Levenshulme grown, from above at midday, go to build/shots/homes-*.png. One phone page (320 px, touch) and
 // one desktop page.
+// Covers: @page @sim src/render/homes.ts src/render/world.ts src/render/buildings.ts
 import { register } from 'tsx/esm/api';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';

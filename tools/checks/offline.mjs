@@ -8,6 +8,7 @@
 // - nothing under design/ (the redesign's directions page) is in the worker's list.
 // - A new build's worker installs while the game is open but waits, not taking over mid-game, and takes over on the
 //   next load, its older cache gone. (The new build is faked by serving dist/sw.js with another stamp.)
+// Covers: @page
 import { createServer } from 'node:http';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';

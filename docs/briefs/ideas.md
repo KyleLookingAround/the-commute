@@ -81,3 +81,22 @@ The owner wants an ideas session running at all times.
 ## Cost budget
 
 About $15 a pass. At about 450k of context, add a "## Handed on" section here.
+
+## Handed on
+
+Paused by the owner, 14 October 2026, after three passes:
+
+| Pass | File | Main finding |
+| --- | --- | --- |
+| 1 | `docs/ideas/2026-10-14-review.md` | The first ten ideas. |
+| 2 | `docs/ideas/2026-10-14-review-2.md` | The bot never bought the late game's fix. |
+| 3 | `docs/ideas/2026-10-14-review-3.md` | The late game is calm once the trains are bought. |
+
+**Where it stands.**
+- **Roadmap.** Phase 5 steps 16 to 26 came from these reviews. Built: 16 (the network view), 17 (coming back to a changed map), 24 (the bot buys every buy) and 25 (cause chips).
+- **Build order.** 26 (pressure that grows with success) first. Then 18 (stage tiers), 19's punctuality part, 20 after the gridlock's G4, 21 (feeders), 22 (the Bee Network) and the rest of 23.
+- **Owner's items.** One changed: G5 is built after G4, recorded in step 15. No preferences changed.
+
+**Since pass 3** only view and check work had landed when the owner paused: the gridlock's map (G3), the stops on real streets, and the budgets' ground cover. Pass 4 should look at G3 on a phone, and run the bot again once 26 or 18 lands.
+
+**Tools that helped.** A few scratch scripts did the playing. They run the bot's `act` over a `Sim` to 0.3, 2, 6 and 14 sim hours and save `{ g }`. A page is then loaded with each save in `localStorage` (`the-commute-save-v1`) at 390 px and 1440 px, shooting the home view, Whole line (`#vLine`) and the Network card (`#cash`). Driving the page by clicking stalls under software drawing; loading saves doesn't.

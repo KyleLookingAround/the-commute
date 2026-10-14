@@ -322,9 +322,12 @@ export class BuildingsLayer {
   /** What was read and what was left out, for the checks. */
   readonly stats = { buildings: 0, pieces: 0, left: 0, trees: 0, treesLeft: 0, hedges: 0, hedgesLeft: 0 };
 
-  /** The ground's cover: a layer of a texture array for each square (COVER_PX across), painted as it comes in, and
-   * which layer each square has; the terrain's material mixes it in (coverPatch). */
-  private cover: { tex: THREE.DataArrayTexture; layer: Map<string, number>; canvas: HTMLCanvasElement; colours: Record<string, string> } | null = null;
+  /** The ground's cover (coverPatch), in two texture arrays the terrain's material mixes in: every square at FAR_PX across,
+   * painted as it comes in, and the COVER_NEAR squares nearest the camera at COVER_PX, painted again as the camera moves
+   * (nearCover); an index texture says which layers each square of the map has. */
+  private cover: Cover2 | null = null;
+  /** Each loaded square's cover, kept to paint it again when it comes near. */
+  private covers = new Map<string, Cover[]>();
 
   constructor(private t: Terrain, private files: Record<string, string>, net: Network, def: NetworkGeoDef, kits: Record<string, KitDef | undefined>, private terrain: TerrainLayer | null = null) {
     this.squares = new Set(Object.keys(files)); this.keep = new Keep(t, net, def, kits);
@@ -384,6 +387,7 @@ export class BuildingsLayer {
       for (let n = 0; n < 2; n++) next();
     }
     const now = performance.now(); if (now - this.last < (this.pending ? 60 : 250)) return; this.last = now;   // cosmetic: when to look again
+    this.nearCover(at);
     // how far the camera is from each square (0 inside it), lifted by its height over the ground; the nearest first
     for (const sq of this.drawn) {
       const dx = Math.max(sq.x0 - at.x, 0, at.x - sq.x0 - SQUARE), dz = Math.max(sq.z0 - at.z, 0, at.z - sq.z0 - SQUARE);
@@ -588,11 +592,49 @@ export class BuildingsLayer {
     else { b.prism(q.cs, q.y0, q.y1, wall, null); b.roof(p, q.y1, wall, top); }
   }
 
-  /** Paint a square's ground cover into its layer: each area and street, then the railway's land cleared (the terrain
-   * draws its own). */
+  /** Paint a square's ground cover as it comes in: its far layer, and its near layer if it has one. */
   paint(key: string, list: Cover[]): void {
-    const C = this.cover, at = C?.layer.get(key); if (!C || at === undefined) return;
-    const g = C.canvas.getContext('2d', { willReadFrequently: true }); if (!g) return;
+    const C = this.cover, far = C?.far.get(key); if (!C || far === undefined) return;
+    this.covers.set(key, list);
+    const big = this.drawCover(key, list); if (!big) return;
+    const g = C.small.getContext('2d', { willReadFrequently: true }); if (!g) return;
+    g.clearRect(0, 0, FAR_PX, FAR_PX); g.drawImage(C.canvas, 0, 0, FAR_PX, FAR_PX);
+    (C.farTex.image.data as Uint8Array).set(g.getImageData(0, 0, FAR_PX, FAR_PX).data, far * FAR_PX * FAR_PX * 4);
+    C.farTex.addLayerUpdate(far); C.farTex.needsUpdate = true;
+    C.mark(key, 'far', far);
+    const near = C.nearOf.get(key); if (near !== undefined) this.toNear(key, near, big);
+  }
+  /** The squares nearest the camera (within COVER_REACH, COVER_NEAR of them) get a near layer, the farthest of those
+   * that have one giving it up; a couple painted a look, so a move never stalls a frame. */
+  private nearCover(at: THREE.Vector3): void {
+    const C = this.cover; if (!C) return;
+    const want = [...this.covers.keys()].map(k => [k, dist(k, at)] as const).filter(([, d]) => d < COVER_REACH).sort((a, b) => a[1] - b[1]).slice(0, COVER_NEAR).map(([k]) => k);
+    const wanted = new Set(want);
+    let painted = 0;
+    for (const key of want) {
+      if (C.nearOf.has(key)) continue;
+      if (painted++ >= 2) break;
+      let layer = C.owner.indexOf(null);
+      if (layer < 0) {
+        // the farthest square holding a layer it's no longer wanted for gives it up
+        let worst = -1, d = -1;
+        C.owner.forEach((k, l) => { if (k && !wanted.has(k)) { const dk = dist(k, at); if (dk > d) { d = dk; worst = l; } } });
+        if (worst < 0) break;
+        const old = C.owner[worst]!; C.nearOf.delete(old); C.mark(old, 'near', -1); layer = worst;
+      }
+      const big = this.drawCover(key, this.covers.get(key)!); if (!big) break;
+      C.owner[layer] = key; C.nearOf.set(key, layer); this.toNear(key, layer, big);
+    }
+  }
+  private toNear(key: string, layer: number, img: ImageData): void {
+    const C = this.cover!;
+    (C.nearTex.image.data as Uint8Array).set(img.data, layer * COVER_PX * COVER_PX * 4);
+    C.nearTex.addLayerUpdate(layer); C.nearTex.needsUpdate = true; C.mark(key, 'near', layer);
+  }
+  /** A square's cover drawn at COVER_PX across: each area and street, then the railway's land cleared (the terrain
+   * draws its own). */
+  private drawCover(key: string, list: Cover[]): ImageData | null {
+    const C = this.cover!, g = C.canvas.getContext('2d', { willReadFrequently: true }); if (!g) return null;
     const [i, j] = key.split('_').map(Number) as [number, number], X = i * SQUARE, Z = j * SQUARE, k = COVER_PX / SQUARE, t = this.t;
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, COVER_PX, COVER_PX); g.setTransform(k, 0, 0, k, -X * k, -Z * k);
     g.lineCap = 'round'; g.lineJoin = 'round';
@@ -616,10 +658,8 @@ export class BuildingsLayer {
       }
       g.fill();
     }
-    g.globalCompositeOperation = 'source-over';
-    const img = g.getImageData(0, 0, COVER_PX, COVER_PX), data = C.tex.image.data as Uint8Array;
-    data.set(img.data, at * COVER_PX * COVER_PX * 4);
-    C.tex.addLayerUpdate(at); C.tex.needsUpdate = true;
+    g.globalCompositeOperation = 'source-over'; g.setTransform(1, 0, 0, 1, 0, 0);
+    return g.getImageData(0, 0, COVER_PX, COVER_PX);
   }
 
   /** Every hedge's box placed so far, seven numbers each (the checks). */
@@ -637,32 +677,50 @@ const FWD = new THREE.Vector3();
 const SQUARE_REACH = Math.hypot(SQUARE / 2, SQUARE / 2, 250) + 150;
 
 // ---- the ground's cover ----
-/** A square's cover is painted this many pixels across (4 m each). */
-const COVER_PX = 256;
-/** Give the terrain's material the ground's cover: a texture array with a layer a square, and a small index texture
- * saying which layer each square of the map has; the colour mixed into the ground's where the cover's painted. Keeps
- * whatever the material's shader is already patched with (the reach, src/render/reach.ts). */
-function coverPatch(mat: THREE.MeshLambertMaterial, keys: string[]): NonNullable<BuildingsLayer['cover']> {
-  const n = keys.length, tex = new THREE.DataArrayTexture(new Uint8Array(COVER_PX * COVER_PX * 4 * n), COVER_PX, COVER_PX, n);
-  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false; tex.needsUpdate = true;
+/** A near square's cover is painted this many pixels across (4 m each), a far one's FAR_PX (16 m each). */
+const COVER_PX = 256, FAR_PX = 64;
+/** How many squares have their cover at COVER_PX at once (the nearest, within COVER_REACH of the camera): 24 layers of
+ * 256 pixels and every square's at 64 hold about 8 MB on the GPU for 115 squares, where a 256-pixel layer for every
+ * square held 30. */
+const COVER_NEAR = 24, COVER_REACH = 2500;
+interface Cover2 {
+  nearTex: THREE.DataArrayTexture; farTex: THREE.DataArrayTexture; far: Map<string, number>; nearOf: Map<string, number>; owner: (string | null)[];
+  mark: (key: string, tier: 'near' | 'far', layer: number) => void; canvas: HTMLCanvasElement; small: HTMLCanvasElement; colours: Record<string, string>;
+}
+/** Give the terrain's material the ground's cover: two texture arrays (every square's far layer, and COVER_NEAR near
+ * layers), and a small index texture saying which layers each square of the map has (red the near layer, green the
+ * far, blue once its far layer is painted, alpha while it has a near one); the colour mixed into the ground's where the
+ * cover's painted. Keeps whatever the material's shader is already patched with (the reach, src/render/reach.ts). */
+function coverPatch(mat: THREE.MeshLambertMaterial, keys: string[]): Cover2 {
+  const n = keys.length, layers = (px: number, k: number) => {
+    const t = new THREE.DataArrayTexture(new Uint8Array(px * px * 4 * k), px, px, k);
+    t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true; return t;
+  };
+  const nearTex = layers(COVER_PX, COVER_NEAR), farTex = layers(FAR_PX, n);
   const ij = keys.map(k => k.split('_').map(Number) as [number, number]);
   const i0 = Math.min(...ij.map(p => p[0])), j0 = Math.min(...ij.map(p => p[1])), w = Math.max(...ij.map(p => p[0])) - i0 + 1, h = Math.max(...ij.map(p => p[1])) - j0 + 1;
-  const idx = new Uint8Array(w * h * 4), layer = new Map<string, number>();
-  ij.forEach(([i, j], k) => { const a = ((j - j0) * w + (i - i0)) * 4; idx[a] = k; idx[a + 2] = 255; layer.set(keys[k]!, k); });
+  const idx = new Uint8Array(w * h * 4), far = new Map<string, number>(), cell = new Map<string, number>();
+  ij.forEach(([i, j], k) => { cell.set(keys[k]!, ((j - j0) * w + (i - i0)) * 4); far.set(keys[k]!, k); });
   const index = new THREE.DataTexture(idx, w, h); index.needsUpdate = true;
-  const uniforms = { uCover: { value: tex }, uCoverIdx: { value: index }, uCoverGrid: { value: new THREE.Vector4(i0, j0, w, h) } };
+  const mark = (key: string, tier: 'near' | 'far', layer: number) => {
+    const a = cell.get(key); if (a === undefined) return;
+    if (tier === 'far') { idx[a + 1] = layer; idx[a + 2] = 255; } else { idx[a] = Math.max(0, layer); idx[a + 3] = layer < 0 ? 0 : 255; }
+    index.needsUpdate = true;
+  };
+  const uniforms = { uCover: { value: nearTex }, uCoverFar: { value: farTex }, uCoverIdx: { value: index }, uCoverGrid: { value: new THREE.Vector4(i0, j0, w, h) } };
   const prev = mat.onBeforeCompile.bind(mat), prevKey = mat.customProgramCacheKey.bind(mat);
   mat.onBeforeCompile = (shader, r) => {
     prev(shader, r);
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = 'varying vec2 vCoverXZ;\n' + shader.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\nvCoverXZ = (modelMatrix * vec4(transformed, 1.0)).xz;');
-    shader.fragmentShader = 'varying vec2 vCoverXZ;\nuniform highp sampler2DArray uCover; uniform sampler2D uCoverIdx; uniform vec4 uCoverGrid;\n' + shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+    shader.fragmentShader = 'varying vec2 vCoverXZ;\nuniform highp sampler2DArray uCover; uniform highp sampler2DArray uCoverFar; uniform sampler2D uCoverIdx; uniform vec4 uCoverGrid;\n' + shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
 {
   vec2 sq = floor(vCoverXZ / 1000.0) - uCoverGrid.xy;
   if (sq.x >= 0.0 && sq.y >= 0.0 && sq.x < uCoverGrid.z && sq.y < uCoverGrid.w) {
     vec4 at = texture2D(uCoverIdx, (sq + 0.5) / uCoverGrid.zw);
     if (at.b > 0.5) {
-      vec4 cov = texture(uCover, vec3(fract(vCoverXZ / 1000.0), floor(at.r * 255.0 + 0.5)));
+      vec2 uv = fract(vCoverXZ / 1000.0);
+      vec4 cov = at.a > 0.5 ? texture(uCover, vec3(uv, floor(at.r * 255.0 + 0.5))) : texture(uCoverFar, vec3(uv, floor(at.g * 255.0 + 0.5)));
       diffuseColor.rgb = mix(diffuseColor.rgb, cov.rgb, cov.a * 0.9);
     }
   }
@@ -671,13 +729,14 @@ function coverPatch(mat: THREE.MeshLambertMaterial, keys: string[]): NonNullable
   mat.customProgramCacheKey = () => prevKey() + '|cover';
   mat.needsUpdate = true;
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = COVER_PX;
+  const small = document.createElement('canvas'); small.width = small.height = FAR_PX;
   const hex = (c: THREE.Color) => '#' + c.getHexString();
   const colours: Record<string, string> = {
     p: hex(PAL['cover-park']), h: hex(PAL['cover-pitch']), f: hex(PAL['cover-field']), w: hex(PAL['cover-wood']), s: hex(PAL['cover-scrub']),
     a: hex(PAL['cover-water']), y: hex(PAL['cover-yard']), c: hex(PAL['cover-car']), b: hex(PAL['cover-bare']), e: hex(PAL['cover-field']),
     g: hex(PAL['cover-allot']), r: hex(PAL['cover-street']),
   };
-  return { tex, layer, canvas, colours };
+  return { nearTex, farTex, far, nearOf: new Map(), owner: new Array<string | null>(COVER_NEAR).fill(null), mark, canvas, small, colours };
 }
 
 const WALL = new THREE.Color(), TOP = new THREE.Color(), M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S = new THREE.Vector3();

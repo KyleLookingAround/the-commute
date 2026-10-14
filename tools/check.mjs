@@ -101,7 +101,7 @@ if (unknown.length) { console.log(`no check group "${unknown[0]}"; the groups ar
 // From the first Check main run (a327002, 14 October 2026, run 38517045818), with the check mode but before pages ran
 // side by side. A group under a tenth of a minute counts as 0.1 (its tiles load at import, outside its timer).
 const MINUTES = {
-  perf: 13.6, contract: 7.8, reach: 6.9, strain: 6.2, line: 6, camera: 5.5, saves: 4.5, life: 4.2, away: 3.8, access: 2.9,
+  perf: 13.6, contract: 7.8, traffic: 3.3, reach: 6.9, strain: 6.2, line: 6, camera: 5.5, saves: 4.5, life: 4.2, away: 3.8, access: 2.9,
   layout: 2.8, offline: 2.8, preview: 2.8, weather: 2.8, homes: 2.6, fullscreen: 2.5, networkview: 2.4, daylight: 2.1,
   places: 1.4, trouble: 1, contrast: 0.9, terrain: 0.6, geometry: 0.2, world: 0.2, surroundings: 0.1, bot: 0.1, kits: 0.1,
   signals: 0.1, sections: 0.1, landmarks: 0.1, rules: 0.1,

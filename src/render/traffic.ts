@@ -193,7 +193,8 @@ float jamStreet() {
   if (sq.x < 0.0 || sq.y < 0.0 || sq.x >= uCoverGrid.z || sq.y >= uCoverGrid.w) return 0.0;
   vec4 at = texture2D(uCoverIdx, (sq + 0.5) / uCoverGrid.zw);
   if (at.b < 0.5) return 0.0;
-  vec4 cov = texture(uCover, vec3(fract(vCoverXZ / 1000.0), floor(at.r * 255.0 + 0.5)));
+  vec2 uv = fract(vCoverXZ / 1000.0);   // a near square's layer (alpha set) or its far one (src/render/buildings.ts, coverPatch)
+  vec4 cov = at.a > 0.5 ? texture(uCover, vec3(uv, floor(at.r * 255.0 + 0.5))) : texture(uCoverFar, vec3(uv, floor(at.g * 255.0 + 0.5)));
   return cov.a * (1.0 - smoothstep(0.03, 0.07, distance(cov.rgb, uStreet)));
 }`;
 

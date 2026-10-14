@@ -321,9 +321,12 @@ export class Terrain {
     }
     return out;
   }
+  /** How many fine tiles are in: what stands on the ground at street level is seated again when it changes. */
+  fineCount = 0;
   addFine(key: string, text: string): void {
     const [i, j] = key.split('_').map(Number) as [number, number], n = Math.round(this.fineSize / this.fineCell) + 1;
     this.fine.set(`${i},${j}`, { x0: i * this.fineSize, z0: j * this.fineSize, cell: this.fineCell, n, v: decodeGrid(text, n, n) });
+    this.fineCount++;
   }
   hasFine(key: string): boolean { return this.fine.has(key.replace('_', ',')); }
 }
@@ -347,8 +350,8 @@ function sample(tiles: Map<string, Tile>, size: number, x: number, z: number): n
  * that stands above the ground (a road on a bridge) or on it (`street`). */
 export function partBoxes(p: KitPart): [number, number, number, number][] {
   const num = (k: string) => typeof p[k] === 'number' ? p[k] as number : undefined;
-  // a part at street level stands on the ground, off the pad
-  if ((num('y0') ?? 0) >= 3 || p['street'] === true) return [];
+  // a part at street level stands on the ground, off the pad; so does a street (`road`)
+  if ((num('y0') ?? 0) >= 3 || p['street'] === true || p.type === 'road') return [];
   const pts: [number, number][] = [], us: number[] = [], vs: number[] = [];
   for (const k of ['u0', 'u1', 'u']) { const v = num(k); if (v !== undefined) us.push(v); }
   for (const k of ['v0', 'v1', 'v']) { const v = num(k); if (v !== undefined) vs.push(v); }
@@ -646,6 +649,10 @@ let current: Terrain | null = null;
 export function setTerrain(t: Terrain | null): void { current = t; }
 /** The ground's height as drawn at a point (0 before the terrain is built, as the line is). */
 export function groundAt(x: number, z: number): number { return current ? current.groundY(x, z) : 0; }
+/** Whether a point is on the railway's land or its cutting and embankment sides (false before the terrain is built). */
+export function onRailway(x: number, z: number): boolean { return current ? current.railLand(x, z, 0) : false; }
+/** Changes whenever the ground as drawn is read more finely (a fine tile in), so what stands on it can be seated again. */
+export function groundVersion(): number { return current ? current.fineCount : 0; }
 /** The fine tiles' URLs as the build emits them, by key (i_j); none outside a build (the checks load them from disk). */
 export function fineFiles(): Record<string, string> {
   try {

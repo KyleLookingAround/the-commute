@@ -15,7 +15,7 @@ import type { Sim } from '../sim/sim.ts';
 import { TUNING } from '../sim/sim.ts';
 import { projectLatLon } from '../sim/network.ts';
 import type { Bus, XZ } from '../sim/types.ts';
-import { groundAt } from './terrain.ts';
+import { groundAt, groundVersion, onRailway } from './terrain.ts';
 
 /** The kit part: where a bus stands at (u, v), its length along `back` (a direction in (u, v), +u if not given), the
  * shelter and flag on the `kerb` side (+1 to the left looking along `back`), and the station's way out (`door`). */
@@ -26,7 +26,8 @@ const MAX_BUSES = 8, MAX_WALKERS = 48;
 const ROAD_W = 7;          // the road's width on the map
 const GRADE = 0.1;         // the steepest a road comes down off a station's pad
 const STEP = 4;            // metres between a road's heights
-const DEPOT_SPEED = 14;    // m/s an empty bus runs to and from the depot, quicker than in service
+const DEPOT_SPEED = 14;
+const RELAY_MS = 3000;     // the least time between laying the roads again as the ground comes in finer    // m/s an empty bus runs to and from the depot, quicker than in service
 
 const lam = (c: THREE.Color) => new THREE.MeshLambertMaterial({ color: c });
 const B = (w: number, h: number, d: number, x: number, y: number, z: number) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
@@ -75,10 +76,10 @@ export function buildBusStop(gp: THREE.Group, p: BusStopPart, owner: object): vo
 
 /** A way on the map a bus drives: its points every STEP metres or less, the distance along it to each, and the road's
  * height there (the ground, or a ramp down off a station's pad). */
-interface Path { pts: XZ[]; d: number[]; y: number[]; len: number }
+export interface Path { pts: XZ[]; d: number[]; y: number[]; len: number }
 /** A way through points, its heights the ground's under it, except that off a station's pad standing above the ground
  * it comes down as a ramp no steeper than GRADE (into a cutting it still meets the wall: the ground there is higher). */
-function pathThrough(raw: XZ[]): Path {
+export function pathThrough(raw: XZ[]): Path {
   const pts: XZ[] = [raw[0]!];
   for (let k = 1; k < raw.length; k++) {
     const [ax, az] = raw[k - 1]!, [bx, bz] = raw[k]!, n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / STEP));
@@ -90,6 +91,17 @@ function pathThrough(raw: XZ[]): Path {
   for (let k = 1; k < y.length; k++) y[k] = Math.max(y[k]!, y[k - 1]! - GRADE * (d[k]! - d[k - 1]!));
   for (let k = y.length - 2; k >= 0; k--) y[k] = Math.max(y[k]!, y[k + 1]! - GRADE * (d[k + 1]! - d[k]!));
   for (let k = 0; k < y.length; k++) y[k] = Math.max(y[k]!, ground[k]!);
+  // where it crosses the railway's land between the streets either side, over a cutting, it's on a bridge: straight from
+  // the street's height on one side to the other's, never down into the cutting (a stretch from a stop on a station's
+  // pad keeps its ramp; under an embankment it still crosses the land at its level, as the ground is drawn there)
+  const rail = pts.map(([x, z]) => onRailway(x, z));
+  for (let k = 1; k < pts.length - 1; k++) if (rail[k] && !rail[k - 1]) {
+    let e = k; while (e < pts.length - 1 && rail[e]) e++;
+    const a = y[k - 1]!, b = y[e]!, at = (j: number) => a + (b - a) * (d[j]! - d[k - 1]!) / (d[e]! - d[k - 1]!);
+    let over = !rail[e]; for (let j = k; j < e && over; j++) if (at(j) < ground[j]!) over = false;
+    if (over) for (let j = k; j < e; j++) y[j] = at(j);
+    k = e;
+  }
   return { pts, d, y, len: d[d.length - 1]! };
 }
 const reversed = (p: Path): Path => ({ pts: [...p.pts].reverse(), d: p.d.map(x => p.len - x).reverse(), y: [...p.y].reverse(), len: p.len });
@@ -211,7 +223,11 @@ export class BusLayer {
     where.y = p.y[k - 1]! + (p.y[k]! - p.y[k - 1]!) * f;
     return where;
   }
+  /** The ground's version the roads were laid on, and when they were last laid (real ms). */
+  private laidOn = -1; private laidAt = 0;
   sync(sim: Sim): void {
+    // the roads laid again on the ground as it's read more finely (a fine tile in), at most every RELAY_MS
+    if (groundVersion() !== this.laidOn) { const now = performance.now(); if (now - this.laidAt > RELAY_MS) { this.laidOn = groundVersion(); this.laidAt = now; this.relay(); } }
     const g = sim.g, tb = g.trouble, f = tb.fail; let n = 0, w = 0;
     if (g.t < this.lastT) { this.seen.clear(); this.leaving.length = 0; }   // a loaded save, a new game
     this.lastT = g.t;

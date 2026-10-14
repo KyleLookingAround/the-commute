@@ -13,7 +13,7 @@ import { buildBoard, buildCarPark, buildCycles, buildShop, emptyLive, type Live 
 import { buildRank, type RankPart } from './taxis.ts';
 import { buildBusStop, type BusStopPart } from './buses.ts';
 import { buildLink, type LinkPart } from './links.ts';
-import { groundAt, partBoxes } from './terrain.ts';
+import { groundAt, groundVersion, partBoxes } from './terrain.ts';
 import { newFrame, type Network } from '../sim/network.ts';
 import type { Frame, GameState, Station } from '../sim/types.ts';
 
@@ -85,7 +85,12 @@ export type Part =
   | (Gated & LinkPart & { type: 'buslink' })
   /** The contract's brass plaque on a stone pier, its face towards `facing` across the line: it reads the contract's
    * number and grows a line for each one renewed (setPlaque), and stands only once a contract has been. */
-  | (Gated & { type: 'plaque'; u: number; v: number; facing: 1 | -1 });
+  | (Gated & { type: 'plaque'; u: number; v: number; facing: 1 | -1 })
+  /** A street from OpenStreetMap through (u, v) points in order, w wide (7 m if not given), laid on the ground as drawn
+   * under each point, or at a point's own height where it gives one ([u, v, y]: onto a bridge's deck). It joins a
+   * station's ranks, stops and bridges to the real streets painted on the ground round them, and is seated again as the
+   * ground is read more finely. Never on the station's pad. */
+  | (Gated & { type: 'road'; points: ([number, number] | [number, number, number])[]; w?: number });
 export type PartType = Part['type'];
 /** Where each direction's passengers wait: from a line at v (near the platform edge) from u0 to u1, back into the
  * platform as far as depth (4 m if not given). */
@@ -337,6 +342,7 @@ const partBuilders: Builders = {
   taxi(gp, p, live) { buildRank(gp, p, live); },
   busstop(gp, p, live) { buildBusStop(gp, p, live); },
   buslink(gp, p, live) { buildLink(gp, p, live); },
+  road(gp, p) { const m = new THREE.Mesh(new THREE.BufferGeometry(), MAT.road); m.receiveShadow = true; gp.add(m); ROADS.set(m, p); layRoad(m, p, null); },
   plaque(gp, p) {
     const g = new THREE.Group(); g.position.set(p.u, 0, p.v); g.rotation.y = p.facing > 0 ? 0 : Math.PI; g.visible = false; gp.add(g);
     const pier = box(g, PLAQUE_W + 0.6, 1, 0.5, MAT.sandstone, 0, 0.5, 0);
@@ -376,15 +382,69 @@ export function setPlaque(head: string | null, lines: string[] = []): number {
   }
   return lines.length;
 }
+// ---- what stands at street level, seated on the ground as drawn and again as it's read more finely ----
+/** Each street's mesh and its part, and each street-level part's group with where its middle is in the world. */
+const ROADS = new Map<THREE.Mesh, Extract<Part, { type: 'road' }>>();
+const SEATS: { g: THREE.Group; under: [number, number][]; roads: { m: THREE.Mesh; f: Seat }[] }[] = [];
+type Seat = { x: number; z: number; dx: number; dz: number; nx: number; nz: number };
+const ROAD_STEP = 4, ROAD_LIFT = 0.08;
+/** A street's ribbon: every ROAD_STEP m or less along its points, each at the ground's height there in the world (with
+ * the station at `f`), or at its own height; with no frame yet, at 0 (laid properly once the station is placed). */
+function layRoad(m: THREE.Mesh, p: Extract<Part, { type: 'road' }>, f: Seat | null): void {
+  const w = (p.w ?? 7) / 2, pts: [number, number, number | undefined][] = [];
+  p.points.forEach((q, i) => {
+    const prev = p.points[i - 1];
+    if (prev) { const n = Math.max(1, Math.ceil(Math.hypot(q[0] - prev[0], q[1] - prev[1]) / ROAD_STEP)); for (let k = 1; k < n; k++) { const t = k / n, a = prev[2], b = q[2]; pts.push([prev[0] + (q[0] - prev[0]) * t, prev[1] + (q[1] - prev[1]) * t, a !== undefined && b !== undefined ? a + (b - a) * t : undefined]); } }
+    pts.push([q[0], q[1], q[2]]);
+  });
+  const P: number[] = [], idx: number[] = [];
+  pts.forEach(([u, v, y], i) => {
+    // the ribbon's width square to the street there (the mean of the pieces either side)
+    const a = pts[Math.max(0, i - 1)]!, b = pts[Math.min(pts.length - 1, i + 1)]!, l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const nu = -(b[1] - a[1]) / l * w, nv = (b[0] - a[0]) / l * w;
+    const h = (uu: number, vv: number) => y !== undefined ? y : f ? groundAt(f.x + f.dx * uu + f.nx * vv, f.z + f.dz * uu + f.nz * vv) : 0;
+    P.push(u + nu, h(u + nu, v + nv) + ROAD_LIFT, v + nv, u - nu, h(u - nu, v - nv) + ROAD_LIFT, v - nv);
+    if (i) { const k = 2 * i; idx.push(k - 2, k, k - 1, k - 1, k, k + 1); }
+  });
+  const g = m.geometry; g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setIndex(idx); g.computeVertexNormals(); g.computeBoundingSphere();
+}
+let seatedAt = -1;
+/** Seat every street-level part and street on the ground as it's drawn now. */
+function seatAll(): void { for (const s of SEATS) seatOn(s); }
+function seatOn(s: (typeof SEATS)[number]): void {
+  if (s.under.length) s.g.position.y = Math.max(...s.under.map(([x, z]) => groundAt(x, z)));
+  for (const r of s.roads) layRoad(r.m, ROADS.get(r.m)!, r.f);
+}
+
 // the builders are keyed by the part's type, so the one looked up always takes the part; the cast says so once
 const build = (part: Part, into: THREE.Group, live: Live) => (partBuilders[part.type] as (gp: THREE.Group, p: Part, live: Live) => void)(into, part, live);
 /** A part at street level: built into a group of its own lifted (or sunk) to the ground under its middle, in a station
  * group placed at `frame` (the ground is in the world's frame; the station's group only turns about y). */
 function onGround(part: Part, into: THREE.Group, live: Live, frame: { x: number; z: number; dx: number; dz: number; nx: number; nz: number }): void {
+  const [u0, u1, v0, v1] = streetBox(part), at = (u: number, v: number): [number, number] => [frame.x + frame.dx * u + frame.nx * v, frame.z + frame.dz * u + frame.nz * v];
+  // seated on the ground under its middle; a rank or a stop, a strip of kerb along a street, on the highest of the
+  // ground along it, so neither end of its bay sinks into the street's camber or a bank
+  const under = [at((u0 + u1) / 2, (v0 + v1) / 2), ...(part.type === 'taxi' || part.type === 'busstop' ? [at(u0, v0), at(u0, v1), at(u1, v0), at(u1, v1)] : [])];
+  const g = new THREE.Group(); into.add(g); build(part, g, live);
+  const seat = { g, under, roads: [] }; SEATS.push(seat); seatOn(seat);
+}
+/** The box (u0, u1, v0, v1) a street-level part stands on: a rank's or stop's queue back from its front, else what the
+ * terrain would clear for it (its last box, the part's own). */
+export function streetBox(part: Part): [number, number, number, number] {
+  const q = part as unknown as { u?: number; v?: number; back?: [number, number]; n?: number };
+  if ((part.type === 'taxi' || part.type === 'busstop') && q.u !== undefined && q.v !== undefined) {
+    const [bu0, bv0] = q.back ?? [1, 0], l = Math.hypot(bu0, bv0) || 1, L = part.type === 'taxi' ? (q.n ?? 4) * 6.5 : 14, eu = q.u + bu0 / l * L, ev = q.v + bv0 / l * L;
+    return [Math.min(q.u, eu), Math.max(q.u, eu), Math.min(q.v, ev), Math.max(q.v, ev)];
+  }
   const boxes = partBoxes({ ...part, street: false } as unknown as Parameters<typeof partBoxes>[0]), b = boxes[boxes.length - 1];
-  const u = b ? (b[0] + b[1]) / 2 : 0, v = b ? (b[2] + b[3]) / 2 : 0;
-  const g = new THREE.Group(); g.position.y = groundAt(frame.x + frame.dx * u + frame.nx * v, frame.z + frame.dz * u + frame.nz * v);
-  into.add(g); build(part, g, live);
+  return b ?? [0, 0, 0, 0];
+}
+/** A street: laid on the ground in the station's frame, and noted to be laid again as the ground is read more finely. */
+function onStreet(part: Extract<Part, { type: 'road' }>, into: THREE.Group, live: Live, frame: Seat): void {
+  const g = new THREE.Group(); into.add(g); build(part, g, live);
+  const roads = g.children.filter((m): m is THREE.Mesh => m instanceof THREE.Mesh && ROADS.has(m)).map(m => ({ m, f: frame }));
+  for (const r of roads) layRoad(r.m, part, frame);
+  SEATS.push({ g, under: [], roads });
 }
 /** One part on its own, in the kit's frame: what the geometry check measures trains against. */
 export function partGroup(part: Part): THREE.Group { const gp = new THREE.Group(); if (part.type in partBuilders) build(part, gp, emptyLive()); return gp; }
@@ -443,11 +503,13 @@ export function fillStations(net: Network, built: BuiltStation[], kits: Record<s
 function fill(net: Network, b: BuiltStation, kit: Kit): void {
   const st = b.station, gp = b.group, frame = net.stationFrame(st.id);
   const fixed = b.fixed, scenery = new THREE.Group(), gates = new Map<string, Gate>(), live = b.live; gp.add(fixed); gp.add(scenery);
+  // what stands at street level is seated again as the ground is read more finely, so it's never folded together
+  const seats = SEATS.length;
   for (const kitPart of kit.parts) {
     if (!(kitPart.type in partBuilders)) { console.warn('unknown part', kitPart.type); continue; }
     const part = kitPart.type === 'rails' ? { ...kitPart, points: alongLine(net, st, frame, kitPart.points) } : kitPart;
     const needs = part.upgrade === undefined ? [] : Array.isArray(part.upgrade) ? part.upgrade : [part.upgrade];
-    const put = (into: THREE.Group) => part.street ? onGround(part, into, live, frame) : build(part, into, live);
+    const put = (into: THREE.Group) => part.type === 'road' ? onStreet(part, into, live, frame) : part.street ? onGround(part, into, live, frame) : build(part, into, live);
     if (part.scenery) put(scenery);
     else if (needs.length || part.until) {
       const key = `${needs.join('+')}|${part.until ?? ''}`;
@@ -459,6 +521,7 @@ function fill(net: Network, b: BuiltStation, kit: Kit): void {
   const gated = [...gates.values()];
   // what life moves or changes stays as it is; the rest is folded together
   const keep = new Set<THREE.Object3D>();
+  for (const s of SEATS.slice(seats)) s.g.traverse(q => keep.add(q));
   for (const o of [...live.boards.map(x => x.mesh), ...live.shops.map(x => x.shutter)]) o.traverse(q => keep.add(q));
   for (const into of [fixed, scenery, ...gated.map(gt => gt.group)]) mergeStill(into, keep);
   b.kit = kit; b.gated = gated; b.lockedNow = null;   // the next sync fogs it (or not) as at the start
@@ -553,6 +616,7 @@ function fog(b: BuiltStation, locked: boolean): void {
 // halt sinks and rises again in the fog, ready to buy. dt: real seconds since the last frame.
 export function syncStations(built: BuiltStation[], g: GameState, dt: number): void {
   pulse += dt; GHOST.opacity = 0.4 + 0.2 * Math.sin(pulse * 4);
+  if (groundVersion() !== seatedAt) { seatedAt = groundVersion(); seatAll(); }
   built.forEach((b, i) => {
     const locked = !g.owned[i], ups = (g.ups[i] ?? {}) as Ups, first = b.lockedNow === null;
     if (b.lockedNow !== locked) {

@@ -70,7 +70,8 @@ export function journeys(sim: Sim, T: Tuning): (Journey | null)[][] {
     // the expresses carry the line's own passengers nowhere: long-distance tickets only, as the game has it
     if (v.express) { const none = { arr: new Map(), dep: new Map(), total: 0 }; runs[k] = [none, none]; waits[k] = Infinity; return; }
     runs[k] = [run(sim, T, k, 0), run(sim, T, k, 1)];
-    const units = sim.unitsFor(v);
+    // the units out all day: a peak timetable's own carry the peaks' crowds rather than shorten the wait people plan for
+    const units = sim.span(v).length < 2 ? 0 : sim.unitsAllDay(v);
     waits[k] = units ? cycle(sim, T, k) / units / 2 : Infinity;
   });
   /** A ride from i to j on service k, if its trains call at both going that way (along its route, 0 towards Manchester). */

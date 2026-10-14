@@ -441,11 +441,14 @@ export class TrainLayer {
       m.position.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2); m.rotation.y = Math.atan2(-dz, dx); m.updateMatrix();
     });
   }
-  /** A unit standing overnight in Stockport's sidings, on the kth of their other roads. */
-  private stable(u: Unit, k: number): void {
-    const f = this.net.stationFrame(this.net.stations[0]?.id ?? 'stockport'), v = SIDINGS[k % SIDINGS.length]!, n = u.cars.length;
+  /** Which of each station's resting roads are taken this frame. */
+  private roadsUsed = new Map<string, number>();
+  /** A unit standing overnight in Stockport's sidings, on the kth of their other roads, or resting on a road at
+   * another station (centred at its kit's u0, v). */
+  private stable(u: Unit, k: number, station?: string, u0 = 0, v0?: number): void {
+    const f = this.net.stationFrame(station ?? this.net.stations[0]?.id ?? 'stockport'), v = v0 ?? SIDINGS[k % SIDINGS.length]!, n = u.cars.length;
     u.cars.forEach((m, c) => {
-      const along = (c - (n - 1) / 2) * PITCH; m.position.set(f.x + along * f.dx + v * f.nx, 0, f.z + along * f.dz + v * f.nz);
+      const along = u0 + (c - (n - 1) / 2) * PITCH; m.position.set(f.x + along * f.dx + v * f.nx, 0, f.z + along * f.dz + v * f.nz);
       m.rotation.y = yawFor(f); m.updateMatrix();
     });
     u.group.visible = true;
@@ -520,11 +523,20 @@ export class TrainLayer {
     while (this.units.length < g.trains.length) { const u = this.unit(2, NORTHERN); this.units.push(u); this.meshes.push(u.group); }
     const at = this.counts; at.r = 0; at.s = 0; this.lamps.count = 0;
     let yard = 0;
+    const roads = this.roadsUsed; roads.clear();
     g.trains.forEach((tr, i) => {
       const u = this.units[i], svc = this.services[tr.svc]; if (!u || !svc) return;
       // an express off the map isn't drawn
-      if (tr.state === 'away') { u.group.visible = false; return; }
+      if (tr.state === 'away' && svc.through) { u.group.visible = false; return; }
       if (u.cars.length !== tr.cars || u.livery !== svc.operator) { this.unit(tr.cars, liveryFor(svc.operator), u); u.livery = svc.operator; }
+      // a peak unit resting between the peaks: in Stockport's sidings, or on the roads its service rests on
+      if (tr.state === 'away') {
+        const f = svc.frequency, at = f ? this.net.station(f.stable) : null;
+        if (at?.index === 0) this.stable(u, yard++);
+        else if (at && f?.roads?.length) { const k = roads.get(at.id) ?? 0; roads.set(at.id, k + 1); const [ru = 0, rv = 0] = f.roads[k % f.roads.length]!; this.stable(u, 0, at.id, ru, rv); }
+        else u.group.visible = false;
+        this.windows(u, 0); return;
+      }
       // overnight, a unit that finished its run at Stockport stands in the sidings (the sim keeps it at its platform)
       if (tr.pfAt === 0 && sim.stabled(tr)) { this.stable(u, yard++); this.windows(u, 0); return; }
       this.pose(u, svc, tr.s, tr.dir, berthsOf(sim, tr, this.berths));

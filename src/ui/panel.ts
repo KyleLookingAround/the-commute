@@ -354,18 +354,21 @@ export class UI {
     else if (p.kind === 'section') { this.sectionCard(id); return; }
     else if (p.kind === 'junction') { this.junctionCard(id); return; }
     else { panel.innerHTML = '<p class="blurb">Comes with the stations at its ends.</p>'; return; }
-    const step = (u: LineUpgrade, lvl: number) => u.max > 1 ? `${u.name} ${lvl + 1} of ${u.max}` : u.name;
-    this.stageCards(sim.P.stagesFor(sim.net, id).filter(u => sim.lineReady(u.id)).map(x => {
-      const u = x as LineUpgrade, lvl = g.line[u.id], price = sim.linePrice(u.id), name = step(u, lvl);
-      const built = lvl ? (u.max > 1 ? `${u.name} ×${lvl}` : u.name) : null;
+    // a service's frequency names each step (Second unit, Off-peak timetable, Peak timetable); other stages count up
+    const step = (u: LineUpgrade, lvl: number) => u.steps?.[lvl]?.name ?? (u.max > 1 ? `${u.name} ${lvl + 1} of ${u.max}` : u.name);
+    // the stopper's and the sidings' stages show on the map as the line's (a stopper unit, the spare); a branch's units as its own
+    const show = (k: string | null, bought?: boolean) => { if (p.kind === 'route' && id !== sim.P.stopper) { if (k !== null) this.on.focusPlace(id); } else this.on.showLine(k, bought); };
+    this.stageCards(sim.P.stagesFor(sim.net, id).filter(u => sim.stageReady(id, u.id)).map(x => {
+      const u = x as LineUpgrade, lvl = sim.stageLevel(id, u.id), price = sim.price(id, u.id), name = step(u, lvl);
+      const built = lvl ? (u.steps ? u.steps[lvl - 1]!.name : u.max > 1 ? `${u.name} ×${lvl}` : u.name) : null;
       if (lvl >= u.max || price === undefined) return { id: u.id, stage: null, saves: null, opens: [], built };
       const stage: Stage = {
-        name, adds: price ? u.desc : 'The unit waiting in Stockport’s sidings goes into service', price, can: () => g.cash >= price,
-        buy: () => { if (!sim.buyLine(u.id)) return false; this.toast(`${name}: done`); this.on.showLine(u.id, true); return true; },
-        pick: on => this.on.showLine(on ? u.id : null),
+        name, adds: price ? u.steps?.[lvl]?.desc ?? u.desc : 'The unit waiting in Stockport’s sidings goes into service', price, can: () => g.cash >= price,
+        buy: () => { if (!sim.buy(id, u.id)) return false; this.toast(`${name}: done`); show(u.id, true); return true; },
+        pick: on => show(on ? u.id : null),
       };
-      return { id: u.id, stage, saves: this.on.saves(null, u.id), opens: lvl + 1 < u.max ? [step(u, lvl + 1)] : [], built };
-    }), k => this.on.showLine(k, true));
+      return { id: u.id, stage, saves: id === sim.P.stopper || p.kind === 'depot' ? this.on.saves(null, u.id) : null, opens: lvl + 1 < u.max ? [step(u, lvl + 1)] : [], built };
+    }), k => show(k, true));
   }
   /** A section of line: its line speed, length and wires, and once it's the player's (both ends owned) its next line
    * speed step, 15 mph faster, its resignalling and, where it has no wires, its electrification (the line between

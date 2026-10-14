@@ -15,7 +15,7 @@ import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
 import { stepExpress, nextSlot, EXPRESS_UNITS } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
 import { effects, type Effects } from './contract.ts';
-import { places, build, derive, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, JUNCTION_FLYOVER, type Places, type Upgrade } from './places.ts';
+import { places, build, derive, frequencyStage, placeId, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, JUNCTION_FLYOVER, type Places, type Upgrade } from './places.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
 // a station's stages and the line's, now stages of places (src/sim/places.ts); here too, where the view finds them
@@ -93,6 +93,9 @@ export const TUNING = {
   parkWalk: 3 * 60, parkStay: 9, parkCharge: 20, busWait: 6 * 60, busWalk: 2 * 60, busChange: 5 * 60, busSave: 4 * 60,
   // the car (src/sim/traffic.ts, src/data/traffic.json): carShare of those the network doesn't carry drive, one to a car (Census 2021, Stockport), and carScale real cars to each of the game's
   carShare: 0.72, carScale: 0.25,
+  // the peaks a service's peak timetable runs in (clock hours, docs/DESIGN.md, Frequency): a peak unit leaves the end
+  // where it rests from the start of one and rests there again once a round trip brings it back after its end
+  peaks: [[6.5, 9.5], [16, 19]] as [number, number][],
 };
 export type Tuning = typeof TUNING;
 
@@ -359,8 +362,37 @@ export class Sim {
     while (hi < v.route.length - 1 && g.owned[v.route[hi + 1]!]) hi++;
     return lo === hi ? [] : v.route.slice(lo, hi + 1);
   }
-  /** Units a service runs: the main line's are bought with the line upgrades; a branch runs one once it's open. */
-  unitsFor(v: Svc): number { return this.span(v).length < 2 ? 0 : v === this.svcs[0] ? this.unitsInService() : 1; }
+  /** Units a service runs: one once it's open, and more with each step of its frequency bought (all day and the
+   * peaks' own). */
+  unitsFor(v: Svc): number { return this.span(v).length < 2 ? 0 : this.unitsAllDay(v) + this.unitsPeak(v); }
+  /** The steps of a service's frequency bought. */
+  freqLevel(v: Svc): number { return this.g.places[placeId('route', v.id)]?.['units'] ?? 0; }
+  /** The units a service runs all day: one, or the most its frequency's steps bought run. */
+  unitsAllDay(v: Svc): number { let n = 1; (v.def.frequency?.steps ?? []).slice(0, this.freqLevel(v)).forEach(x => { n = Math.max(n, x.units ?? 0); }); return n; }
+  /** The more units a service runs in the peaks only. */
+  unitsPeak(v: Svc): number { let n = 0; (v.def.frequency?.steps ?? []).slice(0, this.freqLevel(v)).forEach(x => { n += x.peak ?? 0; }); return n; }
+  /** The units a service has out now: its all-day ones, and its peak ones in the peaks. */
+  unitsNow(v: Svc): number { return this.span(v).length < 2 ? 0 : this.unitsAllDay(v) + (this.inPeak(this.g.t) ? this.unitsPeak(v) : 0); }
+  /** Whether sim time t is in a peak by the clock (TUNING.peaks). */
+  inPeak(t: number): boolean { const h = hourAt(t); return TUNING.peaks.some(([a, b]) => h >= a && h < b); }
+  /** When the next peak starts at or after sim time t (now, if t is in one). */
+  nextPeak(t: number): number {
+    if (this.inPeak(t)) return t;
+    const c = clockAt(t), day = Math.floor(c / 86400), h = c / 3600 - day * 24, next = TUNING.peaks.find(([a]) => a > h);
+    return next ? simAtHour(day + 1, next[0]) : simAtHour(day + 2, TUNING.peaks[0]![0]);
+  }
+  /** Whether a unit is one of its service's peak units: those beyond its all-day ones, in the order they came. */
+  peakUnit(tr: Train): boolean {
+    const v = this.svc(tr.svc); if (v.express || !this.unitsPeak(v)) return false;
+    let k = 0; for (const o of this.g.trains) { if (o === tr) break; if (o.svc === tr.svc) k++; }
+    return k >= this.unitsAllDay(v);
+  }
+  /** The station where a service's peak units rest between the peaks (the end of its run there). */
+  restsAt(v: Svc): number | null { const id = v.def.frequency?.stable; return id ? this.net.station(id).index : null; }
+  /** Whether a unit is standing at the end where it rests, done until the next peak: it takes nobody on. */
+  resting(tr: Train): boolean {
+    return tr.state === 'dwell' && this.peakUnit(tr) && tr.pfAt === this.restsAt(this.svc(tr.svc)) && !this.inPeak(this.g.t) && tr.due > this.g.t;
+  }
   /** Whether a station is the end of a train's run, where it turns round. */
   isEnd(tr: Train, i: number): boolean {
     const v = this.svc(tr.svc), sp = this.span(v);
@@ -425,7 +457,7 @@ export class Sim {
   }
   /** The planned gap between a service's units, from its round trip. */
   headway(svc: string): number {
-    const k = this.svcs.findIndex(v => v.id === svc), v = this.svcs[k]!, n = this.unitsFor(v);
+    const k = this.svcs.findIndex(v => v.id === svc), v = this.svcs[k]!, n = this.unitsNow(v);
     if (this.jkey < 0) this.refreshJourneys();
     return n ? (this.cycles[k] ?? 0) / n : 0;
   }
@@ -441,6 +473,8 @@ export class Sim {
     // due away after the last train, it stands here overnight (a service with a home runs out to its far end first);
     // the first to stand at an end leaves with the first train, the rest the headway apart, so nothing bunches at dawn
     const dawn = i === v.home ? null : this.dawn(v, tr.due);
+    // a peak unit back at the end where it rests after a peak waits there for the next (and isn't the gap others keep)
+    if (i === this.restsAt(v) && this.peakUnit(tr) && !this.inPeak(tr.due)) { tr.due = this.nextPeak(tr.due); return; }
     if (dawn !== null) tr.due = ends[e]! >= dawn ? ends[e]! + h : dawn;
     ends[e] = tr.due;
   }
@@ -463,7 +497,7 @@ export class Sim {
    * queue for its direction, until it's full; anyone who reaches the platform while it stands gets on too. A busy stop
    * leaves people behind for the next train, and more cars mean more doors as well as more room. */
   board(tr: Train, dt: number): void {
-    const i = tr.calling; if (i === null) return;
+    const i = tr.calling; if (i === null || this.resting(tr)) return;
     const g = this.g, S = this.state(i), ups = this.ups(i), q = S.q[tr.dir > 0 ? 0 : 1], seats = tr.cars * TUNING.seatsPerCar;
     tr.boardAcc += tr.cars * TUNING.doorsPerCar * TUNING.boardPerDoor * (1 - TUNING.doorsCrowd * (tr.onboard / seats) ** 2) * dt;
     let room = Math.min(Math.floor(tr.boardAcc), seats - tr.onboard);
@@ -489,6 +523,8 @@ export class Sim {
    * the stop or turnaround there, from when it was due away here, so lateness carries on down the line. */
   depart(tr: Train, dt: number): void {
     const g = this.g, i = tr.calling ?? tr.next;
+    // a peak unit done until the next peak leaves its platform for the sidings (or the roads it rests on)
+    if (this.resting(tr) && tr.stood >= TUNING.turnMin && tr.boardAcc >= 0) { tr.state = 'away'; tr.calling = null; tr.pf = -1; tr.pfAt = -1; tr.bound = -1; tr.v = 0; return; }
     this.board(tr, dt); tr.dwell -= dt; tr.stood += dt;
     const end = i !== null && this.isEnd(tr, i), least = end ? TUNING.turnMin : TUNING.dwellMin;
     tr.late = Math.max(0, g.t - tr.due);
@@ -663,8 +699,20 @@ export class Sim {
   }
   /** A train stands at the platform it claimed: it's the one it holds now. */
   standAt(tr: Train, i: number): void { if (tr.bound < 0) this.claim(tr, i, true); tr.pf = tr.bound; tr.pfAt = i; tr.bound = -1; }
+  /** A peak unit resting between the peaks comes back to a free platform at the end where it rests a turnaround before
+   * it's due away, keeping the gap behind the last unit to leave there; it waits on if none is free. */
+  unrest(tr: Train): void {
+    const g = this.g, v = this.svc(tr.svc), i = this.restsAt(v); if (i === null || g.t < tr.due - this.turnaround()) return;
+    if (!this.span(v).includes(i)) return;
+    const p = this.platsFor(tr, i, 'turn').find(q => !g.trains.some(o => o !== tr && this.holds(o, i, q))); if (p === undefined) return;
+    tr.dir = i === this.span(v)[0] ? 1 : -1; tr.state = 'dwell'; tr.pf = p; tr.pfAt = i; tr.bound = -1; tr.calling = i; tr.next = null;
+    this.goTo(tr, this.stopAt(tr, i, p)); tr.dwell = TUNING.turnMin; tr.stood = 0; tr.quiet = 0; tr.boardAcc = 0; tr.late = 0; tr.onboard = 0; tr.load.fill(0);
+    const ends = g.ends[tr.svc] ??= [-1e9, -1e9], e = i === this.span(v)[0] ? 0 : 1;
+    tr.due = Math.max(tr.due, ends[e]! + this.headway(tr.svc)); ends[e] = tr.due;
+  }
   stepTrain(tr: Train, dt: number): void {
     if (this.svc(tr.svc).express) { stepExpress(this, TUNING, tr, dt); return; }
+    if (tr.state === 'away') { this.unrest(tr); return; }
     if (tr.state === 'dwell') { this.depart(tr, dt); return; }
     // a failed unit stands where it is until it's rescued, and the trains behind it wait
     if (failed(this.g, tr)) { tr.v = 0; return; }
@@ -686,6 +734,7 @@ export class Sim {
    * waits and platforms, the line's units and speed, and the weather and season. */
   journeyKey(): number {
     const g = this.g; let h = g.line.units * 7 + g.line.timetable + 97 * weatherKey(g);
+    for (const v of this.svcs) h = (Math.imul(h, 31) + this.freqLevel(v)) | 0;
     for (const x of this.secs) h = (Math.imul(h, 31) + (g.places[x.id]?.[SECTION_SPEED.id] ?? 0) + (this.wiredSec(x) ? 16 : 0)) | 0;
     for (let i = 0; i < this.S.length; i++) {
       const u = g.ups[i] ?? {};
@@ -873,9 +922,18 @@ export class Sim {
     if (p.kind === 'station') { const u = UPGRADES.find(x => x.id === stage && !x.stop); return u ? this.upgradePrice(p.station!, u) : undefined; }
     if (p.kind === 'junction') return stage === JUNCTION_FLYOVER.id && this.flyoverOffered(id) ? this.cost(JUNCTION_FLYOVER.price) : undefined;
     if (p.kind === 'section') { const x = this.sectionAt(id); return stage === SECTION_SPEED.id ? x?.price : stage === SECTION_SIGNALS.id ? x?.signalsPrice : stage === SECTION_WIRES.id ? x?.wiresPrice : undefined; }
+    if (p.kind === 'route' && stage === 'units') {
+      const v = this.svc(p.svc!), f = frequencyStage(v.def), lvl = this.freqLevel(v), price = f?.prices[lvl];
+      return price === undefined ? undefined : p.id === this.P.stopper && lvl === 0 && this.fx.unit ? 0 : this.cost(price);
+    }
     const u = this.lineStage(stage);
-    return u && this.P.stagesFor(this.net, id).includes(u) ? this.linePrice(u.id) : undefined;
+    return u && this.P.stagesFor(this.net, id).some(x => x.id === u.id) ? this.linePrice(u.id) : undefined;
   }
+  /** How many of a route's or depot's stage are built. */
+  stageLevel(id: string, stage: string): number { return this.g.places[id]?.[stage] ?? 0; }
+  /** Whether a route's or depot's stage can be seen yet: the stopper's extra units once Stockport's platform 3 is
+   * built, the spare unit once a train has failed; a branch's frequency once it runs. */
+  stageReady(id: string, stage: string): boolean { return id === this.P.stopper || stage !== 'units' ? this.lineReady(stage) : this.owns(id); }
   /** Whether a place can be bought now (offered: touching one owned, its needs built) or its stage built (on a place
    * owned, offered there, what it needs there built, and not all built), with the cash for it. */
   canBuy(id: string, stage?: string): boolean {
@@ -884,8 +942,7 @@ export class Sim {
     if (!this.owns(id)) return false;
     if (p.kind === 'station') { const i = p.station!, u = UPGRADES.find(x => x.id === stage)!; return !this.ups(i)[u.id] && this.offered(i, u) && this.ready(i, u); }
     if (p.kind === 'section' || p.kind === 'junction') return this.price(id, stage) !== undefined;
-    const u = this.lineStage(stage)!;
-    return g.line[u.id] < u.max && this.lineReady(u.id);
+    return this.stageReady(id, stage);
   }
   /** Buy a place, or build one of its stages: pay, record it, and let what it changes take effect. */
   buy(id: string, stage?: string): boolean {

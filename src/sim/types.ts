@@ -78,6 +78,9 @@ export interface Access { drive: number; driveTime: number; driveR: number; bus:
  * route: the stations a service calls at, in order towards Manchester. home: a service with one
  * runs from there only as far along its route as stations are owned, and not at all until one is; without one it runs
  * the whole route, its ends always served. Scenery services carry nobody. */
+/** A step of a service's frequency: its name and what it adds, its price, and the units it runs all day from then
+ * (`units`) or the more it runs in the peaks only (`peak`). */
+export interface FrequencyStep { name: string; desc: string; price: number; units?: number; peak?: number }
 export interface ServiceDef {
   id: string; name: string; operator: string; tracks: { north: string[]; south: string[] };
   calls: string | string[]; cars: number; scenery?: boolean; route?: string[]; home?: string;
@@ -88,6 +91,10 @@ export interface ServiceDef {
   /** The platforms it uses at each station, preferred first; a station not listed: whichever face is its way. A `turn`
    * list is shared out by unit (the first unit the first platform, the second the next), so each one built is used. */
   platforms?: Record<string, ServicePlatforms | undefined>;
+  /** How often it runs, as stages to buy on its card (docs/DESIGN.md, Frequency): each step a timetable with its
+   * units all day (`units`) or more in the peaks only (`peak`); `stable`, the station at the end of its run where a
+   * peak unit rests between the peaks, on `roads` (kit u, v) there (Stockport's carriage sidings have their own). */
+  frequency?: { note?: string; stable: string; roads?: number[][]; steps: FrequencyStep[] };
   /** The first and last trains by the clock (hours): no unit leaves the end of its run after the last until the first
    * next morning, and it stands there overnight (a service with a home runs out from there to stand at its far end). */
   hours?: { first: number; last: number };

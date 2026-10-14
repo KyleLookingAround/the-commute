@@ -6,7 +6,7 @@
 // holds what's owned by place id (GameState.places); `derive` works out the per-station views the rest of the sim and
 // the view read. Pure: no rendering, nothing from the DOM.
 import type { Network } from './network.ts';
-import type { GameState, LineUpgradeId, StageId, StopDef, UpgradeId } from './types.ts';
+import type { GameState, LineUpgradeId, ServiceDef, StageId, StopDef, UpgradeId } from './types.ts';
 
 export type PlaceKind = 'station' | 'section' | 'junction' | 'route' | 'stop' | 'depot';
 
@@ -16,7 +16,12 @@ export type PlaceKind = 'station' | 'section' | 'junction' | 'route' | 'stop' | 
  * listed here so the station's card still shows it. */
 export interface Upgrade { id: UpgradeId; name: string | null; price: number; desc: string; requires?: UpgradeId[]; stage?: boolean; stop?: boolean }
 /** A stage bought more than once, on a route or a depot: its price each time, up to max. */
-export interface LineUpgrade { id: LineUpgradeId; name: string; prices: number[]; desc: string; max: number }
+export interface LineUpgrade { id: LineUpgradeId; name: string; prices: number[]; desc: string; max: number; steps?: { name: string; desc: string }[] }
+/** A service's frequency as a stage of its route: its data's steps (ServiceDef.frequency), one level each. */
+export function frequencyStage(def: ServiceDef): LineUpgrade | null {
+  const f = def.frequency; if (!f?.steps.length) return null;
+  return { id: 'units', name: 'Frequency', prices: f.steps.map(x => x.price), desc: f.steps[0]!.desc, max: f.steps.length, steps: f.steps.map(x => ({ name: x.name, desc: x.desc })) };
+}
 
 // a station's stages, in the order it grows: a bought station is a halt (one platform, one line) and these build it up.
 // The kiosk is folded into the booking office (docs/design/buying.md, Today's upgrades, mapped): it comes with it, at
@@ -201,7 +206,11 @@ export class Places {
   stagesFor(net: Network, id: string): (Upgrade | LineUpgrade)[] {
     const p = this.get(id);
     if (p.kind === 'station') { const grow = net.stations[p.station!]?.grow; return UPGRADES.filter(u => !u.stop && (!u.stage || !!grow?.[u.id as StageId])); }
-    if (id === this.stopper) return LINE_UPGRADES.filter(u => LINE_PLACE[u.id as keyof typeof LINE_PLACE] === 'route');
+    if (p.kind === 'route') {
+      const def = net.def.services?.find(v => v.id === p.svc), f = def && frequencyStage(def);
+      const own = id === this.stopper ? LINE_UPGRADES.filter(u => LINE_PLACE[u.id as keyof typeof LINE_PLACE] === 'route') : [];
+      return f ? [f, ...own.filter(u => u.id !== 'units')] : own;
+    }
     if (id === this.sidings) return LINE_UPGRADES.filter(u => LINE_PLACE[u.id as keyof typeof LINE_PLACE] === 'depot');
     return [];
   }

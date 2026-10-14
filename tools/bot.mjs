@@ -42,7 +42,8 @@ if (args.includes('--fair')) WEATHER.felt = false;
  * most homes and draw per pound, counting the price of what it waits on elsewhere, which it builds first
  * (docs/design/buying.md, The bot); then each station's way across and second platform (trains both ways), its
  * booking office and barriers, then cheap wins, a taxi rank where people have been giving up (a dozen or more), a spare
- * unit once a train has failed, and a section's line speed once there's money to spare (the stopper's line first), then
+ * unit once a train has failed, a branch's next frequency step once it reaches three stations and there's three times its
+ * price, and a section's line speed once there's money to spare (the stopper's line first), then
  * its resignalling once the stopper's line is raised, wires where a line it owns has none, and a flying junction
  * wherever one's offered. */
 /** The stations whose car park has filled, this run (the bot's memory: it builds the second stage there). */
@@ -73,6 +74,12 @@ export function act(sim) {
   if (g.line.spare < 1 && g.cash > 15000 && line('spare')) return 'spare';
   if (g.line.units < 2 && g.cash > 30000 && line('units')) return 'unit';
   if (g.line.cars < 1 && g.cash > 25000 && line('cars')) return 'cars';
+  // a branch's next frequency step once it runs to three stations or more and there's three times its price, the cheapest first
+  {
+    const pick = P.all.filter(p => p.kind === 'route' && p.id !== P.stopper && sim.span(sim.svc(p.svc)).length >= 3 && sim.canBuy(p.id, 'units') && g.cash > 3 * sim.price(p.id, 'units'))
+      .sort((a, b) => sim.price(a.id, 'units') - sim.price(b.id, 'units'))[0];
+    if (pick && sim.buy(pick.id, 'units')) return 'frequency:' + pick.svc;
+  }
   // line speed by section once there's money to spare: a step on the stopper's own line first, then the rest, the
   // cheapest first (docs/briefs/line-between-stations.md)
   // and once the stopper's line is all raised and there's more to spare, resignalling the same way

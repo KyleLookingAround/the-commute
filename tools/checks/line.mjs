@@ -2,8 +2,8 @@
 // each stage on offer is a card with its price and how much to go; extra units stay hidden until Stockport's platform 3
 // is built; tapping a card marks it and frames what it's about on the map (window.__view.framed counts framings), and
 // opening Stockport and choosing one of its cards instead clears it. With the money (a save from that game, with cash
-// added and platform 3 built): extra units show as a card, buying one frames the new unit, the next one shows as the
-// next card, and the bought one sits on the stopper's Built line. A section of line (Heaton Norris Junction – Heaton
+// added and platform 3 built): its frequency shows as a card (Second unit), buying it frames the new unit, the next
+// step (Off-peak timetable) shows as the next card, and the bought one sits on the stopper's Built line. A section of line (Heaton Norris Junction – Heaton
 // Chapel, from Next to on Heaton Chapel's card, owned with it): its line speed card ghosts the renewed track
 // (window.__view.sections) and frames it, buying it shows it at 90 mph, and its Built chip frames it. One phone page
 // (320 px, touch) and one desktop page.
@@ -56,7 +56,7 @@ export default async function ({ ok, open, SAVE_KEY }) {
     const g0 = await p2.page.evaluate(() => window.__view?.framed ?? 0);
     const bought = await tap2('[data-up="units"]'); await p2.page.waitForFunction(g0 => (window.__view?.framed ?? 0) > g0, g0, { timeout: 60000 }).catch(() => {});
     const after = await p2.page.evaluate(() => ({ n: window.__view?.framed ?? 0, next: document.querySelector('[data-card="units"] .head b')?.textContent || '', built: document.querySelector('#panel .built')?.textContent || '' }));
-    const bad2 = [!bought && 'no Buy on the extra unit card', after.n <= g0 && 'the camera framed nothing', !/2 of 3/.test(after.next) && `the next card reads "${after.next}"`, !/Extra unit/.test(after.built) && 'not on the Built line', errs[0], p2.errs[0]].filter(Boolean);
+    const bad2 = [!bought && 'no Buy on the extra unit card', after.n <= g0 && 'the camera framed nothing', !/Off-peak timetable/.test(after.next) && `the next card reads "${after.next}"`, !/Second unit/.test(after.built) && 'not on the Built line', errs[0], p2.errs[0]].filter(Boolean);
     ok(`line: at ${w}×${h} buying an extra unit frames it, the next one shows as the next card, and it moves to the Built line`, !bad2.length, bad2.join('; '));
 
     // a section of line's card, from Next to on Heaton Chapel's: its line speed step ghosts the renewed track and

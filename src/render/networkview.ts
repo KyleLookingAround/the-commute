@@ -23,9 +23,10 @@ import type { ColourName } from './palette.ts';
 export const FADE_FROM = 2500, FADE_TO = 5000;
 /** A line's width and the gap from one service's line to the next beside it, in CSS pixels; the white edge each side. */
 const LINE_PX = 6, LANE_PX = 7, EDGE_PX = 1.4;
-/** A ring's radius in pixels: from RING_MIN with nobody waiting, growing with the root of the crowd, to RING_MAX; a
- * station not bought, LOCKED_PX. A train's bar, along and across its line. */
-const RING_MIN = 6, RING_MAX = 18, RING_K = 0.7, LOCKED_PX = 4, BAR_L = 15, BAR_W = 9;
+/** A ring's radius in pixels: from RING_MIN with nobody waiting to RING_MAX with its platforms full (waiting against
+ * the station's cap, eased by its root so a small crowd already shows); a station not bought, LOCKED_PX. A train's bar,
+ * along and across its line. */
+const RING_MIN = 5, RING_MAX = 22, LOCKED_PX = 4, BAR_L = 15, BAR_W = 9;
 /** How full a train is (on board against its seats) when it turns busy, and full. */
 export const BUSY = 0.6, FULL = 0.9;
 /** Metres between the points a service's line is drawn through, and how many either side ease a change of lanes. */
@@ -246,7 +247,7 @@ export class NetworkView {
     const A = this.ringA, ring = PAL.ring, edge = PAL['ring-edge'], lostC = PAL['ring-lost'], locked = PAL['ring-locked'];
     for (let i = 0; i < this.o.stations.length; i++) {
       const owned = !!sim.g.owned[i], S = sim.g.st[i], lost = owned && this.givingUp(sim, i) > 0;
-      const r = owned ? Math.min(RING_MAX, RING_MIN + Math.sqrt(S?.waiting ?? 0) * RING_K) : LOCKED_PX;
+      const r = owned ? RING_MIN + (RING_MAX - RING_MIN) * Math.sqrt(Math.min(1, (S?.waiting ?? 0) / Math.max(1, sim.capacity(i)))) : LOCKED_PX;
       // the quad holds the ring and its pulse: half again its radius
       A.aSize.setXY(i, r * 3, r * 3); this.ringR[i] = r;
       const f = owned ? ring : locked, e = lost ? lostC : owned ? edge : PAL.locked;

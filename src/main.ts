@@ -309,8 +309,7 @@ const lblKey: number[] = built.map(() => NaN);
 const lblMeter: (HTMLElement | null)[] = built.map(() => null);
 // where each label stands this frame (its centre's x, its bottom, its depth) and its width, read only when its text
 // changes, so two names that line up in the distance can be told apart: the nearer one shows
-const lblX = built.map(() => 0), lblY = built.map(() => 0), lblZ = built.map(() => 0), lblW = built.map(() => 0), lblOn = built.map(() => false);
-const LBL_H = 24;
+const lblX = built.map(() => 0), lblY = built.map(() => 0), lblZ = built.map(() => 0), lblW = built.map(() => 0), lblH = built.map(() => 24), lblOn = built.map(() => false);
 const v3 = new THREE.Vector3();
 /** Labels hide above this line, where the stage's own controls (and the minutes view's key, while it shows) sit. */
 let labelTop = 64;
@@ -360,15 +359,19 @@ function labels(): void {
       d.innerHTML = owned || far ? s.name : `${s.name} · <b>${price}</b>${offered[i] ? '<i class="lm"><i></i></i>' : ''}`;
       d.classList.toggle('lock', !owned); d.classList.toggle('offer', !owned && !!offered[i]);
       lblMeter[i] = d.querySelector<HTMLElement>('.lm > i');
-      d.style.display = ''; lblW[i] = d.offsetWidth;
+      d.style.display = ''; lblW[i] = d.offsetWidth; lblH[i] = d.offsetHeight || 24;
     }
   });
-  // where two names overlap on screen, the farther one gives way
+  // where two names overlap on screen (each standing up from its point, a price pill taller than a name), a fogged one
+  // gives way to one owned or offered, and otherwise the farther one gives way
+  const ahead = (i: number) => sim.g.owned[i] || offered[i] ? 0 : 1;
   for (let i = 0; i < lbls.length; i++) {
     let show = lblOn[i]!;
     for (let j = 0; show && j < lbls.length; j++) {
-      if (j === i || !lblOn[j] || lblZ[j]! > lblZ[i]! || (lblZ[j] === lblZ[i] && j > i)) continue;
-      if (Math.abs(lblX[i]! - lblX[j]!) * 2 < lblW[i]! + lblW[j]! && Math.abs(lblY[i]! - lblY[j]!) < LBL_H) show = false;
+      if (j === i || !lblOn[j]) continue;
+      const pi = ahead(i), pj = ahead(j);
+      if (pj > pi || (pj === pi && (lblZ[j]! > lblZ[i]! || (lblZ[j] === lblZ[i] && j > i)))) continue;
+      if (Math.abs(lblX[i]! - lblX[j]!) * 2 < lblW[i]! + lblW[j]! && lblY[i]! - lblH[i]! < lblY[j]! && lblY[j]! - lblH[j]! < lblY[i]!) show = false;
     }
     const d = lbls[i]!, disp = show ? '' : 'none'; if (d.style.display !== disp) d.style.display = disp;
   }

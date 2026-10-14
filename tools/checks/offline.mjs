@@ -85,11 +85,13 @@ export default async function ({ ok, root, url: shared, browser }) {
     await page.waitForTimeout(1500);
     const s2 = await state();
     ok('offline: a new build\'s worker waits while the game is open, not taking over mid-game', s2.waiting && s2.caches.includes('commute-' + stamp), JSON.stringify(s2));
-    await page.reload();
+    // the new worker reloads the page as it takes over: each step here has a time limit, so a reload caught between
+    // the two fails the check rather than hanging the group
+    await page.reload({ timeout: 30000 }).catch(() => {});
     await page.waitForTimeout(500);
     await page.waitForSelector('html[data-sim="ready"]', { timeout: 20000 }).catch(() => {});
     await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 10000 }).catch(() => {});
-    const s3 = await state().catch(e => ({ error: String(e) }));
+    const s3 = await Promise.race([state(), new Promise((_, no) => setTimeout(() => no(new Error('no answer in 20 s')), 20000))]).catch(e => ({ error: String(e) }));
     ok('offline: it takes over on the next load, and the older build\'s cache goes', !s3.waiting && s3.controlled && s3.caches?.includes(`commute-${stamp}-next`) && !s3.caches?.includes('commute-' + stamp), JSON.stringify(s3));
-  } finally { await ctx.close(); await offline(); }
+  } finally { await Promise.race([ctx.close(), new Promise(r => setTimeout(r, 15000))]); await offline(); }
 }

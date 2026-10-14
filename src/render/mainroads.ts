@@ -125,7 +125,7 @@ export class MainRoadLayer {
       this.group.add(m);
     }
     // down a motorway's middle, its central reserve's barrier and lamp columns
-    const def = this.p.def, onDeck = deckAt(def), unit = new THREE.BoxGeometry(1, 1, 1), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+    const def = this.p.def, onDeck = deckAt(def), unit = OPEN_BOX, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
     const bars: THREE.Matrix4[] = [], poles: THREE.Matrix4[] = [], lamps: THREE.Matrix4[] = [];
     for (const r of def.mainRoads ?? []) {
       const pts = /^M/.test(r.ref) ? courseOf(def, r.id) : null; if (!pts) continue;
@@ -148,6 +148,13 @@ export class MainRoadLayer {
     }
   }
 }
+/** A unit box with only the faces seen from above and the sides (no ends, no floor): six triangles fewer than a box. */
+const OPEN_BOX = (() => {
+  const b = new THREE.BoxGeometry(1, 1, 1), idx = b.index!, keep: number[] = [];
+  // BoxGeometry's groups: +x, -x, +y, -y, +z, -z; keep +y and the long sides (+z, -z)
+  for (const gi of [2, 4, 5]) { const g = b.groups[gi]!; for (let k = g.start; k < g.start + g.count; k++) keep.push(idx.getX(k)); }
+  b.setIndex(keep); b.clearGroups(); return b;
+})();
 const norm = (x: number, z: number): [number, number] => { const l = Math.hypot(x, z) || 1; return [x / l, z / l]; };
 
 /** A bridge's deck under a carriageway: its sides from the parapets' tops to the underside, and a pier down to the

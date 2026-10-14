@@ -73,3 +73,31 @@ The owner has said not to wait. Follow the real road, say so in the commit, and 
 ## Cost budget
 
 About $35. At about 450k of context, stop after a road and add a "## Handed on" section here.
+
+## Handed on
+
+14 October 2026. On `main`: 75c5e60 (the programs fix), 7b6223b (the roads), 3b7afd6 (the shots), 0a56409 (the checks brought up to the jammed opening), and the commit with this section.
+
+What landed, all of the brief's four parts on today's map:
+- **The roads.** These come from OpenStreetMap's main API by `node tools/osm-to-roads.mjs --main <id> [--write]`, into `mainRoads` in the network data, and are drawn by `src/render/mainroads.ts` (`docs/DESIGN.md`, The car):
+  - the A6 from Hazel Grove to London Road at Piccadilly
+  - the M60 from Heaton Mersey past J1 (the Pyramid roundabout) and under the viaduct to J27 (Portwood)
+  - the A5145 from Heaton Mersey to Travis Brow
+  - the A57 from Ardwick Green to Belle Vue
+  - the A560 from J1 through the town and Portwood to Bredbury
+  - the A626 from Portwood to Marple
+
+  Each road comes with its carriageways, lanes, one-ways, bridges, slip roads, roundabouts and named junctions. The tool's `mainRoads()` lists each road's ends, box and junctions; add a road there.
+- **Bridges and underpasses.** No main road crosses a line at grade: off a bridge, a road dips under the line (4.6 m headroom); on a bridge, the deck clears the rail by 5.2 m. Wellington Road stands on its deck over Mersey Square, and buses drive over it there.
+- **What gave way.** The old M60 landmark and the straight stand-in roads within 160 m of a real road are gone. The buses' roads aren't drawn where they share a carriageway with a main road.
+- **Buildings.** The real buildings already stand along all of it except 2.3 km of the A626 through Offerton, which is outside the world squares (`2_0`, `3_0`, `3_1`), so no stand-ins were added there.
+- **Traffic.** `src/data/traffic.json`'s stretches carry `on`, `at` (the DfT's own count-point position, from its API) and `head` (a named junction). All 11 are drawn, the A5145 and A57 among them.
+- **The check.** The `roads` group (no browser) covers junctions, crossings with the line (shown failing on a made-up level crossing) and the stretches.
+- **Costs.** About 6k triangles and no new shader program (MAT.road). The roads are laid a few each frame and laid again only within 1.5 km of the camera, and traffic stops re-laying while the camera is past where cars are drawn. The entry script grew about 25 KB gzipped with the data (412 of 450 KB).
+- **`PLAY`.** Identical to `main` on seeds 1–3 at each step.
+
+Left:
+- No lane markings: a texture cost the wash two programs. Paint them in the ground cover, or find room in the budget.
+- The A626 through Offerton has no real buildings until its squares are fetched.
+- The wide view's script time (about 0.8 s a frame at 4× throttle) was the same before the roads. It's worth a look by whoever owns perf.
+- The strain 320 px tap from issue #8 didn't fail here (6 of 6 passed), so it may be a flake on CI's runner.

@@ -11,7 +11,10 @@
 //   run under the ground.
 // - The lines out's ring: the page fetches out.json after its first frame, never before it, and lays the ground it
 //   touches again, without an error.
-// - Size: what's committed of the terrain stays within its budget (3.4 MB, with the Crewe line and its Macclesfield leg).
+// - Size per line: what's committed of the terrain stays within each line's allowance (tools/lines.mjs: today's line
+//   1.5 MB, each line out about 0.5 MB), and each line's figure is reported. The base (base.json) is today's line's; a
+//   fine tile, and each block of the lines out's ring (out.json, its share of the file), go to the line its middle is
+//   in or nearest.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';
@@ -23,7 +26,7 @@ const { Terrain, TerrainLayer, partBoxes } = await import('../../src/render/terr
 const { viaductOf, bridgesOf } = await import('../../src/render/landmarks.ts');
 
 const HALF = 1.51 + 0.5, Y0 = 0.5;   // a body's half width as drawn (the geometry check's), and its underframe
-const BUDGET = 3.4 * 1024 * 1024;
+const { lineOf, linesOf, report } = await import('../lines.mjs');
 
 export default async function ({ ok, root, open }) {
   const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def), c = net.spine;
@@ -93,8 +96,17 @@ export default async function ({ ok, root, open }) {
     await ctx.close();
   }
 
-  const size = statSync(join(root, 'src/data/terrain/base.json')).size + statSync(join(root, 'src/data/terrain/out.json')).size + fine.reduce((n, f) => n + statSync(join(fineDir, f)).size, 0);
-  ok(`terrain: the tiles are within their budget (${(size / 1048576).toFixed(2)} of ${BUDGET / 1048576} MB)`, size <= BUDGET);
+  // each tile's size to its line's: the base today's, a fine tile (256 m) and a block of the ring (256 m, its share of
+  // out.json's bytes) by where its middle is
+  {
+    const line = lineOf(net), sizes = { today: statSync(join(root, 'src/data/terrain/base.json')).size }, add = (l, n) => { sizes[l] = (sizes[l] ?? 0) + n; };
+    const base = JSON.parse(readFileSync(join(root, 'src/data/terrain/base.json'), 'utf8')), T = base.fineCell * base.tile, O = base.cell * base.outBlock;
+    for (const f of fine) { const [i, j] = f.replace('.txt', '').split('_').map(Number); add(line((i + 0.5) * T, (j + 0.5) * T), statSync(join(fineDir, f)).size); }
+    const outFile = statSync(join(root, 'src/data/terrain/out.json')).size, blocks = Object.entries(out.near), bytes = blocks.reduce((n, [k, v]) => n + k.length + v.length, 0);
+    for (const [k, v] of blocks) { const [i, j] = k.split(',').map(Number); add(line((i + 0.5) * O, (j + 0.5) * O), outFile * (k.length + v.length) / bytes); }
+    const per = report(sizes, linesOf(net), 'terrain'), total = Object.values(sizes).reduce((a, b) => a + b, 0);
+    ok(`terrain: each line's tiles are within its allowance (${per.text})`, !per.over.length, `${(total / 1048576).toFixed(2)} MB in all` + (per.over.length ? '; over: ' + per.over.join(', ') : ''));
+  }
 
   // Levenshulme at street level: its forecourt (the cycle stands), taxi rank and bus stop stand on the street below the
   // embankment, and the arched recesses at the foot of the wall, just outside the pad

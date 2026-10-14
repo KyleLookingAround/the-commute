@@ -1,8 +1,9 @@
 // The real surroundings (src/render/buildings.ts) from the world tiles on disk (tools/osm-to-world.mjs), placed as the
 // page places them on the terrain with every fine tile loaded. No browser.
 // - Every square loads: its header reads, it has buildings, and every piece is a sane size and height.
-// - Size: what's committed of the world tiles stays within its budgets: 2 MB for today's line (its 52 squares, TODAY),
-//   1.5 MB for the lines out (every other square: the Buxton line beyond Hazel Grove, the Marple line, the Rose Hill branch).
+// - Size per line: what's committed of the world tiles stays within each line's allowance (tools/lines.mjs: today's
+//   line's 52 squares 2 MB, each line out about 0.5 MB, a square to the line out whose corridor is nearest its middle),
+//   and each line's figure is reported.
 // - Clear of the line: no drawn building has any of its footprint (sampled every 2 m) on the railway's land or its
 //   cutting and embankment slopes, or on a station kit's parts; no tree or hedge stands on them either.
 // - Hedges: the lines out's open stretches have them along their field edges.
@@ -24,10 +25,7 @@ const { bridgesOf, buildLandmarks, standing, onCourses } = await import('../../s
 const THREE = await import('three');
 const { BuildingsLayer, decodeWorld } = await import('../../src/render/buildings.ts');
 
-const BUDGET = 2 * 1024 * 1024, BUDGET_OUT = 1.5 * 1024 * 1024;
-/** Today's line's squares (Hazel Grove to Piccadilly, and Stockport's valley); every other square is the lines out's. */
-const TODAY = new Set(('0_0 0_1 0_2 0_-1 0_-2 0_-3 1_0 1_1 1_2 1_3 1_-1 2_1 2_2 2_3 2_4 3_2 3_3 -1_0 -1_1 -1_2 -1_-1 -1_-2 -1_-3 -1_-4 -1_-5 -2_0 '
-  + '-2_1 -2_-1 -2_-2 -2_-3 -2_-4 -2_-5 -2_-6 -2_-7 -2_-8 -3_-3 -3_-4 -3_-5 -3_-6 -3_-7 -3_-8 -3_-9 -4_-5 -4_-6 -4_-7 -4_-8 -4_-9 -5_-7 -5_-8 -5_-9 -6_-8 -6_-9').split(' '));
+const { TODAY, lineOf, linesOf, report } = await import('../lines.mjs');
 
 export default async function ({ ok, root }) {
   const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def), c = net.spine;
@@ -52,11 +50,11 @@ export default async function ({ ok, root }) {
   }
   ok(`world: every square loads (${files.length})`, files.length > 0 && !bad.length, bad.slice(0, 4).join('; '));
 
-  const sizeOf = list => list.reduce((n, f) => n + statSync(join(dir, f)).size, 0);
-  const today = files.filter(f => TODAY.has(f.replace('.txt', ''))), out = files.filter(f => !TODAY.has(f.replace('.txt', '')));
-  const size = sizeOf(today), sizeOut = sizeOf(out);
-  ok(`world: today's line's tiles are within their budget (${(size / 1024).toFixed(0)} KB of ${BUDGET / 1048576} MB, ${today.length} squares)`, size <= BUDGET);
-  ok(`world: the lines out's tiles are within their budget (${(sizeOut / 1024).toFixed(0)} KB of ${BUDGET_OUT / 1048576} MB, ${out.length} squares)`, sizeOut <= BUDGET_OUT);
+  // each square's size to its line's, a square to the line its middle is nearest
+  const line = lineOf(net), sizes = {}, count = {};
+  for (const f of files) { const [i, j] = f.replace('.txt', '').split('_').map(Number), l = line(i * 1000 + 500, j * 1000 + 500); sizes[l] = (sizes[l] ?? 0) + statSync(join(dir, f)).size; count[l] = (count[l] ?? 0) + 1; }
+  const per = report(sizes, linesOf(net), 'world'), out = files.filter(f => !TODAY.has(f.replace('.txt', '')));
+  ok(`world: each line's tiles are within its allowance (${per.text})`, !per.over.length, per.over.length ? 'over: ' + per.over.join(', ') : Object.entries(count).map(([l, n]) => `${l} ${n} squares`).join(', '));
 
   // placed as the page places them
   // the landmarks first, so their footprints are known (as the page builds them before the buildings come in)

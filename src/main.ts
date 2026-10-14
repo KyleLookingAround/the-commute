@@ -111,6 +111,11 @@ void world.terrain.outReady.then(() => { buses.relay(); outIn = true; });
 /** After the first frame: the lines out's kits and ground (the script before it holds only the opening). Their
  * stations, empty until then, are built as their kits come, and whatever reads a kit takes them in. */
 function more(): void {
+  // the network view at wide zoom (src/render/networkview.ts), fetched now so it's not in the script before the first frame
+  void import('./render/networkview.ts').then(m => {
+    netView = new m.NetworkView({ scene, net, camera, canvas, reduced: rig.reduced, stations: stationsXZ.map(([x, z]) => [x, z, groundAt(x, z)]) });
+    Object.assign(view, { network: () => netView ? { ...netView.stats(sim), clouds: sky.shown, at: netView.onScreen() } : null });
+  });
   void world.more().then(() => {
     for (const i of fillStations(net, built, kits)) {
       built[i]!.group.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = !o.userData['noShadow']; o.receiveShadow = true; } });
@@ -120,6 +125,7 @@ function more(): void {
   });
 }
 let kitsIn = false;
+let netView: import('./render/networkview.ts').NetworkView | null = null;
 const links = new LinkLayer(scene, built);
 // where the track runs beside each platform face, from the service that boards there that way (at Stockport the main
 // line northbound, the Hazel Grove line southbound), so passengers stand back from the right edge
@@ -434,7 +440,7 @@ const picker = new Picker(camera, canvas, built, trains.meshes, [trains.spare, t
 rig.onTap = (x, y) => {
   // an edge marker first: the map keeps the gestures that start on one, and its tap opens the station
   const r = canvas.getBoundingClientRect(), mark = edges.hit(x - r.left, y - r.top); if (mark >= 0) { ui.select(mark); return; }
-  const hit = picker.pick(x, y); if (!hit) { void lineLayer.then(L => { const s = L.tap(x, y); if (s) ui.show(s); }); return; }
+  const hit = netView?.pick(x, y) ?? picker.pick(x, y); if (!hit) { void lineLayer.then(L => { const s = L.tap(x, y); if (s) ui.show(s); }); return; }
   if (hit.kind === 'train') {
     const m = trains.meshes[hit.i], tr = sim.g.trains[hit.i]; if (m) rig.ride(m);
     if (tr && sim.owns(`route:${tr.svc}`)) ui.show(`route:${tr.svc}`, false);
@@ -528,7 +534,7 @@ function frame(now: number): void {
   sound.update(sim, rig.o, light.daylight, stationsXZ, trains.meshes, realDt); pax.setDaylight(light.daylight);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
   syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt, sim); trains.sync(sim, dtGame); pax.sync(sim.g, dtGame); pax.placeCoin(camera); labels();
-  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim);
+  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim); netView?.update(sim, rig.o.r, realDt);
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); nextStations(); followGlide(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
   const t2 = performance.now();

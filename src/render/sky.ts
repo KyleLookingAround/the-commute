@@ -1,5 +1,5 @@
 // The sky: a dome with a zenith-to-horizon gradient that follows the clock, a sun disc where the sun light is, and a
-// layer of soft clouds drifting over the line. Everything here follows the camera, so the dome never has an edge, and
+// layer of soft clouds drifting over the line, faded out once the camera rises above them. Everything here follows the camera, so the dome never has an edge, and
 // nothing here changes the game. Colours come from the --map-* tokens through the palette.
 import * as THREE from 'three';
 import { PAL } from './scene.ts';
@@ -8,6 +8,9 @@ const DOME_RADIUS = 2500;      // inside the nearest the camera's far plane ever
 const CLOUD_HEIGHT = 520;
 const CLOUD_SPREAD = 16000;    // metres across, centred on the line
 const CLOUDS = 70;
+/** The clouds fade out as the camera rises from CLEAR_FROM to CLEAR_TO metres up, so the map seen from above them (Whole
+ * line, the network view) isn't under white blobs. */
+const CLEAR_FROM = 900, CLEAR_TO = 1400;
 
 const seed = (a: number, b: number) => { const s = Math.sin(a * 91.3 + b * 227.1) * 23421.631; return s - Math.floor(s); };
 
@@ -36,6 +39,8 @@ export class Sky {
   private drift = 0;
   /** How much of the sky the weather covers (0 to 1), how thick the fog, and the daylight at the last update. */
   private cover = 0; private fog = 0; private daylight = 1;
+  /** How much of the clouds shows from the camera's height (1 below CLEAR_FROM, 0 above CLEAR_TO). */
+  shown = 1;
   /** Each puff's resting place and size; the drift is added each frame and wrapped, so a cloud leaving one edge returns at the other. */
   private puffs: { x: number; y: number; z: number; w: number; d: number }[] = [];
   private m4 = new THREE.Matrix4(); private q = new THREE.Quaternion(); private p = new THREE.Vector3(); private s = new THREE.Vector3();
@@ -85,7 +90,7 @@ export class Sky {
     this.zenith.lerp(this.tmpC, 0.85 * grey);
     this.tmpC.copy(PAL['zenith-night']).lerp(PAL['cloud-grey'], 0.03 + 0.97 * this.daylight);
     this.cloudMat.color.lerp(this.tmpC, grey);
-    this.cloudMat.opacity = 0.9 + 0.1 * grey;
+    this.cloudMat.opacity = (0.9 + 0.1 * grey) * this.shown;
     this.sunDisc.visible &&= cover < 0.75 && fog < 0.4;
   }
   /** The horizon takes the fog's colour, so the dome meets the ground's haze without a seam. */
@@ -120,6 +125,9 @@ export class Sky {
     this.cloudMat.color.copy(PAL['zenith-night']).lerp(PAL.cloud, 0.03 + 0.97 * daylight);
     this.drift = (this.drift + dt * (4 + 8 * this.cover)) % CLOUD_SPREAD;
     this.daylight = daylight;
-    this.placeClouds();
+    const t = Math.max(0, Math.min(1, (camera.position.y - CLEAR_FROM) / (CLEAR_TO - CLEAR_FROM)));
+    this.shown = 1 - t * t * (3 - 2 * t); this.cloudMat.opacity = 0.9 * this.shown;
+    this.clouds.visible = this.shown > 0.005;
+    if (this.clouds.visible) this.placeClouds();
   }
 }

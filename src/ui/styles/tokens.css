@@ -80,6 +80,12 @@
      cemeteries and allotments, streets */
   --map-cover-park:#6fb85a; --map-cover-pitch:#7ccc5e; --map-cover-field:#9fbf5a; --map-cover-wood:#3f7f3c; --map-cover-scrub:#7a9a4e; --map-cover-water:#4a86c0;
   --map-cover-yard:#b3aea4; --map-cover-car:#8d8f96; --map-cover-bare:#a8916e; --map-cover-allot:#5f9a4a; --map-cover-street:#7d8088;
+  /* the network view at wide zoom (src/render/networkview.ts): each service's line in its own colour (by its id, the
+     numbered ones for a service with none of its own), the white edge under them, trains by how full (seats free, busy,
+     full), and the stations' rings, their edge red while people give up */
+  --map-svc-stopper:#2f7fe8; --map-svc-hazel-grove:#a05ce0; --map-svc-avanti:#12a39a; --map-svc-crosscountry:#8e2b5e; --map-svc-marple:#ff8f1f; --map-svc-rose-hill:#ff6fb1;
+  --map-svc-1:#1fb5e0; --map-svc-2:#e0c21f; --map-svc-3:#5fd068; --map-svc-edge:#ffffff;
+  --map-full-0:#ffffff; --map-full-1:#ffd23f; --map-full-2:#ff5a36; --map-ring:#ffffff; --map-ring-edge:#1d2340; --map-ring-lost:#ff3b30; --map-ring-locked:#e9ecf5;
   --map-ghost:#4fdcff; --map-house-sat:0.45; --map-tower-sat:0.15; --map-house-light:0.42; --map-tower-light:0.5;
 }
 @media (min-width:768px){ :root{ --sheet-w:360px } }

@@ -12,6 +12,7 @@ import { createServer } from 'node:http';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { cpus } from 'node:os';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..'), dist = join(root, 'dist'), out = join(root, 'build/check');
 mkdirSync(out, { recursive: true });
@@ -41,7 +42,8 @@ const server = createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}${base}`;
 const exe = process.env.CHROMIUM_PATH;
-let browser = null; const getBrowser = async () => browser || (browser = await chromium.launch(exe ? { executablePath: exe, args: ['--use-gl=swiftshader', '--ignore-gpu-blocklist'] } : { args: ['--use-gl=swiftshader', '--ignore-gpu-blocklist'] }));
+// one browser, launched on first use (a promise, so two pages opened side by side share it)
+let browser = null; const getBrowser = () => browser || (browser = chromium.launch(exe ? { executablePath: exe, args: ['--use-gl=swiftshader', '--ignore-gpu-blocklist'] } : { args: ['--use-gl=swiftshader', '--ignore-gpu-blocklist'] }));
 const results = []; const ok = (name, pass, info) => { results.push([name, !!pass]); console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${info ? '  ' + info : ''}`); };
 const ignorable = m => /fonts\.(googleapis|gstatic)|ERR_TUNNEL|ERR_NAME_NOT_RESOLVED|net::|WebGL|GPU stall/.test(m);
 
@@ -78,6 +80,15 @@ async function open(vp = { width: 1280, height: 800 }, { save = null, touch = fa
   return { ctx, page, errs };
 }
 
+// side(...fns): run a group's independent pages side by side, each fn an async block that opens and closes its own
+// page; as many at once as the runner has cores for (two from four cores, CHECK_SIDE to set it), in order otherwise.
+// A failure in one still lets the others finish before it's thrown.
+const SIDE = Number(process.env.CHECK_SIDE) || (cpus().length >= 4 ? 2 : 1);
+async function side(...fns) {
+  const queue = fns.slice(), errors = [];
+  await Promise.all(Array.from({ length: Math.min(SIDE, fns.length) }, async () => { while (queue.length) { try { await queue.shift()(); } catch (e) { errors.push(e); } } }));
+  if (errors.length) throw errors[0];
+}
 const groups = readdirSync(join(root, 'tools/checks')).filter(f => f.endsWith('.mjs')).sort().map(f => f.slice(0, -4));
 const unknown = named.filter(g => !groups.includes(g));
 if (unknown.length) { console.log(`no check group "${unknown[0]}"; the groups are ${groups.join(', ')}`); process.exit(1); }
@@ -99,11 +110,11 @@ if (shard) for (const g of [...groups].sort((a, b) => (MINUTES[b] ?? 1) - (MINUT
 const wanted = g => (!shard || shardOf.get(g) === shard[0] - 1) && (except ? !named.includes(g) : !named.length || named.includes(g));
 for (const g of groups) if (wanted(g)) {
   const t0 = Date.now(); running = g;
-  try { await (await import(pathToFileURL(join(root, 'tools/checks', g + '.mjs')).href)).default({ open, ok, root, out, url, SAVE_KEY, get browser() { return getBrowser(); } }); }
+  try { await (await import(pathToFileURL(join(root, 'tools/checks', g + '.mjs')).href)).default({ open, ok, side, root, out, url, SAVE_KEY, get browser() { return getBrowser(); } }); }
   catch (e) { const msg = String(e && e.message || e).split('\n')[0].slice(0, 200); ok(`${g}: *`, false, 'the group stopped: ' + msg); }
   console.log(`-- ${g} took ${((Date.now() - t0) / 60000).toFixed(1)} min`);
 }
-if (browser) await browser.close();
+if (browser) await (await browser).close();
 server.close();
 const failed = results.filter(r => !r[1]).length;
 console.log(`\n${results.length - failed}/${results.length} passed`);

@@ -7,7 +7,7 @@
 // tilt; a double tap zooms in where it lands; the compass shows while north isn't up and a tap puts it back. With
 // reduced motion, Whole line is there at once, with every station on the screen. Gestures land on the open map, beside
 // or above the sheet. Throughout, the camera is never below the ground nor far from the line.
-export default async function ({ ok, open }) {
+export default async function ({ ok, open, side }) {
   const cam = page => page.evaluate(() => window.__view.camera());
   const settle = page => page.waitForFunction(() => !window.__view.camera().flying, null, { timeout: 20000 }).catch(() => {});
   // a tap on a button at its middle: page.click can wait out its 30 s on "scrolling into view" while software-rendered
@@ -17,8 +17,9 @@ export default async function ({ ok, open }) {
   const lows = [];
   const watch = async (page, what) => { const c = await cam(page); if (c.above < 3.9 || c.fromLine > Math.max(300, c.r * 0.35) + 1) lows.push(`${what}: ${c.above.toFixed(1)} m up, ${c.fromLine.toFixed(0)} m off the line at r ${c.r.toFixed(0)}`); return c; };
 
+  // the desktop and the phone, side by side where the runner can (side, tools/check.mjs)
+  await side(async () => {
   // ---- desktop ----
-  {
     const { ctx, page, errs } = await open({ width: 1280, height: 800 });
     await page.waitForTimeout(500);
     const box = await page.evaluate(() => window.__view.open());
@@ -84,10 +85,8 @@ export default async function ({ ok, open }) {
     ok('camera: holding a key away from the line keeps where it looks within reach of the line', far.fromLine <= Math.max(300, far.r * 0.35) + 1, `${far.fromLine.toFixed(0)} m off the line at r ${far.r.toFixed(0)}`);
     ok('camera: on the desktop page nothing went wrong', !errs.length, errs[0]);
     await ctx.close();
-  }
-
+  }, async () => {
   // ---- phone ----
-  {
     const { ctx, page, errs } = await open({ width: 360, height: 740 }, { touch: true });
     await page.waitForTimeout(500);
     const cdp = await ctx.newCDPSession(page);
@@ -145,6 +144,6 @@ export default async function ({ ok, open }) {
     const off = await page.evaluate(() => Array.from(document.querySelectorAll('#lbls .lbl'), (_, i) => window.__view.spot('station', i)).filter(p => !p).length);
     ok('camera: with reduced motion Whole line is there at once, with every station on the screen', !t8.flying && t8.r > 4000 && off === 0, `flying ${t8.flying}, r ${t8.r.toFixed(0)}, ${off} off the screen`);
     await ctx.close();
-  }
+  });
   ok('camera: never below the ground nor far from the line', !lows.length, lows.slice(0, 3).join('; '));
 }

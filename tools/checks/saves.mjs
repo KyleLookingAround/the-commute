@@ -8,7 +8,7 @@ import { register } from 'tsx/esm/api';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export default async function ({ ok, open, root, url }) {
+export default async function ({ ok, open, root, url, side }) {
   register();
   const { fromGeo } = await import('../../src/sim/network.ts');
   const { Sim } = await import('../../src/sim/sim.ts');
@@ -18,7 +18,8 @@ export default async function ({ ok, open, root, url }) {
   const carried = JSON.stringify({ g: sim.g, selected: 1, at: Date.now() - 20 * 60_000 });
   const money = page => page.evaluate(() => Number((document.getElementById('cash')?.textContent ?? '').replace(/[^0-9]/g, '')));
   const toast = page => page.evaluate(() => document.getElementById('toast')?.textContent ?? '');
-  for (const [w, h, touch] of [[320, 640, true], [1280, 800, false]]) {
+  // each size side by side where the runner can (side, tools/check.mjs)
+  await side(...([[320, 640, true], [1280, 800, false]]).map(([w, h, touch]) => async () => {
     const { ctx, page, errs } = await open({ width: w, height: h }, { touch });
     const away = []; page.on('request', r => { if (!r.url().startsWith(url) && !/^(blob|data):/.test(r.url()) && !/fonts\.(googleapis|gstatic)/.test(r.url())) away.push(r.url()); });
     const tap = async sel => { sel = await reveal(page, sel); return touch ? page.locator(sel).tap({ timeout: 60000 }) : page.locator(sel).click({ timeout: 60000 }); };
@@ -59,5 +60,5 @@ export default async function ({ ok, open, root, url }) {
     ok(`saves: at ${w}×${h} a good file asks once, then loads and catches up`, /^Tap again to load day \d+$/.test(asking ?? '') && m > 123456 && /While you were away/.test(welcome) && kept === sim.g.seed, `${asking}; £${m}; ${welcome}`);
     ok(`saves: at ${w}×${h} nothing leaves the page, and no errors`, !away.length && !errs.length, [...away, ...errs][0]);
     await ctx.close();
-  }
+  }));
 }

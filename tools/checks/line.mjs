@@ -8,8 +8,9 @@
 // (window.__view.sections) and frames it, buying it shows it at 90 mph, and its Built chip frames it. One phone page
 // (320 px, touch) and one desktop page.
 import { reveal } from '../reveal.mjs';
-export default async function ({ ok, open, SAVE_KEY }) {
-  for (const [w, h, touch] of [[320, 568, true], [1280, 800, false]]) {
+export default async function ({ ok, open, SAVE_KEY, side }) {
+  // each size side by side where the runner can (side, tools/check.mjs)
+  await side(...([[320, 568, true], [1280, 800, false]]).map(([w, h, touch]) => async () => {
     const { ctx, page, errs } = await open({ width: w, height: h }, { touch });
     await page.waitForTimeout(600);
     const tap = async sel => {
@@ -41,7 +42,7 @@ export default async function ({ ok, open, SAVE_KEY }) {
     await tap('[data-pick="crossing"]'); await tap('[data-up="crossing"]'); await page.waitForFunction(k => !!localStorage.getItem(k) && JSON.parse(localStorage.getItem(k)).g.places['station:stockport']?.crossing, SAVE_KEY, { timeout: 60000 }).catch(() => {});
     const raw = await page.evaluate(k => localStorage.getItem(k), SAVE_KEY);
     await ctx.close();
-    if (!raw) { ok(`line: at ${w}×${h} buying an extra unit frames it and moves it to the Built line`, false, 'no save to start from'); continue; }
+    if (!raw) { ok(`line: at ${w}×${h} buying an extra unit frames it and moves it to the Built line`, false, 'no save to start from'); return; }
     const s = JSON.parse(raw); s.g.cash = 100000; s.g.places['station:stockport'].platform2 = 1; s.g.places['station:heaton-chapel'] = {}; delete s.at;
     const p2 = await open({ width: w, height: h }, { touch, save: JSON.stringify(s), steady: 50 });
     await p2.page.waitForTimeout(600);
@@ -77,5 +78,5 @@ export default async function ({ ok, open, SAVE_KEY }) {
       !/Line speed 90 mph/.test(shown.built) && 'not on the Built line', !sChip || c1 <= c0 ? 'the Built chip framed nothing' : false, p2.errs[0]].filter(Boolean);
     ok(`line: at ${w}×${h} a section's line speed card ghosts its renewed track and frames it, buying it shows it, and its Built chip frames it`, !bad3.length, bad3.join('; '));
     await p2.ctx.close();
-  }
+  }));
 }

@@ -175,14 +175,17 @@ export class Places {
     return [...out];
   }
   /** Whether a place the player can buy (a station or a stop) touches one they own: a station a neighbouring station
-   * (the services running on past it don't count: owning a station offers the next, not the whole line), a stop its
+   * (the services running on past it don't count: owning a station offers the next, not the whole line), and only one
+   * a service of the line's calls at (a station whose line has no service yet stands fogged with its price); a stop its
    * station. Its needs aren't counted here (`waits`). */
   touches(g: GameState, id: string): boolean {
     const p = this.get(id);
-    if (p.kind === 'station') return (this.near.get(id) ?? []).some(s => s in g.places);
+    if (p.kind === 'station') return this.served(p.station!) && (this.near.get(id) ?? []).some(s => s in g.places);
     if (p.kind === 'stop') return this.station[p.station!]! in g.places;
     return false;
   }
+  /** Whether a service of the line's calls at station i. */
+  served(i: number): boolean { return this.svcs.some(v => v.route.includes(i)); }
   /** What a station really needs built elsewhere before it can be bought, while that isn't built. */
   waits(g: GameState, net: Network, id: string): { station: number; upgrade: UpgradeId } | null {
     const p = this.get(id); if (p.kind !== 'station') return null;

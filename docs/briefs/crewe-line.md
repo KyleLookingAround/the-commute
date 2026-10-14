@@ -105,3 +105,27 @@ Depth before breadth: no new areas on the map until the current map has more to 
 - Finish part 1b, the lines out's data and kits after the first frame. That helps every line.
 - Then stop. Parts 2 to 4 (the stations, the service and the surroundings) wait.
 - The corridors and ground stay as laid, with no stations offered.
+
+### Handed on, 14 October 2026, from the seventh pick-up session (at about 420k of context, after part 2)
+
+- **Done:** c2561bf's Publish run is green on all four shards. Then:
+  - **b0d99df:** the lines out's near ring is back to 800 m.
+  - **6d89765 (part 1b):** every line out's ground and kits load after the first frame. Entry 378 of 450 KB. The sim's graph stays in the bundle, because a save and the first step need it; the coordinator was told.
+  - **Part 2, the stations (the commit after this note):**
+    - Five kits, census homes and draw (Stockport's car-park pool moves from 150 to 160 drivers; every other existing figure is as it was), provisional prices (Cheadle Hulme £120k, Handforth 170k, Wilmslow 250k, Bramhall 190k, Poynton 240k), and every section's line speed and wires.
+    - A layout entry moves the Crewe tracks to the real ones through Cheadle Hulme.
+    - New rule: a station is offered only where a service calls (`Places.served`), so the five stand fogged with their prices.
+    - Bot at 8 h: PLAY moves (b250564c, cadb2561, 8ca70a87) from about game day 3, with random draws shifted. Every milestone is within the baselines.
+- **Confirm first:** the Publish runs for b0d99df, 6d89765 and part 2.
+- **Next, part 3, the service.** Notes:
+  - **Cheadle Hulme 3 and 4 are real** (the owner, f15ea74). The kit draws them as angled `footprint` platforms on the Macclesfield tracks, gated on `platforms`.
+    - The Macclesfield trains must call there. Either move Cheadle Hulme North Junction south of the station (a game choice), or give Cheadle Hulme platform faces on the Macclesfield tracks and let a route call at a station on another corridor.
+    - The geometry check sweeps only services on a station's own corridor and finds platforms only by `type: "platform"`. It needs extending to measure 3 and 4.
+    - The Macclesfield tracks are drawn as 32 m chords past Cheadle Hulme. A car body swings 0.1 to 0.4 m over the platform edges at the kinks; straighten that stretch.
+  - **Bramhall and Poynton:** the `macclesfield` corridor follows the real line towards Macclesfield there, so the network's tracks are about 3.5 m east of the real ones. The kits are shifted +3.5 to 3.7 m in v to stand on the game's tracks. To follow the real railway, add a layout entry through both (`macclesfield-north` about -3.5, `macclesfield-south` 0) and shift both kits' v by about -3.6.
+  - **Wilmslow:** platforms 1 and 2 are the Styal pair, drawn as scenery rails (v -14.1 and -17.7). 3 (the halt, `crewe-north`) and 4 (`crewe-south`) are the trains via Stockport. `stop` 40.
+  - **Handforth:** OSM numbers the west platform 2; the kit gives the halt to the west platform (towards Manchester).
+  - **The expresses run up the Crewe and Macclesfield lines** (the owner's call). Choose Stockport platforms for the stoppers: southbound on the up slow is platform 1, which needs Stockport's `platforms` stage.
+  - No bus stop places for the new stations yet (`stops`). Candidates from the export: Bramhall Stop A on Bramhall Lane South (kit u 83, v 23); Poynton's eastbound Railway Station stop on Chester Road (u 29, v -87).
+  - Prices are provisional; part 3's bot sets them.
+- **Not looked at on screen:** the five new kits. Geometry 151/151 and kits 52/52 pass, but only with no service on their lines.

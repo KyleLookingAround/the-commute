@@ -89,8 +89,10 @@ const kit = (id: string) => JSON.parse(readFileSync(new URL(`../src/data/kits/${
 const stopper = def.services?.find(s => s.id === 'stopper');
 
 test('tracks: trains stand just clear of the platform their passengers wait on, at every station, each way', () => {
-  const n = net();
+  const n = net(), sim = new Sim(n, Sim.fresh(n, 1));
+  // every station a service calls at (one whose line has none yet stands fogged, never offered)
   for (const st of n.stations) {
+    if (!sim.P.served(st.index)) continue;
     const k = kit(st.kit);
     for (const dir of ['north', 'south'] as const) {
       const svc = n.boardingService(st.id, dir); if (!svc) throw new Error(`${st.id}: no service boards ${dir}`);
@@ -352,7 +354,7 @@ test('branch: the Hazel Grove train passes from its own line onto the line to St
 test('branch: passengers change at Stockport, pay once, and arrive', () => {
   const sim = new Sim(net(), Sim.fresh(net(), 5)), n = sim.net;
   sim.g.cash = 1e8; growStockport(sim);
-  for (let i = 1; i < n.stations.length; i++) assert.ok(sim.buyStation(i));
+  for (let i = 1; i < n.stations.length; i++) if (sim.P.served(i)) assert.ok(sim.buyStation(i));
   sim.advance(2 * 3600);
   const st = n.station('stockport').index, dav = n.station('davenport').index, hc = n.station('heaton-chapel').index;
   assert.ok(sim.state(st).changed > 0, 'people changed trains at Stockport');

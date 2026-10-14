@@ -24,7 +24,8 @@ test('places: every station, route, stop and depot is a place, by kind:name', ()
 
 test('places: Stockport touches Heaton Chapel and, across Edgeley Junction, Davenport; Davenport waits on platforms 0, 1 and 2', () => {
   const sim = fresh(), P = sim.P;
-  assert.deepEqual([...P.near.get(st('stockport'))!].sort(), [st('davenport'), st('heaton-chapel')]);
+  // and across it, the Crewe line's first station and the Macclesfield leg's (its junction is north of Cheadle Hulme)
+  assert.deepEqual([...P.near.get(st('stockport'))!].sort(), [st('bramhall'), st('cheadle-hulme'), st('davenport'), st('heaton-chapel')]);
   assert.ok(sim.offerable(net.station('heaton-chapel').index) && sim.offerable(net.station('davenport').index));
   assert.ok(!sim.offerable(net.station('levenshulme').index), 'not yet: nothing next to it is owned');
   assert.deepEqual(sim.offeredPlaces().filter(id => id.startsWith('station:')), [st('heaton-chapel')], 'Davenport stands waiting');
@@ -105,4 +106,10 @@ test('places: the save holds places only, and a game read back is the same game'
   assert.deepEqual(back.g.owned, sim.g.owned); assert.deepEqual(back.g.ups, sim.g.ups); assert.deepEqual(back.g.line, sim.g.line);
   assert.ok(back.g.ups[0]!.bus && back.g.ups[0]!.crossing && back.g.line.units === 1);
   assert.throws(() => { (back.g as unknown as { owned: boolean[] }).owned = []; }, 'what\'s worked out from places can\'t be written over');
+});
+
+test('places: a station no service calls at stands fogged, never offered', () => {
+  const sim = fresh(), P = sim.P;
+  const lone = net.stations.filter(s => !P.served(s.index));
+  for (const s of lone) { sim.g.cash = 1e9; for (const t of P.near.get(st(s.id)) ?? []) if (!(t in sim.g.places)) sim.grant(t); assert.ok(!sim.offerable(s.index) && !sim.offeredPlaces().includes(st(s.id)), `${s.name} isn't offered`); }
 });

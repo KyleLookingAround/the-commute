@@ -129,3 +129,5 @@ Depth before breadth: no new areas on the map until the current map has more to 
   - No bus stop places for the new stations yet (`stops`). Candidates from the export: Bramhall Stop A on Bramhall Lane South (kit u 83, v 23); Poynton's eastbound Railway Station stop on Chester Road (u 29, v -87).
   - Prices are provisional; part 3's bot sets them.
 - **Not looked at on screen:** the five new kits. Geometry 151/151 and kits 52/52 pass, but only with no service on their lines.
+
+**Coordinator, 14 October 2026:** 21ffbdc, the five stations standing fogged, was reverted on `main` to keep to the pause (depth before breadth). It's kept whole on the branch `crewe-stations-draft`. When the Crewe line resumes, start from that branch, then do parts 3 and 4 from the Handed on above.

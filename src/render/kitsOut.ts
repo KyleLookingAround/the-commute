@@ -16,15 +16,9 @@ import bredbury from '../data/kits/bredbury.json';
 import romiley from '../data/kits/romiley.json';
 import marple from '../data/kits/marple.json';
 import roseHill from '../data/kits/rose-hill.json';
-import cheadleHulme from '../data/kits/cheadle-hulme.json';
-import handforth from '../data/kits/handforth.json';
-import wilmslow from '../data/kits/wilmslow.json';
-import bramhall from '../data/kits/bramhall.json';
-import poynton from '../data/kits/poynton.json';
 
 export const outKits: Record<string, Kit> = {
   davenport: davenport as Kit, woodsmoor: woodsmoor as Kit, 'hazel-grove': hazelGrove as Kit, middlewood: middlewood as Kit, disley: disley as Kit, 'new-mills-newtown': newMills as Kit,
   ashburys: ashburys as Kit, 'belle-vue': belleVue as Kit, 'ryder-brow': ryderBrow as Kit, 'reddish-north': reddishNorth as Kit, brinnington: brinnington as Kit, bredbury: bredbury as Kit,
   romiley: romiley as Kit, marple: marple as Kit, 'rose-hill': roseHill as Kit,
-  'cheadle-hulme': cheadleHulme as Kit, handforth: handforth as Kit, wilmslow: wilmslow as Kit, bramhall: bramhall as Kit, poynton: poynton as Kit,
 };

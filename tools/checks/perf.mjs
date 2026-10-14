@@ -27,7 +27,9 @@ const BUDGET = {
   // above what it drew when it was added, until a real phone's figures come in)
   calls: { open: 450, busy: 800, wide: 800 },
   triangles: { open: 450000, busy: 550000, wide: 550000 },
-  geometries: 400, textures: 16, programs: 40,
+  // geometries and shader programs held: the whole line holds more (every square's far ground and buildings made, and
+  // their materials), 535 and 51 when it was added
+  geometries: { open: 400, busy: 400, wide: 650 }, textures: 16, programs: { open: 40, busy: 40, wide: 60 },
   // MB fetched after the first frame at one view, uncompressed (set above what each fetched when it was added)
   view: { open: 0, buxton: 0, marple: 0 },
 };
@@ -78,9 +80,9 @@ export default async function ({ ok, open, root, url, SAVE_KEY, browser }) {
         tag === 'wide' && r.r < 4000 && `the camera is only ${r.r.toFixed(0)} m out`,
         BUDGET.calls[tag] && r.calls > BUDGET.calls[tag] && `${r.calls} calls, budget ${BUDGET.calls[tag]}`,
         BUDGET.triangles[tag] && r.triangles > BUDGET.triangles[tag] && `${r.triangles} triangles, budget ${BUDGET.triangles[tag]}`,
-        BUDGET.geometries && r.geometries > BUDGET.geometries && `${r.geometries} geometries, budget ${BUDGET.geometries}`,
+        r.geometries > BUDGET.geometries[tag] && `${r.geometries} geometries, budget ${BUDGET.geometries[tag]}`,
         BUDGET.textures && r.textures > BUDGET.textures && `${r.textures} textures, budget ${BUDGET.textures}`,
-        BUDGET.programs && r.programs > BUDGET.programs && `${r.programs} programs, budget ${BUDGET.programs}`,
+        r.programs > BUDGET.programs[tag] && `${r.programs} programs, budget ${BUDGET.programs[tag]}`,
         errs[0],
       ].filter(Boolean);
       ok(`perf: ${NAME[tag]} at 390×844 draws inside its budgets`, !over.length, over.join('; '));

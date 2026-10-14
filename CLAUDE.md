@@ -94,4 +94,5 @@ From the owner's other games and the brief for this one.
 - Saves stay on the device.
 - It stays an incremental upgrade game: buy the next thing, unlock the next station.
 - All public transport is the game, not stations alone: the railway and the line between stations, buses, trams and the ways to reach them, with the car as the rival (the owner, 13 October 2026; `docs/decisions/ADR-2026-10-13-all-public-transport.md`).
+- Depth before breadth: no new areas on the map until the current map has more to do and upgrade (the owner, 14 October 2026).
 - Colourful and alive, not bleak: a model railway in daylight, with a real sky and a day that visibly turns.

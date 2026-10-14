@@ -98,3 +98,10 @@ The session pushes each part to `main` once its checks pass, then confirms that 
   - a new stats view
 
   You keep everything else. If you need a budget changed in those checks, ask the coordinator. Run `git pull --rebase origin main` before every push.
+
+## Paused (the owner, 14 October 2026)
+
+Depth before breadth: no new areas on the map until the current map has more to do (`docs/ROADMAP.md`, phase 5).
+- Finish part 1b, the lines out's data and kits after the first frame. That helps every line.
+- Then stop. Parts 2 to 4 (the stations, the service and the surroundings) wait.
+- The corridors and ground stay as laid, with no stations offered.

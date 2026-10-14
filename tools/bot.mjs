@@ -42,14 +42,20 @@ if (args.includes('--fair')) WEATHER.felt = false;
  * most homes and draw per pound, counting the price of what it waits on elsewhere, which it builds first
  * (docs/design/buying.md, The bot); then each station's way across and second platform (trains both ways), its
  * booking office and barriers, then cheap wins, a taxi rank where people have been giving up (a dozen or more), a spare
- * unit once a train has failed, a line's through running once offered with twice its price (and what it waits on, with twice both), a branch's next frequency step once it reaches three stations and there's three times its
+ * unit once a train has failed, the stopper's next frequency step and longer trains when its trains leave full or late
+ * (once Piccadilly is owned), lifts and a shop where they pay back within two game days, a line's through running once offered with twice its price (and what it waits on, with twice both), a branch's next frequency step once it reaches three stations and there's three times its
  * price, and a section's line speed once there's money to spare (the stopper's line first), then
  * its resignalling once the stopper's line is raised, wires where a line it owns has none, and a flying junction
  * wherever one's offered. */
 /** The stations whose car park has filled, this run (the bot's memory: it builds the second stage there). */
 const full = new Set();
+/** How strained the main line has looked over the last game hour or so of decisions: one mark for each stopper unit
+ * that was running late (three minutes or more) or leaving nearly full (90% of its seats), each decision. */
+const strain = [];
 export function act(sim) {
   const g = sim.g, home = sim.svcs[0].route[0], P = sim.P;
+  { let n = 0; for (const tr of g.trains) if (tr.svc === sim.svcs[0].id && (tr.late >= 180 || tr.onboard >= 0.9 * tr.cars * TUNING.seatsPerCar)) n++; strain.push(n); if (strain.length > 60) strain.shift(); }
+  const strained = strain.reduce((a, b) => a + b, 0) >= 20;
   // a stage at a station (its bus link: the stop by it, a place of its own)
   const up = (i, id) => { const at = g.owned[i] && !g.ups[i][id] && sim.upgradePlace(i, id); return at && sim.buy(...at) ? `${id}:${sim.S[i].id}` : null; };
   const line = id => sim.buy(sim.linePlace(id), id);
@@ -74,6 +80,22 @@ export function act(sim) {
   if (g.line.spare < 1 && g.cash > 15000 && line('spare')) return 'spare';
   if (g.line.units < 2 && g.cash > 30000 && line('units')) return 'unit';
   if (g.line.cars < 1 && g.cash > 25000 && line('cars')) return 'cars';
+  // the stopper's next frequency step (its off-peak timetable, then its peak one) and the second longer trains when its
+  // trains have been leaving full or late, once Piccadilly is owned and there's the price and £20,000 more
+  if (strained && g.owned[sim.net.station('piccadilly').index]) {
+    const next = [['units', sim.price(P.stopper, 'units')], ['cars', sim.price(P.stopper, 'cars')]].filter(([, p]) => p !== undefined && g.cash > p + 20000).sort((a, b) => a[1] - b[1])[0];
+    if (next && sim.buy(P.stopper, next[0])) return next[0] === 'units' ? 'unit' : 'cars';
+  }
+  // lifts and a shop where they pay back within two game days: a shop's £0.80 a boarding passenger, lifts' minute off
+  // everyone's walk taken as a twentieth more fares
+  for (let i = 0; i < sim.S.length; i++) {
+    if (!g.owned[i]) continue;
+    const S = g.st[i], days = Math.max(1, g.day - 1), boardedDay = S.boarded / days, takenDay = S.revenue / days;
+    for (const [id, back] of [['retail', 0.8 * boardedDay], ['lifts', 0.05 * takenDay]]) {
+      const u = UPGRADES.find(x => x.id === id); if (!sim.offered(i, u) || g.ups[i][id]) continue;
+      const price = sim.upgradePrice(i, u); if (back * 2 >= price && g.cash > 2 * price) { const r = up(i, id); if (r) return r; }
+    }
+  }
   // a line's through running once it's offered and there's twice its price, and what it waits on first (Piccadilly's
   // shed and bays for the Hazel Grove trains), with twice both
   for (const p of P.all) {
@@ -144,7 +166,7 @@ export function career(seed, runs = runCount, hoursToPlay = hours) {
 
 export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadilly = false) {
   const net = fromGeo(def), sim = new Sim(net, Sim.fresh(net, seed, perksHeld)), t0 = sim.g.t, cash0 = sim.g.cash, picc = net.station('piccadilly').index;
-  full.clear();
+  full.clear(); strain.length = 0;
   // car parks and bus links: when each filled (by game day), for the table
   const filled = sim.S.map(() => new Set());
   const reached = {}; let lastCash = sim.g.cash, quietSince = 0, longestQuiet = 0, dayQuiet = 0, longestDayQuiet = 0;

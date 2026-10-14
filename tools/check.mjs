@@ -70,13 +70,14 @@ const unknown = named.filter(g => !groups.includes(g));
 if (unknown.length) { console.log(`no check group "${unknown[0]}"; the groups are ${groups.join(', ')}`); process.exit(1); }
 // Shards are balanced by each group's minutes on a CI runner (the "-- group took" lines in its log), heaviest first onto
 // the lightest shard; a group not listed counts as one minute. Update these when a shard runs long.
-// From the Publish run for 972723b (14 October 2026, run 38498128564), with perf raised for its wide view, the stats
-// view and what a view loads, and terrain and world for their time loading the tiles at import (outside the group's
-// timer, so its log line says less).
+// From the Publish runs for a4726b6 and 7ca364e (14 October 2026, runs 140 and 141, six shards). Eight shards. A group
+// that took under a tenth of a minute counts as 0.1 (its tiles load at import, outside the group's timer).
 const MINUTES = {
-  camera: 13.2, contract: 12.1, perf: 12, layout: 10.6, line: 8.9, saves: 8.7, strain: 8.1, reach: 7.1, preview: 4.4, life: 4.1,
-  weather: 3.8, homes: 3.7, places: 3.6, access: 3.3, offline: 2.8, fullscreen: 2.4, trouble: 1.8, daylight: 1.7, terrain: 1.5,
-  contrast: 0.9, world: 0.5, geometry: 0.2, bot: 0.1, kits: 0.1, signals: 0.1, sections: 0.1, landmarks: 0.1, rules: 0.1,
+  camera: 16.2, perf: 13.1, layout: 9.6, reach: 9.2, line: 9, strain: 8, contract: 7.1, saves: 6.9, homes: 4.5, preview: 4.3,
+  places: 4.2, life: 3.4, weather: 2.8, offline: 2.8, access: 2.4, fullscreen: 2.3, daylight: 2.1, trouble: 1.9, contrast: 0.9,
+  terrain: 0.5, world: 0.2, geometry: 0.2, bot: 0.1, kits: 0.1, signals: 0.1, sections: 0.1, landmarks: 0.1, rules: 0.1,
+  // not yet timed in CI: guessed from their pages (two, one, none), to be replaced with their logs' figures
+  away: 3, networkview: 3, surroundings: 1,
 };
 const shardOf = new Map(), load = shard ? Array(shard[1]).fill(0) : [];
 if (shard) for (const g of [...groups].sort((a, b) => (MINUTES[b] ?? 1) - (MINUTES[a] ?? 1) || a.localeCompare(b))) {

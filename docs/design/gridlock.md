@@ -4,7 +4,7 @@ The design for a new opening, from `docs/briefs/gridlock-opening.md` and the own
 
 ## Open questions for the owner
 
-Each has the option the build takes if the owner doesn't answer, and why.
+**Answered 14 October 2026: the owner said to go with the defaults, all eight as taken below.** Question 3's G5 isn't built unless the owner asks for it later.
 
 1. **Starting cash and the price of reopening.** *Take: £4,000 to start, Reopen Stockport £1,000.* After reopening the player holds today's £3,000 and Stockport stands as today's halt, so everything after the first tap plays as today's opening does, only sooner (Pacing, below). A dearer reopening (say all of £3,000) makes the first minute a wait for fares before the second buy.
 2. **Every station starts shut, and buying one is "Reopen".** *Take: yes, the same buy with a new word.* Every station on the map is a real station with no trains calling, fogged with its price as now; the button on a station's card says Reopen instead of Buy. Stops and routes that never existed (a bus stop, a bus lane) keep Buy. Nothing else about buying changes.

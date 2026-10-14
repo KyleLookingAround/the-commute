@@ -90,3 +90,17 @@ test('sections: the lines out run diesel where the real line has no wires, and e
   assert.ok(sim.buy(k, 'wires') && sim.sectionAt(k)!.wired && sim.sectionAt(k)!.wiresBought && !sim.canBuy(k, 'wires'));
   assert.ok(sim.runAccel(marple, bre, rom) > before && Math.abs(sim.runAccel(marple, bre, rom) - 1) < 1e-9, 'and as electric units once wired');
 });
+
+test('sections: a flying junction is offered only once trains have been held there long enough, and is bought once', () => {
+  const sim = fresh(), j = 'junction:ardwick';
+  for (const st of ['heaton-chapel', 'levenshulme', 'ardwick', 'piccadilly']) sim.grant(sim.P.station[net.station(st).index]!);
+  assert.ok(sim.owns(j), 'Ardwick Junction comes with the sections through it');
+  assert.equal(sim.price(j, 'flyover'), undefined, 'not offered before trains have been held there');
+  sim.g.held['ardwick'] = 599; assert.equal(sim.price(j, 'flyover'), undefined);
+  sim.g.held['ardwick'] = 600;
+  assert.ok(sim.canBuy(j, 'flyover') && sim.buy(j, 'flyover') && sim.flown('ardwick') && !sim.canBuy(j, 'flyover'));
+  // the ways through it that cross without sharing a track stop conflicting; those onto the same track still do
+  const ways = sim.svcs.flatMap(v => [1, -1].flatMap(d => net.movements(v.def, d as 1 | -1).filter(m => m.junction === 'ardwick')));
+  const pairs = ways.flatMap(p => ways.map(q => [p, q] as const)).filter(([p, q]) => net.conflicts(p, q));
+  assert.ok(pairs.some(([p, q]) => !net.shares(p, q)), 'some ways through Ardwick Junction cross without sharing a track');
+});

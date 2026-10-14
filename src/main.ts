@@ -387,7 +387,7 @@ function lineView(): void {
   }));
 }
 // the line between stations (src/render/sections.ts): each section's renewed track on the map, fetched just after the start
-const lineLayer = import('./render/sections.ts').then(m => { const L = new m.SectionLayer(scene, net, () => sim, camera, canvas); Object.assign(view, { sections: () => ({ ...L.stats(), wired: L.wired() }) }); return L; });
+const lineLayer = import('./render/sections.ts').then(m => { const L = new m.SectionLayer(scene, net, () => sim, camera, canvas); Object.assign(view, { sections: () => ({ ...L.stats(), wired: L.wired(), flyovers: L.flyovers() }) }); return L; });
 const ui = new UI(sim, els, {
   speed: s => { speed = s; ui.setSpeed(s); },
   viewLine: lineView,
@@ -405,7 +405,8 @@ const ui = new UI(sim, els, {
   renew: () => void contractSheet().then(c => c.open(career, sim.g, net.stations.map(s => s.id))),
   showSection: (id, bought, stage) => void lineLayer.then(L => {
     const signals = stage === 'signals' && !bought ? lineside.previewSignals(sim, id) : lineside.previewSignals(null, null);
-    const wires = L.previewWires(stage === 'wires' && !bought ? id : null);
+    const wires = L.previewWires(stage === 'wires' && !bought ? id : null), fly = L.previewFlyover(stage === 'flyover' && !bought ? id : null);
+    if (stage === 'flyover') { const box = fly ?? (id ? L.flyoverBox(id) : null); if (box) frameBox(box); return; }
     const box = signals ?? wires ?? L.preview(bought || stage !== 'speed' && stage !== undefined ? null : id) ?? (id ? L.boxOf(id) : null); if (box) frameBox(box);
   }),
 }, sheet);

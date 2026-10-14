@@ -15,7 +15,7 @@ import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
 import { stepExpress, nextSlot, EXPRESS_UNITS } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
 import { effects, type Effects } from './contract.ts';
-import { places, build, derive, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, type Places, type Upgrade } from './places.ts';
+import { places, build, derive, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, JUNCTION_FLYOVER, type Places, type Upgrade } from './places.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
 // a station's stages and the line's, now stages of places (src/sim/places.ts); here too, where the view finds them
@@ -154,6 +154,8 @@ export class Sim {
   /** Each corridor's signal sites and each track's blocks as the resignalled sections have them, worked out as needed
    * and forgotten when one is resignalled. */
   private siteCache = new Map<string, number[]>(); private blockCache = new Map<string, Blocks>();
+  /** The junction whose signal last held the train signalRoom looked at, or null. */
+  private heldAt: string | null = null;
   constructor(network: Network, state?: GameState) {
     this.net = network;
     this.S = network.stations;              // [{ id, name, s, miles, catchment, price, retail, index }]
@@ -196,7 +198,7 @@ export class Sim {
       v: SAVE_VERSION, seed, rngState: seed >>> 0, t: simAtHour(1, 6.5), day: 1, cash: 3000 + fx.cash, earned: 0,
       places: owned, perks: [...perks],
       st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0, cab: 0, cabs: [], through: 0, car: 0, bus: 0, carAcc: 0, busAcc: 0, parked: [] })),
-      trains: [], ends: {}, trouble: freshTrouble(), weather: freshWeather(seed, simAtHour(1, 6.5)),
+      trains: [], ends: {}, trouble: freshTrouble(), held: {}, weather: freshWeather(seed, simAtHour(1, 6.5)),
       stats: { boarded: 0, lost: 0, cab: 0, through: 0, express: 0, car: 0, bus: 0, late: 0 },
       homes: network.stations.map(s => s.catchment),
     } as Omit<GameState, 'owned' | 'ups' | 'line'> as GameState, P);
@@ -227,6 +229,12 @@ export class Sim {
   }
   /** Whether a section of line is under wires: from the start where the real line is, or once electrified. */
   private wiredSec(x: { id: string; wired: boolean }): boolean { return x.wired || (this.g.places[x.id]?.[SECTION_WIRES.id] ?? 0) > 0; }
+  /** Whether a junction (by its id, not its place id) has been rebuilt as a flying junction. */
+  flown(junction: string): boolean { return (this.g.places[`junction:${junction}`]?.[JUNCTION_FLYOVER.id] ?? 0) > 0; }
+  /** Seconds trains have stood held at a junction's signals (by its place id), the whole run. */
+  heldFor(id: string): number { return this.g.held[id.slice('junction:'.length)] ?? 0; }
+  /** Whether a junction's flying junction is offered: owned, not built, and trains held there long enough. */
+  flyoverOffered(id: string): boolean { return this.owns(id) && !this.flown(id.slice('junction:'.length)) && this.heldFor(id) >= JUNCTION_FLYOVER.after; }
   /** Whether a section of line has been resignalled. */
   resignalled(id: string): boolean { return (this.g.places[id]?.[SECTION_SIGNALS.id] ?? 0) > 0; }
   /** Whether chainage s on any of these corridors lies in a resignalled section. */
@@ -576,6 +584,8 @@ export class Sim {
     tr.v = Math.max(0.5, Math.min(tr.v, Math.sqrt(2 * TUNING.brake * Math.max(rem, 0))));
     // a train closing on the one ahead, or on a red signal, brakes to stand behind it
     if (room < rem) tr.v = Math.min(tr.v, Math.sqrt(2 * TUNING.brake * Math.max(room, 0)));
+    // standing (or all but) at a junction's signal, held for another train's way through it: counted for the junction
+    const j = this.heldAt; if (j && room < rem && room < 20) this.g.held[j] = (this.g.held[j] ?? 0) + dt;
     const step = room < rem ? Math.min(tr.v * dt, Math.max(room, 0)) : tr.v * dt;
     if (step >= rem) { this.goTo(tr, target); tr.v = 0; return true; }
     this.goTo(tr, tr.s + tr.dir * step); return false;
@@ -605,7 +615,7 @@ export class Sim {
    * as far ahead as `rem`, where it's going. */
   signalRoom(tr: Train, rem: number): number {
     const v = this.svc(tr.svc), P = v.path, L = this.half(tr), head = tr.s + tr.dir * L, d = tr.dir;
-    let room = Infinity;
+    let room = Infinity; this.heldAt = null;
     for (let k = P.legAt(head, tr.leg); k >= 0 && k < P.legs.length && room === Infinity; k += d) {
       const leg = P.legs[k]!, B = this.blocks(d > 0 ? leg.north : leg.south), n = B.at.length;
       for (let q = 0; q < n; q++) {
@@ -619,7 +629,7 @@ export class Sim {
     // the junctions ahead it's coming up to
     for (const m of this.net.movements(v.def, d)) {
       const ahead = (m.s - head) * d; if (ahead <= 0.5) continue; if (ahead > Math.min(rem + 1, TUNING.claim)) break;
-      if (this.junctionHeld(tr, m, ahead)) room = Math.min(room, ahead - TUNING.signalStand);
+      if (this.junctionHeld(tr, m, ahead)) { room = Math.min(room, ahead - TUNING.signalStand); this.heldAt = m.junction; }
       break;
     }
     return room;
@@ -631,7 +641,7 @@ export class Sim {
       if (o === tr || o.state === 'away') continue;
       const L = this.half(o);
       for (const p of this.net.movements(this.svc(o.svc).def, o.dir)) {
-        if (p.junction !== m.junction || !this.net.conflicts(m, p)) continue;
+        if (p.junction !== m.junction || !this.net.conflicts(m, p) || (this.flown(m.junction) && !this.net.shares(m, p))) continue;
         const head = (p.s - (o.s + o.dir * L)) * o.dir, tail = (p.s - (o.s - o.dir * L)) * o.dir;
         if ((head <= 0 && tail > 0) || (head > 0 && head <= TUNING.claim && o.state === 'run' && (head < ahead || (head === ahead && o.id < tr.id)))) return true;
       }
@@ -859,6 +869,7 @@ export class Sim {
     const p = this.P.byId.get(id); if (!p) return undefined;
     if (stage === undefined) return p.kind === 'station' ? this.stationPrice(p.station!) : p.kind === 'stop' && p.stop ? this.cost(p.stop.price) : undefined;
     if (p.kind === 'station') { const u = UPGRADES.find(x => x.id === stage && !x.stop); return u ? this.upgradePrice(p.station!, u) : undefined; }
+    if (p.kind === 'junction') return stage === JUNCTION_FLYOVER.id && this.flyoverOffered(id) ? this.cost(JUNCTION_FLYOVER.price) : undefined;
     if (p.kind === 'section') { const x = this.sectionAt(id); return stage === SECTION_SPEED.id ? x?.price : stage === SECTION_SIGNALS.id ? x?.signalsPrice : stage === SECTION_WIRES.id ? x?.wiresPrice : undefined; }
     const u = this.lineStage(stage);
     return u && this.P.stagesFor(this.net, id).includes(u) ? this.linePrice(u.id) : undefined;
@@ -870,7 +881,7 @@ export class Sim {
     if (stage === undefined) return !(id in g.places) && this.P.touches(g, id) && !this.P.waits(g, this.net, id);
     if (!this.owns(id)) return false;
     if (p.kind === 'station') { const i = p.station!, u = UPGRADES.find(x => x.id === stage)!; return !this.ups(i)[u.id] && this.offered(i, u) && this.ready(i, u); }
-    if (p.kind === 'section') return this.price(id, stage) !== undefined;
+    if (p.kind === 'section' || p.kind === 'junction') return this.price(id, stage) !== undefined;
     const u = this.lineStage(stage)!;
     return g.line[u.id] < u.max && this.lineReady(u.id);
   }

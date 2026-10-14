@@ -52,6 +52,10 @@ export const SECTION_SPEED = { id: 'speed', name: 'Line speed', perMile: 3300, s
 export const SECTION_SIGNALS = { id: 'signals', name: 'Resignalling', perMile: 5000, desc: 'New colour-light signals at closer spacing: trains follow closer, signals fail less' } as const;
 /** A section's electrification, where the real line has no wires: one stage, `perMile` pounds a mile; its trains
  * accelerate as electric units do through it (TUNING.accel, not accelDiesel). */
+/** A junction's flying junction: one stage, `price` pounds, offered once trains have stood `after` seconds in all at its
+ * signals held for one another; then ways through it that cross no longer wait on each other (ways onto the same track
+ * still take turns). */
+export const JUNCTION_FLYOVER = { id: 'flyover', name: 'Flying junction', price: 60000, after: 600, desc: 'One line over the other on a bridge: trains crossing here stop waiting for each other' } as const;
 export const SECTION_WIRES = { id: 'wires', name: 'Electrification', perMile: 8000, desc: 'Masts and wires: trains accelerate harder through it' } as const;
 /** Which kind of place each of those stages is on. */
 export const LINE_PLACE: Record<Exclude<LineUpgradeId, 'timetable'>, 'route' | 'depot'> = { units: 'route', cars: 'route', spare: 'depot' };

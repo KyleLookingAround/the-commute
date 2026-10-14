@@ -215,6 +215,9 @@ export interface GameState {
    * 1 the north), which the next unit keeps a headway behind. */
   ends: Record<string, [number, number]>;
   trouble: Trouble;
+  /** Seconds trains have stood at each junction's signal held for another train's way through it (by junction id), the
+   * whole run: a flying junction is offered where it's been long enough (src/sim/places.ts, JUNCTION_FLYOVER). */
+  held: Record<string, number>;
   /** Each station's homes now: its census `catchment` at the start, growing towards its `ceiling` while it's owned, the
    * quicker the better its trip door to door (docs/DESIGN.md, Homes that grow). */
   homes: number[];

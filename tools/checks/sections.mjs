@@ -2,7 +2,8 @@
 // renderer's own section layer: a section the real line runs without wires (Romiley – Bredbury) has no masts until
 // it's electrified; its card's stage ghosts them; once bought its masts stand outside its outer tracks only where the
 // line had no wires, rising into place, and a contact wire runs over its tracks; a section that starts wired offers no
-// wires. No browser.
+// wires. A flying junction (Ardwick's) ghosts on its card and, once bought, stands as a flyover climbing over the
+// tracks there on piers. No browser.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';
@@ -41,4 +42,11 @@ export default async function ({ ok, root }) {
   let off = 0;
   for (let i = 0; i < (poles?.count ?? 0); i++) { poles.getMatrixAt(i, m4); p.setFromMatrixPosition(m4); const at = line.nearest(p.x, p.z); if (at < x.s0 - 1 || at > x.s1 + 1 || net.wired(x.corridor, at)) off++; }
   ok('sections: only along the section, where the line had no wires', poles?.count > 0 && off === 0, `${off} astray`);
+  // a flying junction: ghosted, then bought (granted: no game holds trains long enough there to offer it yet)
+  const fb = L.previewFlyover('junction:ardwick');
+  ok('sections: a flying junction\'s card ghosts its flyover and frames it', !!fb && !fb.isEmpty() && fb.max.y > 7);
+  L.previewFlyover(null);
+  sim.grant('junction:ardwick', 'flyover'); L.previewFlyover(null);
+  const j = net.junctions.find(q => q.id === 'ardwick'), fly = L.flyoverBox('junction:ardwick');
+  ok('sections: once bought it stands over the tracks at the junction, rising into place', L.flyovers() === 1 && !!fly && fly.min.x <= j.x && fly.max.x >= j.x && fly.min.z <= j.z && fly.max.z >= j.z, JSON.stringify(fly));
 }

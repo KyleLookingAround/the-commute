@@ -74,7 +74,7 @@ export interface Handlers {
   renew: () => void;
   /** Show a section of line on the map with a stage (its next line speed step, its resignalling or its wires) as a ghost, or
    * what it built (bought); null stops. */
-  showSection: (id: string | null, bought?: boolean, stage?: 'speed' | 'signals' | 'wires') => void;
+  showSection: (id: string | null, bought?: boolean, stage?: 'speed' | 'signals' | 'wires' | 'flyover') => void;
 }
 
 /** A stage on the open card, as its card, the Buy bar and the timer read it. */
@@ -349,6 +349,7 @@ export class UI {
     if (p.kind === 'route') panel.innerHTML = this.stats([['rUnits', 'Units'], ['rCars', 'Cars'], ['rEvery', 'Every'], ['rAboard', 'Aboard']], id === sim.P.stopper ? [['rSpeed', 'Line speed'], ['rBus', 'By bus']] : []);
     else if (p.kind === 'depot') panel.innerHTML = this.stats([['dSpare', 'Spare unit'], ['dFails', 'Failures'], ['dBus', 'By bus']]);
     else if (p.kind === 'section') { this.sectionCard(id); return; }
+    else if (p.kind === 'junction') { this.junctionCard(id); return; }
     else { panel.innerHTML = '<p class="blurb">Comes with the stations at its ends.</p>'; return; }
     const step = (u: LineUpgrade, lvl: number) => u.max > 1 ? `${u.name} ${lvl + 1} of ${u.max}` : u.name;
     this.stageCards(sim.P.stagesFor(sim.net, id).filter(u => sim.lineReady(u.id)).map(x => {
@@ -391,6 +392,20 @@ export class UI {
       { id: 'signals', stage: signals, saves: null, opens: [], built: x.signals ? 'Resignalled' : null },
       { id: 'wires', stage: wires, saves: null, opens: [], built: x.wiresBought ? 'Wired' : null },
     ], k => this.on.showSection(id, true, k === 'signals' || k === 'wires' ? k : 'speed'));
+  }
+  /** A junction: how long trains have stood at its signals held for one another, and once that's long enough its
+   * flying junction (the line between stations). */
+  private junctionCard(id: string): void {
+    const sim = this.sim, panel = this.els.panel;
+    panel.innerHTML = this.stats([['jHeld', 'Trains held'], ['jKind', 'Junction']]) + `<p class="blurb">Comes with the line through it.</p>`;
+    if (!sim.owns(id)) return;
+    const price = sim.price(id, 'flyover'), flown = sim.flown(id.slice('junction:'.length));
+    const stage: Stage | null = price === undefined ? null : {
+      name: 'Flying junction', adds: 'One line over the other on a bridge: trains crossing here stop waiting for each other', price, can: () => sim.canBuy(id, 'flyover'),
+      buy: () => { if (!sim.buy(id, 'flyover')) return false; this.toast(`${sim.P.get(id).name}: flying junction`); this.on.showSection(id, true, 'flyover'); return true; },
+      pick: on => this.on.showSection(on ? id : null, false, 'flyover'),
+    };
+    this.stageCards([{ id: 'flyover', stage, saves: null, opens: [], built: flown ? 'Flying junction' : null }], () => this.on.showSection(id, true, 'flyover'));
   }
   /** A bus stop or bus station: what it does, and its figures once it's the player's. */
   private stopCard(id: string): void {
@@ -447,6 +462,8 @@ export class UI {
       set('dSpare', g.line.spare ? 'Ready' : 'None'); set('dFails', num(g.trouble.fails)); set('dBus', num(g.trouble.bused));
     } else if (p?.kind === 'section') {
       const x = sim.sectionAt(id); set('xSpeed', x ? `${x.mph} mph` : '–'); set('xLen', x ? `${x.miles.toFixed(1)} mi` : '–'); set('xWires', x ? (x.wired ? 'Electric' : 'Diesel') : '–');
+    } else if (p?.kind === 'junction') {
+      set('jHeld', `${Math.round(sim.heldFor(id) / 60)} min`); set('jKind', sim.flown(id.slice('junction:'.length)) ? 'Flying' : 'Flat');
     } else if (p?.kind === 'stop') {
       const S = sim.state(p.station!); set('sBus', num(S.bus)); set('sWait', `${S.waiting} waiting`);
     } else if (!p) {

@@ -7,6 +7,9 @@
 // An electrified section (one the real line runs without wires, wired since) shows masts outside its outer tracks
 // every MAST metres with an arm over them and a contact wire over each track, as the wired lines' (src/render/world.ts),
 // rising into place when bought; its card's stage ghosts them.
+// A flying junction shows as a flyover: a concrete deck that leaves the line on one side, climbs over its tracks at the
+// junction on piers and comes down on the other, rising into place when bought; its card's stage ghosts it. The
+// trains' own tracks stay drawn at grade (the flyover's own tracks in the sim are handed on).
 import * as THREE from 'three';
 import { newFrame, type Network } from '../sim/network.ts';
 import type { Sim } from '../sim/sim.ts';
@@ -19,6 +22,9 @@ const STEP = 20, EDGE = 2.2, INSET = 40, OUT = 3.4, TAP_PX = 22;
 /** Masts every MAST metres on the same grid as the wired lines' (30 m on from a line's start), MAST_OUT outside the
  * outer track, the arm ARM long; the contact wire WIRE_Y up, drawn in WIRE_STEP pieces. */
 const MAST = 55, MAST_OUT = 3.2, ARM = 3, WIRE_Y = 5.4, WIRE_STEP = 10;
+/** A flyover runs FLY_LEN metres either side of its junction, FLY_OUT beyond the outer tracks at its ends, its deck
+ * FLY_H up over the tracks (climbing over FLY_RAMP metres), FLY_W wide, in FLY_STEP pieces. */
+const FLY_LEN = 260, FLY_OUT = 8, FLY_H = 7.5, FLY_RAMP = 150, FLY_W = 6, FLY_STEP = 20;
 
 function token(name: string, fallback: string): THREE.Color {
   const v = typeof getComputedStyle === 'function' ? getComputedStyle(document.documentElement).getPropertyValue(`--map-${name}`).trim() : '';
@@ -51,7 +57,7 @@ export class SectionLayer {
   private v = new THREE.Vector3();
   /** Each electrified section's masts and wires (or its ghost, under the key `ghost`), and how far each is through
    * rising into place. */
-  private wires = new Map<string, THREE.Group>(); private wireKey = ''; private wireGhost: string | null = null;
+  private wires = new Map<string, THREE.Group>(); private wireKey = ''; private wireGhost: string | null = null; private flyGhost: string | null = null;
   private rising = new Map<string, number>(); private wireMat: THREE.LineBasicMaterial; private last = 0;
   private timer: ReturnType<typeof setInterval>;
   constructor(scene: THREE.Scene, net: Network, sim: () => Sim, camera: THREE.Camera, canvas: HTMLCanvasElement) {
@@ -98,19 +104,36 @@ export class SectionLayer {
     const g = id ? this.wires.get('ghost') : null;
     return g ? new THREE.Box3().setFromObject(g) : null;
   }
+  /** Ghost a junction's flying junction (null: none). Returns the box round it, to frame. */
+  previewFlyover(id: string | null): THREE.Box3 | null {
+    this.flyGhost = id; this.syncWires();
+    const g = id ? this.wires.get('fly-ghost') : null;
+    return g ? new THREE.Box3().setFromObject(g) : null;
+  }
+  /** The box round a junction's flyover, built or not, to frame. */
+  flyoverBox(id: string): THREE.Box3 | null { const g = this.wires.get(id) ?? this.flyoverFor(id, true); const b = g ? new THREE.Box3().setFromObject(g) : null; if (g && !this.wires.has(id)) this.root.remove(g); return b; }
+  /** How many junctions show a bought flyover (for the checks). */
+  flyovers(): number { let n = 0; for (const k of this.wires.keys()) if (k.startsWith('junction:')) n++; return n; }
   /** How many sections show bought masts and wires (for the checks). */
-  wired(): number { let n = 0; for (const [k, g] of this.wires) if (k !== 'ghost' && g.visible) n++; return n; }
+  wired(): number { let n = 0; for (const [k, g] of this.wires) if (k.startsWith('section:') && g.visible) n++; return n; }
 
   /** Bring the map up to date with the sections' wires: a group for each electrified section (rising into place if
    * it's new since the last look) and the ghost. */
   private syncWires(): void {
-    const sim = this.sim(), ids = sim.secs.filter(x => sim.sectionAt(x.id)!.wiresBought).map(x => x.id), key = ids.join() + '|' + this.wireGhost;
+    const sim = this.sim(), ids = sim.secs.filter(x => sim.sectionAt(x.id)!.wiresBought).map(x => x.id);
+    const flown = this.net.junctions.filter(j => sim.flown(j.id)).map(j => `junction:${j.id}`);
+    const key = ids.join() + '|' + flown.join() + '|' + this.wireGhost + '|' + this.flyGhost;
     if (key === this.wireKey) return;
     const first = this.wireKey === ''; this.wireKey = key;
-    for (const [k, g] of this.wires) if (k === 'ghost' || !ids.includes(k)) { this.root.remove(g); this.wires.delete(k); }
-    for (const id of ids) if (!this.wires.has(id)) { const g = this.mastsFor(id, false); if (g) { this.wires.set(id, g); if (!first) { this.rising.set(id, 0); g.scale.y = 0.01; } } }
+    for (const [k, g] of this.wires) if (k === 'ghost' || k === 'fly-ghost' || (!ids.includes(k) && !flown.includes(k))) { this.root.remove(g); this.wires.delete(k); }
+    for (const id of [...ids, ...flown]) if (!this.wires.has(id)) {
+      const g = id.startsWith('junction:') ? this.flyoverFor(id, false) : this.mastsFor(id, false);
+      if (g) { this.wires.set(id, g); if (!first) { this.rising.set(id, 0); g.scale.y = 0.01; } }
+    }
     const gh = this.wireGhost, x = gh ? sim.sectionAt(gh) : null;
     if (gh && x && !x.wired) { const g = this.mastsFor(gh, true); if (g) this.wires.set('ghost', g); }
+    const fg = this.flyGhost;
+    if (fg && !sim.flown(fg.slice('junction:'.length))) { const g = this.flyoverFor(fg, true); if (g) this.wires.set('fly-ghost', g); }
     if (this.rising.size) { this.last = performance.now(); requestAnimationFrame(() => this.rise()); }
   }
   /** One frame of the newly electrified sections' masts rising into place. */
@@ -122,6 +145,38 @@ export class SectionLayer {
       if (n >= 1) this.rising.delete(k); else this.rising.set(k, n);
     }
     if (this.rising.size) requestAnimationFrame(() => this.rise());
+  }
+  /** A junction's flyover: a deck from beyond the outer tracks on the low side, over them at the junction, down beyond
+   * them on the high side, on piers where it's up, as one group, or as a ghost. Rising scales it up from the ground. */
+  private flyoverFor(id: string, ghost: boolean): THREE.Group | null {
+    const net = this.net, jid = id.slice('junction:'.length), j = net.junctions.find(q => q.id === jid); if (!j) return null;
+    const c = j.corridor, tracks = net.tracks.filter(t => t.corridor === c);
+    const across = (s: number): [number, number] => {
+      let lo = Infinity, hi = -Infinity;
+      for (const t of tracks) { const [e0, e1] = net.extent(t.id); if (s < e0 || s > e1) continue; const o = net.offsetAt(t.id, s); lo = Math.min(lo, o); hi = Math.max(hi, o); }
+      return lo > hi ? [-4, 4] : [lo, hi];
+    };
+    const [lo0] = across(j.s - FLY_LEN), [, hi1] = across(j.s + FLY_LEN), n = Math.ceil(2 * FLY_LEN / FLY_STEP), pts: THREE.Vector3[] = [];
+    for (let k = 0; k <= n; k++) {
+      const u = -FLY_LEN + 2 * FLY_LEN * k / n, f = k / n, v = (lo0 - FLY_OUT) * (1 - f) + (hi1 + FLY_OUT) * f;
+      const y = FLY_H * Math.max(0, Math.min(1, (FLY_LEN - Math.abs(u)) / FLY_RAMP)), p = net.place(c, j.s + u, v);
+      pts.push(new THREE.Vector3(p.x, y + 0.5, p.z));
+    }
+    const group = new THREE.Group(), deckMat = ghost ? GHOST : MAT.concrete, m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
+    const deck = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), deckMat, n), piers = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.6, 0.7, 1, 8, 1, true), deckMat, n + 1);
+    const dir = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), side = new THREE.Vector3(), z = new THREE.Vector3(), basis = new THREE.Matrix4();
+    let np = 0;
+    for (let k = 0; k < n; k++) {
+      const a = pts[k]!, b = pts[k + 1]!; dir.subVectors(b, a); const len = dir.length(); dir.normalize();
+      side.crossVectors(up, dir).normalize(); z.crossVectors(dir, side).normalize();
+      basis.makeBasis(dir, z, side); q.setFromRotationMatrix(basis);
+      deck.setMatrixAt(k, m4.compose(this.v.addVectors(a, b).multiplyScalar(0.5), q, new THREE.Vector3(len + 0.2, 1, FLY_W)));
+    }
+    for (const p of pts) if (p.y > 3) { piers.setMatrixAt(np++, m4.compose(this.v.set(p.x, (p.y - 0.5) / 2, p.z), q.identity(), new THREE.Vector3(1, p.y - 0.5, 1))); }
+    piers.count = np; deck.computeBoundingSphere(); piers.computeBoundingSphere();
+    deck.castShadow = piers.castShadow = !ghost; deck.receiveShadow = true;
+    group.add(deck, piers); this.root.add(group);
+    return group;
   }
   /** A section's masts, arms and contact wires where its line has none, as one group (instanced), or as a ghost. */
   private mastsFor(id: string, ghost: boolean): THREE.Group | null {

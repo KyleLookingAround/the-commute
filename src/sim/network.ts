@@ -315,6 +315,8 @@ export class Network {
     return out;
   }
   private moveCache = new Map<string, Movement[]>();
+  /** Whether two different ways through the same junction share a track (so even a flying junction can't set both). */
+  shares(p: Movement, q: Movement): boolean { return p.junction === q.junction && !(p.a === q.a && p.b === q.b) && (p.a === q.a || p.b === q.b || p.a === q.b || p.b === q.a); }
   /** Whether two ways through the same junction can't be set at once: different ways that share a track or cross. */
   conflicts(p: Movement, q: Movement): boolean {
     if (p.junction !== q.junction || (p.a === q.a && p.b === q.b)) return false;

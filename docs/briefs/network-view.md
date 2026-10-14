@@ -64,3 +64,13 @@ The owner has said not to wait: take the option the review points to and say so.
 ## Cost budget
 
 About $25 for both. At about 450k of context, add a "## Handed on" section here.
+
+## Handed on
+
+Both steps are built, with the two things step 16 left and step 25 (from the coordinator), all view only:
+
+- **Step 16** (400c5a1, nits 1e970f6): `src/render/networkview.ts`, the clouds' fade in `src/render/sky.ts`, `--map-svc-*`, `--map-full-*` and `--map-ring-*` tokens, and the `networkview` check group. Rings are sized by how full the platforms are. Fogged names give way to owned and offered ones by their real height.
+- **Step 17** (38eeaa0, acc70be): `src/render/away.ts`, holds on the homes (`HomesLayer.hold`) and car parks (`StationLife.hold`), an instant Whole line (`fitAll(…, true)`), and the `away` check group, from the bot's save carried forward through `window.__seed`. `MAX_AWAY` is unchanged.
+- **Step 25** (f1b31f5): `src/ui/cause.ts`, the chips under the what's-wrong line, and `test/cause.test.ts`.
+- `PLAY` was identical to `main` on seeds 1–3 when last compared (before step 25, which doesn't touch the sim). Lines outside the brief's files (`src/main.ts`, `homes.ts`, `life.ts`, `panel.ts`, `strain.ts`, `page.css`) are named in their commits.
+- Left for later: the network view draws a service's whole route between the furthest stations its trains reach, so a line with peak-only units resting off the map still shows. The coins after time away are HTML over the canvas, one column per station that earned.

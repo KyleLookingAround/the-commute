@@ -79,3 +79,22 @@ The session pushes each part to `main` once its checks pass, then confirms that 
 - **The script before the first frame is 447 of 450 KB.** The bundled terrain grew with the new lines. To fit, I cut a line out's 32 m ground ring to 75 m (it was 800 m; the spine keeps 1.5 km), in `tools/lidar-to-terrain.mjs`. Before adding stations, move the lines out's near ring out of the bundle and fetch it after the first frame, as the fine tiles are, then put the ring back to 800 m. Kits and network data added in the bundle will otherwise go over.
 - **Budgets now:** opening 442,343 of 450,000 triangles; busy save 521,792 of 550,000 (up 9.6k with the new lines' trees, masts and signals); terrain tiles 3.17 of 3.4 MB (the check's budget was raised from 2.6).
 - **Not looked at on screen:** the new lines' ground and the Edgeley join were checked only by the terrain, geometry and layout checks, not by eye.
+
+## The owner's decision, 14 October 2026
+
+`docs/decisions/ADR-2026-10-14-budgets-and-the-real-railway.md` changes three things here.
+
+- **Before the stations, part 1b:** the script before the first frame holds only the opening.
+  - Every line out's network data, kits and ground load after the first frame: the Buxton, Marple, Rose Hill, Crewe and Macclesfield lines.
+  - Put the lines out's near ground ring back to 800 m.
+  - Say in the commit what the entry comes to.
+- **The real railway by default:**
+  - Cheadle Hulme follows the real line: the Macclesfield trains call at platforms 3 and 4.
+  - The expresses run up the Crewe and Macclesfield lines once part 3 builds the service.
+  - Run the bot as usual. If a milestone moves past the baselines, re-propose them in the commit.
+- **Running alongside you:** a budgets session (`docs/briefs/budgets.md`) owns:
+  - `tools/checks/perf.mjs`, `terrain.mjs` and `world.mjs`
+  - `tools/check.mjs` and `.github/workflows/deploy.yml`
+  - a new stats view
+
+  You keep everything else. If you need a budget changed in those checks, ask the coordinator. Run `git pull --rebase origin main` before every push.

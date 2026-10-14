@@ -98,14 +98,13 @@ const unknown = named.filter(g => !groups.includes(g));
 if (unknown.length) { console.log(`no check group "${unknown[0]}"; the groups are ${groups.join(', ')}`); process.exit(1); }
 // Shards are balanced by each group's minutes on a CI runner (the "-- group took" lines in its log), heaviest first onto
 // the lightest shard; a group not listed counts as one minute. Update these when a shard runs long.
-// From the Publish runs for a4726b6 and 7ca364e (14 October 2026, runs 140 and 141, six shards). Eight shards. A group
-// that took under a tenth of a minute counts as 0.1 (its tiles load at import, outside the group's timer).
+// From the first Check main run (a327002, 14 October 2026, run 38517045818), with the check mode but before pages ran
+// side by side. A group under a tenth of a minute counts as 0.1 (its tiles load at import, outside its timer).
 const MINUTES = {
-  camera: 16.2, perf: 13.1, layout: 9.6, reach: 9.2, line: 9, strain: 8, contract: 7.1, saves: 6.9, homes: 4.5, preview: 4.3,
-  places: 4.2, life: 3.4, weather: 2.8, offline: 2.8, access: 2.4, fullscreen: 2.3, daylight: 2.1, trouble: 1.9, contrast: 0.9,
-  terrain: 0.5, world: 0.2, geometry: 0.2, bot: 0.1, kits: 0.1, signals: 0.1, sections: 0.1, landmarks: 0.1, rules: 0.1,
-  // not yet timed in CI: guessed from their pages (two, one, none), to be replaced with their logs' figures
-  away: 3, networkview: 3, surroundings: 1,
+  perf: 13.6, contract: 7.8, reach: 6.9, strain: 6.2, line: 6, camera: 5.5, saves: 4.5, life: 4.2, away: 3.8, access: 2.9,
+  layout: 2.8, offline: 2.8, preview: 2.8, weather: 2.8, homes: 2.6, fullscreen: 2.5, networkview: 2.4, daylight: 2.1,
+  places: 1.4, trouble: 1, contrast: 0.9, terrain: 0.6, geometry: 0.2, world: 0.2, surroundings: 0.1, bot: 0.1, kits: 0.1,
+  signals: 0.1, sections: 0.1, landmarks: 0.1, rules: 0.1,
 };
 const shardOf = new Map(), load = shard ? Array(shard[1]).fill(0) : [];
 if (shard) for (const g of [...groups].sort((a, b) => (MINUTES[b] ?? 1) - (MINUTES[a] ?? 1) || a.localeCompare(b))) {

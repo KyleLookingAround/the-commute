@@ -41,7 +41,7 @@ const BUDGET = {
 };
 const FRAMES = 6;   // frames to time on each page
 
-export default async function ({ ok, open, root, url, SAVE_KEY, browser }) {
+export default async function ({ ok, open, side, root, url, SAVE_KEY, browser }) {
   register();
   const { fromGeo } = await import('../../src/sim/network.ts');
   const { Sim } = await import('../../src/sim/sim.ts');
@@ -109,7 +109,8 @@ export default async function ({ ok, open, root, url, SAVE_KEY, browser }) {
     const squaresMB = [...world].reduce((n, f) => n + statSync(join(assets, f)).size, 0) / 1048576;
     ok(`perf: every world square, fetched in the background after the first frame wherever the camera is, inside its budget (${squaresMB.toFixed(2)} of ${BUDGET.squares.toFixed(1)} MB, ${world.size} squares)`, squaresMB <= BUDGET.squares);
     const VIEWS = { open: null, buxton: frameOf(['middlewood', 'disley', 'new-mills-newtown']), marple: frameOf(['brinnington', 'bredbury', 'romiley', 'marple', 'rose-hill']) };
-    for (const [tag, orbit] of Object.entries(VIEWS)) {
+    // the views side by side where the runner can (side, tools/check.mjs): they count bytes, not frame times
+    await side(...Object.entries(VIEWS).map(([tag, orbit]) => async () => {
       const ctx = await (await browser).newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
       await ctx.addInitScript(([o]) => { window.__seed = 1; if (o) window.__orbit = o; }, [orbit]);
       const page = await ctx.newPage(), errs = [];
@@ -134,7 +135,7 @@ export default async function ({ ok, open, root, url, SAVE_KEY, browser }) {
       ok(`perf: ${tag === 'open' ? 'the opening' : `the ${tag === 'buxton' ? 'Buxton' : 'Marple'} line framed`} loads inside its budget after the first frame (${mb(got.bytes)} of ${budget} MB)`,
         got.bytes <= budget * 1048576 && !errs.length, `${got.files} files: ${Object.entries(got.by).map(([k, v]) => `${k} ${mb(v)} MB`).join(', ')}${orbit ? `; camera ${orbit.r.toFixed(0)} m out` : ''}${errs.length ? '; ' + errs[0] : ''}`);
       await ctx.close();
-    }
+    }));
   }
 
   // the stats view: its own file, not loaded before the first frame; on ?stats&save=busy the overlay's figures, Copy's

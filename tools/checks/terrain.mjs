@@ -9,8 +9,9 @@
 //   at the foot of the wall under the east platform's building.
 // - Roads: the replacement buses' roads come down off a station's pad as a ramp no steeper than 1 in 10, and never
 //   run under the ground but where they pass under the railway: under a real bridge in the data (the viaduct's and
-//   the arches' spans), or across the railway's own land in 40 m or less. Shown on a made-up road under the line
-//   (passes) and one buried in a field (fails).
+//   the arches' spans), or across the railway's own land in 40 m or less, or 120 m where OpenStreetMap marks the road
+//   as passing under the line there (a way's `under` flags, for a skewed underbridge). Shown on made-up roads: one under
+//   the line (passes), one buried in a field (fails), and a skewed one passing marked and failing unmarked.
 // - The lines out's ring: the page fetches out.json after its first frame, never before it, and lays the ground it
 //   touches again, without an error.
 // - Size per line: what's committed of the terrain stays within each line's allowance (tools/lines.mjs: today's line
@@ -132,15 +133,18 @@ export default async function ({ ok, root, open }) {
   const scene = new THREE.Scene(), buses = new BusLayer(scene, net, buildStations(scene, net, kits));
   const ways = [...buses.paths.values(), ...net.stations.map((_, i) => buses.depotPath(i)).filter(Boolean)], steep = [];
   // a road may pass below the ground only where it goes under the railway: every buried point of a run under a real
-  // bridge in the data (the viaduct's and the arches' spans), or on the railway's own land in a run of UNDER m or less
-  const UNDER = 40;
+  // bridge in the data (the viaduct's and the arches' spans), or on the railway's own land in a run of UNDER m or less,
+  // or SKEW m where OpenStreetMap marks the road as passing under the line there (a skewed underbridge: the way's
+  // `under`, a flag a point)
+  const UNDER = 40, SKEW = 120;
   const underBridge = (x, z) => { const L = t.locate(x, z); return Math.abs(L.o) < 60 && t.bridged(L.s, t.lines[L.k]); };
   const buried = w => {
     const bad = []; let run = [];
     const end = () => {
       if (!run.length) return;
       const len = w.d[run.at(-1)] - w.d[run[0]], bridge = run.every(k => underBridge(...w.pts[k])), land = run.every(k => t.railLand(...w.pts[k], 0));
-      if (!bridge && !(land && len <= UNDER)) { const [x, z] = w.pts[run[0]]; bad.push(`${x.toFixed(0)},${z.toFixed(0)} under the ground for ${len.toFixed(0)} m`); }
+      const marked = run.every(k => w.under?.[k]);
+      if (!bridge && !(land && (len <= UNDER || (marked && len <= SKEW)))) { const [x, z] = w.pts[run[0]]; bad.push(`${x.toFixed(0)},${z.toFixed(0)} under the ground for ${len.toFixed(0)} m`); }
       run = [];
     };
     for (let k = 0; k < w.pts.length; k++) { const [x, z] = w.pts[k]; if (w.y[k] < t.groundY(x, z) - 0.01) run.push(k); else end(); }
@@ -160,8 +164,16 @@ export default async function ({ ok, root, open }) {
     const F = net.place('main', (net.station('stockport').s + net.station('heaton-chapel').s) / 2, 0), across = { pts: [], y: [], d: [] }, field = { pts: [], y: [], d: [] };
     for (let o = -20; o <= 20; o += 2) { const x = F.x + F.nx * o, z = F.z + F.nz * o; across.pts.push([x, z]); across.y.push(t.railLand(x, z, 0) ? t.groundY(x, z) - 5.5 : t.groundY(x, z)); across.d.push(o + 20); }
     for (let o = 0; o <= 100; o += 5) { const x = F.x + F.nx * 400 + F.dx * o, z = F.z + F.nz * 400 + F.dz * o; field.pts.push([x, z]); field.y.push(t.groundY(x, z) - 3); field.d.push(o); }
+    // a skewed underbridge: crossing the line at a shallow angle, under the railway's land for 60 to 120 m; it passes
+    // where it's marked as passing under the line and fails where it isn't
+    const skew = { pts: [], y: [], d: [], under: [] };
+    for (let u = -150; u <= 150; u += 3) { const o = u * 0.26, x = F.x + F.dx * u + F.nx * o, z = F.z + F.dz * u + F.nz * o, on = t.railLand(x, z, 0); skew.pts.push([x, z]); skew.y.push(on ? t.groundY(x, z) - 5.5 : t.groundY(x, z)); skew.d.push(u * Math.hypot(1, 0.26)); skew.under.push(on); }
+    const runLen = (() => { const k = skew.under.map((v, i) => v ? i : -1).filter(i => i >= 0); return k.length ? skew.d[k.at(-1)] - skew.d[k[0]] : 0; })();
+    const marked = buried(skew), unmarked = buried({ ...skew, under: undefined });
     const a = buried(across), b = buried(field), dips = across.y.some((y, k) => y < t.groundY(...across.pts[k]) - 1);
     ok('terrain: a road may pass under the line on the railway\'s land, but not run buried elsewhere', dips && !a.length && b.length > 0, `under the line: ${a.join(', ') || 'passes'}; in a field: ${b.join(', ') || 'passes'}`);
+    ok(`terrain: a road under a skewed underbridge may run ${SKEW} m under the railway's land where it's marked as passing under the line, ${UNDER} m where it isn't`,
+      runLen > UNDER && runLen <= SKEW && !marked.length && unmarked.length > 0, `a ${runLen.toFixed(0)} m run under the land: marked ${marked.join(', ') || 'passes'}; unmarked ${unmarked.join(', ') || 'passes'}`);
   }
   setTerrain(null);
   ok('terrain: the replacement buses\' roads come down off a station\'s pad as a ramp, never dropping off it, and are under the ground only beneath the railway', ways.length > 8 && !steep.length, `${ways.length} ways, ${ramps} points on a ramp; ` + steep.slice(0, 4).join(', '));

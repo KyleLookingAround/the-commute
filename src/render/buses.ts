@@ -16,6 +16,7 @@ import { TUNING } from '../sim/sim.ts';
 import { projectLatLon } from '../sim/network.ts';
 import type { Bus, XZ } from '../sim/types.ts';
 import { groundAt, groundVersion, onRailway } from './terrain.ts';
+import { deckAt, onMainRoad, type MainDef } from './mainways.ts';
 
 /** The kit part: where a bus stands at (u, v), its length along `back` (a direction in (u, v), +u if not given), the
  * shelter and flag on the `kerb` side (+1 to the left looking along `back`), and the station's way out (`door`). */
@@ -161,13 +162,15 @@ export class BusLayer {
     // depot to the stop of the station nearest it
     const ways: Path[] = [];
     for (const r of net.def.roads ?? []) {
-      const a = net.station(r.from).index, b = net.station(r.to).index, p = this.path(a, b) ?? pathThrough(r.points, r.under);
+      const a = net.station(r.from).index, b = net.station(r.to).index, p = this.path(a, b) ?? this.decks(pathThrough(r.points, r.under));
       ways.push(p);
     }
     for (const dp of this.depots) { const k = this.nearestStop(dp); const at = k >= 0 ? this.stop(k)?.at : null; if (at) ways.push(pathThrough([dp, at])); }
-    const P: number[] = [];
+    // (drawn only off the main roads: along the A6 the bus drives the main road's own carriageway, src/render/mainroads.ts)
+    const P: number[] = [], onMain = onMainRoad(net.def as unknown as MainDef, -1);
     for (const w of ways) for (let i = 1; i < w.pts.length; i++) {
       const [ax, az] = w.pts[i - 1]!, [bx, bz] = w.pts[i]!, l = Math.hypot(bx - ax, bz - az) || 1;
+      if (onMain(ax, az) && onMain(bx, bz) && onMain((ax + bx) / 2, (az + bz) / 2)) continue;
       const nx = -(bz - az) / l * ROAD_W / 2, nz = (bx - ax) / l * ROAD_W / 2, ya = w.y[i - 1]! + 0.08, yb = w.y[i]! + 0.08;
       P.push(ax + nx, ya, az + nz, bx + nx, yb, bz + nz, bx - nx, yb, bz - nz, ax + nx, ya, az + nz, bx - nx, yb, bz - nz, ax - nx, ya, az - nz);
     }
@@ -199,7 +202,7 @@ export class BusLayer {
         const r = this.net.road(S[j]!.id, S[order[o + step]!]!.id);
         if (r) { pts.push(...(r.reversed ? [...r.road.points].reverse() : r.road.points)); under.push(...(r.reversed ? [...r.road.under].reverse() : r.road.under)); }
       }
-      way = pathThrough(pts, under);
+      way = this.decks(pathThrough(pts, under));
     }
     this.toDepot.set(i, way); return way;
   }
@@ -220,8 +223,17 @@ export class BusLayer {
     if (!A || !Bt || !sa || !sb) return null;
     const r = this.net.road(sa.id, sb.id), mid = r ? (r.reversed ? [...r.road.points].reverse() : r.road.points) : [];
     const midUnder = r ? (r.reversed ? [...r.road.under].reverse() : r.road.under) : [];
-    const back = this.paths.get(`${b}>${a}`), p = back ? reversed(back) : pathThrough([A, ...mid, Bt], [false, ...midUnder, false]);
+    const back = this.paths.get(`${b}>${a}`), p = back ? reversed(back) : this.decks(pathThrough([A, ...mid, Bt], [false, ...midUnder, false]));
     this.paths.set(key, p); return p;
+  }
+  /** A way up on a main road's deck where it runs along one of its bridges (Wellington Road over Mersey Square). */
+  private decks(p: Path): Path {
+    const deck = deckAt(this.net.def as unknown as MainDef);
+    for (let k = 0; k < p.pts.length; k++) {
+      const [ax, az] = p.pts[Math.max(0, k - 1)]!, [bx, bz] = p.pts[Math.min(p.pts.length - 1, k + 1)]!, y = deck(...p.pts[k]!, bx - ax, bz - az);
+      if (y !== null && y > p.y[k]!) p.y[k] = y;
+    }
+    return p;
   }
   /** Where along a path a share t of the way is, and which way it's heading. */
   private at(p: Path, t: number): typeof where {

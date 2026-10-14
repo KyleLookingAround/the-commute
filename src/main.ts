@@ -56,7 +56,7 @@ declare global {
     __orbit?: Partial<import('./render/camera.ts').Orbit>;
     /** For the checks: how many groups of parts the preview shows, how many are still rising into place, and how many
      * times the camera has framed something (a card's parts, a Built chip's, a train). */
-    __view?: { perf?: () => { calls: number; triangles: number; geometries: number; textures: number; programs: number; meshes: number; casters: number; first: number; frames: number; sim: number; sync: number; draw: number }; reach?: () => { now: number[]; target: number[]; ghosts: number; minutes: boolean }; homes?: () => { shown: number[]; room: number[]; rising: number }; preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean }; life?: () => { cases: number; bikes: number; figures: number; shadows: boolean; ratio: number; heard: { running: boolean; brakes: number; departs: number; calls: number; birds: number }; pools: number; lamplight: number; works: [number, number] | null; beacons: number; expresses: number };
+    __view?: { programNames?: () => string[]; perf?: () => { calls: number; triangles: number; geometries: number; textures: number; programs: number; meshes: number; casters: number; first: number; frames: number; sim: number; sync: number; draw: number }; reach?: () => { now: number[]; target: number[]; ghosts: number; minutes: boolean }; homes?: () => { shown: number[]; room: number[]; rising: number }; preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean }; life?: () => { cases: number; bikes: number; figures: number; shadows: boolean; ratio: number; heard: { running: boolean; brakes: number; departs: number; calls: number; birds: number }; pools: number; lamplight: number; works: [number, number] | null; beacons: number; expresses: number };
       camera?: () => import('./render/camera.ts').Orbit & { above: number; fromLine: number; flying: boolean; riding: number; moves: number; compass: boolean; along: number };
       spot?: (kind: 'station' | 'train' | 'ghost', i: number) => [number, number] | null; open?: () => { x: number; y: number; w: number; h: number }; under?: (x: number, y: number) => [number, number] | null;
       weather?: () => { now: string; rain: number; snow: number; fog: number; cover: number; wet: number; settle: number; season: number; falling: boolean; brollies: number; trees: number; fogFar: number; patter: number } };
@@ -122,7 +122,12 @@ function more(): void {
       moves: () => rig.moves, release: () => { homes.hold = null; life.hold = null; life.fast = 2; }, toast: () => ui.toast(cb.msg) }, cb.earned, THREE.Vector3);
     Object.assign(view, { away: () => back ? { ...back.stats(), homesRising: homes.risingCount, held: !!homes.hold, parks: built.map(b => b.live.parks.reduce((n, f) => n + f.n, 0)) } : null });
   }); }
-  // gridlock on the map (src/render/traffic.ts): the roads' cars and wash, with the stretches' data, in their own chunk
+  // the main roads along their real courses (src/render/mainroads.ts), then gridlock on the map (src/render/traffic.ts):
+  // the roads' cars and wash, with the stretches' data, each in its own chunk
+  void import('./render/mainroads.ts').then(m => {
+    mainRoads = new m.MainRoadLayer({ scene, def: networkDef, focus: () => rig.o });
+    Object.assign(view, { mainRoads: () => mainRoads?.stats() ?? null });
+  });
   void import('./render/traffic.ts').then(m => {
     roads = new m.TrafficLayer({ scene, net, def: networkDef, sim: () => sim, focus: () => rig.o, ground: world.buildings.layer.then(() => world.ground), reduced: rig.reduced });
     roads.setLow(prefs.fewer);
@@ -138,6 +143,7 @@ function more(): void {
 }
 let kitsIn = false;
 let roads: import('./render/traffic.ts').TrafficLayer | null = null;
+let mainRoads: import('./render/mainroads.ts').MainRoadLayer | null = null;
 let netView: import('./render/networkview.ts').NetworkView | null = null;
 /** After time away: what each station earned and the toast, until the welcome back plays (src/render/away.ts). */
 let cameBack: { earned: number[]; msg: string } | null = null;
@@ -544,7 +550,10 @@ Object.assign(view, { perf: () => {
   scene.traverse(o => { if (o instanceof THREE.Mesh && o.visible) { meshes++; if (o.castShadow) casters++; } });
   const r = renderer.info.render, m = renderer.info.memory;
   return { calls: r.calls, triangles: r.triangles, geometries: m.geometries, textures: m.textures, programs: renderer.info.programs?.length ?? 0, meshes, casters, ...cost };
-} });
+},
+// the shader programs held, each its name and the end of its cache key (which carries any patch's own key): the perf
+// check prints them when there are too many
+programNames: () => (renderer.info.programs ?? []).map(p => `${p.name} ${p.cacheKey.slice(-60)}`) });
 function frame(now: number): void {
   const t0 = performance.now();
   const realDt = (now - prev) / 1000, dt = Math.min(0.1, realDt); prev = now;
@@ -560,7 +569,7 @@ function frame(now: number): void {
   sound.update(sim, rig.o, light.daylight, stationsXZ, trains.meshes, realDt); pax.setDaylight(light.daylight);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
   syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt, sim); trains.sync(sim, dtGame); pax.sync(sim.g, dtGame); pax.placeCoin(camera); labels();
-  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim); netView?.update(sim, rig.o.r, realDt); back?.update(realDt); roads?.sync(dt, dtGame, light.daylight);
+  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim); netView?.update(sim, rig.o.r, realDt); back?.update(realDt); roads?.sync(dt, dtGame, light.daylight); mainRoads?.sync();
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); nextStations(); followGlide(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
   const t2 = performance.now();

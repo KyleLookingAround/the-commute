@@ -9,14 +9,17 @@ import { SPINE, newFrame, projectLatLon } from '../sim/network.ts';
 import type { Corridor, Network } from '../sim/network.ts';
 import type { Frame, LandmarkDef, LatLon, NetworkGeoDef } from '../sim/types.ts';
 import { kitFiles } from './terrain.ts';
+import { courseOf as mainCourse, mainWays, type MainDef } from './mainways.ts';
 
 /** A landmark as the data gives it, with the fields only the renderer reads: a footprint (w along x, d along z, metres),
  * a turn (degrees anticlockwise from east), a shape for the towers, and where its position and look came from. */
 type Mark = LandmarkDef & { note?: string; w?: number; d?: number; yaw?: number; shape?: string; course?: [number, number][] };
 
 type XZ = [number, number];
-/** A landmark's real course (the Mersey's, the M60's) in the world, from its [lat, lon] points; null without one. */
+/** A landmark's real course (the Mersey's, the M60's) in the world, from its [lat, lon] points; null without one. The
+ * M60's is the main road's where the data has it (`mainRoads`, from OpenStreetMap), which src/render/mainroads.ts draws. */
 function courseOf(def: NetworkGeoDef, id: string): XZ[] | null {
+  const main = mainCourse(def as MainDef, id); if (main) return main;
   const m = (def.landmarks ?? []).find(l => l.id === id) as Mark | undefined;
   return m?.course?.length ? m.course.map(([lat, lon]) => xz(def, { lat, lon })) : null;
 }
@@ -84,7 +87,7 @@ export function buildLandmarks(scene: THREE.Scene, net: Network, def: NetworkGeo
   for (const l of net.lines) for (const m of marks) if (m.kind === 'arches' && m.from && m.to && alongLine(m.corridor, l, def)) arcade(scene, net, l, l.nearest(...xz(def, m.from)), l.nearest(...xz(def, m.to)), groundY);
   overbridges(scene, net, def, marks, groundY);
   if (river !== null) crossing(scene, c, river, groundY, 'river', courseOf(def, 'mersey'));
-  if (m60 !== null) crossing(scene, c, m60, groundY, 'm60', courseOf(def, 'm60'));
+  if (m60 !== null && !mainCourse(def as MainDef, 'm60')) crossing(scene, c, m60, groundY, 'm60', courseOf(def, 'm60'));
   const pyramid = byId('pyramid'); if (pyramid) buildPyramid(scene, def, pyramid, groundY);
   if (pyramid?.lat !== undefined && pyramid.lon !== undefined) { const p = projectLatLon(pyramid.lat, pyramid.lon, def.origin); standing.push([p.x, p.z, (pyramid.w ?? 48) + 24]); }
   town(scene, net, c, def, marks, groundY, { river, m60 }, real);
@@ -393,7 +396,7 @@ function town(scene: THREE.Scene, net: Network, c: Corridor, def: NetworkGeoDef,
   // the streets round them: brick and render, two to five storeys, and a few 1960s and 70s office blocks
   const area = marks.find(m => m.kind === 'town'), ctr = area && at(area); if (!area || !ctr) return;
   const R = area.w ?? 320, cs = c.nearest(ctr.x, ctr.z);
-  const roadSegs = (net.def.roads ?? []).flatMap(r => r.points.slice(1).map((b, i) => [r.points[i]!, b] as const));
+  const roadSegs = [...(net.def.roads ?? []), ...mainWays(def as MainDef).map(w => ({ points: w.pts }))].flatMap(r => r.points.slice(1).map((b, i) => [r.points[i]!, b] as const));
   const nearRoad = (x: number, z: number, r: number) => roadSegs.some(([[ax, az], [bx, bz]]) => {
     const dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
     return Math.hypot(x - ax - dx * t, z - az - dz * t) < r + 8;

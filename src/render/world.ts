@@ -4,6 +4,7 @@ import { MAT, PAL } from './scene.ts';
 import { byCell, type Split } from './cells.ts';
 import { bridgesOf, buildLandmarks, onCourses, viaductOf } from './landmarks.ts';
 import { Terrain, TerrainLayer, type KitDef, fineFiles, kitFiles, outFile, setTerrain, useKits, worldFiles } from './terrain.ts';
+import { courseOf as mainCourse, mainWays, type MainDef } from './mainways.ts';
 import { kits, loadOutKits } from './kits.ts';
 import type { BuildingsLayer } from './buildings.ts';
 import type { Kit } from './stations.ts';
@@ -67,9 +68,11 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   // ---- ribbons along the corridor: roads; ballast and rails along each track ----
   const unit = new THREE.BoxGeometry(1, 1, 1);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v3 = new THREE.Vector3(), sc = new THREE.Vector3();
-  // a road along a line (the spine, or a line out) on the ground, each piece tilted to the slope; none down into the
-  // viaduct's valley, and a line out's stops short of the junction it runs into, where it would cross the other line.
+  // a road along a line (the spine, or a line out) on the ground, each piece tilted to the slope (a stand-in where no
+  // real main road runs within 160 m); none down into the viaduct's valley, and a line out's stops short of the junction it runs into, where it would cross the other line.
   // Gives a function that lays it again on the ground as it is now (a line out's, once its ring is in).
+  const mainCourses = (def as MainDef).mainRoads?.map(r => mainCourse(def as MainDef, r.id)!) ?? [];
+  const nearMain = (x: number, z: number) => mainCourses.some(pts => pts.some(([px, pz]) => Math.abs(px - x) < 160 && Math.abs(pz - z) < 160 && Math.hypot(px - x, pz - z) < 160));
   function ribbon(offset: number, width: number, height: number, y: number, mat: THREE.Material, c = net.spine): () => void {
     const segs: { s0: number; s1: number }[] = [];
     for (let i = 0; i < c.pts.length - 1; i++) {
@@ -77,6 +80,8 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       if (c === net.spine && sg.s0 < edge) continue;
       if (c === net.spine && valley && sg.s1 > valley.s0 - 100 && sg.s0 < valley.s1 + 100) continue;
       if (c !== net.spine && sg.s1 > c.end - 600) continue;
+      // the real main roads replace it where one runs near (src/render/mainroads.ts)
+      const m = c.at((sg.s0 + sg.s1) / 2, offset); if (nearMain(m.x, m.z)) continue;
       segs.push(sg);
     }
     const piece = (sg: { s0: number; s1: number }) => {
@@ -158,7 +163,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     // the spine's stations (a line out's are along their own chainage)
     const spineSt = net.stations.filter(st => net.spineOf.has(st.corridor)), stationS = spineSt.map(s => s.s);
     // nothing stands on the roads the replacement buses drive (the network's `roads`)
-    const segs = (net.def.roads ?? []).flatMap(r => r.points.slice(1).map((b, i) => [r.points[i]!, b] as const));
+    const segs = [...(net.def.roads ?? []), ...mainWays(net.def as unknown as MainDef).map(w => ({ points: w.pts }))].flatMap(r => r.points.slice(1).map((b, i) => [r.points[i]!, b] as const));
     const onRoad = (x: number, z: number, r: number) => segs.some(([[ax, az], [bx, bz]]) => {
       const dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
       return Math.hypot(x - ax - dx * t, z - az - dz * t) < r;
@@ -227,7 +232,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   // ---- the landmarks: the viaduct, the river and the M60 under it, the Pyramid, the town, the city's skyline ----
   buildLandmarks(scene, net, def, groundY, buildings.real);
 
-  const roadSegs = (net.def.roads ?? []).flatMap(r => r.points.slice(1).map((b, i) => [r.points[i]!, b] as const));
+  const roadSegs = [...(net.def.roads ?? []), ...mainWays(net.def as unknown as MainDef).map(w => ({ points: w.pts }))].flatMap(r => r.points.slice(1).map((b, i) => [r.points[i]!, b] as const));
   const onCourse = onCourses(def);
   const buildable = (x: number, z: number, r: number): boolean => {
     // clear of every line's land (the nearest line's), and of the viaduct's valley

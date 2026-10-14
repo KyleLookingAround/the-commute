@@ -12,6 +12,7 @@
 import * as THREE from 'three';
 import { PAL } from './scene.ts';
 import { partBoxes } from './terrain.ts';
+import { mainWays, type MainDef } from './mainways.ts';
 import { onCourses, standing } from './landmarks.ts';
 import type { KitDef, Terrain, TerrainLayer } from './terrain.ts';
 import type { Network } from '../sim/network.ts';
@@ -126,7 +127,7 @@ export class Keep {
       for (const part of kit.parts) for (const b of partBoxes({ ...part, street: false })) boxes.push(b);
       this.kits.push({ x: F.x, z: F.z, dx: F.dx, dz: F.dz, nx: F.nx, nz: F.nz, boxes });
     }
-    for (const r of net.def.roads ?? []) for (let k = 1; k < r.points.length; k++) {
+    for (const r of [...(net.def.roads ?? []), ...mainWays(net.def as unknown as MainDef).map(w => ({ points: w.pts }))]) for (let k = 1; k < r.points.length; k++) {
       const [ax, az] = r.points[k - 1]!, [bx, bz] = r.points[k]!, seg: [number, number, number, number] = [ax, az, bx, bz];
       // in every 100 m cell its box touches, padded
       for (let i = Math.floor((Math.min(ax, bx) - 40) / 100); i <= Math.floor((Math.max(ax, bx) + 40) / 100); i++) for (let j = Math.floor((Math.min(az, bz) - 40) / 100); j <= Math.floor((Math.max(az, bz) + 40) / 100); j++) {

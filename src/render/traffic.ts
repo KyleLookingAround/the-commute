@@ -6,17 +6,16 @@
 // the first frame, with the stretches' data. It only reads the sim, never steps it, and draws nothing that changes the
 // game: the cars move on their own clock.
 //
-// Where each stretch runs: the data names its count point and its ends by road, not by place, until the roads' real
-// courses and junction points land (roadmap step 8 for the A6, step 9 for the M60's junctions). Until then COURSES puts
-// each stretch on the roads the map already has (the `roads` between stations along the A6, the M60 landmark's course),
-// between points from memory, with the junction its queue backs up from. The A5145 and the A57 have no road drawn yet,
-// so they're neither carred nor washed.
+// Where each stretch runs: on its main road (`mainRoads` in the network data, along its real course from OpenStreetMap),
+// centred on its DfT count point and as long as the DfT's link, its queue backing up from the junction its data names
+// (`on`, `at` and `head` in src/data/traffic.json). A stretch whose road isn't in the data yet is neither carred nor washed.
 import * as THREE from 'three';
 import { MAT, PAL } from './scene.ts';
 import { pathThrough, type Path } from './buses.ts';
-import { groundAt, groundVersion } from './terrain.ts';
+import { groundVersion } from './terrain.ts';
 import { projectLatLon } from '../sim/network.ts';
 import type { Network } from '../sim/network.ts';
+import { courseOf, deckAt, LANE, type MainDef } from './mainways.ts';
 import type { Sim } from '../sim/sim.ts';
 import { TUNING } from '../sim/sim.ts';
 import { traffic, trafficKey, type Road, type TrafficDef } from '../sim/traffic.ts';
@@ -26,32 +25,9 @@ import trafficJson from '../data/traffic.json';
 const D = trafficJson as unknown as TrafficDef;
 
 type LL = [number, number];
-/** A stretch on the map: the road it runs along, its ends (cars queue going from `from` to `to` in the morning), and
- * the junction its queue backs up from. Points from memory, snapped to the road. */
-interface Course { on: 'a6n' | 'a6s' | 'm60'; from: LL; to: LL; head: LL }
-const MERSEY_SQ: LL = [53.4088, -2.1621], WELLINGTON_N: LL = [53.4203, -2.1721], HEATON_CHAPEL: LL = [53.4266, -2.1766];
-const LEVENSHULME: LL = [53.4445, -2.1902], LONGSIGHT: LL = [53.456, -2.1992], ARDWICK_GREEN: LL = [53.4705, -2.2235], PICCADILLY: LL = [53.4766, -2.2294];
-const GREEK_ST: LL = [53.4041, -2.16], DAVENPORT: LL = [53.392, -2.1527], HAZEL_GROVE: LL = [53.3775, -2.124];
-const M60_J1: LL = [53.4072, -2.1752], M60_WEST: LL = [53.4066, -2.1856], M60_EAST: LL = [53.4165, -2.146];
-export const COURSES: Record<string, Course> = {
-  // into the town over Mersey Square from the north, the A6 north out of it, and on to the city's edge
-  'a6-mersey-square': { on: 'a6n', from: WELLINGTON_N, to: MERSEY_SQ, head: MERSEY_SQ },
-  'a6-heaton-chapel': { on: 'a6n', from: WELLINGTON_N, to: HEATON_CHAPEL, head: HEATON_CHAPEL },
-  'a6-levenshulme': { on: 'a6n', from: HEATON_CHAPEL, to: LEVENSHULME, head: LEVENSHULME },
-  'a6-longsight': { on: 'a6n', from: LEVENSHULME, to: LONGSIGHT, head: LONGSIGHT },
-  'a6-ardwick': { on: 'a6n', from: LONGSIGHT, to: PICCADILLY, head: ARDWICK_GREEN },
-  // the A6 south of the town, into it from Davenport and Hazel Grove
-  'a6-davenport': { on: 'a6s', from: DAVENPORT, to: GREEK_ST, head: GREEK_ST },
-  'a6-hazel-grove': { on: 'a6s', from: HAZEL_GROVE, to: DAVENPORT, head: DAVENPORT },
-  // the M60 both ways into junction 1, the eastern half under the viaduct
-  'm60-j27-j1': { on: 'm60', from: M60_EAST, to: M60_J1, head: M60_J1 },
-  'm60-j1-j2': { on: 'm60', from: M60_WEST, to: M60_J1, head: M60_J1 },
-};
-/** The roads between stations that make up each chain, in order. */
-const CHAINS: Record<'a6n' | 'a6s', [string, string][]> = {
-  a6n: [['stockport', 'heaton-chapel'], ['heaton-chapel', 'levenshulme'], ['levenshulme', 'ardwick'], ['ardwick', 'piccadilly']],
-  a6s: [['stockport', 'davenport'], ['davenport', 'woodsmoor'], ['woodsmoor', 'hazel-grove']],
-};
+/** Where a stretch runs (src/data/traffic.json): on which main road, its count point, and the junction its queue backs up
+ * from (one of the road's `junctions`). */
+interface Course { on: string; at: LL; head: string }
 
 const MAX_CARS = 300, LOW_CARS = 120;
 const NEAR = 600;          // m from where the camera looks that cars are drawn
@@ -100,19 +76,6 @@ function carGeometry(): THREE.BufferGeometry {
   return g;
 }
 
-/** The roads along a chain (in the world already), joined, with any out-and-back spur to a station's door taken out. */
-function chain(net: Network, legs: [string, string][]): XZ[] {
-  const out: XZ[] = [];
-  for (const [a, b] of legs) {
-    const r = net.road(a, b); if (!r) continue;
-    for (const q of r.reversed ? [...r.road.points].reverse() : r.road.points) {
-      // back at a point already passed (a spur to a station and back): cut the spur
-      let back = -1; for (let k = out.length - 3; k >= 0; k--) if (Math.hypot(out[k]![0] - q[0], out[k]![1] - q[1]) < 25) { back = k; break; }
-      if (back >= 0) out.length = back + 1; else if (!out.length || Math.hypot(out[out.length - 1]![0] - q[0], out[out.length - 1]![1] - q[1]) > 1) out.push(q);
-    }
-  }
-  return out;
-}
 /** Where along a polyline a point comes nearest: the distance along it. */
 function along(pts: XZ[], x: number, z: number): number {
   let best = Infinity, at = 0, d = 0;
@@ -139,18 +102,6 @@ function slice(pts: XZ[], a: number, b: number): XZ[] {
   }
   return dir > 0 ? out : out.reverse();
 }
-/** The M60's way along its course as the landmark lays it: the ground's height eased along it, a metre up. */
-function motorway(pts: XZ[]): Path {
-  const P: XZ[] = [pts[0]!];
-  for (let k = 1; k < pts.length; k++) {
-    const [ax, az] = pts[k - 1]!, [bx, bz] = pts[k]!, n = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / 20));
-    for (let j = 1; j <= n; j++) P.push([ax + (bx - ax) * j / n, az + (bz - az) * j / n]);
-  }
-  const g = P.map(([x, z]) => groundAt(x, z)), y = g.map((_, i) => { let t = 0, w = 0; for (let k = Math.max(0, i - 3); k <= Math.min(P.length - 1, i + 3); k++) { t += g[k]!; w++; } return t / w + 1 - 0.08; });
-  const d = [0]; for (let k = 1; k < P.length; k++) d.push(d[k - 1]! + Math.hypot(P[k]![0] - P[k - 1]![0], P[k]![1] - P[k - 1]![1]));
-  return { pts: P, d, y, len: d[d.length - 1]! };
-}
-
 /** The wash's uniforms, shared by every material it tints. */
 const WASH_U = {
   uJam: { value: null as THREE.DataTexture | null }, uJamBox: { value: new THREE.Vector4() }, uWash: { value: 0 },
@@ -266,8 +217,8 @@ export class TrafficLayer {
   /** Fewer figures (the Low setting): fewer cars, the wash as it is. */
   setLow(low: boolean): void { this.cap = low ? LOW_CARS : MAX_CARS; }
 
-  /** Any other road material takes the wash too (found by its colour: the road's, but not MAT.road; the buses' roads
-   * draw with MAT.road itself). */
+  /** Any other road material takes the wash too (found by its colour: the road's, but not MAT.road; the buses' and the
+   * main roads draw with MAT.road itself). */
   private washRoads(): void {
     this.p.scene.traverse(o => {
       if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh) return;
@@ -278,20 +229,24 @@ export class TrafficLayer {
 
   /** Lay every stretch on the ground as it is now; and the wash's cells, each with the stretch nearest it. */
   private lay(): void {
-    const { net, def } = this.p;
-    const chains = { a6n: chain(net, CHAINS.a6n), a6s: chain(net, CHAINS.a6s) } as Record<string, XZ[]>;
-    const m60 = (def.landmarks ?? []).find(l => l.id === 'm60') as { course?: [number, number][] } | undefined;
-    if (m60?.course?.length) chains['m60'] = m60.course.map(([lat, lon]) => { const q = projectLatLon(lat, lon, def.origin); return [q.x, q.z] as XZ; });
+    const def = this.p.def as MainDef, deck = deckAt(def);
     const xz = ([lat, lon]: LL): XZ => { const q = projectLatLon(lat, lon, def.origin); return [q.x, q.z]; };
     this.laid = [];
     for (const s of D.stretches) {
-      const c = COURSES[s.id], pts = c && chains[c.on]; if (!c || !pts || pts.length < 2) continue;
-      const a = along(pts, ...xz(c.from)), b = along(pts, ...xz(c.to)), h = along(pts, ...xz(c.head));
+      const c = (s as Partial<Course>), road = def.mainRoads?.find(r => r.id === c.on), pts = c.on ? courseOf(def, c.on) : null;
+      const j = road?.junctions.find(q => q.name === c.head); if (!c.at || !pts || pts.length < 2 || !j) continue;
+      // the DfT's link either side of its count point, along the road (clipped to its ends), the cars running towards
+      // the head from the end further from it
+      const len = along(pts, ...pts[pts.length - 1]!), mid = along(pts, ...xz(c.at)), h = along(pts, ...xz(j.at));
+      let a = Math.max(0, mid - s.km * 500), b = Math.min(len, mid + s.km * 500);
+      if (Math.abs(h - a) < Math.abs(h - b)) [a, b] = [b, a];
       const raw = slice(pts, a, b); if (raw.length < 2) continue;
-      const path = c.on === 'm60' ? motorway(raw) : pathThrough(raw);
+      const path = pathThrough(raw);
+      for (let k = 0; k < path.pts.length; k++) { const [px, pz] = path.pts[Math.max(0, k - 1)]!, [qx, qz] = path.pts[Math.min(path.pts.length - 1, k + 1)]!, y = deck(...path.pts[k]!, qx - px, qz - pz); if (y !== null && y > path.y[k]!) path.y[k] = y; }
       const head = Math.max(0, Math.min(path.len, Math.abs(h - a)));
-      const lanes = c.on === 'm60' ? 3 : Math.max(1, Math.min(2, s.lanes)), w = c.on === 'm60' ? 3.4 : 1.75;
-      const offset = Array.from({ length: lanes }, (_, k) => (c.on === 'm60' ? 2.2 : w / 2) + k * w);
+      // each way's lanes out from the middle of the road, a lane's width apart (a motorway's three a side, past its central reserve)
+      const motorway = /^M/.test(road!.ref), lanes = motorway ? 3 : Math.max(1, Math.min(2, s.lanes)), w = LANE;
+      const offset = Array.from({ length: lanes }, (_, k) => (motorway ? 2.4 : 0.2) + w / 2 + k * w);
       const n = Math.max(1, Math.ceil(path.len / CHUNK)), mids = new Float32Array(n * 2);
       for (let k = 0; k < n; k++) { const at = place(path, Math.min(path.len, (k + 0.5) * CHUNK)); mids[k * 2] = at.x; mids[k * 2 + 1] = at.z; }
       this.laid.push({ id: s.id, path, head, lanes, offset, mids, width: lanes * w * 2 });
@@ -317,8 +272,8 @@ export class TrafficLayer {
    * the camera. dt real seconds, dtGame the sim's; daylight 0 (night) to 1 (noon). */
   sync(dt: number, dtGame: number, daylight: number): void {
     const sim = this.p.sim();
-    // the roads laid again as the ground's read more finely, at most every 3 s
-    if (groundVersion() !== this.laidOn) { const now = performance.now(); if (now - this.laidAt > 3000) { this.laidOn = groundVersion(); this.laidAt = now; this.lay(); this.washRoads(); } }
+    // the roads laid again as the ground's read more finely, at most every 3 s, while the camera's near enough for cars
+    if (groundVersion() !== this.laidOn && this.p.focus().r < FAR) { const now = performance.now(); if (now - this.laidAt > 3000) { this.laidOn = groundVersion(); this.laidAt = now; this.lay(); this.washRoads(); } }
     this.acc += dt;
     if (this.acc >= READ_EVERY) {
       this.acc = 0;

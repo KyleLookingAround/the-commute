@@ -1,5 +1,5 @@
 {
-  "note": "The roads the car takes when the network doesn't carry people (src/sim/traffic.ts, docs/design/gridlock.md §2): each stretch is a Department for Transport count point, with its 2024 average annual daily flow (all motor vehicles, both ways) as the DfT published it, `estimated` where the DfT estimated it from an earlier count rather than counted it that year. Capacity is the peak hour (`peakShare` of the day's flow) over 0.95: with today's public transport the real road runs at about 0.95 of capacity at the morning peak. `start` is the stretch's load at 08:00 with no public transport at all (the gridlock opening); the traffic the network never touches (`through`: round Manchester, deliveries, the school run) is set from it at load. `serves`: the pairs of places whose drive uses the stretch, as lists of station ids or `corridor:<id>` for every station on a corridor, both ways, with the `share` of those drives that go this way (1 if not given). Lanes each way, free speeds and the shares are from memory of the roads, not survey. Fetched from the DfT's road traffic API (roadtraffic.dft.gov.uk/api/average-annual-daily-flow) on 14 October 2026.",
+  "note": "The roads the car takes when the network doesn't carry people (src/sim/traffic.ts, docs/design/gridlock.md §2): each stretch is a Department for Transport count point, with its 2024 average annual daily flow (all motor vehicles, both ways) as the DfT published it, `estimated` where the DfT estimated it from an earlier count rather than counted it that year. Capacity is the peak hour (`peakShare` of the day's flow) over 0.95: with today's public transport the real road runs at about 0.95 of capacity at the morning peak. `start` is the stretch's load at 08:00 with no public transport at all (the gridlock opening); the traffic the network never touches (`through`: round Manchester, deliveries, the school run) is set from it at load. `serves`: the pairs of places whose drive uses the stretch, as lists of station ids or `corridor:<id>` for every station on a corridor, both ways, with the `share` of those drives that go this way (1 if not given). Lanes each way, free speeds and the shares are from memory of the roads, not survey. Where each stretch runs on the map: `on` the main road (`mainRoads` in the network data), centred on its count point (`at`, the DfT's latitude and longitude for it) and as long as the DfT's link, its queue backing up from the junction named `head` (one of the road's `junctions`); src/render/traffic.ts lays it. Fetched from the DfT's road traffic API (roadtraffic.dft.gov.uk/api/average-annual-daily-flow) on 14 October 2026.",
   "sources": [
     "DfT road traffic statistics, average annual daily flow by count point, 2024 (roadtraffic.dft.gov.uk), Stockport and Manchester, fetched 14 October 2026",
     "DfT raw counts at count point 56582 (A57 Hyde Road, manual count, 2024): 1,498 vehicles from 07:00 and 1,744 from 17:00 against a day's 20,629, so the busiest hours are 7 to 8.5% of the day; `peakShare` takes 9%, the usual rule of thumb for urban roads, and `profile` is that count's shape, the night estimated",
@@ -21,30 +21,35 @@
     {
       "id": "a6-mersey-square", "name": "A6 Wellington Road South, Mersey Square", "road": "A6",
       "countPoint": 92103, "year": 2024, "aadf": 19796, "estimated": true, "from": "Merseyway", "to": "A5145", "km": 1.4,
+      "on": "a6", "at": [53.407444, -2.160206], "head": "Mersey Square",
       "lanes": 2, "free": 48, "start": 1.25,
       "serves": [{ "a": ["stockport", "corridor:hazel-grove"], "b": ["heaton-chapel", "levenshulme", "ardwick", "piccadilly"] }]
     },
     {
       "id": "a6-heaton-chapel", "name": "A6 Wellington Road North, Heaton Chapel", "road": "A6",
       "countPoint": 92102, "year": 2024, "aadf": 15892, "estimated": true, "from": "A5145", "to": "A6188", "km": 2.3,
+      "on": "a6", "at": [53.425291, -2.175652], "head": "Heaton Chapel",
       "lanes": 2, "free": 48, "start": 1.25,
       "serves": [{ "a": ["stockport", "corridor:hazel-grove"], "b": ["heaton-chapel", "levenshulme", "ardwick", "piccadilly"], "share": 0.8 }]
     },
     {
       "id": "a6-levenshulme", "name": "A6 Stockport Road, Levenshulme", "road": "A6",
       "countPoint": 73778, "year": 2024, "aadf": 23336, "estimated": false, "from": "the Stockport boundary", "to": "A5079", "km": 2.4,
+      "on": "a6", "at": [53.442634, -2.190553], "head": "Levenshulme",
       "lanes": 1, "free": 48, "start": 1.25,
       "serves": [{ "a": ["stockport", "heaton-chapel", "corridor:hazel-grove"], "b": ["levenshulme", "ardwick", "piccadilly"] }]
     },
     {
       "id": "a6-longsight", "name": "A6 Stockport Road, Longsight", "road": "A6",
       "countPoint": 7946, "year": 2024, "aadf": 16305, "estimated": true, "from": "A5079", "to": "A6010", "km": 0.2,
+      "on": "a6", "at": [53.455618, -2.198864], "head": "Longsight, the A5079",
       "lanes": 1, "free": 48, "start": 1.25,
       "serves": [{ "a": ["stockport", "heaton-chapel", "levenshulme", "corridor:hazel-grove"], "b": ["ardwick", "piccadilly"], "share": 0.47 }]
     },
     {
       "id": "a6-ardwick", "name": "A6 London Road, Ardwick", "road": "A6",
       "countPoint": 26157, "year": 2024, "aadf": 22438, "estimated": true, "from": "A57", "to": "A57(M)", "km": 0.7,
+      "on": "a6", "at": [53.47223, -2.228198], "head": "Mancunian Way, the A57(M)",
       "lanes": 2, "free": 48, "start": 1.25,
       "serves": [
         { "a": ["stockport", "heaton-chapel", "levenshulme", "ardwick", "corridor:hazel-grove"], "b": ["piccadilly"], "share": 0.64 },
@@ -54,6 +59,7 @@
     {
       "id": "a6-davenport", "name": "A6 Buxton Road, Davenport", "road": "A6",
       "countPoint": 91104, "year": 2024, "aadf": 23069, "estimated": true, "from": "A6168 Hempshaw Lane", "to": "A5102", "km": 0.4,
+      "on": "a6", "at": [53.399749, -2.154447], "head": "Longshut Lane and Hempshaw Lane",
       "lanes": 1, "free": 48, "start": 1.2,
       "serves": [
         { "a": ["corridor:hazel-grove"], "b": ["stockport", "heaton-chapel", "levenshulme", "ardwick", "piccadilly"] },
@@ -63,18 +69,21 @@
     {
       "id": "a6-hazel-grove", "name": "A6 London Road, Hazel Grove", "road": "A6",
       "countPoint": 3000, "year": 2024, "aadf": 36098, "estimated": false, "from": "Newmoor Lane", "to": "A5102", "km": 2.4,
+      "on": "a6", "at": [53.385756, -2.129649], "head": "Bramhall Lane, the A5102",
       "lanes": 2, "free": 48, "start": 1.2,
       "serves": [{ "a": ["hazel-grove", "middlewood", "disley", "new-mills-newtown"], "b": ["woodsmoor", "davenport", "stockport", "heaton-chapel", "levenshulme", "ardwick", "piccadilly"] }]
     },
     {
       "id": "a5145-m60-j1", "name": "A5145, M60 junction 1 to the A6", "road": "A5145",
       "countPoint": 92104, "year": 2024, "aadf": 17073, "estimated": true, "from": "M60 junction 1", "to": "A6", "km": 0.7,
+      "on": "a5145", "at": [53.410449, -2.171454], "head": "Travis Brow, the A6",
       "lanes": 2, "free": 48, "start": 1.2,
       "serves": [{ "a": ["corridor:crewe", "corridor:macclesfield"], "b": ["stockport", "heaton-chapel", "levenshulme", "ardwick", "piccadilly"], "share": 0.3 }]
     },
     {
       "id": "m60-j1-j2", "name": "M60, junction 1 to 2", "road": "M60",
       "countPoint": 17918, "year": 2024, "aadf": 147744, "estimated": false, "from": "junction 2", "to": "junction 1", "km": 2.7,
+      "on": "m60", "at": [53.408022, -2.183569], "head": "Junction 1",
       "lanes": 4, "free": 100, "start": 1.2,
       "serves": [
         { "a": ["corridor:crewe", "corridor:macclesfield"], "b": ["stockport", "corridor:hazel-grove", "corridor:marple", "corridor:rose-hill"] },
@@ -84,6 +93,7 @@
     {
       "id": "m60-j27-j1", "name": "M60, junction 27 to 1", "road": "M60",
       "countPoint": 48011, "year": 2024, "aadf": 134020, "estimated": false, "from": "junction 1", "to": "junction 27", "km": 1.9,
+      "on": "m60", "at": [53.414368, -2.15793], "head": "Junction 1",
       "lanes": 4, "free": 100, "start": 1.2,
       "serves": [
         { "a": ["corridor:marple", "corridor:rose-hill"], "b": ["stockport", "corridor:hazel-grove", "corridor:crewe", "corridor:macclesfield"] },
@@ -93,6 +103,7 @@
     {
       "id": "a57-hyde-road", "name": "A57 Hyde Road, Ardwick", "road": "A57",
       "countPoint": 56582, "year": 2024, "aadf": 20629, "estimated": false, "from": "A665", "to": "A6010", "km": 1.3,
+      "on": "a57", "at": [53.465812, -2.198038], "head": "Ardwick, the A665",
       "lanes": 2, "free": 48, "start": 1.2,
       "serves": [{ "a": ["corridor:marple", "corridor:rose-hill"], "b": ["ardwick", "piccadilly"] }]
     }

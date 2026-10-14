@@ -13,9 +13,7 @@ const dir = new URL('../src/data/kits/', import.meta.url);
 const kits = Object.fromEntries(readdirSync(dir).filter(f => f.endsWith('.json')).map(f => [f.replace('.json', ''), JSON.parse(readFileSync(new URL(f, dir), 'utf8')) as KitRails]));
 
 /** What's still to re-lay, by rule and place: each goes once its place keeps the rule (and must, once it does). */
-const PENDING: [string, string][] = [
-  ['cross', 'Manchester Piccadilly'], ['turnout', 'Manchester Piccadilly'], ['rails', 'Manchester Piccadilly'],
-];
+const PENDING: [string, string][] = [];
 
 test('layout: the line keeps the track layout rule, but for what is still to re-lay', () => {
   const faults = layoutFaults(fromGeo(def), kits, def);

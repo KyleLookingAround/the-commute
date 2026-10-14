@@ -3,9 +3,9 @@
 // trains beside it on tracks at their real spacing, and the bridges and wires over it.
 // A train stands at the platform the sim gave it (`Train.bound` running in, `Train.pf` standing and leaving): running in,
 // it crosses from its own track to that platform's (its track, or the rails drawn into a bay) where the two come
-// closest, nearest the station, and leaving it crosses back the same way; turning round, it leaves on the track it
-// came in on, so it never jumps across. The expresses are the sim's trains like any other, hidden while they're away
-// off the map.
+// closest, nearest the station, and leaving it crosses back the same way, each crossover drawn with its rails
+// (`crossovers`); turning round, it leaves on the track it came in on, so it never jumps across. The expresses are the
+// sim's trains like any other, hidden while they're away off the map.
 // A train looks as full as it is: its windows go from cool glass when empty to warm and lit as it fills, riders show in
 // them, and when it's nearly full people stand in the doorways. A train running late carries an amber lamp over its
 // leading cab, from a minute late, growing until it's five minutes late; on time it looks as it always has.
@@ -21,7 +21,8 @@
 // and the other the next. Cosmetic: it's the view's own, from the seed and the night, and no passenger train meets it.
 import * as THREE from 'three';
 import { yawFor } from './world.ts';
-import { PAL } from './scene.ts';
+import { MAT, PAL } from './scene.ts';
+import { byCell } from './cells.ts';
 import { LINE_UPGRADES, TUNING, type Sim } from '../sim/sim.ts';
 import { SPINE, newFrame, type Network } from '../sim/network.ts';
 import { clockAt } from '../sim/day.ts';
@@ -63,7 +64,7 @@ export function carGeometry(liv: Livery, noseLow: boolean, noseHigh: boolean): T
 interface Unit { group: THREE.Group; cars: THREE.Mesh[]; full: number; livery?: string }
 /** A platform a unit is drawn at: the station, the platform (null: the one face its way, on its own track), and
  * whether it turns round there. */
-export interface Berth { st: Station; at: number; def: PlatformDef | null; turn: boolean; cross?: Map<number, { x0: number; len: number }> }
+export interface Berth { st: Station; at: number; def: PlatformDef | null; turn: boolean; cross?: Map<number, { x0: number; len: number }>; joins?: string | null }
 /** The platform a unit is running in to, and the one it stands at or is leaving. */
 export interface Berths { ahead: Berth | null; behind: Berth | null }
 export const NO_BERTHS: Berths = { ahead: null, behind: null };
@@ -73,6 +74,19 @@ const BOGIE = 8;                     // a car's bogies stand this far either sid
 // metres before it stops: its whole length is then past the crossover, so it runs into the platform it leaves from
 const CROSS = 150, HOLD = 75;
 const smooth = (t: number) => t * t * (3 - 2 * t);
+// a crossover's rails are drawn in pieces this long, so they follow its curve
+const XSTEP = 12, xGeo = openRail();
+/** A rail piece as the tracks' are drawn but open beneath and at its ends (no one sees those): a unit box's top and
+ * two long sides, six triangles. */
+function openRail(): THREE.BufferGeometry {
+  const P: number[] = [], N: number[] = [];
+  const quad = (a: number[], b: number[], c: number[], d: number[], n: number[]) => { for (const v of [a, b, c, a, c, d]) { P.push(...v); N.push(...n); } };
+  quad([-0.5, 0.5, 0.5], [0.5, 0.5, 0.5], [0.5, 0.5, -0.5], [-0.5, 0.5, -0.5], [0, 1, 0]);
+  quad([-0.5, -0.5, 0.5], [0.5, -0.5, 0.5], [0.5, 0.5, 0.5], [-0.5, 0.5, 0.5], [0, 0, 1]);
+  quad([0.5, -0.5, -0.5], [-0.5, -0.5, -0.5], [-0.5, 0.5, -0.5], [0.5, 0.5, -0.5], [0, 0, -1]);
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+  return g;
+}
 /** The longest unit the line runs: two cars, and two more for each step of longer trains. */
 const LONGEST = 2 + 2 * (LINE_UPGRADES.find(u => u.id === 'cars')?.max ?? 0);
 // riders: a figure in a window seat, ten seats a side to each car between its doors, filled in this order so a
@@ -173,8 +187,8 @@ function onPath(net: Network, svc: ServiceDef, dir: number, cars: number, B: Ber
 export function offsetOn(net: Network, svc: ServiceDef, dir: number, cars: number, B: Berths, x: number): number {
   const on = net.route(svc).track(x, dir);
   let o = net.offsetAt(on, x);
-  if (B.behind) o = eased(net, svc, on, cars, B.behind, dir > 0 ? 1 : -1, true, x, o);
-  if (B.ahead) o = eased(net, svc, on, cars, B.ahead, dir > 0 ? -1 : 1, false, x, o);
+  if (B.behind) o = eased(net, svc, on, B.behind, dir > 0 ? 1 : -1, true, x, o);
+  if (B.ahead) o = eased(net, svc, on, B.ahead, dir > 0 ? -1 : 1, false, x, o);
   return o;
 }
 /** Which track a platform's trains stand on, by id: its own, or (none given) the train's own going on, which at a
@@ -188,24 +202,30 @@ function berthTrack(net: Network, svc: ServiceDef, on: string, b: Berth, behind:
 function berthOffset(net: Network, track: string | null, b: Berth, x: number): number {
   if (track) return net.offsetAt(track, x);
   const P = b.def?.path ?? [], u = x - b.at, U = (k: number) => P[k]?.[0] ?? 0, V = (k: number) => P[k]?.[1] ?? 0, n = P.length - 1;
-  // beyond either end of the rails, the end's offset
+  // beyond the buffers, the end's offset; beyond the far end, the track the rails join there (or the end's offset)
   if ((u - U(0)) * (U(n) - U(0)) <= 0) return V(0);
-  if ((u - U(n)) * (U(0) - U(n)) <= 0) return V(n);
+  if ((u - U(n)) * (U(0) - U(n)) <= 0) {
+    if (b.joins === undefined) b.joins = net.tracks.find(t => t.corridor === b.st.corridor && Math.abs(net.offsetAt(t.id, b.at + U(n)) - V(n)) < 0.3)?.id ?? null;
+    return b.joins ? net.offsetAt(b.joins, x) : V(n);
+  }
   for (let k = 0; k < n; k++) if ((u - U(k)) * (u - U(k + 1)) <= 0 && U(k) !== U(k + 1)) return V(k) + (V(k + 1) - V(k)) * (u - U(k)) / (U(k + 1) - U(k));
   return V(n);
 }
-/** The unit's offset o at x eased onto berth b's platform: fully on it from where the crossover starts to the
- * station, back on its own track beyond it, side -1 or 1 being the way the crossover lies from the station. The
- * crossover is where the two tracks come closest (within 0.3 m), the nearest such place to the station clear of the
- * unit standing there, and is 12 times as long as the tracks are apart (60 m at least). */
-function eased(net: Network, svc: ServiceDef, on: string, cars: number, b: Berth, side: number, behind: boolean, x: number, o: number): number {
-  const track = berthTrack(net, svc, on, b, behind); if (track === on) return o;
-  // each crossover worked out once, kept on the berth by track, side and length
-  const key = ((net.tracks.findIndex(t => t.id === on) * 2 + (side > 0 ? 1 : 0)) * 2 + (behind ? 1 : 0)) * 32 + cars, cross = b.cross ??= new Map();
+/** Where a unit crosses from track `on` to berth b's platform, side -1 or 1 being the way the crossover lies from the
+ * station: the berth's track (null: the rails drawn into a bay), where the crossover starts (x0, its station end) and
+ * how long it is; null where the unit stays on its own track. The crossover is where the two come closest (within
+ * 0.3 m), the nearest such place to the station clear of the longest unit standing there, and is 12 times as long as
+ * they are apart (60 m at least). The same for every unit of a service, so the map draws its rails once
+ * (`crossovers`) and the trains ride them. */
+export function crossing(net: Network, svc: ServiceDef, on: string, b: Berth, side: number, behind: boolean): { track: string | null; x0: number; len: number } | null {
+  const track = berthTrack(net, svc, on, b, behind); if (track === on) return null;
+  // each crossover worked out once, kept on the berth by track, side, way and the length it keeps clear of
+  const cars = svc.through || svc.scenery ? svc.cars : LONGEST;
+  const key = ((net.tracks.findIndex(t => t.id === on) * 2 + (side > 0 ? 1 : 0)) * 2 + (behind ? 1 : 0)) * 64 + cars, cross = b.cross ??= new Map();
   let c = cross.get(key);
   if (!c) {
-    // clear of the unit standing there: centred on the stop, or a long express at the end of its run with its front
-    // where the longest stopping unit's is
+    // clear of the longest unit standing there: centred on the stop, or an express at the end of its run with its
+    // front where the longest stopping unit's is
     const stop = b.def?.stop === undefined ? b.st.s : b.at + b.def.stop, reach = b.turn && cars > LONGEST ? (cars - LONGEST / 2) * PITCH : cars * PITCH / 2;
     const start = stop + side * (reach + 5), [e0, e1] = net.extent(on), d = (y: number) => Math.abs(net.offsetAt(on, y) - berthOffset(net, track, b, y));
     let least = Infinity;
@@ -213,9 +233,54 @@ function eased(net: Network, svc: ServiceDef, on: string, cars: number, b: Berth
     let x0 = start; for (let y = start; Math.abs(y - start) <= 1200 && y >= e0 && y <= e1; y += side * 5) if (d(y) <= least + 0.3) { x0 = y; break; }
     c = { x0, len: Math.max(60, 12 * d(x0 + side * 60)) }; cross.set(key, c);
   }
+  return { track, ...c };
+}
+/** The unit's offset o at x eased onto berth b's platform over its crossover (`crossing`): fully on it from where the
+ * crossover starts to the station, back on its own track beyond it. */
+function eased(net: Network, svc: ServiceDef, on: string, b: Berth, side: number, behind: boolean, x: number, o: number): number {
+  const c = crossing(net, svc, on, b, side, behind); if (!c) return o;
   const w = Math.max(0, Math.min(1, (c.x0 + side * c.len - x) * side / c.len));
   if (w <= 0) return o;
-  const k = smooth(w); return o + (berthOffset(net, track, b, x) - o) * k;
+  const k = smooth(w); return o + (berthOffset(net, c.track, b, x) - o) * k;
+}
+/** A crossover the map draws: along a corridor from s0 to s1 (s0 < s1), and its offset across the line at s. */
+export interface Crossover { corridor: string; s0: number; s1: number; at: (s: number) => number }
+/** Every crossover a service's units take into and out of the platforms they use, wherever they call or turn round (a
+ * line with a home turns wherever it's been opened to), worked out as the units ride them (`crossing`), once each,
+ * leaving out those that only cross where the two ways run together. */
+export function crossovers(net: Network, svcs: ServiceDef[]): Crossover[] {
+  const out: Crossover[] = [], seen = new Set<string>(), berths = new Map<string, Berth>();
+  for (const svc of svcs) {
+    if (svc.scenery || !svc.route) continue;
+    const R = net.route(svc), ids = svc.route, last = ids.length - 1, home = svc.home ? ids.indexOf(svc.home) : -1;
+    ids.forEach((id, k) => {
+      const st = net.station(id), kinds: ['north' | 'south' | 'turn', number, number][] = [];
+      // what it does here: [kind, the way it runs in, the way it leaves], as the sim's platforms have it
+      if (svc.through) { if (k === last) kinds.push(['turn', 1, -1]); else kinds.push(['north', 1, 1], ['south', -1, -1]); }
+      else {
+        if (k === last || (home >= 0 && k !== 0 && k === home)) kinds.push(['turn', 1, -1]);
+        if (k === 0 || (home >= 0 && k !== home)) kinds.push(['turn', -1, 1]);
+        if (k > 0 && k < last) kinds.push(['north', 1, 1], ['south', -1, -1]);
+      }
+      for (const [kind, din, dout] of kinds) {
+        const listed = svc.platforms?.[id]?.[kind], P = st.platforms ?? [];
+        const defs = listed ? listed.map(p => P.find(q => q.id === p) ?? null) : P.length ? P.filter(q => kind === 'turn' || (q.ways ?? ['north', 'south']).includes(kind)) : [null];
+        for (const def of defs) {
+          const turn = kind === 'turn', bk = `${id}|${def?.id ?? ''}|${turn}`, b = berths.get(bk) ?? { st, at: st.at, def, turn }; berths.set(bk, b);
+          for (const [dir, behind] of [[din, false], [dout, true]] as const) {
+            const side = behind ? dir : -dir, on = R.track(st.s + side * 50, dir), c = crossing(net, svc, on, b, side, behind); if (!c) continue;
+            const a = c.x0, z = c.x0 + side * c.len, s0 = Math.min(a, z), s1 = Math.max(a, z), corridor = net.track(on).corridor;
+            const at = (s: number) => eased(net, svc, on, b, side, behind, s, net.offsetAt(on, s));
+            let most = 0; for (let s = s0; s <= s1; s += 5) most = Math.max(most, Math.min(Math.abs(at(s) - net.offsetAt(on, s)), Math.abs(at(s) - berthOffset(net, c.track, b, s))));
+            const key = `${corridor}|${Math.round(s0)}|${Math.round(s1)}|${Math.round(at(s0) * 10)}|${Math.round(at(s1) * 10)}`;
+            if (most < 0.3 || seen.has(key)) continue;
+            seen.add(key); out.push({ corridor, s0, s1, at });
+          }
+        }
+      }
+    });
+  }
+  return out;
 }
 /** Where a train is drawn by the stations: the platform it has claimed (or will) at its next stop, and the one it
  * stands at or last left, while it's near it. Fills out. */
@@ -311,6 +376,18 @@ export class TrainLayer {
     this.eng = eng.group; this.engCars = eng.cars; this.eng.visible = false;
     this.beacons = new THREE.InstancedMesh(beaconGeo, new THREE.MeshBasicMaterial({ color: PAL['eng-beacon'] }), 4);
     this.beacons.count = 0; this.beacons.frustumCulled = false; scene.add(this.beacons);
+    // the crossovers the units take into and out of their platforms: rails along the path they ride, as the tracks'
+    // are (their ballast runs under them), each in pieces so they follow its curve
+    const xs = crossovers(net, services), pieces = xs.reduce((n, c) => n + Math.ceil((c.s1 - c.s0) / XSTEP), 0);
+    const rails = new THREE.InstancedMesh(xGeo, MAT.rail, Math.max(1, 2 * pieces)); rails.count = 0;
+    const pa = newFrame(), pb = newFrame(), q = new THREE.Quaternion(), e = new THREE.Euler(), v3 = new THREE.Vector3(), sc = new THREE.Vector3();
+    for (const c of xs) for (let s = c.s0; s < c.s1 - 0.01; s += XSTEP) {
+      const s1 = Math.min(c.s1, s + XSTEP); net.place(c.corridor, s, c.at(s), pa); net.place(c.corridor, s1, c.at(s1), pb);
+      const len = Math.hypot(pb.x - pa.x, pb.z - pa.z) || 0.01, nx = -(pb.z - pa.z) / len, nz = (pb.x - pa.x) / len;
+      e.set(0, Math.atan2(-(pb.z - pa.z), pb.x - pa.x), 0); q.setFromEuler(e); sc.set(len + 0.3, 0.16, 0.1);
+      for (const lat of [-0.72, 0.72]) { v3.set((pa.x + pb.x) / 2 + nx * lat, 0.08, (pa.z + pb.z) / 2 + nz * lat); m4.compose(v3, q, sc); rails.setMatrixAt(rails.count++, m4); }
+    }
+    scene.add(byCell(rails).group);
   }
   /** Ghost the spare unit while its card is chosen and it isn't bought; returns whether it's ghosted. */
   previewSpare(on: boolean): boolean {

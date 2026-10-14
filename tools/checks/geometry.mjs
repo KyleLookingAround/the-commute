@@ -15,6 +15,9 @@
 // - The drawing matches the sim: wherever a unit runs on its own track, the bogies of each car it draws (its body
 //   straight between) lie on its track's centreline as the sim's network gives it (within ON m); standing, on its
 //   platform's track or rails; and a standing unit is centred where the sim stops it.
+// - Crossovers: wherever a unit running in to or out of a platform is drawn between tracks (on no track and no
+//   platform's rails), it's on a crossover the map draws with its rails (`crossovers`), within ON m, and no crossover
+//   shifts sideways faster than 1 in 6.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';
@@ -25,7 +28,7 @@ globalThis.document ??= { createElement: () => ({ getContext: () => null }) };
 const THREE = await import('three');
 const { fromGeo } = await import('../../src/sim/network.ts');
 const { partGroup } = await import('../../src/render/stations.ts');
-const { unitPoses, serviceRange, offsetOn, NO_BERTHS } = await import('../../src/render/trains.ts');
+const { unitPoses, serviceRange, offsetOn, crossovers, NO_BERTHS } = await import('../../src/render/trains.ts');
 const { Sim, UPGRADES } = await import('../../src/sim/sim.ts');
 
 const EDGE = 1.68, EDGE_TOL = 0.1;   // platform edge from the track's centreline
@@ -41,6 +44,11 @@ export default async function ({ ok, root, kits: given }) {
   const services = def.services ?? [];
   const poses = [];
   const lengths = svc => svc.scenery || svc.through ? [svc.cars] : CARS;
+  // the crossovers the map draws, and none sharper than a turnout
+  const drawn = crossovers(net, services);
+  let sharp = { k: 0, at: '' };
+  for (const c of drawn) for (let s = c.s0; s < c.s1 - 1; s += 1) { const k = Math.abs(c.at(s + 1) - c.at(s)); if (k > sharp.k) sharp = { k, at: `on ${c.corridor} at ${s.toFixed(0)}` }; }
+  ok('geometry: the crossovers drawn shift sideways no faster than 1 in 6', drawn.length > 0 && sharp.k <= 1 / 6 + 1e-6, `${drawn.length} drawn; the sharpest 1 in ${(1 / sharp.k).toFixed(1)} ${sharp.at}`);
   // the line fully built and every station owned, so every platform is there
   const sim = new Sim(net); sim.P.station.forEach((id, i) => { sim.grant(id); for (const u of UPGRADES) { const at = sim.upgradePlace(i, u.id); if (at) sim.grant(...at); } });
   /** Where each service stands at a station, and on which platforms: [service, kind, the way it runs in, the way it
@@ -178,6 +186,28 @@ export default async function ({ ok, root, kits: given }) {
         sweep(bodies(v.def, at + dout * rem, dout, cars, { ahead: null, behind: b }), `${v.id} leaving ${sim.plats[st.index][p].def.id}`);
       }
     }
+    // ---- between tracks only on a drawn crossover ----
+    const lines = [...(st.platforms ?? []).filter(q => q.path).map(q => q.path)];
+    const across = x => {
+      const out = net.tracks.filter(t => { const [e0, e1] = net.extent(t.id); return t.corridor === st.corridor && x >= e0 && x <= e1; }).map(t => net.offsetAt(t.id, x));
+      for (const P of lines) for (let k = 1; k < P.length; k++) { const [a, va] = P[k - 1], [b, vb] = P[k], u = x - st.at; if ((u - a) * (u - b) <= 0 && a !== b) out.push(va + (vb - va) * (u - a) / (b - a)); }
+      return out;
+    };
+    const xs = drawn.filter(c => c.corridor === st.corridor);
+    let between = { d: 0, at: "" };
+    for (const { v, kind, din, dout, plats } of stands) for (const p of plats) {
+      const cars = lengths(v.def).at(-1), b = berthFor(st.index, p, kind === 'turn'), at = sim.stopAt({ svc: v.id, dir: din, cars }, st.index, p);
+      for (const [dir, B, sg] of [[din, { ahead: b, behind: null }, -din], [dout, { ahead: null, behind: b }, dout]]) for (let rem = 0; rem < 1300; rem += 5) {
+        const x = at + sg * rem, o = offsetOn(net, v.def, dir, cars, B, x);
+        const [e0, e1] = net.extent(net.route(v.def).track(x, dir));
+        if (net.route(v.def).leg(x).corridor !== st.corridor || x < e0 || x > e1) continue;
+        if (across(x).some(a => Math.abs(a - o) <= ON)) continue;
+        const d = Math.min(Infinity, ...xs.filter(c => x >= c.s0 - 1e-6 && x <= c.s1 + 1e-6).map(c => Math.abs(c.at(x) - o)));
+        if (d > between.d) between = { d, at: `${v.id} ${B.ahead ? 'running in to' : 'leaving'} ${b.def?.id ?? 'its face'} at u ${(x - st.at).toFixed(0)}` };
+      }
+    }
+    ok(`geometry: at ${st.name} a unit between tracks is on a crossover drawn with its rails`, between.d <= ON, between.at ? `${between.d === Infinity ? "none there" : between.d.toFixed(2) + " m off"}, ${between.at}` : "");
+
     const list = [...hits.entries()].sort((a, b) => b[1].d - a[1].d);
     ok(`geometry: at ${st.name} no solid part stands where a train passes, in and out of every platform included`, !list.length,
       list.slice(0, 6).map(([k, h]) => `${k} ${h.d.toFixed(2)} m in at u ${h.u.toFixed(0)}`).join('; ') + (list.length > 6 ? `; and ${list.length - 6} more` : ''));

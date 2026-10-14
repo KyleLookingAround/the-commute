@@ -103,22 +103,22 @@ test('tracks: trains stand just clear of the platform their passengers wait on, 
   }
 });
 
-test('tracks: a main-line train turning round at Piccadilly stays on the track it came in on', () => {
-  // (at Stockport the stoppers come in on the up slow, platform 1's line, and cross over to the down slow's platforms
-  // north of the throat, as the tracks keep their order: docs/DESIGN.md, Where the tracks run)
-  const n = net();
+test('tracks: the stopper turns round at Piccadilly in the down slow\'s platform, its tracks keeping their order', () => {
+  // as at Stockport, where the stoppers come in on the up slow and cross over north of the throat to the down slow's
+  // platforms, a stopper leaving Piccadilly crosses over to the up slow beyond the throat: the tracks don't cross
+  // (docs/DESIGN.md, Where the tracks run)
+  const n = net(), st = n.station('piccadilly');
   if (!stopper) throw new Error('no stopper');
-  for (const st of [n.station('piccadilly')])
-    assert.equal(n.offsetAt(n.route(stopper).track(st.s, 1), st.s), n.offsetAt(n.route(stopper).track(st.s, -1), st.s), `${st.id}: both directions in one platform`);
+  const north = n.route(stopper).track(st.s, 1), south = n.route(stopper).track(st.s, -1);
+  assert.equal(st.platforms?.find(p => p.id === '5')?.track, north, 'platform 5 is the down slow\'s');
+  assert.ok(n.offsetAt(south, st.s) - n.offsetAt(north, st.s) >= 3.3, 'the up slow runs into its own platform, east of the down slow');
 });
 
 test('tracks: on the open line and through the stations the tracks there keep clear of each other', () => {
   const n = net(), byS = [...n.stations].sort((a, b) => a.s - b.s), stockport = n.station('stockport').s;
   const between = byS.slice(1).map((st, i) => (st.s + byS[i]!.s) / 2);
   // not Stockport itself, where the Hazel Grove line crosses the main lines into platform 1
-  // nor Piccadilly, where pairs of tracks run into one platform each
-  const throat = n.station('piccadilly').at - 400;
-  for (const s of [...byS.map(st => st.s), ...between].filter(s => Math.abs(s - stockport) > 1200 && s < throat)) {
+  for (const s of [...byS.map(st => st.s), ...between].filter(s => Math.abs(s - stockport) > 1200)) {
     // each corridor's tracks there (chainage runs on through the junctions, so two corridors share it), and a single
     // line's two tracks are the one road (together)
     for (const c of Object.keys(n.corridors)) {

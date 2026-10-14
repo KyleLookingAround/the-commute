@@ -30,6 +30,7 @@ import { Sound } from './render/sound.ts';
 import { Settings } from './ui/settings.ts';
 import { fullScreen } from './ui/fullscreen.ts';
 import { playOffline } from './app/offline.ts';
+import { statsView } from './app/stats.ts';
 import { loadPrefs, savePrefs, type Prefs } from './app/prefs.ts';
 import { UI, fmt } from './ui/panel.ts';
 import type { ContractSheet } from './ui/contract.ts';
@@ -69,6 +70,7 @@ const networkDef: NetworkGeoDef = {
   roads: networkJson.roads.map(r => ({ ...r, points: r.points as [number, number][] })),
 };
 const net = fromGeo(networkDef);
+statsView(net);   // ?stats: the stats view, loaded after the first frame (and ?stats&save=busy, the busy save)
 
 // ---- state ----
 const saved = store.load();

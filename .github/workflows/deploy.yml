@@ -64,19 +64,19 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v4
 
-  # the browser checks, after the deploy, as four parallel jobs balanced by time (tools/check.mjs --shard);
+  # the browser checks, after the deploy, as six parallel jobs balanced by time (tools/check.mjs --shard);
   # at the first release make `build` need this job
   check:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     concurrency:
       group: main-check-${{ matrix.shard }}
       cancel-in-progress: false
     # past the limit the job is cancelled, which opens no "main is red" issue, so keep it well clear of a shard's time
-    # (about 25 minutes each, balanced by MINUTES in tools/check.mjs)
+    # (about 20 minutes each, balanced by MINUTES in tools/check.mjs)
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -102,7 +102,7 @@ jobs:
         run: |
           mkdir -p build/check
           set -o pipefail
-          (node tools/rules.mjs && npm test && node tools/build.mjs && node tools/check.mjs --shard ${{ matrix.shard }}/4) 2>&1 | tee build/check/shard-${{ matrix.shard }}.log
+          (node tools/rules.mjs && npm test && node tools/build.mjs && node tools/check.mjs --shard ${{ matrix.shard }}/6) 2>&1 | tee build/check/shard-${{ matrix.shard }}.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -110,7 +110,7 @@ jobs:
           path: build/check
           if-no-files-found: ignore
 
-  # opens or updates the "main is red" issue when a shard fails, and closes it when all four pass; a cancelled shard
+  # opens or updates the "main is red" issue when a shard fails, and closes it when all six pass; a cancelled shard
   # (a newer push took its place) reports nothing, since the newer run will
   report:
     needs: check

@@ -70,10 +70,13 @@ const unknown = named.filter(g => !groups.includes(g));
 if (unknown.length) { console.log(`no check group "${unknown[0]}"; the groups are ${groups.join(', ')}`); process.exit(1); }
 // Shards are balanced by each group's minutes on a CI runner (the "-- group took" lines in its log), heaviest first onto
 // the lightest shard; a group not listed counts as one minute. Update these when a shard runs long.
-// From the Publish run for 03240af (13 October 2026), with the real surroundings and the lines out in.
+// From the Publish run for 972723b (14 October 2026, run 38498128564), with perf raised for its wide view, the stats
+// view and what a view loads, and terrain and world for their time loading the tiles at import (outside the group's
+// timer, so its log line says less).
 const MINUTES = {
-  camera: 15.4, reach: 11, contract: 11, layout: 8.7, line: 8.1, saves: 7.1, homes: 4.7, preview: 4.4, access: 4.2,
-  strain: 6, weather: 3.8, places: 3.5, life: 3.3, fullscreen: 3, offline: 2.7, trouble: 2.2, daylight: 2.1, perf: 1.7, contrast: 0.9,
+  camera: 13.2, contract: 12.1, perf: 12, layout: 10.6, line: 8.9, saves: 8.7, strain: 8.1, reach: 7.1, preview: 4.4, life: 4.1,
+  weather: 3.8, homes: 3.7, places: 3.6, access: 3.3, offline: 2.8, fullscreen: 2.4, trouble: 1.8, daylight: 1.7, terrain: 1.5,
+  contrast: 0.9, world: 0.5, geometry: 0.2, bot: 0.1, kits: 0.1, signals: 0.1, sections: 0.1, landmarks: 0.1, rules: 0.1,
 };
 const shardOf = new Map(), load = shard ? Array(shard[1]).fill(0) : [];
 if (shard) for (const g of [...groups].sort((a, b) => (MINUTES[b] ?? 1) - (MINUTES[a] ?? 1) || a.localeCompare(b))) {

@@ -7,7 +7,8 @@
 // 44 px, lists only stages that can be built now (a station's cards are the sim's visible ones, its bus stop no longer
 // among them; the stopper offers no extra unit before platform 3 and the sidings no spare before a train has failed; the
 // Network card no renewal before Piccadilly), and has Next to chips for what touches it. The offered bus stop at
-// Levenshulme opens with Buy. The full list of places by kind is under each card. No errors.
+// Levenshulme opens with Buy, and Ardwick (Shut) with Reopen. The full list of places by kind is under each card. And a
+// new game: Stockport alone on the row, Shut, with Reopen · £1,000, which leaves a halt and about £3,000. No errors.
 // Covers: @page @sim src/render/stations.ts
 import { reveal } from '../reveal.mjs';
 import { register } from 'tsx/esm/api';
@@ -18,7 +19,7 @@ export default async function ({ ok, open, root }) {
   register();
   const { fromGeo } = await import('../../src/sim/network.ts');
   const { Sim } = await import('../../src/sim/sim.ts');
-  const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def), sim = new Sim(net, Sim.fresh(net, 2));
+  const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def), sim = new Sim(net, Sim.halt(net, 2));
   sim.g.cash = 1e6;
   for (const id of ['crossing', 'building', 'bus']) sim.buyUpgrade(0, id);
   for (const id of ['heaton-chapel', 'levenshulme']) sim.buyStation(net.station(id).index);
@@ -28,7 +29,7 @@ export default async function ({ ok, open, root }) {
   const CARDS = [
     ["Stockport's", '#strip [data-place="station:stockport"]', 'station:stockport', /^(Halt|Station) · /, visible(0), ['station:heaton-chapel', 'station:davenport', 'route:stopper', 'stop:stockport-interchange', 'depot:stockport-sidings', 'section:main:stockport:heaton-norris-junction']],
     ["Levenshulme's", '#strip [data-place="station:levenshulme"]', 'station:levenshulme', /^(Halt|Station) · /, visible(net.station('levenshulme').index), ['station:heaton-chapel', 'station:ardwick', 'route:stopper', 'stop:levenshulme-station-view', 'section:main:heaton-chapel:levenshulme']],
-    ["Ardwick's (not owned)", '#strip [data-place="station:ardwick"]', 'station:ardwick', /£/, null, ['station:levenshulme', 'route:stopper']],
+    ["Ardwick's (not owned)", '#strip [data-place="station:ardwick"]', 'station:ardwick', /^Shut · .*£/, null, ['station:levenshulme', 'route:stopper']],
     ["Levenshulme's bus stop (not owned)", '#strip [data-place="stop:levenshulme-station-view"]', 'stop:levenshulme-station-view', /^Bus stop · £/, null, ['station:levenshulme']],
     ["the stopper's", '#strip [data-place="route:stopper"]', 'route:stopper', /^Train service · 1 unit$/, 'cars', ['station:stockport', 'station:heaton-chapel', 'station:levenshulme', 'station:ardwick']],
     ["the sidings'", '#strip [data-place="depot:stockport-sidings"]', 'depot:stockport-sidings', /^Depot · /, sim.g.trouble.fails ? 'spare' : '', ['station:stockport']],
@@ -66,8 +67,27 @@ export default async function ({ ok, open, root }) {
     const bad = [!reached && 'could not reach it', m.at !== id && `the card open is ${m.at}`, !m.name && 'no name', !sub.test(m.sub || '') && `the header reads "${m.sub}"`, m.wide && 'it scrolls sideways',
       m.small.length && `small targets: ${m.small.map(s => `${s[0]} ${s[1]}×${s[2]}`).join(', ')}`, stages !== null && m.cards !== stages && `stages ${m.cards || 'none'}, not ${stages || 'none'}`, m.renew && 'offers renewal',
       m.next !== [...next].sort().join(',') && `next to ${m.next || 'nothing'}, not ${[...next].sort().join(',') || 'nothing'}`, id.startsWith('stop:levenshulme') && !/^Buy · £/.test(m.buy) && `its button reads "${m.buy}"`,
+      id === 'station:ardwick' && !/^Reopen · £/.test(m.buy) && `its button reads "${m.buy}"`,
       !/^Stations,Bus stops,Train services,Depots$/.test(m.list) && `the full list's heads are "${m.list}"`, errs[0]].filter(Boolean);
     ok(`places: at 320×568 ${name} card opens, fits, shows only what can be built now, and what's next to it`, !bad.length, bad.join('; ') || `${m.name} · ${m.sub}`);
   }
   await ctx.close();
+
+  // a new game (docs/design/gridlock.md, sections 1 and 4): the row lists Stockport alone, its card is Shut with one
+  // button, Reopen · £1,000, and tapping it reopens Stockport as a halt with £3,000 left
+  {
+    const { ctx, page, errs } = await open({ width: 320, height: 568 }, { touch: true });
+    const tap = async sel => { sel = await reveal(page, sel); const r = await page.evaluate(s => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; }, sel); if (r) await page.touchscreen.tap(r[0], r[1]); return !!r; };
+    await page.waitForSelector('#panel[data-place="station:stockport"]', { timeout: 30000 }).catch(() => {});
+    const look = () => page.evaluate(() => ({ row: [...document.querySelectorAll('#strip [data-place]')].map(b => b.dataset.place).join(','), sub: document.getElementById('shSub')?.textContent ?? '',
+      buy: document.getElementById('buyPlace')?.textContent ?? '', cash: document.getElementById('cash')?.textContent ?? '' }));
+    const a = await look();
+    const tapped = await tap('#buyPlace');
+    await page.waitForFunction(() => /^Halt/.test(document.getElementById('shSub')?.textContent ?? ''), null, { timeout: 30000 }).catch(() => {});
+    const b = await look();
+    const bad = [a.row !== 'station:stockport' && `the row lists ${a.row}`, !/^Shut · /.test(a.sub) && `the header reads "${a.sub}"`, a.buy !== 'Reopen · £1,000' && `its button reads "${a.buy}"`,
+      !tapped && 'no button to tap', !/^Halt · /.test(b.sub) && `after Reopen the header reads "${b.sub}"`, !(+b.cash.replace(/[^\d]/g, '') >= 3000 && +b.cash.replace(/[^\d]/g, '') < 4000) && `after Reopen the cash reads "${b.cash}"`, errs[0]].filter(Boolean);
+    ok('places: at 320×568 a new game offers only Reopen Stockport at £1,000, and reopening it leaves a halt and about £3,000', !bad.length, bad.join('; ') || `${a.sub} → ${b.sub}, ${b.cash}`);
+    await ctx.close();
+  }
 }

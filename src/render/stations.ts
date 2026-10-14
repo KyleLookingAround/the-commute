@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { MAT, PAL, box, boxUV, matFor } from './scene.ts';
 import { yawFor } from './world.ts';
-import { buildBoard, buildCarPark, buildCycles, buildShop, emptyLive, type Live } from './life.ts';
+import { buildBoard, buildCarPark, buildCycles, buildShop, buildShutter, emptyLive, type Live } from './life.ts';
 import { buildRank, type RankPart } from './taxis.ts';
 import { buildBusStop, type BusStopPart } from './buses.ts';
 import { buildLink, type LinkPart } from './links.ts';
@@ -77,6 +77,10 @@ export type Part =
   | (Gated & Footprint & { type: 'carpark'; y?: number; deck?: boolean })
   /** n Sheffield stands in a row from (u, v), along the line or across it, with bikes that come and go. */
   | (Gated & { type: 'cycles'; u: number; v: number; n: number; y?: number; across?: boolean })
+  /** A roller shutter across a way in, w wide and h high, and up to `crowd` people gathered outside it (30): shown
+   * while the station is shut (the start holds a train there, docs/design/gridlock.md section 4), rolled up as it
+   * reopens. Never fogged with the halt. */
+  | (Gated & { type: 'shutter'; u: number; v: number; w: number; h: number; crowd?: number; y?: number })
   /** A taxi rank and its cabs (src/render/taxis.ts). */
   | (Gated & RankPart & { type: 'taxi' })
   /** A stop for rail replacement buses (src/render/buses.ts). */
@@ -339,6 +343,7 @@ const partBuilders: Builders = {
   board(gp, p, live) { buildBoard(gp, p, live); },
   carpark(gp, p, live) { buildCarPark(gp, p, live, seedOf(p.u0, p.v0)); },
   cycles(gp, p, live) { buildCycles(gp, p, live, seedOf(p.u, p.v)); },
+  shutter(gp, p, live) { buildShutter(gp, p, live, seedOf(p.u, p.v)); },
   taxi(gp, p, live) { buildRank(gp, p, live); },
   busstop(gp, p, live) { buildBusStop(gp, p, live); },
   buslink(gp, p, live) { buildLink(gp, p, live); },
@@ -525,7 +530,7 @@ function fill(net: Network, b: BuiltStation, kit: Kit): void {
     const part = kitPart.type === 'rails' ? { ...kitPart, points: alongLine(net, st, frame, kitPart.points) } : kitPart;
     const needs = part.upgrade === undefined ? [] : Array.isArray(part.upgrade) ? part.upgrade : [part.upgrade];
     const put = (into: THREE.Group) => part.type === 'road' ? onStreet(part, into, live, frame) : part.street ? onGround(part, into, live, frame) : build(part, into, live);
-    if (part.scenery) put(scenery);
+    if (part.scenery || part.type === 'shutter') put(scenery);
     else if (needs.length || part.until) {
       const key = `${needs.join('+')}|${part.until ?? ''}`;
       let gate = gates.get(key);
@@ -537,7 +542,7 @@ function fill(net: Network, b: BuiltStation, kit: Kit): void {
   // what life moves or changes stays as it is; the rest is folded together
   const keep = new Set<THREE.Object3D>();
   for (const s of SEATS.slice(seats)) s.g.traverse(q => keep.add(q));
-  for (const o of [...live.boards.map(x => x.mesh), ...live.shops.map(x => x.shutter)]) o.traverse(q => keep.add(q));
+  for (const o of [...live.boards.map(x => x.mesh), ...live.shops.map(x => x.shutter), ...live.shut.map(x => x.shutter)]) o.traverse(q => keep.add(q));
   for (const into of [fixed, scenery, ...gated.map(gt => gt.group)]) mergeStill(into, keep);
   b.kit = kit; b.gated = gated; b.lockedNow = null;   // the next sync fogs it (or not) as at the start
 }

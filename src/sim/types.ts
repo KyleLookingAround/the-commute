@@ -137,6 +137,8 @@ export interface NetworkGeoDef {
   stops?: StopDef[]; depots?: DepotDef[]; stopNote?: string;
   /** The perks reputation buys between contracts (src/sim/contract.ts). */
   contract?: ContractDef;
+  /** Where a contract can start (docs/design/gridlock.md §7): the first is the first game's, and the default. */
+  starts?: StartDef[];
   /** Each corridor's sections of line in chainage order (as src/sim/places.ts makes them): each one's real speed (mph,
    * null where OSM had none) and the share of it under wires (tools/osm-to-sections.mjs). */
   sections?: Record<string, { mph: (number | null)[]; wired: number[] }>; sectionNote?: string;
@@ -146,6 +148,14 @@ export interface NetworkGeoDef {
  * at every station), unit (the first extra unit stands in Stockport's sidings, free to put in service), spare (the spare
  * unit stands by from the start). */
 export interface PerkDef { id: string; branch: string; name: string; desc: string; price: number; cash?: number; build?: number; walk?: number; unit?: boolean; spare?: boolean }
+/** A start (docs/design/gridlock.md §7): the places owned (`open`, none for a shut network), what's offered while
+ * nothing is (`offer`), prices that differ from the data's for those, cash, the clock, the services standing until a
+ * station on them opens (`held`: route place id to station id), and what the camera and the first card frame. */
+export interface StartDef {
+  id: string; name: string; open: string[]; offer: string[]; prices?: Record<string, number>; cash: number;
+  clock: { day: number; hour: number }; held?: Record<string, string>;
+  camera?: { at: string; look?: string; height?: number }; roads?: string[]; unlock?: string | null; note?: string;
+}
 export interface ContractDef { note?: string; branches: { id: string; name: string }[]; perks: PerkDef[] }
 
 // ---- the network in metres ----
@@ -247,4 +257,6 @@ export interface GameState {
   /** The perks this run was started with (their ids, src/sim/contract.ts): what the career had bought when the contract
    * began. They stay as they are for the whole run. */
   perks: string[];
+  /** The start this run began from (its id in the network data's `starts`). */
+  start: string;
 }

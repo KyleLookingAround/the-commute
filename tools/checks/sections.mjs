@@ -23,7 +23,7 @@ globalThis.localStorage ??= { getItem: () => null, setItem: () => {} };
 const { StrainRead } = await import('../../src/ui/strain.ts');
 
 export default async function ({ ok, root }) {
-  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.fresh(net, 1));
+  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.halt(net, 1));
   sim.g.cash = 1e7;
   const canvas = { getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600 }) };
   const scene = new THREE.Scene(), L = new SectionLayer(scene, net, () => sim, new THREE.PerspectiveCamera(), canvas);
@@ -55,7 +55,7 @@ export default async function ({ ok, root }) {
   ok('sections: once bought it stands over the tracks at the junction, rising into place', L.flyovers() === 1 && !!fly && fly.min.x <= j.x && fly.max.x >= j.x && fly.min.z <= j.z && fly.max.z >= j.z, JSON.stringify(fly));
 
   // Strain: a train failed between Heaton Chapel and Levenshulme, the next one held behind it
-  const s2 = new Sim(net, Sim.fresh(net, 1)); s2.g.cash = 1e7; s2.g.trouble.next = s2.g.t + 1e9;
+  const s2 = new Sim(net, Sim.halt(net, 1)); s2.g.cash = 1e7; s2.g.trouble.next = s2.g.t + 1e9;
   for (const st of ['heaton-chapel', 'levenshulme']) s2.grant(s2.P.station[net.station(st).index]);
   s2.grant(s2.P.stopper, 'units'); s2.ensureTrains(); s2.step(1);
   const read = new StrainRead(s2), hl = s2.P.all.find(p => p.kind === 'section' && p.name === 'Heaton Chapel – Levenshulme').id, hx = s2.secs.find(q => q.id === hl);

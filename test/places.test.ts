@@ -9,7 +9,7 @@ import type { NetworkGeoDef } from '../src/sim/types.ts';
 
 const def = JSON.parse(readFileSync(new URL('../src/data/network.json', import.meta.url), 'utf8')) as NetworkGeoDef;
 const net = fromGeo(def);
-const fresh = () => { const sim = new Sim(net, Sim.fresh(net, 1)); sim.g.cash = 1e7; return sim; };
+const fresh = () => { const sim = new Sim(net, Sim.halt(net, 1)); sim.g.cash = 1e7; return sim; };
 const st = (id: string) => `station:${id}`;
 
 test('places: every station, route, stop and depot is a place, by kind:name', () => {

@@ -61,7 +61,7 @@ export class ContractSheet {
         <div class="con-top"><div class="plaque" aria-hidden="true"><small>Contract</small><b>No. ${n}</b></div>
           <p class="con-sum">Contract ${n} ends on day ${day} and banks <b>★ ${rep}</b>. To spend: <b id="conRep">★ ${c.rep}</b></p></div>
         <div class="con-cols"><div><h3>Lasts</h3><p class="set-note">Perks, milestones, the plaque at Stockport, and reputation you don't spend</p></div>
-          <div><h3>Starts again</h3><p class="set-note">Cash, stations, stages and homes grown: the line goes back to halts from Stockport</p></div></div>
+          <div><h3>Starts again</h3><p class="set-note">Cash, stations, stages and homes grown: every station shuts, Stockport too</p></div></div>
         <div class="tree">${branches}</div>
       </div>
       <div class="con-go"><button class="buy con-begin" data-act="begin">Begin contract ${n + 1}</button></div>`;

@@ -14,7 +14,7 @@ export default async function ({ ok, open, root, url, side }) {
   const { fromGeo } = await import('../../src/sim/network.ts');
   const { Sim } = await import('../../src/sim/sim.ts');
   const { SAVE_VERSION } = await import('../../src/sim/save.ts');
-  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.fresh(net, 2));
+  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.halt(net, 2));
   sim.g.cash = 1e6; sim.buyStation(1); sim.advance(3600); sim.g.cash = 123456;
   const carried = JSON.stringify({ g: sim.g, selected: 1, at: Date.now() - 20 * 60_000 });
   const money = page => page.evaluate(() => Number((document.getElementById('cash')?.textContent ?? '').replace(/[^0-9]/g, '')));

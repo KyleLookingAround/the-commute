@@ -2,7 +2,7 @@
 // in it is a 44 px tap target on a phone (320 px wide too) and it fits the screen; Low turns shadows off, thins the
 // figures and draws at one pixel per CSS pixel, High brings them back; the settings are remembered on the device after a
 // reload and never go in the save; sound stays off until the first tap, starts on it, and a mute is remembered (a muted
-// page makes no sound when tapped). Then the figures: after a while at 10x some carry a suitcase or wheel a bike. And
+// page makes no sound when tapped). Then the figures, with Stockport reopened: after a while at 10x some carry a suitcase or wheel a bike. And
 // the night: a save moved to 02:00 on a night the fast lines close (seed 1's second) has the engineering train out with
 // its beacons, no expresses, and the bought platforms' lamps throwing their light; at 13:00 the next day none of that.
 // Boarding, with no browser: people waiting for the stopper at Stockport's platform 4 walk by the subway to platform 3
@@ -55,8 +55,11 @@ export default async function ({ ok, open, root, SAVE_KEY }) {
     ok(`life: at ${w}×${h} High brings shadows and full sharpness back`, high.shadows && high.ratio === 2 && !errs.length, JSON.stringify([high.shadows, high.ratio, errs[0]]));
     await ctx.close();
   }
-  // the figures: after a while at 10x some carry a suitcase or wheel a bike
-  const { ctx, page, errs } = await open({ width: 1280, height: 800 });
+  // the figures: after a while at 10x some carry a suitcase or wheel a bike (Stockport reopened: a new game opens with it shut)
+  const { fromGeo } = await import('../../src/sim/network.ts');
+  const { Sim } = await import('../../src/sim/sim.ts');
+  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')));
+  const { ctx, page, errs } = await open({ width: 1280, height: 800 }, { save: JSON.stringify({ g: Sim.halt(net, 1), selected: 0 }) });
   await page.click('#sp10');
   let seen = { cases: 0, bikes: 0, figures: 0 };
   for (let k = 0; k < 20 && seen.cases + seen.bikes === 0; k++) { await page.waitForTimeout(1000); seen = await page.evaluate(() => window.__view.life()); }

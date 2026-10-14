@@ -14,7 +14,7 @@ export default async function ({ ok, open, root }) {
   const { fromGeo } = await import('../../src/sim/network.ts');
   const { Sim } = await import('../../src/sim/sim.ts');
   const HOMES_PER_PLOT = 3;   // src/render/homes.ts
-  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.fresh(net, 1));
+  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.halt(net, 1));
   const idx = id => net.stations.findIndex(s => s.id === id), [sp, hc, lv] = ['stockport', 'heaton-chapel', 'levenshulme'].map(idx);
   for (const i of [hc, lv]) { sim.grant(sim.P.station[i]); sim.g.homes[i] = sim.ceiling(i); }
   // Stockport a hair short of its tenth new building: it passes the mark in a moment at 1x

@@ -11,7 +11,7 @@ import type { NetworkGeoDef } from '../src/sim/types.ts';
 const def = JSON.parse(readFileSync(new URL('../src/data/network.json', import.meta.url), 'utf8')) as NetworkGeoDef;
 const D = JSON.parse(readFileSync(new URL('../src/data/traffic.json', import.meta.url), 'utf8')) as TrafficDef;
 const net = fromGeo(def);
-const fresh = (seed = 1) => { const sim = new Sim(net, Sim.fresh(net, seed)); sim.g.cash = 1e7; return sim; };
+const fresh = (seed = 1) => { const sim = new Sim(net, Sim.halt(net, seed)); sim.g.cash = 1e7; return sim; };
 const road = (sim: Sim, id: string, h = 8) => { const r = traffic(sim, TUNING, D, h).roads.find(x => x.id === id); assert.ok(r, id); return r; };
 /** The main line to Piccadilly with everything bought: its stations, each one's stages, and the line's units and cars. */
 function mainLine(): Sim {

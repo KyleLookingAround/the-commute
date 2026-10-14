@@ -14,7 +14,7 @@ const net = () => fromGeo(def);
 
 /** The spells a seed sees over some game days, a game minute at a time: how long each kind lasted, in game minutes. */
 function spells(seed: number, days: number): { kinds: Record<string, number>; firstDay: Set<Sky>; sim: Sim } {
-  const sim = new Sim(net(), Sim.fresh(net(), seed)), kinds: Record<string, number> = {}, firstDay = new Set<Sky>();
+  const sim = new Sim(net(), Sim.halt(net(), seed)), kinds: Record<string, number> = {}, firstDay = new Set<Sky>();
   for (let k = 0; k < days * 24 * 60; k++) {
     sim.advance(simAt(clockAt(sim.g.t) + 60) - sim.g.t);
     const w = sim.g.weather.now; kinds[w] = (kinds[w] ?? 0) + 1;
@@ -24,13 +24,13 @@ function spells(seed: number, days: number): { kinds: Record<string, number>; fi
 }
 
 test('weather: the same seed brings the same weather, and the weather never moves the rest of the game\'s dice', () => {
-  const a = new Sim(net(), Sim.fresh(net(), 7)), b = new Sim(net(), Sim.fresh(net(), 7));
+  const a = new Sim(net(), Sim.halt(net(), 7)), b = new Sim(net(), Sim.halt(net(), 7));
   a.advance(3 * DAY); b.advance(3 * DAY);
   assert.deepEqual(a.g.weather, b.g.weather);
   // with nobody feeling it, a game plays exactly as one without weather would: its own random numbers
   WEATHER.felt = false;
   try {
-    const c = new Sim(net(), Sim.fresh(net(), 7)), d = new Sim(net(), Sim.fresh(net(), 7));
+    const c = new Sim(net(), Sim.halt(net(), 7)), d = new Sim(net(), Sim.halt(net(), 7));
     d.g.weather.rngState = 12345;   // other weather entirely
     c.advance(DAY); d.advance(DAY);
     assert.equal(c.g.rngState, d.g.rngState); assert.equal(c.g.stats.boarded, d.g.stats.boarded);
@@ -38,7 +38,7 @@ test('weather: the same seed brings the same weather, and the weather never move
 });
 
 test('weather: the year turns a season every two game days from spring, and rain is common but rarely all day', () => {
-  const t0 = Sim.fresh(net(), 1).t;
+  const t0 = Sim.halt(net(), 1).t;
   assert.equal(seasonAt(t0), 0, 'a new game starts in spring');
   assert.equal(seasonAt(t0 + 2 * DAY), 1); assert.equal(seasonAt(t0 + 4 * DAY), 2); assert.equal(seasonAt(t0 + 6 * DAY), 3); assert.equal(seasonAt(t0 + 8 * DAY), 0);
   assert.ok(Math.abs(yearAt(t0 + 8 * DAY) - yearAt(t0)) < 1e-9, 'a year is eight game days');
@@ -54,7 +54,7 @@ test('weather: the year turns a season every two game days from spring, and rain
 });
 
 test('weather: rain makes the walk and an open wait feel longer, a canopy keeps it off; snow slows trains and keeps some home', () => {
-  const sim = new Sim(net(), Sim.fresh(net(), 1)), g = sim.g;
+  const sim = new Sim(net(), Sim.halt(net(), 1)), g = sim.g;
   assert.ok(sim.buyStation(1) || (g.cash = 1e6, sim.buyStation(1)));
   const dry = sim.journey(0, 1)!.felt;
   g.weather.now = 'rain'; sim.refreshJourneys();
@@ -70,7 +70,7 @@ test('weather: rain makes the walk and an open wait feel longer, a canopy keeps 
 });
 
 test('weather: leaves on the line slow trains a little in autumn, less with the faster timetable', () => {
-  const sim = new Sim(net(), Sim.fresh(net(), 1)), g = sim.g, v = sim.vmax();
+  const sim = new Sim(net(), Sim.halt(net(), 1)), g = sim.g, v = sim.vmax();
   g.t += 4 * DAY; assert.equal(seasonAt(g.t), 2);
   g.weather.now = 'sun';
   assert.ok(sim.vmax() < v && sim.vmax() > 0.85 * v, 'leaves slow the line a little');

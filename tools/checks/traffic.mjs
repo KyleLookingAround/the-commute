@@ -28,7 +28,7 @@ export default async function ({ ok, open, root }) {
 
   // drawing changes nothing: the same seed and buys, one run drawn as the page draws it
   const run = draw => {
-    const sim = new Sim(net, Sim.fresh(net, 2)); sim.g.cash = 1e6;
+    const sim = new Sim(net, Sim.halt(net, 2)); sim.g.cash = 1e6;
     sim.buyUpgrade(0, 'crossing'); sim.buy(sim.P.station[net.station('heaton-chapel').index]);
     const L = draw ? new TrafficLayer({ scene: new THREE.Scene(), net, def, sim: () => sim, focus: () => ({ tx: 20, tz: -500, r: 260 }), ground: Promise.resolve(null), reduced: false }) : null;
     let cars = 0;
@@ -46,7 +46,7 @@ export default async function ({ ok, open, root }) {
 
   // saves: the opening at 08:00 on day 1, and the main line to Piccadilly with everything bought at the same hour
   const peak = build => {
-    const sim = new Sim(net, Sim.fresh(net, 1)); sim.g.cash = 1e7;
+    const sim = new Sim(net, Sim.halt(net, 1)); sim.g.cash = 1e7;
     build?.(sim);
     while (sim.hour() < 8 && sim.g.day === 1) sim.advance(5);
     sim.g.cash = 3000;

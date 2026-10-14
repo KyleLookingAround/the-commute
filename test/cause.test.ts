@@ -17,7 +17,7 @@ import { act } from '../tools/bot.mjs';
 const net = fromGeo(JSON.parse(readFileSync(new URL('../src/data/network.json', import.meta.url), 'utf8')) as NetworkGeoDef);
 /** The bot's game on seed 1 to day 6's morning, then an hour on, read as the page reads it (or not). */
 function play(read: boolean): { sim: Sim; seen: Map<string, Set<string>>; hash: string } {
-  const sim = new Sim(net, Sim.fresh(net, 1)), end = simAtHour(6, 7.5);
+  const sim = new Sim(net, Sim.halt(net, 1)), end = simAtHour(6, 7.5);
   while (sim.g.t < end) { sim.advance(60); for (let k = 0; k < 5 && act(sim); k++); }
   const r = read ? new StrainRead(sim) : null, seen = new Map<string, Set<string>>();
   for (let k = 0; k < 3600; k++) {

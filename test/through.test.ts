@@ -14,7 +14,7 @@ const st = (id: string) => `station:${id}`;
 const idx = (id: string) => net.station(id).index;
 
 test('through: offered once Piccadilly\'s shed and bays are built, it runs the Hazel Grove trains on to Piccadilly with no change', () => {
-  const sim = new Sim(net, Sim.fresh(net, 1)); sim.g.cash = 1e7;
+  const sim = new Sim(net, Sim.halt(net, 1)); sim.g.cash = 1e7;
   for (const id of ['heaton-chapel', 'levenshulme', 'ardwick', 'davenport', 'woodsmoor']) sim.grant(st(id));
   sim.grant(st('stockport'), 'crossing'); sim.grant(st('stockport'), 'platform2'); sim.grant(st('stockport'), 'platforms');
   for (const id of ['davenport', 'woodsmoor', 'levenshulme', 'heaton-chapel']) { sim.grant(st(id), 'crossing'); sim.grant(st(id), 'platform2'); }
@@ -39,7 +39,7 @@ test('through: offered once Piccadilly\'s shed and bays are built, it runs the H
 });
 
 test('through: a save with it bought loads running through', () => {
-  const sim = new Sim(net, Sim.fresh(net, 2)); sim.g.cash = 1e7;
+  const sim = new Sim(net, Sim.halt(net, 2)); sim.g.cash = 1e7;
   for (const id of ['heaton-chapel', 'levenshulme', 'ardwick', 'piccadilly', 'davenport']) sim.grant(st(id));
   sim.grant(st('stockport'), 'platforms'); sim.grant('route:hazel-grove', 'through');
   const again = new Sim(net, JSON.parse(JSON.stringify(sim.g)));

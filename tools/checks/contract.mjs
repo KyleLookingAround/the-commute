@@ -2,8 +2,8 @@
 // renewal; a save with Piccadilly owned offers "Renew the contract" with the reputation it would bank (as the sim reckons it), and its
 // sheet fits the page with tap-sized buttons, shows the next perk in each branch but none beyond it, and buys perks
 // with the reputation to spend. Beginning the next contract keeps the career on the device, folds what was bought back
-// down on the map, and starts the run again from Stockport as a halt with the perks in effect: the starting cash, a
-// discounted price on the strip, the unit stabled in the sidings, and the plaque by Stockport's entrance with a line
+// down on the map, and starts the run again from the start, Stockport shut, with the perks in effect: the starting cash,
+// a discounted price for reopening Stockport on the strip, the unit stabled in the sidings, and the plaque by Stockport's entrance with a line
 // for the contract renewed. Start over then offers the career too, and its default (tap again) starts only the run
 // again: the career, the perks and the plaque stay. No errors. A screenshot of the plaque goes to build/shots/plaque.png.
 // Covers: @page @sim src/render/stations.ts src/render/trains.ts
@@ -17,7 +17,7 @@ export default async function ({ ok, open, root }) {
   const { fromGeo } = await import('../../src/sim/network.ts');
   const { Sim } = await import('../../src/sim/sim.ts');
   const { reputation } = await import('../../src/sim/contract.ts');
-  const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def), sim = new Sim(net, Sim.fresh(net, 3));
+  const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def), sim = new Sim(net, Sim.halt(net, 3));
   sim.g.cash = 1e7;
   for (const id of ['crossing', 'platform2', 'building']) sim.buyUpgrade(0, id);
   for (const id of ['heaton-chapel', 'levenshulme', 'ardwick', 'piccadilly']) sim.buyStation(net.station(id).index);
@@ -65,18 +65,18 @@ export default async function ({ ok, open, root }) {
     let folded = 0;
     for (let k = 0; k < 40 && !folded; k++) { folded = await page.evaluate(() => window.__view?.folding?.() ?? 0); if (!folded) await page.waitForTimeout(50); }
     const c = await look(page), kept = await page.evaluate(() => JSON.parse(localStorage.getItem('the-commute-career-v1') || 'null'));
-    const strip = await page.evaluate(() => Number((document.querySelector('[data-st="1"]')?.textContent ?? '').replace(/[^0-9]/g, '')));
-    const hcPrice = Math.round(net.stations[1].price * (1 - perk('works1').build) / 10) * 10;
+    const strip = await page.evaluate(() => Number((document.querySelector('[data-st="0"]')?.textContent ?? '').replace(/[^0-9]/g, '')));
+    const reopen = Math.round(def.starts[0].prices['station:stockport'] * (1 - perk('works1').build) / 10) * 10;
     const bad = [
       !folded && 'nothing folded down',
-      c?.owned !== 1 && `owns ${c?.owned} stations`,
-      c?.cash !== 3000 + perk('capital1').cash && `cash £${c?.cash}`,
+      c?.owned !== 0 && `owns ${c?.owned} stations`,
+      c?.cash !== def.starts[0].cash + perk('capital1').cash && `cash £${c?.cash}`,
       JSON.stringify(c?.run) !== JSON.stringify(['works1', 'stock1', 'capital1']) && `run perks ${c?.run}`,
       !c?.stabled && 'no unit stabled in the sidings',
       c?.plaque !== 1 && `the plaque reads ${c?.plaque} lines`,
       kept?.renewals !== 1 && 'the career was not kept',
       kept && kept.rep !== shown - perk('works1').price - perk('stock1').price - perk('capital1').price && kept.rep < 0 && `reputation left ${kept?.rep}`,
-      strip !== hcPrice && `Heaton Chapel costs £${strip}, not £${hcPrice}`,
+      strip !== reopen && `Reopen Stockport costs £${strip}, not £${reopen}`,
       await page.evaluate(() => !!document.getElementById('renew')) && 'still offers renewal',
     ].filter(Boolean);
     ok(`contract: at ${w}×${h} beginning the next contract folds the line back, keeps the career and starts from Stockport with the perks`, !bad.length, bad.join('; ') || JSON.stringify(c));
@@ -94,7 +94,7 @@ export default async function ({ ok, open, root }) {
     await page.evaluate(() => document.getElementById('reset').click());
     await page.waitForTimeout(200);
     const c2 = await look(page), kept2 = await page.evaluate(() => JSON.parse(localStorage.getItem('the-commute-career-v1') || 'null'));
-    ok(`contract: at ${w}×${h} Start over offers the career too, and by default starts only the run again`, offered && kept2?.renewals === 1 && c2?.plaque === 1 && c2?.cash === 3000 + perk('capital1').cash && c2?.stabled, JSON.stringify({ offered, kept: kept2?.renewals, ...c2 }));
+    ok(`contract: at ${w}×${h} Start over offers the career too, and by default starts only the run again`, offered && kept2?.renewals === 1 && c2?.plaque === 1 && c2?.cash === def.starts[0].cash + perk('capital1').cash && c2?.stabled, JSON.stringify({ offered, kept: kept2?.renewals, ...c2 }));
     ok(`contract: at ${w}×${h} no errors`, !errs.length, errs[0]);
     await ctx.close();
   }

@@ -10,7 +10,7 @@ import type { NetworkGeoDef } from '../src/sim/types.ts';
 
 const def = JSON.parse(readFileSync(new URL('../src/data/network.json', import.meta.url), 'utf8')) as NetworkGeoDef;
 const net = fromGeo(def);
-const fresh = () => { const sim = new Sim(net, Sim.fresh(net, 1)); sim.g.cash = 1e7; return sim; };
+const fresh = () => { const sim = new Sim(net, Sim.halt(net, 1)); sim.g.cash = 1e7; return sim; };
 const sec = (sim: Sim, a: string, b: string) => sim.P.all.find(p => p.kind === 'section' && p.name.startsWith(a) && p.name.endsWith(b))!.id;
 
 test('sections: the stopper\'s line starts at the game\'s 75 mph, the lines out at their real speed where lower', () => {
@@ -66,7 +66,7 @@ test('sections: a resignalled section\'s signals fail less often', () => {
   const run = (resignal: boolean) => {
     let n = 0;
     for (let seed = 1; seed <= 6; seed++) {
-      const sim = new Sim(net, Sim.fresh(net, seed)); sim.g.cash = 1e7;
+      const sim = new Sim(net, Sim.halt(net, seed)); sim.g.cash = 1e7;
       if (resignal) for (const k of sim.P.stopperSections) sim.grant(k, 'signals');
       for (let t = 0; t < 30 * 3600; t++) sim.step(1);
       n += sim.g.trouble.signals;

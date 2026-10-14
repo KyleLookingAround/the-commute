@@ -18,9 +18,12 @@ export type Serves = 'north' | 'south' | 'both';
 interface Board { mesh: THREE.Mesh; serves: Serves }
 interface Fill { mesh: THREE.InstancedMesh; cap: number; n: number }
 interface Shop { shutter: THREE.Mesh; people: Fill }
+/** A shut station's way in (docs/design/gridlock.md, section 4): its roller shutter, how far it's down (1 shut, 0 rolled
+ * up), its height, and the crowd gathering outside. */
+interface Shut { shutter: THREE.Group; down: number; y: number; h: number; crowd: Fill }
 /** The parts of a station that move with the sim: built with the kit, brought to life by StationLife. */
-export interface Live { boards: Board[]; parks: Fill[]; racks: Fill[]; shops: Shop[] }
-export const emptyLive = (): Live => ({ boards: [], parks: [], racks: [], shops: [] });
+export interface Live { boards: Board[]; parks: Fill[]; racks: Fill[]; shops: Shop[]; shut: Shut[] }
+export const emptyLive = (): Live => ({ boards: [], parks: [], racks: [], shops: [], shut: [] });
 
 // ---- shapes ----
 const lam = (c: THREE.Color) => new THREE.MeshLambertMaterial({ color: c });
@@ -115,6 +118,23 @@ export function buildShop(gp: THREE.Group, p: { u: number; v: number; y?: number
   const shutter = box(gp, w - 0.4, 1.4, 0.1, SHUTTER, p.u, 1.8 + y, p.v + d / 2 + 0.1); shutter.visible = false;
   const spots = [-1, 0, 1].map((k, n) => [p.u + k * Math.min(1.1, w / 3) + 0.2 * n, y, p.v + d / 2 + 1 + 0.3 * Math.abs(k), 0]);
   live.shops.push({ shutter, people: instanced(gp, PERSON, WHITE, spots, COATS, seed) });
+}
+
+/** A roller shutter across a way in, w wide and h high, its +v face to the street, and room for a crowd of `crowd` on
+ * the street in front: shown while the station is shut, rolled up when it reopens. */
+export function buildShutter(gp: THREE.Group, p: { u: number; v: number; w: number; h: number; crowd?: number; y?: number }, live: Live, seed: number): void {
+  const y = p.y ?? 0, shutter = new THREE.Group(); shutter.position.set(p.u, y, p.v); gp.add(shutter);
+  box(shutter, p.w, p.h, 0.2, SHUTTER, 0, p.h / 2, 0);
+  // the slats: a darker line every half metre, and the box it rolls into
+  for (let k = 0.5; k < p.h; k += 0.5) box(shutter, p.w + 0.02, 0.05, 0.24, LINES, 0, k, 0);
+  box(shutter, p.w + 0.4, 0.5, 0.6, MAT.steel, 0, p.h + 0.25, 0);
+  const spots: number[][] = [];
+  for (let k = 0; k < (p.crowd ?? 30); k++) {
+    // a loose huddle facing the shutter, thicker by the door
+    const r = 1.2 + 6 * Math.sqrt(hash(seed + k * 7.3)), a = (hash(seed + k * 3.1) - 0.5) * Math.PI;
+    spots.push([p.u + r * Math.sin(a), y, p.v + 1 + r * Math.cos(a), Math.PI + a]);
+  }
+  live.shut.push({ shutter, down: 1, y, h: p.h + 0.5, crowd: instanced(gp, PERSON, WHITE, spots, COATS, seed) });
 }
 
 // ---- the departure boards' timetable ----
@@ -265,6 +285,8 @@ function callingPages(x: CanvasRenderingContext2D, r: Dep, names: string[]): str
 
 // ---- how busy each station is, and the day's shape ----
 const TICK = 0.5;              // real seconds between looks at the sim
+const ROLL = 1.2;              // real seconds a shutter takes to roll up
+const CROWD = 300;             // sim seconds from 06:00 for the crowd outside a shut station to gather (about half an hour by the clock)
 const BOARD_TICK = 1;          // ...and between board redraws
 const FAST_TICK = 0.1;         // ...and between looks while car parks fill quickly after time away
 const PAGE_TICKS = 3;          // board redraws a page of calling points shows for
@@ -304,8 +326,16 @@ export class StationLife {
   /** How full each station's car park is in the sim now (0 to 1; 0 with none). */
   parkShares(sim: Sim): number[] { return sim.g.st.map((st, i) => { const room = sim.g.owned[i] ? spaces(sim, i) : 0; return room ? Math.min(1, parked(st) / room) : 0; }); }
 
+  /** With reduced motion a shutter goes up at once. */
+  reduced = false;
   /** dt: real seconds since the last frame; hour: the hour the map shows (the game's, or the one the light is locked to). */
   sync(sim: Sim, hour: number, dt: number): void {
+    // a shut station's shutter rolls up over about a second as it reopens (and comes down again on a renewal)
+    this.built.forEach((b, i) => { for (const s of b.live.shut) {
+      const want = sim.g.owned[i] ? 0 : 1; if (s.down === want) continue;
+      s.down = this.reduced || this.fresh ? want : Math.max(0, Math.min(1, s.down + Math.sign(want - s.down) * dt / ROLL));
+      s.shutter.visible = s.down > 0; s.shutter.scale.y = Math.max(0.01, s.down); s.shutter.position.y = s.y + s.h * (1 - s.down);
+    } });
     this.acc += dt; this.boardAcc += dt; this.fast = Math.max(0, this.fast - dt);
     if (this.acc >= (this.fast ? FAST_TICK : TICK)) { this.acc = 0; this.life(sim, hour); }
     if (this.boardAcc >= BOARD_TICK) { this.boardAcc = 0; this.ticks++; this.page = Math.floor(this.ticks / PAGE_TICKS); this.boards(sim); }
@@ -333,6 +363,8 @@ export class StationLife {
       for (const f of b.live.parks) step(f, f.cap * full, snap, this.fast > 0);
       for (const f of b.live.racks) step(f, owned ? f.cap * park * (0.2 + 0.8 * held) : 0, snap);
       for (const s of b.live.shops) { s.shutter.visible = !open; step(s.people, owned && open ? s.people.cap * now * 1.2 : 0, snap); }
+      // the crowd outside a shut station grows through the morning's first half hour; once it's open they've gone in
+      for (const s of b.live.shut) step(s.crowd, owned || !open ? 0 : s.crowd.cap * Math.max(0, Math.min(1, (g.t - simAtHour(g.day, 6)) / CROWD)), snap || owned);
     });
   }
 

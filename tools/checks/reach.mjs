@@ -1,4 +1,4 @@
-// The reach on the map. In a new game only Stockport glows (window.__view.reach gives each station's glow) and the
+// The reach on the map. In a new game with Stockport reopened only Stockport glows (window.__view.reach gives each station's glow) and the
 // minutes view is off. With money to spend, at Stockport: the subway's card says how many minutes it saves and for how
 // many homes, and tapping it draws a ghost ring where the reach would be; buying it widens the glow, easing out over
 // about a second; the extra unit's card, on the stopper's, says it cuts the wait. The Minutes control shades the ground by minutes to
@@ -14,13 +14,14 @@ export default async function ({ ok, open, root, side }) {
   register();
   const { fromGeo } = await import('../../src/sim/network.ts');
   const { Sim } = await import('../../src/sim/sim.ts');
-  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.fresh(net, 1));
+  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.halt(net, 1));
   sim.g.cash = 1e6;
   const rich = JSON.stringify({ g: sim.g, selected: 0 }), f = net.stationFrame('stockport');
   const shots = join(root, 'build/shots'); mkdirSync(shots, { recursive: true });
   // each size side by side where the runner can (side, tools/check.mjs)
   await side(...([[320, 568, true, 'phone'], [1280, 800, false, 'desktop']]).map(([w, h, touch, tag]) => async () => {
-    const fresh = await open({ width: w, height: h }, { touch });
+    // a new game as it stands once Stockport is reopened (it opens shut, with nothing glowing)
+    const fresh = await open({ width: w, height: h }, { touch, save: JSON.stringify({ g: Sim.halt(net, 1), selected: 0 }) });
     await fresh.page.waitForTimeout(500);
     const r0 = await fresh.page.evaluate(() => ({ ...window.__view?.reach?.(), pressed: document.getElementById('vMins')?.getAttribute('aria-pressed') }));
     const bad0 = [!r0.target && 'no reach on window.__view', r0.target && !(r0.target[0] > 0) && 'Stockport has no glow', r0.target && r0.target.slice(1).some(r => r > 0) && 'a locked station glows',

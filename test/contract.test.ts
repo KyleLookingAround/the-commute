@@ -14,7 +14,7 @@ const net = () => fromGeo(def), tree = def.contract as ContractDef;
 const picc = () => net().station('piccadilly').index;
 /** A run with the whole line bought and a few hours played. */
 function played(perks: string[] = []): Sim {
-  const n = net(), sim = new Sim(n, Sim.fresh(n, 4, perks)); sim.g.cash = 1e7;
+  const n = net(), sim = new Sim(n, Sim.halt(n, 4, perks)); sim.g.cash = 1e7;
   sim.buyUpgrade(0, 'crossing'); sim.buyUpgrade(0, 'platform2');
   for (let i = 1; i < sim.S.length; i++) { const need = sim.stationNeeds(i); if (need) sim.buyUpgrade(need.station.index, sim.S[i]!.needs!.upgrade); sim.buyStation(i); }
   for (let i = 0; i < sim.S.length; i++) for (const id of ['crossing', 'platform2', 'building', 'extend']) sim.buyUpgrade(i, id);
@@ -33,7 +33,7 @@ test('contract: the tree has three or four branches of eight to twelve perks, ea
 });
 
 test('contract: reputation counts passengers carried and how well, so a well-run line banks more than one run badly', () => {
-  const g = Sim.fresh(net(), 1);
+  const g = Sim.halt(net(), 1);
   g.stats.boarded = 10000; const good = reputation(g);
   g.stats.lost = 1500; const lossy = reputation(g);
   g.stats.lost = 0; g.stats.late = 100; const late = reputation(g);
@@ -43,7 +43,7 @@ test('contract: reputation counts passengers carried and how well, so a well-run
 });
 
 test('contract: renewal is offered once Piccadilly is owned, and banks the run into the career without touching it', () => {
-  const n = net(), fresh = new Sim(n, Sim.fresh(n, 4));
+  const n = net(), fresh = new Sim(n, Sim.halt(n, 4));
   assert.equal(renewable(fresh.g, picc()), false);
   const sim = played(); assert.ok(renewable(sim.g, picc()));
   const rep = reputation(sim.g); assert.ok(rep > 0, 'a run with the whole line earns reputation');
@@ -68,8 +68,9 @@ test('contract: perks are bought in order within a branch, with reputation, and 
   assert.equal(canBuyPerk(tree, { ...c, rep: second!.price - 1 }, second!.id), false, 'not without the reputation');
 });
 
-test('contract: a new run starts from Stockport as a halt with the perks in effect through the sim\'s own numbers', () => {
+test('contract: a new run starts from the start, Stockport shut, with the perks in effect through the sim\'s own numbers', () => {
   const n = net(), all = tree.perks.map(p => p.id), fx = effects(tree, all), base = new Sim(n, Sim.fresh(n, 4)), sim = new Sim(n, Sim.fresh(n, 4, all));
+  assert.ok(!sim.g.owned.some(Boolean), 'nothing open');
   assert.deepEqual(sim.g.owned, base.g.owned); assert.deepEqual(sim.g.ups, base.g.ups);
   assert.equal(sim.g.cash, base.g.cash + fx.cash, 'starting cash');
   assert.equal(sim.g.line.spare, 1, 'the spare unit stands by');
@@ -81,7 +82,7 @@ test('contract: a new run starts from Stockport as a halt with the perks in effe
 });
 
 test('contract: a run with no perks plays exactly as one made before perks existed', () => {
-  const n = net(), a = new Sim(n, Sim.fresh(n, 6)), b = new Sim(n, Sim.fresh(n, 6, []));
+  const n = net(), a = new Sim(n, Sim.halt(n, 6)), b = new Sim(n, Sim.halt(n, 6, []));
   assert.deepEqual(a.fx, effects(tree, []));
   a.advance(2 * 3600); b.advance(2 * 3600);
   assert.deepEqual(a.g, b.g);
@@ -99,7 +100,7 @@ test('contract: a save file carries the career beside the run, and putting it on
   const { toFile, fromFile, put, load, loadCareer, CAREER_KEY, SAVE_KEY } = await import('../src/app/storage.ts');
   const m = new Map<string, string>();
   (globalThis as { localStorage?: unknown }).localStorage = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); }, removeItem: (k: string) => { m.delete(k); } };
-  const n = net(), sim = new Sim(n, Sim.fresh(n, 5, ['works1'])), career = { ...freshCareer(), rep: 7, perks: ['works1'], renewals: 2 };
+  const n = net(), sim = new Sim(n, Sim.halt(n, 5, ['works1'])), career = { ...freshCareer(), rep: 7, perks: ['works1'], renewals: 2 };
   const r = fromFile(toFile({ g: sim.g, selected: 0, career }));
   assert.ok(r.ok); assert.deepEqual(r.saved.career, career);
   assert.ok(put(r.saved));

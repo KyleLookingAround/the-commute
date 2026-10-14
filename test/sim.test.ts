@@ -11,6 +11,8 @@ import { BASE, clockAt, simAtHour, clockText, hourAt } from '../src/sim/day.ts';
 
 const def = JSON.parse(readFileSync(new URL('../src/data/network.json', import.meta.url), 'utf8')) as NetworkGeoDef;
 const net = () => fromGeo(def);
+/** A game from Stockport reopened as a halt, as every game opened before Stockport started shut. */
+const halted = () => { const n = net(); return new Sim(n, Sim.halt(n)); };
 
 test("network: each service's stations sit on the corridor in order, roughly the real distances apart", () => {
   const n = net();
@@ -153,7 +155,7 @@ test('demand: peaks in the morning and evening, quiet at night', () => {
 });
 
 test('sim: the first train boards at Stockport and earns money within the first game hour', () => {
-  const sim = new Sim(net());
+  const sim = halted();
   sim.advance(3600);
   assert.ok(sim.g.cash > 3000, 'cash should rise');
   assert.ok(sim.state(0).boarded > 0, 'passengers boarded at Stockport');
@@ -161,7 +163,7 @@ test('sim: the first train boards at Stockport and earns money within the first 
 });
 
 test('sim: trains reverse at termini and board the departure direction', () => {
-  const sim = new Sim(net());
+  const sim = halted();
   const seenDirs = new Set<number>();
   for (let k = 0; k < 600; k++) { sim.advance(10); seenDirs.add(sim.g.trains[0]!.dir); }
   assert.deepEqual([...seenDirs].sort(), [-1, 1]);
@@ -170,7 +172,7 @@ test('sim: trains reverse at termini and board the departure direction', () => {
 });
 
 test('sim: stations must be bought in order and cost what they say', () => {
-  const sim = new Sim(net());
+  const sim = halted();
   sim.g.cash = 1e6;
   assert.equal(sim.canBuyStation(2), false, 'cannot skip Heaton Chapel');
   assert.equal(sim.buyStation(1), true);
@@ -179,14 +181,14 @@ test('sim: stations must be bought in order and cost what they say', () => {
 });
 
 test('sim: one unit cannot cope with Stockport at peak, so passengers are lost', () => {
-  const sim = new Sim(net());
+  const sim = halted();
   sim.buyUpgrade(0, 'crossing');  // the subway brings the far side in
   sim.advance(simAtHour(1, 10.5) - sim.g.t);     // 06:30 to 10:30 on the clock, through the morning peak
   assert.ok(sim.g.stats.lost > 50, `expected lost passengers under pressure, got ${sim.g.stats.lost}`);
 });
 
 test('journeys: door to door, upgrades save minutes and minutes bring passengers', () => {
-  const sim = new Sim(net()); sim.g.cash = 1e7;
+  const sim = halted(); sim.g.cash = 1e7;
   const J = () => { const j = sim.journey(0, 4); if (!j) throw new Error('no journey Stockport to Piccadilly'); return j; };
   const trips = () => sim.tripRates(0, 8);
   const start = J(), t0 = trips();
@@ -206,7 +208,7 @@ test('journeys: door to door, upgrades save minutes and minutes bring passengers
 });
 
 test('journeys: patience is the budget left, so a canopy or a shorter walk keeps people waiting', () => {
-  const n = net(), sim = new Sim(n, Sim.fresh(n, 1)); sim.g.cash = 1e7;
+  const n = net(), sim = new Sim(n, Sim.halt(n, 1)); sim.g.cash = 1e7;
   for (let i = 1; i <= 2; i++) assert.ok(sim.buyStation(i));
   // each group draws its own budget, so compare the means of many
   const mean = (i: number, j: number) => { let t = 0; for (let k = 0; k < 5000; k++) t += sim.patience(i, j); return t / 5000; };
@@ -220,7 +222,7 @@ test('journeys: patience is the budget left, so a canopy or a shorter walk keeps
 
 test('sim: a train boards through its stop, a door at a time, and a longer train boards more', () => {
   const boardAt = (cars: number) => {
-    const sim = new Sim(net()); sim.g.cash = 1e6; sim.buyStation(1); sim.step(1);
+    const sim = halted(); sim.g.cash = 1e6; sim.buyStation(1); sim.step(1);
     const tr = sim.g.trains[0]!, S = sim.state(1);
     // 200 people for Manchester on Heaton Chapel's platform, and a train calling there northbound
     S.q[0] = [{ t: sim.g.t, dest: 4, n: 200 }]; S.waiting = 200;
@@ -237,7 +239,7 @@ test('sim: a train boards through its stop, a door at a time, and a longer train
 
 /** The main line's first unit standing at Heaton Chapel northbound, with n people waiting for Manchester. */
 const standing = (n: number, onboard = 0) => {
-  const sim = new Sim(net()); sim.g.cash = 1e6; sim.buyStation(1); sim.step(1);
+  const sim = halted(); sim.g.cash = 1e6; sim.buyStation(1); sim.step(1);
   const tr = sim.g.trains[0]!, S = sim.state(1);
   S.q[0] = n ? [{ t: sim.g.t, dest: 4, n }] : []; S.waiting = n;
   Object.assign(tr, { dir: 1, s: sim.station(1).s, v: 0, cars: 2, onboard, load: tr.load.map((_, j) => j === 4 ? onboard : 0), next: 1, state: 'run' });
@@ -272,7 +274,7 @@ test('timetable: a crowded platform holds a train, it leaves late, and the laten
 });
 
 test('timetable: extra units spread out to an even gap at the ends', () => {
-  const sim = new Sim(net()); sim.g.cash = 1e7; growStockport(sim); sim.buyLine('units'); sim.buyLine('units');
+  const sim = halted(); sim.g.cash = 1e7; growStockport(sim); sim.buyLine('units'); sim.buyLine('units');
   sim.g.trouble.next = Infinity;   // nothing going wrong to hold a unit
   const deps: number[] = [];
   sim.onDepart = (tr, i) => { if (i === 0 && tr.svc === 'stopper') deps.push(sim.g.t); };
@@ -294,7 +296,7 @@ const twoAt = (sim: Sim, i: number, dir: 1 | -1) => {
 const tick = (sim: Sim, secs: number, until?: () => boolean) => { for (let k = 0; k < secs && !until?.(); k++) { sim.g.t += 1; for (const tr of sim.g.trains) sim.stepTrain(tr, 1); } };
 
 test('platforms: a train for a halt where another stands waits at its signal, and runs in once the platform clears', () => {
-  const sim = new Sim(net()); sim.g.cash = 1e7; growStockport(sim); assert.ok(sim.buyStation(1));
+  const sim = halted(); sim.g.cash = 1e7; growStockport(sim); assert.ok(sim.buyStation(1));
   const { a, b, gap } = twoAt(sim, 1, 1);
   tick(sim, 300);
   assert.equal(a.state, 'dwell', 'the first is still standing');
@@ -308,7 +310,7 @@ test('platforms: a train for a halt where another stands waits at its signal, an
 
 test('platforms: at Stockport a second unit waits to turn until platform 3 gives it a face of its own', () => {
   const held = (p3: boolean) => {
-    const sim = new Sim(net()); sim.g.cash = 1e7; assert.ok(sim.buyUpgrade(0, 'crossing'));
+    const sim = halted(); sim.g.cash = 1e7; assert.ok(sim.buyUpgrade(0, 'crossing'));
     if (p3) assert.ok(sim.buyUpgrade(0, 'platform2'));
     const { b, gap } = twoAt(sim, 0, -1);
     tick(sim, 300);
@@ -319,7 +321,7 @@ test('platforms: at Stockport a second unit waits to turn until platform 3 gives
 });
 
 test('branch: buying Davenport after Piccadilly opens the Hazel Grove line, and each station after extends it', () => {
-  const sim = new Sim(net()), n = sim.net, hg = sim.svc('hazel-grove');
+  const sim = halted(), n = sim.net, hg = sim.svc('hazel-grove');
   sim.g.cash = 1e7;
   const dav = n.station('davenport').index, wood = n.station('woodsmoor').index;
   assert.equal(sim.canBuyStation(dav), false, 'not before Piccadilly');
@@ -339,7 +341,7 @@ test('branch: buying Davenport after Piccadilly opens the Hazel Grove line, and 
 });
 
 test('branch: the Hazel Grove train passes from its own line onto the line to Stockport at Edgeley Junction, and back', () => {
-  const sim = new Sim(net()), n = sim.net, j = n.junction('edgeley').s;
+  const sim = halted(), n = sim.net, j = n.junction('edgeley').s;
   sim.g.cash = 1e7;
   const dav = n.station('davenport').index;
   for (let i = 1; i < dav; i++) assert.ok(sim.buyStation(i));
@@ -356,7 +358,7 @@ test('branch: the Hazel Grove train passes from its own line onto the line to St
 });
 
 test('branch: passengers change at Stockport, pay once, and arrive', () => {
-  const sim = new Sim(net(), Sim.fresh(net(), 5)), n = sim.net;
+  const sim = new Sim(net(), Sim.halt(net(), 5)), n = sim.net;
   sim.g.cash = 1e8; growStockport(sim);
   for (let i = 1; i < n.stations.length; i++) assert.ok(sim.buyStation(i));
   sim.advance(2 * 3600);
@@ -371,7 +373,7 @@ test('branch: passengers change at Stockport, pay once, and arrive', () => {
 });
 
 test('halt: a bought station is one platform one way, until its second platform', () => {
-  const sim = new Sim(net(), Sim.fresh(net(), 3)), hc = sim.net.station('heaton-chapel').index;
+  const sim = new Sim(net(), Sim.halt(net(), 3)), hc = sim.net.station('heaton-chapel').index;
   sim.g.cash = 1e6; assert.ok(sim.buyStation(hc));
   assert.equal(sim.serves(hc, 0), true, 'towards Manchester'); assert.equal(sim.serves(hc, 1), false, 'not back to Stockport');
   sim.advance(3600);
@@ -388,14 +390,14 @@ test('halt: a bought station is one platform one way, until its second platform'
 });
 
 test('halt: Piccadilly as a halt is the platform trains leave from, and offers only its own stages', () => {
-  const sim = new Sim(net()), pic = sim.net.station('piccadilly').index;
+  const sim = halted(), pic = sim.net.station('piccadilly').index;
   assert.equal(sim.haltDir(pic), 1);
   // the car park waits on the concourse (the folds, docs/design/buying.md)
   assert.deepEqual(sim.visibleUpgrades(pic).filter(u => u.stage).map(u => u.id), ['building', 'taxi']);
 });
 
 test('the folds: the kiosk comes with the booking office at the price of both, the car park waits on the booking office and longer platforms on the second platform', () => {
-  const sim = new Sim(net(), Sim.fresh(net(), 3)), shown = () => sim.visibleUpgrades(0).map(u => u.id);
+  const sim = new Sim(net(), Sim.halt(net(), 3)), shown = () => sim.visibleUpgrades(0).map(u => u.id);
   sim.g.cash = 1e6;
   assert.ok(!shown().includes('kiosk') && !shown().includes('carpark') && !shown().includes('extend'), shown().join(','));
   const before = sim.g.cash; assert.ok(sim.buyUpgrade(0, 'building'));
@@ -408,7 +410,7 @@ test('the folds: the kiosk comes with the booking office at the price of both, t
 });
 
 test('taxi rank: some who give up take a cab while one is in, earning a cut; the rest are lost; cabs come back', () => {
-  const sim = new Sim(net(), Sim.fresh(net(), 5)), S = sim.state(0), pic = sim.net.station('piccadilly').index;
+  const sim = new Sim(net(), Sim.halt(net(), 5)), S = sim.state(0), pic = sim.net.station('piccadilly').index;
   assert.ok(!sim.visibleUpgrades(sim.net.station('ardwick').index).some(u => u.id === 'taxi'), 'only where a rank is offered');
   // without a rank everyone who gives up is lost
   sim.giveUp(0, pic, 5);
@@ -430,7 +432,7 @@ test('taxi rank: some who give up take a cab while one is in, earning a cut; the
 });
 
 test('sim: line upgrades add units and lengthen trains', () => {
-  const sim = new Sim(net());
+  const sim = halted();
   sim.g.cash = 1e6;
   assert.equal(sim.buyLine('units'), false, "an extra unit waits for Stockport's platform 3");
   assert.ok(sim.buyUpgrade(0, 'crossing') && sim.buyUpgrade(0, 'platform2'));
@@ -442,14 +444,14 @@ test('sim: line upgrades add units and lengthen trains', () => {
 });
 
 test('pacing: Heaton Chapel is affordable within about an hour of real time at 1x', () => {
-  const sim = new Sim(net());
+  const sim = halted();
   let minutes: number | null = null;
   for (let m = 1; m <= 120; m++) { sim.advance(60); if (sim.g.cash >= 9000) { minutes = m; break; } }
   assert.ok(minutes !== null && minutes <= 75, `took ${minutes} real minutes`);
 });
 
 test('sim: the same seed gives the same game, and a different seed a different one', () => {
-  const run = (seed: number) => { const n = net(); const sim = new Sim(n, Sim.fresh(n, seed)); sim.advance(6 * 3600); return `${sim.g.cash.toFixed(2)}|${sim.g.stats.boarded}|${sim.g.stats.lost}|${sim.g.rngState}`; };
+  const run = (seed: number) => { const n = net(); const sim = new Sim(n, Sim.halt(n, seed)); sim.advance(6 * 3600); return `${sim.g.cash.toFixed(2)}|${sim.g.stats.boarded}|${sim.g.stats.lost}|${sim.g.rngState}`; };
   assert.equal(run(7), run(7));
   assert.notEqual(run(7), run(8));
 });
@@ -461,7 +463,7 @@ test('save: a save from a newer version is refused and a current one passes thro
 });
 
 test('sim: passengers who get off are counted at their destination', () => {
-  const sim = new Sim(net());
+  const sim = halted();
   sim.g.cash = 1e6; sim.buyStation(1);
   sim.advance(3 * 3600);
   const off = sim.state(0).alighted + sim.state(1).alighted + sim.state(4).alighted;
@@ -476,7 +478,7 @@ test('sim: passengers who get off are counted at their destination', () => {
 /** A game on seed 1 with Stockport grown, Heaton Chapel and Levenshulme bought and a second unit, run until something
  * goes wrong of the kind wanted (or not at all). */
 const troubled = (kind: 'fail' | 'caution', seed = 1) => {
-  const n = net(), sim = new Sim(n, Sim.fresh(n, seed)); sim.g.cash = 1e7; growStockport(sim);
+  const n = net(), sim = new Sim(n, Sim.halt(n, seed)); sim.g.cash = 1e7; growStockport(sim);
   assert.ok(sim.buyStation(1) && sim.buyStation(2) && sim.buyLine('units'));
   for (let k = 0; k < 40 * 3600 && !sim.g.trouble[kind]; k += 10) sim.advance(10);
   return sim;
@@ -484,7 +486,7 @@ const troubled = (kind: 'fail' | 'caution', seed = 1) => {
 
 test('trouble: nothing goes wrong in the first six hours by the clock, and the same seed brings the same trouble', () => {
   const run = (seed: number) => {
-    const n = net(), sim = new Sim(n, Sim.fresh(n, seed)), c0 = clockAt(sim.g.t); let first = -1;
+    const n = net(), sim = new Sim(n, Sim.halt(n, seed)), c0 = clockAt(sim.g.t); let first = -1;
     // in the peaks' sim seconds by the clock, as troubleFrom is
     for (let k = 0; k < 24 * 360 && first < 0; k++) { sim.advance(10); if (sim.g.trouble.fail || sim.g.trouble.caution) first = (clockAt(sim.g.t) - c0) / BASE; }
     return { first, at: JSON.stringify(sim.g.trouble) };
@@ -494,7 +496,7 @@ test('trouble: nothing goes wrong in the first six hours by the clock, and the s
 
 test("trouble: nothing starts where it would still be going in a peak's busiest hour", () => {
   for (const seed of [1, 2, 3, 4, 5, 6]) {
-    const n = net(), sim = new Sim(n, Sim.fresh(n, seed)); let was = false;
+    const n = net(), sim = new Sim(n, Sim.halt(n, seed)); let was = false;
     for (let k = 0; k < 16 * 360; k++) {
       sim.advance(10); const now = !!(sim.g.trouble.fail || sim.g.trouble.caution), h = sim.hour();
       if (now && !was) assert.ok(!TUNING.troubleCalm.some(([a, b]) => h > a + 0.02 && h < b), `seed ${seed}: trouble began at ${h.toFixed(2)}`);
@@ -526,7 +528,7 @@ test('trouble: a signal failure has trains crawl through the stretch at caution'
 test('trouble: the spare unit is offered once a train has failed, and halves the rescue', () => {
   const sim = troubled('fail');
   assert.ok(sim.lineReady('spare'));
-  const n = net(), fresh = new Sim(n, Sim.fresh(n, 1)); fresh.g.cash = 1e6;
+  const n = net(), fresh = new Sim(n, Sim.halt(n, 1)); fresh.g.cash = 1e6;
   assert.ok(!fresh.lineReady('spare') && !fresh.buyLine('spare'), 'not before');
   const spareOn = troubled('fail', 2); assert.ok(spareOn.buyLine('spare'));
   while (spareOn.g.trouble.fail) spareOn.advance(10);
@@ -536,7 +538,7 @@ test('trouble: the spare unit is offered once a train has failed, and halves the
 
 test('homes: an owned station grows towards its ceiling, faster with a quicker trip; a locked one stays as it was', () => {
   const run = (units: number) => {
-    const sim = new Sim(net(), Sim.fresh(net(), 7)); sim.g.cash = 1e6;
+    const sim = new Sim(net(), Sim.halt(net(), 7)); sim.g.cash = 1e6;
     growStockport(sim); for (let k = 0; k < units; k++) assert.ok(sim.buyLine('units'));
     const q = sim.growthRate(0); sim.grow(3600 * 4);
     return { sim, q, grown: sim.homes(0) - sim.station(0).catchment };
@@ -552,7 +554,7 @@ test('homes: an owned station grows towards its ceiling, faster with a quicker t
 });
 
 test('homes: growth is slow (a few game days, not minutes), saved, and brings more trips', () => {
-  const sim = new Sim(net(), Sim.fresh(net(), 3));
+  const sim = new Sim(net(), Sim.halt(net(), 3));
   const before = sim.tripRates(0, 8), h0 = sim.homes(0);
   sim.advance(3600);   // a quarter of a game day
   const gap = sim.ceiling(0) - h0, grew = sim.homes(0) - h0;
@@ -565,7 +567,7 @@ test('homes: growth is slow (a few game days, not minutes), saved, and brings mo
 
 // ---- every platform in use ----
 test('platforms: at Stockport the stoppers turn in 4 and 3 by turns once there are two units, and each platform built has trains', () => {
-  const sim = new Sim(net(), Sim.fresh(net(), 2)); sim.g.cash = 1e7; growStockport(sim); sim.buyLine('units');
+  const sim = new Sim(net(), Sim.halt(net(), 2)); sim.g.cash = 1e7; growStockport(sim); sim.buyLine('units');
   const used: Record<string, number> = {};
   sim.onDepart = (tr, i) => { if (tr.svc === 'stopper' && i === 0) { const k = sim.plats[0]![tr.pf]!.def.id; used[k] = (used[k] ?? 0) + 1; } };
   sim.advance(2 * 3600);
@@ -578,7 +580,7 @@ test('platforms: at Stockport the stoppers turn in 4 and 3 by turns once there a
 
 test('expresses: they run through Stockport until its platform 3 is built, then call, pay and take the platform', () => {
   const calls = (p3: boolean) => {
-    const sim = new Sim(net(), Sim.fresh(net(), 3)); sim.g.cash = 1e7; sim.buyUpgrade(0, 'crossing');
+    const sim = new Sim(net(), Sim.halt(net(), 3)); sim.g.cash = 1e7; sim.buyUpgrade(0, 'crossing');
     if (p3) sim.buyUpgrade(0, 'platform2');
     let n = 0, at3 = 0;
     sim.onDepart = (tr, i) => { if (sim.svc(tr.svc).express && i === 0) { n++; if (sim.plats[0]![tr.pf]!.def.id === '3') at3++; } };
@@ -593,7 +595,7 @@ test('expresses: they run through Stockport until its platform 3 is built, then 
 });
 
 test('last and first trains: nothing leaves the end of its run from 23:30 to 05:30, the units stand there, and the morning keeps its gaps', () => {
-  const sim = new Sim(net(), Sim.fresh(net(), 2)); sim.g.cash = 1e7; sim.buyUpgrade(0, 'crossing'); sim.buyUpgrade(0, 'platform2'); sim.buyUpgrade(0, 'platforms');
+  const sim = new Sim(net(), Sim.halt(net(), 2)); sim.g.cash = 1e7; sim.buyUpgrade(0, 'crossing'); sim.buyUpgrade(0, 'platform2'); sim.buyUpgrade(0, 'platforms');
   sim.buyLine('units'); sim.buyLine('units'); sim.ensureTrains();
   const deps: { t: number; end: number }[] = [];
   sim.onDepart = (tr, i) => { if (tr.svc === 'stopper' && sim.isEnd(tr, i)) deps.push({ t: sim.g.t, end: i }); };
@@ -615,7 +617,7 @@ test('last and first trains: nothing leaves the end of its run from 23:30 to 05:
 });
 
 test('expresses: they come on by the clock, one of each every two hours through the day and none through the night', () => {
-  const sim = new Sim(net(), Sim.fresh(net(), 1)); sim.g.cash = 1e7; sim.buyUpgrade(0, 'crossing'); sim.buyUpgrade(0, 'platform2');
+  const sim = new Sim(net(), Sim.halt(net(), 1)); sim.g.cash = 1e7; sim.buyUpgrade(0, 'crossing'); sim.buyUpgrade(0, 'platform2');
   const on: Record<string, string[]> = {};
   const t0 = simAtHour(2, 0), t1 = simAtHour(3, 0);
   sim.advance(t0 - sim.g.t);
@@ -633,7 +635,7 @@ test('expresses: they come on by the clock, one of each every two hours through 
 });
 
 test('expresses: TransPennine comes off the Hazel Grove chord every four hours, calls at Stockport\'s platform 1 once built, pays and turns at Piccadilly', () => {
-  const n = net(), sim = new Sim(n, Sim.fresh(n, 1)); sim.g.cash = 1e7;
+  const n = net(), sim = new Sim(n, Sim.halt(n, 1)); sim.g.cash = 1e7;
   sim.grant('station:stockport', 'crossing'); sim.grant('station:stockport', 'platform2'); sim.grant('station:stockport', 'platforms');
   const v = sim.svc('transpennine'), hg = n.station('hazel-grove');
   assert.ok(v.express && Math.abs(v.express.portal - (hg.at - 700) - v.def.cars * TUNING.carPitch / 2) < 1e-6, 'on the map at the chord');
@@ -652,7 +654,7 @@ test('expresses: TransPennine comes off the Hazel Grove chord every four hours, 
 
 test('expresses: an express standing in platform 3 holds a stopper that wants it until it leaves', () => {
   // platforms 4 and 3 but not yet the bay
-  const sim = new Sim(net(), Sim.fresh(net(), 1)); sim.g.cash = 1e7; sim.buyUpgrade(0, 'crossing'); sim.buyUpgrade(0, 'platform2');
+  const sim = new Sim(net(), Sim.halt(net(), 1)); sim.g.cash = 1e7; sim.buyUpgrade(0, 'crossing'); sim.buyUpgrade(0, 'platform2');
   sim.buyLine('units'); sim.ensureTrains();
   const ex = sim.g.trains.find(t => t.svc === 'avanti')!, p3 = sim.plats[0]!.findIndex(p => p.def.id === '3');
   Object.assign(ex, { state: 'dwell', s: sim.station(0).s, dir: 1, pfAt: 0, pf: p3, stood: 0, due: sim.g.t + 1e6, calling: 0 });
@@ -671,7 +673,7 @@ test('expresses: an express standing in platform 3 holds a stopper that wants it
 
 // ---- signalling ----
 test('signalling: a train stands at the signal at red behind a failed one in the block beyond, and the signals show it', () => {
-  const sim = new Sim(net()), n = sim.net; sim.g.cash = 1e7; growStockport(sim);
+  const sim = halted(), n = sim.net; sim.g.cash = 1e7; growStockport(sim);
   assert.ok(sim.buyLine('units')); sim.step(1);
   const [a, b] = sim.g.trains.filter(t => t.svc === 'stopper') as [Train, Train];
   // three open blocks in a row on the stoppers' line north of Stockport
@@ -736,7 +738,7 @@ test('signalling: at a junction a train waits while another crosses its way, the
 
 // ---- journeys across the graph ----
 test('journeys: from the Hazel Grove line to the main line is a path of two rides, changing at Stockport', () => {
-  const sim = new Sim(net()), n = sim.net; sim.g.cash = 1e7; for (const id of sim.P.station) sim.grant(id); growStockport(sim);
+  const sim = halted(), n = sim.net; sim.g.cash = 1e7; for (const id of sim.P.station) sim.grant(id); growStockport(sim);
   for (const id of sim.P.station) sim.grant(id, 'platform2');
   sim.refreshJourneys();
   const J = sim.journey(n.station('davenport').index, n.station('heaton-chapel').index)!;

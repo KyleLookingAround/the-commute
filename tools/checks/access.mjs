@@ -15,7 +15,7 @@ export default async function ({ ok, open, root }) {
   const { Sim } = await import('../../src/sim/sim.ts');
   const { spaces, parked } = await import('../../src/sim/access.ts');
   const { simAtHour } = await import('../../src/sim/day.ts');
-  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.fresh(net, 1));
+  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.halt(net, 1));
   sim.g.cash = 1e7;
   sim.buyUpgrade(0, 'crossing'); sim.buyUpgrade(0, 'platform2'); sim.buyLine('units');
   for (let i = 1; i < sim.S.length; i++) sim.buyStation(i);

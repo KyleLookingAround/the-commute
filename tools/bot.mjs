@@ -37,7 +37,8 @@ if (!seeds.length) seeds.push(1);
 const hours = +opt('--hours', 8), jsonOut = opt('--json', null), runCount = Math.max(1, +opt('--runs', 1));
 if (args.includes('--fair')) WEATHER.felt = false;
 
-/** The sensible player's policy, in priority order: a second unit first (Stockport needs its subway and platform 3 for
+/** The sensible player's policy, in priority order: with nothing owned, the start's offer (reopen Stockport, the only
+ * thing it can buy, docs/design/gridlock.md); then a second unit (Stockport needs its subway and platform 3 for
  * it), then the next station: of the stations offered (touching one it owns, src/sim/places.ts), the one that brings
  * most homes and draw per pound, counting the price of what it waits on elsewhere, which it builds first
  * (docs/design/buying.md, The bot); then each station's way across and second platform (trains both ways), its
@@ -59,6 +60,7 @@ export function act(sim) {
   // a stage at a station (its bus link: the stop by it, a place of its own)
   const up = (i, id) => { const at = g.owned[i] && !g.ups[i][id] && sim.upgradePlace(i, id); return at && sim.buy(...at) ? `${id}:${sim.S[i].id}` : null; };
   const line = id => sim.buy(sim.linePlace(id), id);
+  if (P.none(g)) { for (const id of P.startOf(g.start).offer) if (sim.buy(id)) return id; return null; }
   if (g.line.units < 1) { if (line('units')) return 'unit'; const r = up(home, 'crossing') || up(home, 'platform2'); if (r) return r; }
   // the next station: of those offered, the most homes and draw per pound, what it waits on counted in
   const worth = i => { const w = P.waits(g, sim.net, P.station[i]), need = w ? sim.upgradePrice(w.station, UPGRADES.find(u => u.id === w.upgrade)) : 0; return (sim.homes(i) + sim.S[i].draw) / (sim.stationPrice(i) + need); };
@@ -189,8 +191,11 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
   let troubleLost = 0, troubleEnd = -Infinity, nightLost = 0;
   const mark = (k, h) => { if (reached[k] === undefined) reached[k] = +h.toFixed(2); };
   const roads = watchRoads(sim, t0);
+  // the first decision on load, as a player taps Reopen within seconds (docs/design/gridlock.md, section 1)
+  { let did; while ((did = act(sim))) { mark(did, 0); roads.bought(0); } }
   for (let step = 0; step < hoursToPlay * 60; step++) {          // one decision a game minute
-    sim.advance(60);
+    // the first minute in its own steps, so the first fare is timed to the step
+    if (step === 0) for (let k = 0; k < 30; k++) { sim.advance(2); roads.fare(sim); } else sim.advance(60);
     const h = step / 60, k = peakOf(sim);
     sim.g.st.forEach((S, i) => { const d = S.lost - lostWas[i]; if (k && d > 0) { const l = peak(k).lost; l[sim.S[i].id] = (l[sim.S[i].id] ?? 0) + d; } });
     sim.g.st.forEach((S, i) => { const d = S.cab - cabWas[i]; if (k && d > 0) { const c = peak(k).cab; c[sim.S[i].id] = (c[sim.S[i].id] ?? 0) + d; } });
@@ -316,9 +321,10 @@ function contracts() {
 function watchRoads(sim, t0) {
   const peaks = {}, out = {}; let was = sim.hour(), day = sim.g.day, fare = null, buy = null;
   return {
+    fare(sim) { if (fare === null && sim.g.earned > 0) fare = Math.round((sim.g.t - t0) / 3); },    // 3 sim seconds a real second at 1x (src/app/clock.ts)
     step(sim, h) {
       const now = sim.hour();
-      if (fare === null && sim.g.earned > 0) fare = Math.round((sim.g.t - t0) / 3);    // 3 sim seconds a real second at 1x (src/app/clock.ts)
+      this.fare(sim);
       if (sim.g.day === day && was < 8 && now >= 8) {
         const t = traffic(sim, TUNING, roadsDef, 8);
         const drives = t.start - t.roads.reduce((a, r) => a + r.through, 0);

@@ -13,7 +13,7 @@ const def = JSON.parse(readFileSync(new URL('../src/data/network.json', import.m
 const net = () => fromGeo(def);
 /** A game with Stockport built up (a way across, platform 3 and a second unit) and money to spend. */
 function built(seed = 3): Sim {
-  const sim = new Sim(net(), Sim.fresh(net(), seed)); sim.g.cash = 1e6;
+  const sim = new Sim(net(), Sim.halt(net(), seed)); sim.g.cash = 1e6;
   assert.ok(sim.buyUpgrade(0, 'crossing') && sim.buyUpgrade(0, 'platform2') && sim.buyLine('units'));
   return sim;
 }

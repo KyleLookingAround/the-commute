@@ -149,7 +149,7 @@ const faceTrack = (st: (typeof net.stations)[number], dir: 'north' | 'south') =>
 const trackV = net.stations.map(st => ({ north: faceTrack(st, 'north'), south: faceTrack(st, 'south') }));
 const pax = new PassengerLayer(built, net.stations, trackV, net.stations.findIndex(st => st.id === 'piccadilly'));
 const rig = new OrbitRig(camera, canvas, scene);
-{ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches; setReducedMotion(reduced); reach.setReducedMotion(reduced); rig.reduced = reduced; }
+{ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches; setReducedMotion(reduced); reach.setReducedMotion(reduced); rig.reduced = reduced; life.reduced = reduced; }
 // where the camera looks stays near the line: the nearest point on any line as drawn (the spine or a line out)
 const mainLine = net.spine, nearF = newFrame();
 rig.line = (x, z) => { const at = world.terrain.t.nearest(x, z); return net.place(net.lines[at.k]!.id, at.s, 0, nearF); };
@@ -430,7 +430,7 @@ const ui = new UI(sim, els, {
   }),
 }, sheet);
 uiMade = true;
-/** Start a run again from Stockport as a halt, with the career's perks: what was bought folds back down on the map. */
+/** Start a run again from the start (Stockport shut), with the career's perks: what was bought folds back down on the map. */
 function startRun(): void {
   store.wipe(); sim = new Sim(net, Sim.fresh(net, runSeed(), career.perks)); preview(null, null);
   ui.sim = sim; ui.selected = 0; ui.open = null; ui.picked = null; ui.buildAll(); ui.updateBar(); plaque(); persist();

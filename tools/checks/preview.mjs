@@ -1,4 +1,4 @@
-// The upgrade cards and what they show on the map. At Stockport in a new game: each reachable upgrade is a card with
+// The upgrade cards and what they show on the map. At Stockport in a new game, once it's reopened: each reachable upgrade is a card with
 // its price; one the money doesn't reach shows how much to go instead of a Buy button; tapping a card marks it and
 // draws its parts on the map as a ghost (window.__view.preview counts them), tapping it again clears the ghost; buying
 // it makes its parts rise into place (window.__view.rising) and settle within about a second, and its name moves to
@@ -18,6 +18,8 @@ export default async function ({ ok, open }) {
       if (touch) await page.touchscreen.tap(r[0], r[1]); else await page.mouse.click(r[0], r[1]);
       return true;
     };
+    // a new game opens with Stockport shut: reopen it first, and its stages are the cards
+    await tap('#buyPlace'); await page.waitForSelector('.ucard', { timeout: 60000 }).catch(() => {});
     const cards = await page.evaluate(() => [...document.querySelectorAll('.ucard')].map(c => ({ id: c.dataset.card, can: c.classList.contains('can'), price: c.querySelector('.price')?.textContent, togo: c.querySelector('.togo > span')?.textContent })));
     const subway = cards.find(c => c.id === 'crossing'), dear = cards.find(c => !c.can);
     const bad1 = [!cards.length && 'no upgrade cards', !subway && 'no card for the subway', subway && !subway.can && 'the subway is not buyable with £3,000',

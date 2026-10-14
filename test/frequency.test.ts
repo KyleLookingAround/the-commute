@@ -15,7 +15,7 @@ const st = (id: string) => `station:${id}`;
 
 test('frequency: every local service has its steps, a branch\'s offered once it runs, each bought unit in service', () => {
   for (const v of def.services ?? []) if (!v.through) assert.ok(v.frequency?.steps.length && v.frequency.note, `${v.id} has a frequency with a note`);
-  const sim = new Sim(net, Sim.fresh(net, 1)); sim.g.cash = 1e7;
+  const sim = new Sim(net, Sim.halt(net, 1)); sim.g.cash = 1e7;
   const hg = sim.svc('hazel-grove');
   assert.equal(sim.price('route:hazel-grove', 'units'), 15000);
   assert.ok(!sim.canBuy('route:hazel-grove', 'units'), 'not before the line runs');
@@ -30,7 +30,7 @@ test('frequency: every local service has its steps, a branch\'s offered once it 
 });
 
 test('frequency: a peak unit runs in the peaks and rests in Stockport\'s sidings between them, holding no platform', () => {
-  const sim = new Sim(net, Sim.fresh(net, 2)); sim.g.cash = 1e7;
+  const sim = new Sim(net, Sim.halt(net, 2)); sim.g.cash = 1e7;
   sim.grant(st('stockport'), 'crossing'); sim.grant(st('stockport'), 'platform2'); sim.grant(st('heaton-chapel'));
   for (let k = 0; k < 3; k++) assert.ok(sim.buy('route:stopper', 'units'));
   const v = sim.svc('stopper'); assert.equal(sim.unitsFor(v), 4); assert.equal(sim.unitsAllDay(v), 3);
@@ -52,7 +52,7 @@ test('frequency: a peak unit runs in the peaks and rests in Stockport\'s sidings
 
 test('frequency: the same seed plays the same with a peak timetable', () => {
   const run = () => {
-    const sim = new Sim(net, Sim.fresh(net, 3)); sim.g.cash = 1e7;
+    const sim = new Sim(net, Sim.halt(net, 3)); sim.g.cash = 1e7;
     sim.grant(st('stockport'), 'crossing'); sim.grant(st('stockport'), 'platform2'); sim.grant(st('heaton-chapel')); sim.grant(st('levenshulme'));
     for (let k = 0; k < 3; k++) sim.buy('route:stopper', 'units');
     sim.advance(3 * 3600);

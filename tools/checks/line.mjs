@@ -1,4 +1,5 @@
-// The stopper's stages as cards on its own card, like a station's (opened from its chip on the strip). In a new game:
+// The stopper's stages as cards on its own card, like a station's (opened from its chip on the strip). In a new game,
+// once Stockport is reopened:
 // each stage on offer is a card with its price and how much to go; extra units stay hidden until Stockport's platform 3
 // is built; tapping a card marks it and frames what it's about on the map (window.__view.framed counts framings), and
 // opening Stockport and choosing one of its cards instead clears it. With the money (a save from that game, with cash
@@ -9,10 +10,18 @@
 // (320 px, touch) and one desktop page.
 // Covers: @page @sim src/render/trains.ts src/render/lineside.ts src/render/sections.ts
 import { reveal } from '../reveal.mjs';
-export default async function ({ ok, open, SAVE_KEY, side }) {
+import { register } from 'tsx/esm/api';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+export default async function ({ ok, open, root, SAVE_KEY, side }) {
+  register();
+  const { fromGeo } = await import('../../src/sim/network.ts');
+  const { Sim } = await import('../../src/sim/sim.ts');
+  // a new game with Stockport reopened (it opens shut, and the stopper is the player's once it reopens)
+  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), opened = JSON.stringify({ g: Sim.halt(net, 1), selected: 0 });
   // each size side by side where the runner can (side, tools/check.mjs)
   await side(...([[320, 568, true], [1280, 800, false]]).map(([w, h, touch]) => async () => {
-    const { ctx, page, errs } = await open({ width: w, height: h }, { touch });
+    const { ctx, page, errs } = await open({ width: w, height: h }, { touch, save: opened });
     await page.waitForTimeout(600);
     const tap = async sel => {
       sel = await reveal(page, sel);

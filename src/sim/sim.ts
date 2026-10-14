@@ -29,6 +29,10 @@ export const TUNING = {
   // recovery); it never leaves early, and stays while people are still getting on and off, up to overrun past the least
   dwell: 45, turnaround: 120, dwellMin: 30, turnMin: 60, overrun: 120,
   recoveryFast: 30,                            // the faster timetable keeps some of its saving as recovery at each end
+  // a shut station reopening (docs/design/gridlock.md, section 1): the people who'd gathered outside it are those of
+  // its trips in the last `gather` clock minutes, at most gatherMax. Twenty minutes is about 26 at 06:30: the design's
+  // five were about 6, and from 25 the first load pays for Platform 3 at once and the whole opening comes 0.15 h sooner
+  gather: 20, gatherMax: 80,
   alight: 0.5,                                 // someone getting off takes half the door time of someone getting on
   squeeze: 1.0,                                // seconds a full train is held for each person left trying to get on
   dispatch: 15,                                // seconds from the platform clearing to leaving: doors shut, all clear
@@ -211,20 +215,33 @@ export class Sim {
     this.runAs(v, want);
     for (const tr of this.g.trains) if (tr.svc === v.id) { tr.leg = v.path.legAt(tr.s); tr.next = null; tr.bound = -1; }
   }
-  /** A new run from Stockport as a halt, with the perks the career has bought (none on a first contract). */
-  static fresh(network: Network, seed: number = freshSeed(), perks: readonly string[] = []): GameState {
-    const fx = effects(network.def.contract, perks), P = places(network);
-    // Stockport as a halt, and the spare unit in its sidings if the career has bought it
-    const owned: GameState['places'] = { [P.station[0]!]: {} };
+  /** A new run from a start (the network data's `starts`: the first game's, gridlocked Stockport with nothing open,
+   * unless another is named), with the perks the career has bought (none on a first contract). */
+  static fresh(network: Network, seed: number = freshSeed(), perks: readonly string[] = [], start?: string): GameState {
+    const fx = effects(network.def.contract, perks), P = places(network), from = P.startOf(start), t = simAtHour(from.clock.day, from.clock.hour);
+    // the places the start has open (each as it first stands), and the spare unit in its sidings if the career has bought it
+    const owned: GameState['places'] = {};
+    for (const id of from.open) owned[id] = {};
     if (fx.spare && P.sidings) owned[P.sidings] = { spare: 1 };
     return derive({
-      v: SAVE_VERSION, seed, rngState: seed >>> 0, t: simAtHour(1, 6.5), day: 1, cash: 3000 + fx.cash, earned: 0,
-      places: owned, perks: [...perks],
+      v: SAVE_VERSION, seed, rngState: seed >>> 0, t, day: from.clock.day, cash: from.cash + fx.cash, earned: 0,
+      places: owned, perks: [...perks], start: from.id,
       st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0, cab: 0, cabs: [], through: 0, car: 0, bus: 0, carAcc: 0, busAcc: 0, parked: [] })),
-      trains: [], ends: {}, trouble: freshTrouble(), held: {}, weather: freshWeather(seed, simAtHour(1, 6.5)),
+      trains: [], ends: {}, trouble: freshTrouble(), held: {}, weather: freshWeather(seed, t),
       stats: { boarded: 0, lost: 0, cab: 0, through: 0, express: 0, car: 0, bus: 0, late: 0 },
       homes: network.stations.map(s => s.catchment),
     } as Omit<GameState, 'owned' | 'ups' | 'line'> as GameState, P);
+  }
+
+  /** A new run with the start's offer already reopened and paid for (Stockport as a halt, £3,000): the opening before
+   * Stockport started shut, for tests and checks that start from there. It plays as that opening did: nothing is held. */
+  static halt(network: Network, seed: number = freshSeed(), perks: readonly string[] = [], start?: string): GameState {
+    const g = Sim.fresh(network, seed, perks, start), P = places(network), from = P.startOf(g.start), fx = effects(network.def.contract, perks);
+    for (const id of from.offer) {
+      const p = P.get(id), price = from.prices?.[id] ?? (p.kind === 'station' ? network.stations[p.station!]!.price : 0);
+      g.places[id] = {}; g.cash -= fx.build ? Math.round(price * (1 - fx.build) / 10) * 10 : price;
+    }
+    return derive(g, P);
   }
 
   // ---- lookups: the sim only ever indexes stations it created, so a miss is a bug, not a case ----
@@ -342,8 +359,8 @@ export class Sim {
   upgradePrice(i: number, u: Upgrade): number { return this.cost((u.stop ? this.stopDef(i)?.price : u.stage ? this.station(i).grow?.[u.id as StageId]?.price : null) ?? u.price); }
   /** A price as this run pays it: less the share the career's quicker building takes off (src/sim/contract.ts). */
   cost(price: number): number { return this.fx.build ? Math.round(price * (1 - this.fx.build) / 10) * 10 : price; }
-  /** What station i costs to buy as a halt. */
-  stationPrice(i: number): number { return this.cost(this.station(i).price); }
+  /** What station i costs: the data's price, or the start's where it offers the station at its own. */
+  stationPrice(i: number): number { return this.cost(this.P.startOf(this.g.start).prices?.[this.P.station[i]!] ?? this.station(i).price); }
   /** What the next step of a line upgrade costs, or undefined once it's all bought; a unit standing in the sidings from
    * the start (a perk) is the first extra unit, free to put in service. */
   linePrice(id: LineUpgradeId): number | undefined {
@@ -427,8 +444,9 @@ export class Sim {
         for (let k = g.trains.filter(t => t.svc === v.id).length; k < EXPRESS_UNITS; k++) g.trains.push({ ...this.unit(v, v.express.portal, 1), state: 'away', due: nextSlot(v.express, g.t, k), onboard: 0 });
         continue;
       }
-      const s0 = this.station(sp[0]!).s, s1 = this.station(sp[sp.length - 1]!).s;
+      const s0 = this.station(sp[0]!).s, s1 = this.station(sp[sp.length - 1]!).s, held = this.standsAt(v);
       for (let k = g.trains.filter(t => t.svc === v.id).length; k < n; k++) {
+        if (held !== null) { g.trains.push(this.standing(v, held)); continue; }
         // the main line's units spread along it, alternate ways; a branch's unit starts at its home, heading out
         const out = v.home !== null && v.route.indexOf(v.home) > 0 ? -1 : 1;
         const [s, dir] = v.home === null ? [s0 + (s1 - s0) * ((k + 0.5) / n), (k % 2 === 0 ? 1 : -1) as 1 | -1] : [this.station(v.home).s, out as 1 | -1];
@@ -436,6 +454,32 @@ export class Sim {
       }
     }
     for (const tr of g.trains) if (!this.svc(tr.svc).express) tr.cars = this.carsPerUnit();
+  }
+  /** Where a service stands held by the start (a station index), while that station is shut; null once it runs. */
+  standsAt(v: Svc): number | null { return v.express ? null : this.P.heldAt(this.g, placeId('route', v.id)); }
+  /** A unit of a held service standing dark at its turning platform at station i, heading out along its route, with no
+   * departure planned (due -1) until the station reopens (`release`). */
+  private standing(v: Svc, i: number): Train {
+    const sp = this.span(v), dir: 1 | -1 = i === sp[sp.length - 1] ? -1 : 1, tr = this.unit(v, this.station(i).s, dir);
+    tr.state = 'dwell'; tr.pfAt = i;
+    tr.pf = this.platsFor(tr, i, 'turn').find(p => !this.g.trains.some(o => this.holds(o, i, p))) ?? 0;
+    this.goTo(tr, this.stopAt(tr, i, tr.pf));
+    return tr;
+  }
+  /** Station i reopens: the units held there take people on and run from now, their dwell from now and the gap at
+   * that end of their run kept from it; and the people who'd gathered outside the shut station (the trips it would
+   * have had in the last `gather` clock minutes, at most `gatherMax`) are on the platform at once. */
+  private release(i: number): void {
+    const g = this.g; let any = false;
+    for (const tr of g.trains) {
+      const v = this.svc(tr.svc);
+      if (v.express || tr.state !== 'dwell' || tr.pfAt !== i || tr.due >= 0 || this.standsAt(v) !== null) continue;
+      tr.calling = i; tr.dwell = TUNING.dwellMin; tr.stood = 0; tr.quiet = 0; tr.boardAcc = 0; tr.due = g.t + TUNING.dwell; any = true;
+      const ends = g.ends[tr.svc] ??= [-1e9, -1e9]; ends[i === this.span(v)[0] ? 0 : 1] = tr.due;
+    }
+    if (!any) return;
+    const S = this.state(i); S.acc += Math.min(TUNING.gatherMax, this.tripRates(i, this.hour()) * TUNING.gather * 60 / BASE / 3600);
+    this.generate(i, 0);
   }
   /** A new unit of a service at s, heading dir. */
   private unit(v: Svc, s: number, dir: 1 | -1): Train {
@@ -561,7 +605,7 @@ export class Sim {
   callsAt(tr: Train, i: number): boolean {
     if (this.isEnd(tr, i)) return true;
     const v = this.svc(tr.svc);
-    if (v.express) return v.route.includes(i) && this.platsFor(tr, i, tr.dir > 0 ? 'north' : 'south').length > 0;
+    if (v.express) return v.route.includes(i) && !this.P.shut(this.g, i) && this.platsFor(tr, i, tr.dir > 0 ? 'north' : 'south').length > 0;
     return !!this.g.owned[i] && this.serves(i, tr.dir > 0 ? 0 : 1);
   }
   /** Whether platform p at station i is built: every platform at a station the player doesn't own (the railway's,
@@ -730,6 +774,8 @@ export class Sim {
   }
   stepTrain(tr: Train, dt: number): void {
     if (this.svc(tr.svc).express) { stepExpress(this, TUNING, tr, dt); return; }
+    // held by the start: it stands dark until its station reopens
+    if (tr.due < 0 && tr.state === 'dwell' && tr.calling === null) { if (this.standsAt(this.svc(tr.svc)) === null) this.release(tr.pfAt); return; }
     if (tr.state === 'away') { this.unrest(tr); return; }
     if (tr.state === 'dwell') { this.depart(tr, dt); return; }
     // a failed unit stands where it is until it's rescued, and the trains behind it wait
@@ -973,6 +1019,8 @@ export class Sim {
   buy(id: string, stage?: string): boolean {
     if (!this.canBuy(id, stage)) return false;
     const p = this.P.get(id);
+    // a held service's units stand at their station before it opens, so a reopening on load releases them from there
+    if (stage === undefined) this.ensureTrains();
     this.g.cash -= this.price(id, stage)!; build(this.g, id, stage); derive(this.g, this.P); this.resectioned();
     if (p.kind === 'station' && stage !== undefined) {
       const i = p.station!;
@@ -980,7 +1028,9 @@ export class Sim {
       openAccess(this, i, stage as UpgradeId);
     } else if (p.kind === 'stop') openAccess(this, p.station!, 'bus');
     else if (stage !== undefined) { if (stage === 'through') for (const v of this.svcs) this.throughNow(v); this.ensureTrains(); }
-    this.refreshJourneys(); return true;
+    this.refreshJourneys();
+    if (p.kind === 'station' && stage === undefined) this.release(p.station!);
+    return true;
   }
   /** Give the player a place, or a stage of it, without paying or asking what it waits on (tests and checks setting up a
    * game). */

@@ -20,7 +20,7 @@ export async function botSave(root, seed = 1, day = 6, hour = 8.15) {
   const { simAtHour } = await import('../../src/sim/day.ts');
   const { act } = await import('../bot.mjs');
   const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')));
-  const sim = new Sim(net, Sim.fresh(net, seed)), end = simAtHour(day, hour);
+  const sim = new Sim(net, Sim.halt(net, seed)), end = simAtHour(day, hour);
   while (sim.g.t < end) { sim.advance(60); for (let k = 0; k < 5 && act(sim); k++); }
   return { sim, net, save: JSON.stringify({ g: sim.g, selected: 0 }) };
 }
@@ -38,7 +38,7 @@ export default async function ({ ok, open, root }) {
   // following the game changes nothing in it
   const canvas = { clientWidth: 390, clientHeight: 844, getBoundingClientRect: () => ({ left: 0, top: 0, width: 390, height: 844 }) };
   const run = drawn => {
-    const sim = new Sim(net, Sim.fresh(net, 2)), cam = new THREE.PerspectiveCamera(50, 390 / 844, 1, 1e5);
+    const sim = new Sim(net, Sim.halt(net, 2)), cam = new THREE.PerspectiveCamera(50, 390 / 844, 1, 1e5);
     cam.position.set(0, 15000, 8000); cam.lookAt(0, 0, 0); cam.updateMatrixWorld();
     const v = drawn ? new NetworkView({ scene: new THREE.Scene(), net, camera: cam, canvas, reduced: false, stations: net.stations.map(st => { const f = net.stationFrame(st.id); return [f.x, f.z, 0]; }) }) : null;
     for (let k = 0; k < 4 * 60; k++) { sim.advance(60); act(sim); if (v) { for (let j = 0; j < 4; j++) v.update(sim, 20000, 0.25); v.stats(sim); v.pick(195, 400); } }

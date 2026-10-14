@@ -19,7 +19,7 @@ const { Lineside } = await import('../../src/render/lineside.ts');
 const { PAL } = await import('../../src/render/scene.ts');
 
 export default async function ({ ok, root }) {
-  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.fresh(net, 1));
+  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.halt(net, 1));
   sim.g.cash = 1e7; sim.grant(sim.P.stopper, 'units'); sim.g.trouble.next = sim.g.t + 1e9;
   sim.ensureTrains(); sim.step(1);
   const side = new Lineside(new THREE.Scene(), net);

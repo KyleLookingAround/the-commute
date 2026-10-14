@@ -17,7 +17,7 @@ export default async function ({ ok, open, root }) {
   globalThis.document ??= { createElement: () => ({ getContext: () => null }) };
   const { fromGeo } = await import('../../src/sim/network.ts');
   const { Sim, TUNING } = await import('../../src/sim/sim.ts');
-  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.fresh(net, 1));
+  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), sim = new Sim(net, Sim.halt(net, 1));
   sim.g.cash = 1e6;
   for (const id of ['crossing', 'platform2', 'building', 'platforms']) sim.buyUpgrade(0, id);
   sim.buyStation(1); sim.buyStation(2); sim.buyLine('units');
@@ -30,7 +30,7 @@ export default async function ({ ok, open, root }) {
   // its way, ending at its destination; no express on a board where it doesn't call
   {
     const { departures } = await import('../../src/render/life.ts');
-    const b = new Sim(net, Sim.fresh(net, 2)); b.g.cash = 1e6;
+    const b = new Sim(net, Sim.halt(net, 2)); b.g.cash = 1e6;
     for (const id of ['crossing', 'platform2', 'building', 'platforms']) b.buyUpgrade(0, id);
     for (const i of [1, 2]) { b.buyStation(i); b.buyUpgrade(i, 'crossing'); b.buyUpgrade(i, 'platform2'); }
     b.buyLine('units');
@@ -59,7 +59,7 @@ export default async function ({ ok, open, root }) {
     const { BusLayer } = await import('../../src/render/buses.ts');
     const kits = Object.fromEntries(net.stations.map(st => [st.kit, JSON.parse(readFileSync(join(root, 'src/data/kits', st.kit + '.json'), 'utf8'))]));
     const scene = new THREE.Scene(), layer = new BusLayer(scene, net, buildStations(scene, net, kits));
-    const c = new Sim(net, Sim.fresh(net, 2)); c.g.cash = 1e6;
+    const c = new Sim(net, Sim.halt(net, 2)); c.g.cash = 1e6;
     for (const id of ['crossing', 'platform2', 'building', 'platforms']) c.buyUpgrade(0, id);
     for (const i of [1, 2]) { c.buyStation(i); c.buyUpgrade(i, 'crossing'); c.buyUpgrade(i, 'platform2'); }
     c.buyLine('units');

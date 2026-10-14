@@ -25,7 +25,7 @@ G1 owns:
 
 Add `carShare` and `carScale` to `TUNING` in `src/sim/sim.ts` as a two-line change. Nothing else in `src/sim/`.
 
-G1 is done (87f55f4).
+G1 is done (87f55f4). G2 is done (14 October 2026: `docs/DESIGN.md`, The start).
 
 **G3 goes before G2** (the coordinator, 14 October 2026). It's view only and draws today's opening's jams. G2 (the start, Reopen, the save) waits until the services session (`docs/briefs/services.md`) has finished, since both edit `sim.ts` and the save.
 

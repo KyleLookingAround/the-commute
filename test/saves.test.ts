@@ -17,7 +17,7 @@ function device(): Map<string, string> {
   (globalThis as { localStorage?: unknown }).localStorage = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); }, removeItem: (k: string) => { m.delete(k); } };
   return m;
 }
-const played = () => { const n = net(), sim = new Sim(n, Sim.fresh(n, 3)); sim.g.cash = 1e6; sim.buyUpgrade(0, 'crossing'); sim.buyStation(1); sim.advance(2 * 3600); return sim; };
+const played = () => { const n = net(), sim = new Sim(n, Sim.halt(n, 3)); sim.g.cash = 1e6; sim.buyUpgrade(0, 'crossing'); sim.buyStation(1); sim.advance(2 * 3600); return sim; };
 
 test('saves: a game to a file and back is the same game, named after its day, and plays on the same', () => {
   const sim = played(), text = toFile({ g: sim.g, selected: 1 });

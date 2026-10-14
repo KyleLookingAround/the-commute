@@ -6,7 +6,7 @@
 // holds what's owned by place id (GameState.places); `derive` works out the per-station views the rest of the sim and
 // the view read. Pure: no rendering, nothing from the DOM.
 import type { Network } from './network.ts';
-import type { GameState, LineUpgradeId, ServiceDef, StageId, StopDef, UpgradeId } from './types.ts';
+import type { GameState, LineUpgradeId, ServiceDef, StageId, StartDef, StopDef, UpgradeId } from './types.ts';
 
 export type PlaceKind = 'station' | 'section' | 'junction' | 'route' | 'stop' | 'depot';
 
@@ -91,10 +91,16 @@ export class Places {
   private at = new Map<string, string[]>();
   /** The line's own services: each route's place id, its stations, its home and the station it opens with. */
   private svcs: { id: string; route: number[]; home: number | null; opens: number | null }[];
+  /** Where a contract can start (the network data's `starts`), the first the default; a network without any starts
+   * from its first station open. */
+  starts: StartDef[];
+  private stationIndex = new Map<string, number>();
 
   constructor(net: Network) {
     const add = (p: Place) => { this.all.push(p); this.byId.set(p.id, p); return p.id; };
     this.station = net.stations.map(st => add({ id: placeId('station', st.id), kind: 'station', name: st.name, station: st.index }));
+    for (const st of net.stations) this.stationIndex.set(st.id, st.index);
+    this.starts = net.def.starts?.length ? net.def.starts : [{ id: 'open', name: net.stations[0]?.name ?? '', open: [this.station[0]!], offer: [], cash: 3000, clock: { day: 1, hour: 6.5 } }];
     // routes: the line's own services (the expresses run through from off the map and aren't the player's)
     const local = net.services().filter(v => !v.def.through);
     this.svcs = local.map(v => ({ id: add({ id: placeId('route', v.def.id), kind: 'route', name: v.def.name, svc: v.def.id }), route: v.route, home: v.home, opens: v.def.opens ? net.station(v.def.opens).index : null }));
@@ -142,12 +148,26 @@ export class Places {
     };
     walk(k, from); return out;
   }
+  /** A start by id, or the first (the first game's) when there's no such start. */
+  startOf(id?: string): StartDef { return this.starts.find(x => x.id === id) ?? this.starts[0]!; }
+  /** Where a service of this run's start stands held (a station index), while that station is shut: not yet owned. */
+  heldAt(g: GameState, route: string): number | null {
+    const at = this.startOf(g.start).held?.[route], i = at === undefined ? undefined : this.stationIndex.get(at);
+    return i === undefined || this.station[i]! in g.places ? null : i;
+  }
+  /** Whether station i is one this run's start holds a service at, still shut: nothing calls there, not even an express. */
+  shut(g: GameState, i: number): boolean {
+    const h = this.startOf(g.start).held; if (!h) return false;
+    return !(this.station[i]! in g.places) && Object.values(h).some(at => this.stationIndex.get(at) === i);
+  }
+  /** Whether the player owns no station yet: the start's `offer` is what's offered. */
+  none(g: GameState): boolean { return !this.station.some(k => k in g.places); }
   get(id: string): Place { const p = this.byId.get(id); if (!p) throw new Error(`no place "${id}"`); return p; }
 
   /** Whether the player owns a place: a station or stop once bought; a route once it runs (the stopper from the start,
-   * a branch once a station beyond its home is owned, one that opens with a station once that is); a depot with its
-   * station; a section once each end is owned (a junction end: a station beyond it is); a junction with any section
-   * through it. */
+   * or once the station the start holds it at reopens; a branch once a station beyond its home is owned, one that
+   * opens with a station once that is); a depot with its station; a section once each end is owned (a junction end: a
+   * station beyond it is); a junction with any section through it. */
   owns(g: GameState, id: string): boolean {
     if (id in g.places) return true;
     const p = this.byId.get(id); if (!p) return false;
@@ -155,7 +175,8 @@ export class Places {
       case 'station': case 'stop': return false;
       case 'depot': return this.owns(g, this.station[p.station!]!);
       case 'route': {
-        const v = this.svcs.find(x => x.id === id)!; if (v.home === null) return true;
+        const v = this.svcs.find(x => x.id === id)!; if (this.heldAt(g, id) !== null) return false;
+        if (v.home === null) return true;
         if (v.opens !== null && !g.places[this.station[v.opens]!]) return false;
         const k = v.route.indexOf(v.home), has = (n: number) => { const i = v.route[n]; return i !== undefined && !!g.places[this.station[i]!]; };
         return has(k - 1) || has(k + 1);
@@ -181,12 +202,13 @@ export class Places {
     else out.add(this.station[p.station!]!);
     return [...out];
   }
-  /** Whether a place the player can buy (a station or a stop) touches one they own: a station a neighbouring station
+  /** Whether a place the player can buy (a station or a stop) touches one they own (with nothing owned, whether the
+   * start offers it): a station a neighbouring station
    * (the services running on past it don't count: owning a station offers the next, not the whole line), a stop its
    * station. Its needs aren't counted here (`waits`). */
   touches(g: GameState, id: string): boolean {
     const p = this.get(id);
-    if (p.kind === 'station') return (this.near.get(id) ?? []).some(s => s in g.places);
+    if (p.kind === 'station') return this.none(g) ? this.startOf(g.start).offer.includes(id) : (this.near.get(id) ?? []).some(s => s in g.places);
     if (p.kind === 'stop') return this.station[p.station!]! in g.places;
     return false;
   }

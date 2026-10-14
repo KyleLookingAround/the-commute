@@ -83,7 +83,7 @@ One kind for all three, because they behave alike: vehicles running a line of st
 
 ## 2. Touching
 
-A place is **offered** when it isn't the player's, it touches a place that is, and any real `needs` are met. Touching, for every pair of kinds that can touch:
+A place is **offered** when it isn't the player's, it touches a place that is, and any real `needs` are met. With nothing owned, the start's `offer` is offered (`docs/design/gridlock.md` §7): in the first game, Reopen Stockport. Touching, for every pair of kinds that can touch:
 
 | | Station | Section | Junction | Route | Stop | Depot |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -137,13 +137,12 @@ Nothing is dropped. The kiosk is the one stage folded, and two stages wait on a 
 
 ## 5. The opening
 
-As today: Stockport as a halt at 06:30 on day 1, £3,000, the first train due. What's offered is deliberately little, and grows as the network does:
+Replaced by `docs/design/gridlock.md` §1 (built 14 October 2026, part G2): Stockport starts shut at 06:30 on day 1 with £4,000, and the one thing offered is Reopen Stockport for £1,000. Reopening gives what this section used to describe, Stockport as a halt with £3,000, the stopper starting from platform 4 at once with the people who'd gathered aboard. From there the opening plays as before:
 
-- **On Stockport's card:** four stages, one from each ladder: Subway £2,000, Booking hall £4,500, Canopy £2,500, Taxi rank on Station Road £1,200. (Today's halt shows eight cards: the bus link moves to the map, the kiosk folds in, the car park waits for the booking hall, the extension for platform 3.)
-- **On the map, in the fog:** Heaton Chapel £9,000 up the line, Davenport £80,000 down the Hazel Grove line (waits on platforms 0, 1 and 2), and Stockport Interchange £50,000 by the station. Three things, the cheapest of them the obvious next station, with nothing to say so but its price.
-- **What a player likely buys:** the subway first (cheap, and its card's ghost and "5 min less walk for about 500 homes" show it doing something), then Platform 3 (which appears once the subway is built), the booking hall, and the stopper's Extra unit once there's £6,000 (its card is on the train; Stockport's card shows "opens: Extra unit on the stopper"). Then Heaton Chapel.
-- **Pace:** as today, as the bot buys the same things in the same order: the subway at about 0.02 sim hours, platform 3 and the booking hall by 0.18 (four real minutes at 1×), the taxi rank and the second unit by 0.42, Heaton Chapel at about 0.6 and Piccadilly at about 5.8 (`tools/baseline.json`).
-- **Not swamped:** a halt offers one stage a ladder; the map offers what touches Stockport and no more; bus routes and depots arrive with their steps and only where they touch. By the second game day, with three stations, there are two or three fronts on the map; by Piccadilly, five or six.
+- **On Stockport's card:** four stages, one from each ladder: Subway £2,000, Booking hall £4,500, Canopy £2,500, Taxi rank on Station Road £1,200.
+- **On the map, in the fog:** Heaton Chapel £9,000 up the line, Davenport £80,000 down the Hazel Grove line (waits on platforms 0, 1 and 2), and Stockport Interchange £50,000 by the station.
+- **Pace** (the bot, seeds 1–3): Reopen and the subway at 0, the taxi rank at 0.18 sim hours, Platform 3 and the booking hall at 0.22 (0.17 before, when the first train's load paid for them), the second unit at 0.45 (0.4), Heaton Chapel at 0.58 (0.57 to 0.62), Piccadilly at about 5.6 (`tools/baseline.json`). The first fare comes a real second after Reopen (220 seconds in before).
+- **Not swamped:** a halt offers one stage a ladder; the map offers what touches Stockport and no more.
 
 ## 6. The problems layer: Strain
 

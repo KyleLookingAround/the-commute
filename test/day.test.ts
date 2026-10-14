@@ -39,7 +39,7 @@ test('day: the clock and sim time map both ways, the clock never jumps or runs b
 });
 
 test('day: the sim counts days and reads the hour by the clock', () => {
-  const n = fromGeo(def), sim = new Sim(n, Sim.fresh(n, 1));
+  const n = fromGeo(def), sim = new Sim(n, Sim.halt(n, 1));
   assert.equal(sim.clock(), '06:30'); assert.equal(sim.g.day, 1);
   sim.advance(simAtHour(2, 0) + 0.5 - sim.g.t);
   assert.equal(sim.g.day, 2); assert.equal(sim.clock(), '00:00');
@@ -50,7 +50,7 @@ test('day: the sim counts days and reads the hour by the clock', () => {
 test('day: each clock hour carries the trips it did, however fast the clock runs', () => {
   // a clock hour between the peaks is half the sim time it was, and brings the trips it did: tripRates' sim hour at
   // the peaks' rate is BASE clock hours
-  const n = fromGeo(def), sim = new Sim(n, Sim.fresh(n, 1)); sim.g.t = simAtHour(1, 12);
+  const n = fromGeo(def), sim = new Sim(n, Sim.halt(n, 1)); sim.g.t = simAtHour(1, 12);
   const t1 = simAtHour(1, 13), want = sim.tripRates(0, 12.5) / BASE;
   assert.ok(Math.abs((t1 - sim.g.t) - 3600 / (2 * BASE)) < 1e-6, 'an hour between the peaks is 300 sim seconds');
   while (sim.g.t < t1) { sim.generate(0, (clockAt(sim.g.t + 2) - clockAt(sim.g.t)) / BASE); sim.g.t += 2; }

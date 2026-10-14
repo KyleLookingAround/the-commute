@@ -1,23 +1,30 @@
 // The page at the six sizes the project notes name: 320×568, 568×320, 390×844, 844×390 (phones, touch), 768×1024 and
 // 1440×900. At each: the page loads with no errors, the map fills the screen, the sheet is in view at its peek (portrait)
-// or docked to the left (from 600 px wide or in landscape) with the Places row (a chip a place owned or offered: in a new
-// game Stockport, Heaton Chapel and Davenport, its stations, and the stopper and the sidings) in view, nothing scrolls
+// or docked to the left (from 600 px wide or in landscape) with the Places row (a chip a place owned or offered: with
+// Stockport just reopened, Stockport, Heaton Chapel and Davenport, its stations, and the stopper and the sidings) in view, nothing scrolls
 // sideways, every tap target is at least 44 px on touch (40 px otherwise), and the cash and clock show over the map. Picking a card (Booking hall at Stockport) frames its ghost in the open
 // map, above the sheet sunk to its peek with the Buy bar in portrait, beside the docked sheet otherwise. Heaton Chapel,
 // off the open map at the start, stands at its edge with its price (an edge marker). One page per size; a screenshot of each goes to build/check/ for a human to look at.
 // Covers: @page
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { register } from 'tsx/esm/api';
 import { reveal } from '../reveal.mjs';
 
-// in a new game the row's stations: Stockport, and the two next to it, Heaton Chapel and Davenport
+// with Stockport just reopened (a new game opens with it shut: the places group), the row's stations: Stockport, and
+// the two next to it, Heaton Chapel and Davenport
 const STATIONS = 3;
 
 const SIZES = [[320, 568, true], [568, 320, true], [390, 844, true], [844, 390, true], [768, 1024, true], [1440, 900, false]];
 
-export default async function ({ ok, open, out, side }) {
+export default async function ({ ok, open, out, root, side }) {
+  register();
+  const { fromGeo } = await import('../../src/sim/network.ts');
+  const { Sim } = await import('../../src/sim/sim.ts');
+  const net = fromGeo(JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8'))), save = JSON.stringify({ g: Sim.halt(net, 1), selected: 0 });
   // each size side by side where the runner can (side, tools/check.mjs)
   await side(...(SIZES).map(([w, h, touch]) => async () => {
-    const { ctx, page, errs } = await open({ width: w, height: h }, { touch });
+    const { ctx, page, errs } = await open({ width: w, height: h }, { touch, save });
     await page.waitForTimeout(800);
     const m = await page.evaluate(() => {
       const box = s => { const e = document.querySelector(s); if (!e || !e.getClientRects().length) return null; const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, r: b.right, b: b.bottom }; };

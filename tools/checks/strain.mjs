@@ -26,7 +26,7 @@ export default async function ({ ok, open, root, side }) {
 
   // reading changes nothing: the same seed, the same buys, one run read as the page reads it
   const run = read => {
-    const sim = new Sim(net, Sim.fresh(net, 3)); sim.g.cash = 1e6;
+    const sim = new Sim(net, Sim.halt(net, 3)); sim.g.cash = 1e6;
     for (const id of ['crossing', 'building', 'carpark', 'platform2']) sim.buyUpgrade(0, id);
     sim.buyStation(net.station('heaton-chapel').index); sim.buyStation(net.station('levenshulme').index);
     const r = read ? new StrainRead(sim) : null;
@@ -38,7 +38,7 @@ export default async function ({ ok, open, root, side }) {
 
   // a troubled save: Stockport with a car park, its platforms nearly full and some about to give up, its car park full,
   // and a signal failure between Stockport and Heaton Chapel for two hours that has had trains running late a while
-  const sim = new Sim(net, Sim.fresh(net, 1)); sim.g.cash = 1e6;
+  const sim = new Sim(net, Sim.halt(net, 1)); sim.g.cash = 1e6;
   for (const id of ['crossing', 'building', 'carpark']) sim.buyUpgrade(0, id);
   const hc = net.station('heaton-chapel').index; sim.buyStation(hc);
   const a = net.station('stockport').s, b = net.station('heaton-chapel').s;

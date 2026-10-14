@@ -250,7 +250,7 @@ export class UI {
     const p = sim.P.get(id);
     if (p.kind === 'station') {
       const i = p.station!, halt = g.owned[i] && !Object.keys(g.places[id] ?? {}).length;
-      return `${halt ? 'Halt' : 'Station'} · ${milesFrom(sim.station(i).miles)} · ${g.owned[i] ? `${g.st[i]?.waiting ?? 0} waiting` : fmt(sim.stationPrice(i))}`;
+      return `${!g.owned[i] ? 'Shut' : halt ? 'Halt' : 'Station'} · ${milesFrom(sim.station(i).miles)} · ${g.owned[i] ? `${g.st[i]?.waiting ?? 0} waiting` : fmt(sim.stationPrice(i))}`;
     }
     if (p.kind === 'stop') { const kind = p.stop?.kind === 'bus-station' ? 'Bus station' : 'Bus stop'; return `${kind} · ${sim.owns(id) ? `${num(g.st[p.station!]?.bus ?? 0)} by bus` : fmt(sim.price(id) ?? 0)}`; }
     if (p.kind === 'route') return `Train service · ${this.figure(id)}`;
@@ -322,8 +322,9 @@ export class UI {
     const sim = this.sim, s = sim.station(i), g = this.g, panel = this.els.panel;
     if (!g.owned[i]) {
       const blocked = !sim.offerable(i), needs = sim.stationNeeds(i);
-      const label = blocked ? 'Buy a station next to it first' : needs ? `Needs ${needs.station.name}'s ${needs.name}` : `Buy as a halt · ${fmt(sim.stationPrice(i))}`;
-      this.buyCard(BLURB[s.id] || '', label, sim.canBuyStation(i), () => { if (sim.buyStation(i)) { this.toast(`${s.name} is yours. Trains now call here.`); this.changed(); } });
+      // every station on the map is a real one with no trains calling: buying it reopens it (docs/design/gridlock.md, section 4)
+      const label = blocked ? 'Reopen a station next to it first' : needs ? `Needs ${needs.station.name}'s ${needs.name}` : `Reopen · ${fmt(sim.stationPrice(i))}`;
+      this.buyCard(BLURB[s.id] || '', label, sim.canBuyStation(i), () => { if (sim.buyStation(i)) { this.toast(`${s.name} reopens. Trains call here again.`); this.changed(); } });
       return;
     }
     // homes are the census homes, grown (homes that grow); By cab only where there's a rank, By car and By bus where

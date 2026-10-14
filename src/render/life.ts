@@ -266,6 +266,7 @@ function callingPages(x: CanvasRenderingContext2D, r: Dep, names: string[]): str
 // ---- how busy each station is, and the day's shape ----
 const TICK = 0.5;              // real seconds between looks at the sim
 const BOARD_TICK = 1;          // ...and between board redraws
+const FAST_TICK = 0.1;         // ...and between looks while car parks fill quickly after time away
 const PAGE_TICKS = 3;          // board redraws a page of calling points shows for
 const REF = 0.25;              // people a sim second boarding and leaving that counts as busy (Stockport's morning peak)
 const FAST = 300, SLOW = 3600; // sim seconds: busyness rises over five minutes and falls over an hour
@@ -285,6 +286,9 @@ export class StationLife {
   private readonly names: string[];
   private readonly busy: { last: number; t: number; now: number; held: number }[];
   private acc = TICK; private boardAcc = BOARD_TICK; private fresh = true; private ticks = 0; private page = 0;
+  /** While set, each car park is drawn this full (0 to 1) instead of the sim's share: coming back after time away holds
+   * them as they were, then fills them quickly for `fast` real seconds (src/render/away.ts). */
+  hold: number[] | null = null; fast = 0;
 
   constructor(built: { live: Live }[], sim: Sim) {
     this.built = built;
@@ -297,10 +301,13 @@ export class StationLife {
     this.busy = built.map(() => ({ last: -1, t: 0, now: 0, held: 0 }));
   }
 
+  /** How full each station's car park is in the sim now (0 to 1; 0 with none). */
+  parkShares(sim: Sim): number[] { return sim.g.st.map((st, i) => { const room = sim.g.owned[i] ? spaces(sim, i) : 0; return room ? Math.min(1, parked(st) / room) : 0; }); }
+
   /** dt: real seconds since the last frame; hour: the hour the map shows (the game's, or the one the light is locked to). */
   sync(sim: Sim, hour: number, dt: number): void {
-    this.acc += dt; this.boardAcc += dt;
-    if (this.acc >= TICK) { this.acc = 0; this.life(sim, hour); }
+    this.acc += dt; this.boardAcc += dt; this.fast = Math.max(0, this.fast - dt);
+    if (this.acc >= (this.fast ? FAST_TICK : TICK)) { this.acc = 0; this.life(sim, hour); }
     if (this.boardAcc >= BOARD_TICK) { this.boardAcc = 0; this.ticks++; this.page = Math.floor(this.ticks / PAGE_TICKS); this.boards(sim); }
   }
 
@@ -322,8 +329,8 @@ export class StationLife {
       }
       const owned = !!g.owned[i], held = Math.min(1, bz.held / REF), now = Math.min(1, bz.now / REF);
       // the car park as full as the sim's: its share of the spaces taken (every drawn stage the same share)
-      const room = owned ? spaces(sim, i) : 0, full = room ? Math.min(1, parked(st) / room) : 0;
-      for (const f of b.live.parks) step(f, f.cap * full, snap);
+      const room = owned ? spaces(sim, i) : 0, full = this.hold?.[i] ?? (room ? Math.min(1, parked(st) / room) : 0);
+      for (const f of b.live.parks) step(f, f.cap * full, snap, this.fast > 0);
       for (const f of b.live.racks) step(f, owned ? f.cap * park * (0.2 + 0.8 * held) : 0, snap);
       for (const s of b.live.shops) { s.shutter.visible = !open; step(s.people, owned && open ? s.people.cap * now * 1.2 : 0, snap); }
     });
@@ -343,8 +350,8 @@ export class StationLife {
   }
 }
 /** Bring a fill a step towards how many it should show: a car or two at a time, or straight there on the first look. */
-function step(f: Fill, target: number, snap: boolean): void {
+function step(f: Fill, target: number, snap: boolean, fast = false): void {
   const want = Math.max(0, Math.min(f.cap, Math.round(target)));
-  if (snap) f.n = want; else if (f.n !== want) f.n += Math.sign(want - f.n) * Math.min(Math.abs(want - f.n), Math.max(1, Math.round(f.cap / 30)));
+  if (snap) f.n = want; else if (f.n !== want) f.n += Math.sign(want - f.n) * Math.min(Math.abs(want - f.n), Math.max(1, Math.round(f.cap / (fast ? 12 : 30))));
   f.mesh.count = f.n;
 }

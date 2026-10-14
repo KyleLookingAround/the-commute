@@ -32,6 +32,9 @@ export class HomesLayer {
   private at: number[][] = []; private bandAt: number[][] = [];
   private meshes: THREE.InstancedMesh[] = [];
   private rising: number[] = []; private first = true;
+  /** While set, each station shows no more buildings than this (coming back after time away holds them at what stood
+   * before, then lets the new ones rise: src/render/away.ts). */
+  hold: number[] | null = null;
   private m4 = new THREE.Matrix4(); private q = new THREE.Quaternion(); private e = new THREE.Euler(); private v = new THREE.Vector3(); private sc = new THREE.Vector3();
   private zero = new THREE.Matrix4().makeScale(0, 0, 0);
 
@@ -127,6 +130,8 @@ export class HomesLayer {
   gaps(): { brown: number; open: number; out: number }[] { return this.plots.map(l => ({ brown: l.filter(p => p.gap === 'brown').length, open: l.filter(p => p.gap === 'open').length, out: l.filter(p => !p.gap).length })); }
   /** How many buildings show at each station. */
   counts(): number[] { return [...this.shown]; }
+  /** How many buildings each station's grown homes make now (before any hold). */
+  wanted(sim: Sim): number[] { return this.plots.map((list, i) => Math.min(list.length, Math.max(0, Math.floor((sim.homes(i) - sim.S[i]!.catchment) / HOMES_PER_PLOT)))); }
   /** How many are still rising. */
   get risingCount(): number { return this.rising.length / 2; }
 
@@ -134,7 +139,7 @@ export class HomesLayer {
   sync(sim: Sim, dt: number): void {
     for (let i = 0; i < this.plots.length; i++) {
       const list = this.plots[i]!, s = sim.S[i]!;
-      const want = Math.min(list.length, Math.max(0, Math.floor((sim.homes(i) - s.catchment) / HOMES_PER_PLOT)));
+      const want = Math.min(list.length, this.hold?.[i] ?? Infinity, Math.max(0, Math.floor((sim.homes(i) - s.catchment) / HOMES_PER_PLOT)));
       let n = this.shown[i]!;
       while (n < want) { const p = list[n]!; p.rise = this.first ? 1 : 0; if (p.rise < 1) this.rising.push(i, n); this.place(i, n, 1); n++; }
       while (n > want) { n--; list[n]!.rise = 1; this.hide(i, n); }   // a new game: they go at once

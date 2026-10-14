@@ -182,8 +182,9 @@ export class OrbitRig {
   /** Fly to the nearest view that holds every point (x, z on the ground, and the half-width in pixels of the name
    * drawn centred on it, FIT_X if not given) on the open map, beside or above the sheet, with room for its name
    * (FIT_Y up) and clear of the top bar: the middle of their extent, from whichever of eight turns and three tilts
-   * needs the least distance (see below for the ties and a screen too narrow for the names). */
-  fitAll(pts: [number, number, number?][]): void {
+   * needs the least distance (see below for the ties and a screen too narrow for the names). now: there at once, with no
+   * flight (coming back after time away starts there). */
+  fitAll(pts: [number, number, number?][], now = false): void {
     if (!pts.length) return;
     let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
     for (const [x, z] of pts) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
@@ -217,7 +218,8 @@ export class OrbitRig {
       }
       if (all) break;
     }
-    this.fly(best ?? { tx, ty: 2, tz, r: R_MAX, th: this.o.th, ph: 0.7 });
+    const to = best ?? { tx, ty: 2, tz, r: R_MAX, th: this.o.th, ph: 0.7 };
+    if (now) { this.handover(); to.th = this.o.th + wrapPi(to.th - this.o.th); Object.assign(this.o, to); this.place(); } else this.fly(to);
   }
   /** Put north back up the screen. */
   north(): void { this.fly({ ...this.o, th: 0 }); }

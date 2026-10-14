@@ -116,6 +116,12 @@ function more(): void {
     netView = new m.NetworkView({ scene, net, camera, canvas, reduced: rig.reduced, stations: stationsXZ.map(([x, z]) => [x, z, groundAt(x, z)]) });
     Object.assign(view, { network: () => netView ? { ...netView.stats(sim), clouds: sky.shown, at: netView.onScreen() } : null });
   });
+  if (cameBack) { const cb = cameBack; cameBack = null; void import('./render/away.ts').then(m => {
+    back = new m.WelcomeBack({ camera, canvas, layer: lblBox, reduced: rig.reduced, stations: stationsXZ.map(([x, z]) => [x, z, groundAt(x, z)]),
+      wide: () => lineView(true), settle: () => { const [x, z] = stationXZ(ui.selected); rig.focus(x, z, net.stations[ui.selected]?.id === 'piccadilly' ? 360 : 230); },
+      moves: () => rig.moves, release: () => { homes.hold = null; life.hold = null; life.fast = 2; }, toast: () => ui.toast(cb.msg) }, cb.earned, THREE.Vector3);
+    Object.assign(view, { away: () => back ? { ...back.stats(), homesRising: homes.risingCount, held: !!homes.hold, parks: built.map(b => b.live.parks.reduce((n, f) => n + f.n, 0)) } : null });
+  }); }
   void world.more().then(() => {
     for (const i of fillStations(net, built, kits)) {
       built[i]!.group.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = !o.userData['noShadow']; o.receiveShadow = true; } });
@@ -126,6 +132,9 @@ function more(): void {
 }
 let kitsIn = false;
 let netView: import('./render/networkview.ts').NetworkView | null = null;
+/** After time away: what each station earned and the toast, until the welcome back plays (src/render/away.ts). */
+let cameBack: { earned: number[]; msg: string } | null = null;
+let back: import('./render/away.ts').WelcomeBack | null = null;
 const links = new LinkLayer(scene, built);
 // where the track runs beside each platform face, from the service that boards there that way (at Stockport the main
 // line northbound, the Hazel Grove line southbound), so passengers stand back from the right edge
@@ -380,11 +389,11 @@ function lineMiddle(): { x: number; z: number } {
 }
 /** Whole line: every station on the open map with its name, as near as they'll all fit (a name's half-width from its
  * text: the labels' monospace, about 7.7 px a character, and their padding). */
-function lineView(): void {
+function lineView(now = false): void {
   rig.fitAll(net.stations.map(st => {
     const [x, z] = stationXZ(st.index), text = sim.g.owned[st.index] ? st.name : `${st.name} · ${fmt(sim.stationPrice(st.index))}`;
     return [x, z, (text.length * 7.7 + 18) / 2];
-  }));
+  }), now);
 }
 // the line between stations (src/render/sections.ts): each section's renewed track on the map, fetched just after the start
 const lineLayer = import('./render/sections.ts').then(m => { const L = new m.SectionLayer(scene, net, () => sim, camera, canvas); Object.assign(view, { sections: () => ({ ...L.stats(), wired: L.wired(), flyovers: L.flyovers() }) }); return L; });
@@ -498,7 +507,14 @@ wireSaves(el('saveFile'), el('loadFile'), el('loadPick'), {
 // ---- welcome back ----
 if (saved && saved.at) {
   const away = awaySeconds(saved.at);
-  if (away) { const c0 = sim.g.cash, b0 = sim.g.stats.boarded; sim.advance(away); ui.toast(`While you were away: ${fmt(sim.g.cash - c0)} from ${(sim.g.stats.boarded - b0).toLocaleString('en-GB')} passengers`); }
+  if (away) {
+    // the map is held as it stood (homes, car parks) and plays what happened after the first frame (src/render/away.ts)
+    const c0 = sim.g.cash, b0 = sim.g.stats.boarded, revenue = sim.g.st.map(S => S.revenue);
+    homes.hold = homes.wanted(sim); life.hold = life.parkShares(sim);
+    sim.advance(away);
+    const msg = `While you were away: ${fmt(sim.g.cash - c0)} from ${(sim.g.stats.boarded - b0).toLocaleString('en-GB')} passengers`;
+    cameBack = { earned: sim.g.st.map((S, i) => S.revenue - (revenue[i] ?? 0)), msg };
+  }
   if (saved.selected) ui.selected = saved.selected;
 }
 nextStations(); ui.setSpeed(1); ui.buildAll(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null);
@@ -534,7 +550,7 @@ function frame(now: number): void {
   sound.update(sim, rig.o, light.daylight, stationsXZ, trains.meshes, realDt); pax.setDaylight(light.daylight);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
   syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt, sim); trains.sync(sim, dtGame); pax.sync(sim.g, dtGame); pax.placeCoin(camera); labels();
-  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim); netView?.update(sim, rig.o.r, realDt);
+  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim); netView?.update(sim, rig.o.r, realDt); back?.update(realDt);
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); nextStations(); followGlide(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
   const t2 = performance.now();

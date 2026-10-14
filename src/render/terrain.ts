@@ -269,8 +269,9 @@ export class Terrain {
    * slopes and walls where they meet. */
   groundY(x: number, z: number): number {
     const { k, s, o, past } = this.locate(x, z), L = this.lines[k]!;
-    // past the line's ends, and far from it, the ground is read where it is
-    if (past || Math.abs(o) > 2 * FAR) return this.raw(x, z) - this.datumAt(x, z);
+    // past the line's ends, and far from it, the ground is read where it is, unless it's another line's land (past a
+    // line's end at the junction it joins, the line it runs into)
+    if (past || Math.abs(o) > 2 * FAR) return this.lines.length > 1 && this.onLand(x, z, k) ? 0 : this.raw(x, z) - this.datumAt(x, z);
     const [lo, hi, pLo, pHi] = this.band(L, s);
     if (o >= lo && o <= hi && !this.bridged(s, L)) return 0;
     // another line's land close by, off its arches, is the railway's too (a station on one line beside another's)

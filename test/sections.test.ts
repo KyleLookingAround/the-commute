@@ -24,7 +24,8 @@ test('sections: the stopper\'s line starts at the game\'s 75 mph, the lines out 
 
 test('sections: the data has a speed for every section of every corridor, in order', () => {
   const sim = fresh();
-  for (const c of def.corridors) assert.equal(def.sections?.[c.id]?.mph.length, sim.secs.filter(x => x.corridor === c.id).length, c.id);
+  // (a corridor with no station on it yet, such as the Macclesfield leg, has no sections)
+  for (const c of def.corridors) assert.equal(def.sections?.[c.id]?.mph.length ?? 0, sim.secs.filter(x => x.corridor === c.id).length, c.id);
 });
 
 test('sections: a step is offered once both ends are owned, raises the line speed, and speeds the rides through it', () => {

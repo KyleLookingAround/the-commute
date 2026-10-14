@@ -29,7 +29,11 @@ test("network: each service's stations sit on the corridor in order, roughly the
 test('network: the Hazel Grove line meets the line to Piccadilly at Edgeley Junction, chainage running on through it', () => {
   const n = net(), j = n.junction('edgeley'), hg = n.corridor('hazel-grove'), main = n.corridor('main');
   assert.equal(j.corridor, 'main');
-  assert.deepEqual([...j.joins].sort(), ['hazel-grove', 'main']);
+  assert.deepEqual([...j.joins].sort(), ['crewe', 'hazel-grove', 'main']);
+  // the Crewe line comes up to it too, ending at its chainage, its line towards Manchester running into the down slow
+  const crewe = n.corridor('crewe'), c = n.trackAt('crewe-north', crewe.end), ds = n.trackAt('down-slow', j.s);
+  assert.ok(Math.abs(crewe.end - j.s) < 1e-6, 'the Crewe line ends at the junction');
+  assert.ok(Math.hypot(c.x - ds.x, c.z - ds.z) < 0.05, `the Crewe line's track towards Manchester meets the down slow: ${Math.hypot(c.x - ds.x, c.z - ds.z).toFixed(2)} m apart`);
   assert.ok(Math.abs(hg.end - j.s) < 1e-6 && Math.abs(main.start - j.s) < 1e-6, 'one ends and the other starts at the junction\'s chainage');
   const a = hg.at(hg.end), b = main.at(main.start);
   assert.ok(Math.hypot(a.x - b.x, a.z - b.z) < 1e-6, 'at the same point');

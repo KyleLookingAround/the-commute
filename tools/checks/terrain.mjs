@@ -9,7 +9,7 @@
 //   at the foot of the wall under the east platform's building.
 // - Roads: the replacement buses' roads come down off a station's pad as a ramp no steeper than 1 in 10, and never
 //   run under the ground.
-// - Size: what's committed of the terrain stays within its budget (2 MB).
+// - Size: what's committed of the terrain stays within its budget (3.4 MB, with the Crewe line and its Macclesfield leg).
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';
@@ -21,7 +21,7 @@ const { Terrain, TerrainLayer, partBoxes } = await import('../../src/render/terr
 const { viaductOf, bridgesOf } = await import('../../src/render/landmarks.ts');
 
 const HALF = 1.51 + 0.5, Y0 = 0.5;   // a body's half width as drawn (the geometry check's), and its underframe
-const BUDGET = 2.6 * 1024 * 1024;
+const BUDGET = 3.4 * 1024 * 1024;
 
 export default async function ({ ok, root }) {
   const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def), c = net.spine;

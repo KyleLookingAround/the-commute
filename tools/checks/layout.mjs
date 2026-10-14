@@ -13,8 +13,9 @@ const STATIONS = 3;
 
 const SIZES = [[320, 568, true], [568, 320, true], [390, 844, true], [844, 390, true], [768, 1024, true], [1440, 900, false]];
 
-export default async function ({ ok, open, out }) {
-  for (const [w, h, touch] of SIZES) {
+export default async function ({ ok, open, out, side }) {
+  // each size side by side where the runner can (side, tools/check.mjs)
+  await side(...(SIZES).map(([w, h, touch]) => async () => {
     const { ctx, page, errs } = await open({ width: w, height: h }, { touch });
     await page.waitForTimeout(800);
     const m = await page.evaluate(() => {
@@ -49,5 +50,5 @@ export default async function ({ ok, open, out }) {
     ok(`layout: at ${w}×${h} a picked card's ghost stands in the open map${docked ? '' : ', the sheet sunk to its peek with a Buy bar'}`, !gbad.length, gbad.join('; '));
     await page.screenshot({ path: join(out, `layout-${w}x${h}-ghost.png`) }).catch(() => {});
     await ctx.close();
-  }
+  }));
 }

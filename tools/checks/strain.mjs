@@ -14,7 +14,7 @@ import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 
-export default async function ({ ok, open, root }) {
+export default async function ({ ok, open, root, side }) {
   register();
   const { fromGeo } = await import('../../src/sim/network.ts');
   const { Sim } = await import('../../src/sim/sim.ts');
@@ -64,7 +64,8 @@ export default async function ({ ok, open, root }) {
     ok('strain: from a troubled save the read finds the crowd, the walk home, late departures and the full car park, in plain figures', !bad.length, bad.join('; ') || `"${now}" / "${later}" / "${route}"`);
   }
 
-  for (const [w, h, touch, tag] of [[320, 568, true, 'phone'], [1280, 800, false, 'desktop']]) {
+  // each size side by side where the runner can (side, tools/check.mjs)
+  await side(...([[320, 568, true, 'phone'], [1280, 800, false, 'desktop']]).map(([w, h, touch, tag]) => async () => {
     const { ctx, page: p, errs } = await open({ width: w, height: h }, { touch, save, steady: 50 });
     const f = net.stationFrame('stockport');
     await ctx.addInitScript(([x, z]) => { window.__orbit = { tx: x, ty: 0, tz: z, r: 420, th: 5.5, ph: 0.9 }; window.__lockHour = 13; }, [f.x, f.z]);
@@ -139,5 +140,5 @@ export default async function ({ ok, open, root }) {
       r3 && (r3.running || r3.back > 0 || r3.on) && 'turned off, it kept drawing', pressed !== 'false' && 'the button is still pressed', errs[0]].filter(Boolean);
     ok(`strain: at ${w}×${h} the view is remembered, still with reduced motion, and turns off`, !bad3.length, bad3.join('; '));
     await ctx.close();
-  }
+  }));
 }

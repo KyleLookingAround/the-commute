@@ -9,7 +9,7 @@ import { register } from 'tsx/esm/api';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-export default async function ({ ok, open, root }) {
+export default async function ({ ok, open, root, side }) {
   register();
   const { fromGeo } = await import('../../src/sim/network.ts');
   const { Sim } = await import('../../src/sim/sim.ts');
@@ -17,7 +17,8 @@ export default async function ({ ok, open, root }) {
   sim.g.cash = 1e6;
   const rich = JSON.stringify({ g: sim.g, selected: 0 }), f = net.stationFrame('stockport');
   const shots = join(root, 'build/shots'); mkdirSync(shots, { recursive: true });
-  for (const [w, h, touch, tag] of [[320, 568, true, 'phone'], [1280, 800, false, 'desktop']]) {
+  // each size side by side where the runner can (side, tools/check.mjs)
+  await side(...([[320, 568, true, 'phone'], [1280, 800, false, 'desktop']]).map(([w, h, touch, tag]) => async () => {
     const fresh = await open({ width: w, height: h }, { touch });
     await fresh.page.waitForTimeout(500);
     const r0 = await fresh.page.evaluate(() => ({ ...window.__view?.reach?.(), pressed: document.getElementById('vMins')?.getAttribute('aria-pressed') }));
@@ -85,5 +86,5 @@ export default async function ({ ok, open, root }) {
     const off = await p.evaluate(() => ({ m: window.__view.reach().minutes, key: !document.getElementById('minsKey')?.hidden }));
     ok(`reach: at ${w}×${h} the Minutes control shades the ground with its key, and turns off again`, on.m && on.key && on.pressed === 'true' && !off.m && !off.key && !errs[0], `${JSON.stringify(on)} ${JSON.stringify(off)} ${errs[0] || ''}`);
     await ctx.close();
-  }
+  }));
 }

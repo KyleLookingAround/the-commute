@@ -2,12 +2,12 @@
 // three seconds before the toast. The camera starts wide (Whole line, where the network view shows the crowds); a
 // column of coins rises over each station by what it earned while away, the biggest earners' sums on top; then the camera settles
 // on the station the player left while the homes that grew rise there and its car park fills from where it stood. With
-// reduced motion the coins stand still and the camera moves at once. Fetched only when there was time away, after the
+// reduced motion the coins stand still and the camera cuts back rather than flying. Fetched only when there was time away, after the
 // first frame; only the view: the sim has already caught up (src/main.ts) and nothing here changes the game.
 
 /** When each part plays, in real seconds from the start: the coins rise one after another, COIN_GAP apart, each taking
  * COIN_RISE; at SETTLE the camera goes back to the station and the homes and car parks are let go; at TOAST the toast
- * shows and the coins fade over FADE. With reduced motion everything stands from the start and goes at STILL. */
+ * shows and the coins fade over FADE. With reduced motion the coins stand from the start, the camera moves at SETTLE at once, and they go at STILL. */
 export const COIN_GAP = 0.12, COIN_RISE = 0.35, SETTLE = 1.5, TOAST = 3, FADE = 0.4, STILL = 2.2;
 /** The most coins in a column, and what each step up stands for: a column of n coins for earnings from 500 × 2^(n-1). */
 const MOST = 6, BASE = 500;
@@ -65,7 +65,7 @@ export class WelcomeBack {
       el.style.opacity = String(u); el.style.transform = `translateY(${(1 - u) * 24}px)`;
     });
     for (const c of this.cols) c.sum.style.opacity = String(o.reduced ? 1 : Math.max(0, Math.min(1, (t - c.coins.length * COIN_GAP) / COIN_RISE)));
-    if (!this.released && t >= (o.reduced ? 0 : SETTLE)) {
+    if (!this.released && t >= SETTLE) {
       this.released = true; o.release();
       if (o.moves() === this.moves0) { this.settled = true; o.settle(); }
     }

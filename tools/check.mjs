@@ -139,11 +139,16 @@ if (since) {
 const wanted = g => (!selected || selected.has(g)) && (!shard || shardOf.get(g) === shard[0] - 1) && (except ? !named.includes(g) : !named.length || named.includes(g));
 for (const g of groups) if (wanted(g)) {
   const t0 = Date.now(); running = g;
-  try { await (await import(pathToFileURL(join(root, 'tools/checks', g + '.mjs')).href)).default({ open, ok, side, root, out, url, SAVE_KEY, get browser() { return getBrowser(); } }); }
+  // a group that hangs fails by name after LIMIT (three times its minutes, ten at least) rather than holding the shard
+  // until the job's own limit, which reports nothing
+  const limit = Math.max(10, 3 * (MINUTES[g] ?? 1)) * 60000;
+  let timer; const late = new Promise((_, no) => { timer = setTimeout(() => no(new Error(`it took longer than ${limit / 60000} min`)), limit); });
+  try { await Promise.race([late, (await import(pathToFileURL(join(root, 'tools/checks', g + '.mjs')).href)).default({ open, ok, side, root, out, url, SAVE_KEY, get browser() { return getBrowser(); } })]); }
   catch (e) { const msg = String(e && e.message || e).split('\n')[0].slice(0, 200); ok(`${g}: *`, false, 'the group stopped: ' + msg); }
+  finally { clearTimeout(timer); }
   console.log(`-- ${g} took ${((Date.now() - t0) / 60000).toFixed(1)} min`);
 }
-if (browser) await (await browser).close();
+if (browser) await Promise.race([(await browser).close(), new Promise(r => setTimeout(r, 10000))]);
 server.close();
 const failed = results.filter(r => !r[1]).length;
 console.log(`\n${results.length - failed}/${results.length} passed`);

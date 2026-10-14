@@ -123,7 +123,9 @@ export interface LandmarkDef {
 }
 /** A road between two neighbouring stations, from near one's way out to near the other's, as [lat, lon] points in
  * order: what the rail replacement buses drive (and later trams and buses). note: where it came from. */
-export interface RoadGeoDef { from: string; to: string; via?: string; note?: string; points: [number, number][] }
+/** A road between two stations' stops; `under`: the stretches of its points, [first, last] index, that pass under the
+ * line (from OpenStreetMap's railway bridges, tools/osm-to-roads.mjs --under). */
+export interface RoadGeoDef { from: string; to: string; via?: string; note?: string; under?: number[][]; points: [number, number][] }
 export interface NetworkGeoDef {
   name?: string; note?: string; origin: LatLon;
   corridors: CorridorGeoDef[]; tracks: TrackDef[]; stations: StationGeoDef[];
@@ -152,7 +154,8 @@ export interface StationDef extends StationGeoDef { x: number; z: number; s?: nu
  * `stop`), index its place in the line's order. */
 export interface Station extends StationDef { index: number; s: number; at: number }
 /** A road in local metres: its points from the `from` station's end to the `to` station's, and its length. */
-export interface RoadDef { from: string; to: string; points: XZ[]; length: number }
+/** A road in the world: its points, whether each passes under the line (`under`, from the data's stretches), and its length. */
+export interface RoadDef { from: string; to: string; points: XZ[]; under: boolean[]; length: number }
 export interface NetworkDef extends Omit<NetworkGeoDef, 'corridors' | 'stations' | 'roads' | 'junctions'> { corridors: CorridorDef[]; stations: StationDef[]; roads?: RoadDef[]; junctions?: JunctionDef[] }
 /** A point on a corridor: position, heading, the unit direction (dx, dz) and the normal (nx, nz) offsets are measured along. */
 export interface Frame { x: number; z: number; heading: number; dx: number; dz: number; nx: number; nz: number }

@@ -27,6 +27,7 @@ const ROAD_W = 7;          // the road's width on the map
 const GRADE = 0.1;         // the steepest a road comes down off a station's pad
 const STEP = 4;            // metres between a road's heights
 const UNDER = 40;          // the longest way across the railway's land a road passes under an embankment (the terrain check's)
+const SKEW = 120;          // ...where its data marks it as passing under the line, a skewed underbridge (the terrain check's)
 const DEPOT_SPEED = 14;
 const RELAY_MS = 3000;     // the least time between laying the roads again as the ground comes in finer    // m/s an empty bus runs to and from the depot, quicker than in service
 
@@ -77,14 +78,15 @@ export function buildBusStop(gp: THREE.Group, p: BusStopPart, owner: object): vo
 
 /** A way on the map a bus drives: its points every STEP metres or less, the distance along it to each, and the road's
  * height there (the ground, or a ramp down off a station's pad). */
-export interface Path { pts: XZ[]; d: number[]; y: number[]; len: number }
+export interface Path { pts: XZ[]; d: number[]; y: number[]; len: number; under?: boolean[] }
 /** A way through points, its heights the ground's under it, except that off a station's pad standing above the ground
  * it comes down as a ramp no steeper than GRADE (into a cutting it still meets the wall: the ground there is higher). */
-export function pathThrough(raw: XZ[]): Path {
-  const pts: XZ[] = [raw[0]!];
+export function pathThrough(raw: XZ[], rawUnder: boolean[] = []): Path {
+  // (a point between two raw points that both pass under the line passes under it too)
+  const pts: XZ[] = [raw[0]!], under = [!!rawUnder[0]];
   for (let k = 1; k < raw.length; k++) {
     const [ax, az] = raw[k - 1]!, [bx, bz] = raw[k]!, n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / STEP));
-    for (let j = 1; j <= n; j++) pts.push([ax + (bx - ax) * j / n, az + (bz - az) * j / n]);
+    for (let j = 1; j <= n; j++) { pts.push([ax + (bx - ax) * j / n, az + (bz - az) * j / n]); under.push(!!rawUnder[k] && (j === n || !!rawUnder[k - 1])); }
   }
   // the railway's land (a pad) is level at 0; from it the road falls no faster than GRADE until it meets the ground
   const d = [0], ground = pts.map(([x, z]) => groundAt(x, z)), y = ground.map(g => g === 0 ? 0 : -Infinity);
@@ -94,18 +96,21 @@ export function pathThrough(raw: XZ[]): Path {
   for (let k = 0; k < y.length; k++) y[k] = Math.max(y[k]!, ground[k]!);
   // where it crosses the railway's land between the streets either side it's straight from the street's height on one
   // side to the other's: over a cutting on a bridge, never down into it, and under an embankment through it, never up
-  // over the tracks, where the way across is UNDER m or less (a stretch from a stop on a station's pad keeps its ramp)
+  // over the tracks, where the way across is UNDER m or less, or SKEW m where the road's data marks it as passing under
+  // the line (a skewed underbridge) (a stretch from a stop on a station's pad keeps its ramp)
   const rail = pts.map(([x, z]) => onRailway(x, z));
   for (let k = 1; k < pts.length - 1; k++) if (rail[k] && !rail[k - 1]) {
     let e = k; while (e < pts.length - 1 && rail[e]) e++;
     const a = y[k - 1]!, b = y[e]!, at = (j: number) => a + (b - a) * (d[j]! - d[k - 1]!) / (d[e]! - d[k - 1]!);
     let over = !rail[e]; for (let j = k; j < e && over; j++) if (at(j) < ground[j]!) over = false;
-    if (over || (!rail[e] && d[e]! - d[k - 1]! <= UNDER)) for (let j = k; j < e; j++) y[j] = at(j);
+    let marked = true; for (let j = k; j < e && marked; j++) if (!under[j]) marked = false;
+    const across = d[e]! - d[k - 1]!;
+    if (over || (!rail[e] && (across <= UNDER || (marked && across <= SKEW)))) for (let j = k; j < e; j++) y[j] = at(j);
     k = e;
   }
-  return { pts, d, y, len: d[d.length - 1]! };
+  return { pts, d, y, len: d[d.length - 1]!, under };
 }
-const reversed = (p: Path): Path => ({ pts: [...p.pts].reverse(), d: p.d.map(x => p.len - x).reverse(), y: [...p.y].reverse(), len: p.len });
+const reversed = (p: Path): Path => ({ pts: [...p.pts].reverse(), d: p.d.map(x => p.len - x).reverse(), y: [...p.y].reverse(), len: p.len, under: p.under && [...p.under].reverse() });
 /** A bus the sim has finished with, driving back to the depot from station `at` since sim time t. */
 interface Leaving { id: number; at: number; t: number }
 
@@ -155,7 +160,7 @@ export class BusLayer {
     // depot to the stop of the station nearest it
     const ways: Path[] = [];
     for (const r of net.def.roads ?? []) {
-      const a = net.station(r.from).index, b = net.station(r.to).index, p = this.path(a, b) ?? pathThrough(r.points);
+      const a = net.station(r.from).index, b = net.station(r.to).index, p = this.path(a, b) ?? pathThrough(r.points, r.under);
       ways.push(p);
     }
     for (const dp of this.depots) { const k = this.nearestStop(dp); const at = k >= 0 ? this.stop(k)?.at : null; if (at) ways.push(pathThrough([dp, at])); }
@@ -186,13 +191,14 @@ export class BusLayer {
       let dp = this.depots[0]!, k = this.nearestStop(dp);
       for (const d of this.depots) { const j = this.nearestStop(d); if (j >= 0 && Math.abs(byS(j) - byS(i)) < Math.abs(byS(k) - byS(i))) { dp = d; k = j; } }
       const order = S.map((_, j) => j).sort((a, b) => byS(a) - byS(b)), from = order.indexOf(k), to = order.indexOf(i), step = to >= from ? 1 : -1;
-      const pts: XZ[] = [dp];
+      const pts: XZ[] = [dp], under: boolean[] = [false];
       for (let o = from; ; o += step) {
-        const j = order[o]!, here = this.stop(j)?.at; if (here) pts.push(here);
+        const j = order[o]!, here = this.stop(j)?.at; if (here) { pts.push(here); under.push(false); }
         if (o === to) break;
-        const r = this.net.road(S[j]!.id, S[order[o + step]!]!.id); if (r) pts.push(...(r.reversed ? [...r.road.points].reverse() : r.road.points));
+        const r = this.net.road(S[j]!.id, S[order[o + step]!]!.id);
+        if (r) { pts.push(...(r.reversed ? [...r.road.points].reverse() : r.road.points)); under.push(...(r.reversed ? [...r.road.under].reverse() : r.road.under)); }
       }
-      way = pathThrough(pts);
+      way = pathThrough(pts, under);
     }
     this.toDepot.set(i, way); return way;
   }
@@ -212,7 +218,8 @@ export class BusLayer {
     const A = this.stop(a)?.at, Bt = this.stop(b)?.at, sa = this.net.stations[a], sb = this.net.stations[b];
     if (!A || !Bt || !sa || !sb) return null;
     const r = this.net.road(sa.id, sb.id), mid = r ? (r.reversed ? [...r.road.points].reverse() : r.road.points) : [];
-    const back = this.paths.get(`${b}>${a}`), p = back ? reversed(back) : pathThrough([A, ...mid, Bt]);
+    const midUnder = r ? (r.reversed ? [...r.road.under].reverse() : r.road.under) : [];
+    const back = this.paths.get(`${b}>${a}`), p = back ? reversed(back) : pathThrough([A, ...mid, Bt], [false, ...midUnder, false]);
     this.paths.set(key, p); return p;
   }
   /** Where along a path a share t of the way is, and which way it's heading. */

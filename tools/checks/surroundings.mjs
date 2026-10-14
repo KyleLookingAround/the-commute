@@ -140,7 +140,7 @@ export default async function ({ ok, root, kits: given }) {
   const stopAt = id => { const st = net.station(id), p = kits[st.kit].parts.find(q => q.type === 'busstop'), F = net.stationFrame(id); return p ? [F.x + F.dx * p.u + F.nx * p.v, F.z + F.dz * p.u + F.nz * p.v] : null; };
   for (const r of def.roads ?? []) {
     const A = stopAt(r.from), B = stopAt(r.to); if (!A || !B) continue;
-    const mid = r.points.map(([la, lo]) => { const p = projectLatLon(la, lo, def.origin); return [p.x, p.z]; }), path = pathThrough([A, ...mid, B]);
+    const mid = r.points.map(([la, lo]) => { const p = projectLatLon(la, lo, def.origin); return [p.x, p.z]; }), path = pathThrough([A, ...mid, B], [false, ...r.points.map((_, i) => (r.under ?? []).some(([a, b]) => i >= a && i <= b)), false]);
     // (the railway's land itself, drawn at rail level: a real street beside the line may run along its banks)
     const rail = path.pts.map(([x, z]) => t.railLand(x, z, 0) && t.groundY(x, z) === 0);
     let dip = 0, run = 0, longest = 0, where = '';

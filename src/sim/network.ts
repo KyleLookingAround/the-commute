@@ -512,7 +512,8 @@ export function fromGeo(def: NetworkGeoDef): Network {
   const roads = (def.roads ?? []).map(r => {
     const points = r.points.map(([lat, lon]): XZ => { const p = projectLatLon(lat, lon, origin); return [p.x, p.z]; });
     let length = 0; for (let i = 1; i < points.length; i++) length += Math.hypot(points[i]![0] - points[i - 1]![0], points[i]![1] - points[i - 1]![1]);
-    return { from: r.from, to: r.to, points, length };
+    const under = points.map((_, i) => (r.under ?? []).some(([a = 0, b = -1]) => i >= a && i <= b));
+    return { from: r.from, to: r.to, points, under, length };
   });
   return new Network({ ...def, corridors, stations, roads, junctions });
 }

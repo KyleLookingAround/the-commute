@@ -96,10 +96,10 @@ Underpasses: the buses' roads still cross the railway's land at rail level where
 
 ### Second session, 14 October 2026
 
-Two batches on `main` (b8e1913 and the commit after it): Stockport, Middlewood, Disley, Marple and Bredbury, the three from-memory roads, short underpasses, then Piccadilly (`docs/audits/station-surroundings.md` says what moved where). The check's `LATER` list is empty: every station passes. The before-and-after shots of Stockport and Piccadilly are in `station-surroundings/`.
+Batches on `main` from b8e1913 to the underpass flags: Stockport, Middlewood, Disley, Marple and Bredbury, the three from-memory roads, short underpasses, then Piccadilly (`docs/audits/station-surroundings.md` says what moved where). The check's `LATER` list is empty: every station passes. The before-and-after shots of Stockport and Piccadilly are in `station-surroundings/`.
 
 - **The check missed squares.** It read only the world's squares whose corner was within a square of a station, so it missed every street north of Stockport's middle; Station Road was painted all along. It now reads every square within 600 m.
 - **Closed ways aren't painted.** A street drawn as a closed way in OpenStreetMap (Stockport's Station Road loop) simplifies to its two ends in `tools/osm-to-world.mjs`, so it's left out of the world's streets. Draw it as a kit `road`, or fix the world tool (not this brief's file).
 - **Bus roads follow kit roads in.** Where a kit lays a station's approach as a `road`, the bus road's points are cut where the kit's road leaves the street and the kit's road's points follow to the stop (done by hand, as for the bridges; `tools/osm-to-roads.mjs --write` puts the 40 m resampling back).
-- **Underpasses.** `pathThrough` now runs a bus road straight under an embankment where the way across the railway's land is 40 m or less, the `terrain` check's limit (Budgets' file). The long skewed crossings still ride over; the audit's "Still to put right" names them.
+- **Underpasses.** `pathThrough` runs a bus road straight under an embankment where the way across the railway's land is 40 m or less, or 120 m where the road's `under` stretches mark it as passing under the line (`tools/osm-to-roads.mjs --under` reads OpenStreetMap's railway bridges; run it again after redrawing a road). Each bus way carries the flags as `under`, which the `terrain` check reads.
 - **The bot.** `PLAY` identical to `main`'s on seeds 1 to 3 throughout (49758878, 32fcf737, e0d9f18d).

@@ -13,6 +13,14 @@
 // (main roads count as shorter, so it keeps to the A6 as a bus would; no footways), and prints a road entry resampled
 // every N metres along the real streets. --write puts it into `roads` in place of the entry for the same two stations,
 // changing nothing else in the file, its `via` the streets it takes (or --via's).
+//
+//   node tools/osm-to-roads.mjs --under [--write]
+//
+// marks where every road in `roads` passes under the line: each place it crosses a railway OpenStreetMap has on a
+// bridge (railway=rail on bridge=* or layer >= 1, from the main API into data/raw/osm-tiles/rail_*.json), the road's
+// points within UNDER_REACH m of it either side, as its `under` stretches ([first, last] point index) that the page
+// lets pass under the railway's land (src/render/buses.ts). --write puts them on each entry's first line, nothing
+// else touched.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,11 +31,12 @@ const { fromGeo } = await import('../src/sim/network.ts');
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const opt = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : dflt; };
-const from = opt('--from'), to = opt('--to'), every = +opt('--every', 40), via = opt('--via'), write = args.includes('--write');
+const from = opt('--from'), to = opt('--to'), every = +opt('--every', 40), via = opt('--via'), write = args.includes('--write'), underOnly = args.includes('--under');
 const file = args.find((a, i) => !a.startsWith('--') && !args[i - 1]?.startsWith('--'));
-if (!from || !to) { console.error('usage: node tools/osm-to-roads.mjs --from <station id> --to <station id> [--every 40] [--write] [--via "..."] [osm.json]'); process.exit(1); }
+if (!underOnly && (!from || !to)) { console.error('usage: node tools/osm-to-roads.mjs --from <station id> --to <station id> [--every 40] [--write] [--via "..."] [osm.json]'); process.exit(1); }
 const netFile = join(root, 'src/data/network.json'), text = readFileSync(netFile, 'utf8'), def = JSON.parse(text), net = fromGeo(def);
 const origin = def.origin, kLat = 111320, kLon = 111320 * Math.cos(origin.lat * Math.PI / 180);
+if (underOnly) { await markUnder(); process.exit(0); }
 
 const dist = (a, b) => { const kx = 111320 * Math.cos(a.lat * Math.PI / 180), ky = 111320; return Math.hypot((a.lon - b.lon) * kx, (a.lat - b.lat) * ky); };
 /** A station's way out in lat/lon: its kit's bus stop at (u, v) in the station's frame, else the station's own point. */
@@ -123,3 +132,52 @@ if (old && at >= 0 && n) {
 writeFileSync(netFile, lines.join('\n'));
 JSON.parse(readFileSync(netFile, 'utf8'));
 console.log(`written into roads in ${netFile}`);
+
+// ---- where each road passes under the line ----
+async function markUnder() {
+  const UNDER_REACH = 60, T = 0.0125, dir = join(root, 'data/raw/osm-tiles'); mkdirSync(dir, { recursive: true });
+  const k = 111320, kx = 111320 * Math.cos(origin.lat * Math.PI / 180), xy = ([lat, lon]) => [(lon - origin.lon) * kx, (lat - origin.lat) * k];
+  const tiles = new Map();
+  /** The railway's bridges in a tile of the main API: each a list of [lat, lon]. */
+  const railIn = async (la, lo) => {
+    const box = [lo, la, lo + T, la + T].map(n => n.toFixed(4)), key = box.join('_'), f = join(dir, `rail_${key}.json`);
+    if (tiles.has(key)) return tiles.get(key);
+    if (!existsSync(f)) {
+      const res = await fetch(`https://api.openstreetmap.org/api/0.6/map.json?bbox=${box.join(',')}`);
+      if (!res.ok) throw new Error(`OSM's main API said ${res.status} for ${box.join(',')}`);
+      const all = (await res.json()).elements, nd = new Map(all.filter(e => e.type === 'node').map(e => [e.id, e]));
+      const ways = all.filter(e => e.type === 'way' && /^(rail|light_rail|narrow_gauge)$/.test(e.tags?.railway ?? '') && ((e.tags.bridge && e.tags.bridge !== 'no') || +(e.tags.layer ?? 0) >= 1));
+      writeFileSync(f, JSON.stringify(ways.map(w => w.nodes.map(n => nd.get(n)).filter(Boolean).map(n => [n.lat, n.lon]))));
+      console.error(`fetched ${box.join(',')}`);
+    }
+    const got = JSON.parse(readFileSync(f, 'utf8')); tiles.set(key, got); return got;
+  };
+  const cross = (a, b, c, d) => {
+    const r = [b[0] - a[0], b[1] - a[1]], q = [d[0] - c[0], d[1] - c[1]], den = r[0] * q[1] - r[1] * q[0]; if (!den) return null;
+    const t = ((c[0] - a[0]) * q[1] - (c[1] - a[1]) * q[0]) / den, u = ((c[0] - a[0]) * r[1] - (c[1] - a[1]) * r[0]) / den;
+    return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? t : null;
+  };
+  const lines = text.split('\n'), found = [];
+  for (const r of def.roads ?? []) {
+    const P = r.points.map(xy), d = [0]; for (let i = 1; i < P.length; i++) d.push(d[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+    const keys = new Set(r.points.flatMap(([la, lo]) => [-1, 0, 1].flatMap(di => [-1, 0, 1].map(dj => `${Math.floor(la / T) + di},${Math.floor(lo / T) + dj}`)))), bridges = [];
+    for (const key of keys) { const [i, j] = key.split(',').map(Number); bridges.push(...(await railIn(i * T, j * T)).map(w => w.map(xy))); }
+    // the distance along the road of every crossing with a railway on a bridge
+    const at = [];
+    for (let i = 1; i < P.length; i++) for (const w of bridges) for (let j = 1; j < w.length; j++) { const t = cross(P[i - 1], P[i], w[j - 1], w[j]); if (t !== null) at.push(d[i - 1] + t * (d[i] - d[i - 1])); }
+    // each crossing's stretch: from the last point UNDER_REACH m or more before it to the first as far after it
+    const runs = [];
+    for (const s of at.sort((a, b) => a - b)) {
+      let a = 0; while (a + 1 < P.length && d[a + 1] <= s - UNDER_REACH) a++;
+      let b = P.length - 1; while (b - 1 >= 0 && d[b - 1] >= s + UNDER_REACH) b--;
+      const last = runs.at(-1); if (last && a <= last[1]) last[1] = Math.max(last[1], b); else runs.push([a, b]);
+    }
+    found.push(`${r.from} -> ${r.to}: ${runs.length ? runs.map(([a, b]) => `${a}-${b}`).join(', ') : 'none'}`);
+    const li = lines.findIndex(l => l.includes(`"from": "${r.from}", "to": "${r.to}"`) && l.includes('"via"'));
+    if (li < 0) { console.error(`no line for ${r.from} -> ${r.to}`); continue; }
+    lines[li] = lines[li].replace(/, "under": \[[^\]]*(\][^\]]*)*?\]\]/, '').replace(/, "under": \[\]/, '');
+    if (runs.length) lines[li] = lines[li].replace(/("via": "(?:[^"\\]|\\.)*")/, `$1, "under": ${JSON.stringify(runs).replace(/,/g, ', ')}`);
+  }
+  console.log(found.join('\n'));
+  if (write) { writeFileSync(netFile, lines.join('\n')); JSON.parse(readFileSync(netFile, 'utf8')); console.log(`written into roads in ${netFile}`); }
+}

@@ -51,7 +51,7 @@ Now:
 - **Marple**: the stop stood on the forecourt from memory, 44 m from a street, and the car parks on the station's pad above the real ground. The station's road off Brabyns Brow round the car park to the booking office is now a kit `road`, the stop at its end, and the car parks stand on the real ground.
 - **Bredbury**: the second car park ran onto the building at the real car park's east end; it now stops short of it.
 - **The roads from memory** (Hazel Grove to Middlewood, Middlewood to Disley, Disley to New Mills Newtown) and the roads to the stops that moved (Stockport to Heaton Chapel and to Davenport, Romiley to Marple) are redrawn from OpenStreetMap; where a kit lays the station's approach, the road leaves the street where the kit's does and follows it to the stop. Middlewood to Disley is now 5.5 km (it was 3.9 from memory): back up Middlewood Road to the A6 at High Lane.
-- **Underpasses**: a bus road crossing the railway's land between streets lower than the land now runs straight through under the embankment where the way across is 40 m or less (the `terrain` check's limit), rather than up over the tracks at rail level. Today that's only a few short crossings round Brinnington and Bredbury; the longer ones (the A6 under the Buxton line at High Lane, 95 m across at a skew, and one by Levenshulme, 86 m) still ride over, as the terrain check allows a road under the ground on the railway's land only for 40 m.
+- **Underpasses**: a bus road crossing the railway's land between streets lower than the land now runs straight through under the embankment where the way across is 40 m or less (the `terrain` check's limit), rather than up over the tracks at rail level. Where OpenStreetMap has the railway on a bridge over the road, the road's points either side are marked as passing under the line (`tools/osm-to-roads.mjs --under`), and the way across may then be up to 120 m (a skewed underbridge, the `terrain` check's limit since 168a66a): the road by Levenshulme towards Ardwick, 86 m across, now passes under. (The 95 m run counted at High Lane was Middlewood's lane on the bank, off the railway's land since it follows the kit's road.)
 
 ### Piccadilly (14 October 2026)
 
@@ -63,5 +63,4 @@ The station stands on a deck over the real streets (the undercroft), so the kit'
 
 ## Still to put right
 
-1. **The long underpasses**: the A6 under the Buxton line at High Lane (95 m across the railway's land at a skew) and a road by Levenshulme (86 m) still cross the embankment at rail level; letting them through needs the `terrain` check to allow a longer run under the line where it's an embankment.
-2. **Piccadilly's pad** reaches over Fairfield Street, where the kit's Metrolink stop stands at platform level beside the station (the real one is in the undercroft at street level), so a bus road can't use Fairfield Street along the station.
+1. **Piccadilly's pad** reaches over Fairfield Street, where the kit's Metrolink stop stands at platform level beside the station (the real one is in the undercroft at street level), so a bus road can't use Fairfield Street along the station.

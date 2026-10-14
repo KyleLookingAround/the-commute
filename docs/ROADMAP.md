@@ -156,7 +156,7 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
    - Teach it to buy lifts and retail where they pay back within a game day or two.
    - Re-propose the baselines at 8 and 16 h, saying why.
    - `tools/bot.mjs` and `tools/baseline.json` only.
-25. **Show where the trouble comes from** (S, view only, ideas review 14 October 2026, second pass). When a station's trouble comes from another place, its card's what's-wrong line names that place as a chip that opens its card. For example, "Trains leave full · Stopper" leads to the stopper's card, which has the extra unit and longer trains. It's a fact about the network, not a recommended buy. It reads what Strain already works out.
+25. **Show where the trouble comes from** (S, view only, ideas review 14 October 2026, second pass; built 14 October 2026). When a station's trouble comes from another place, its card's what's-wrong line names that place as a chip that opens its card. For example, "Trains leave full · Stopper" leads to the stopper's card, which has the extra unit and longer trains. It's a fact about the network, not a recommended buy. It reads what Strain already works out.
 
 ## 6. Manchester city centre
 

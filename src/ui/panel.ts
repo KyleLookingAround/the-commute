@@ -96,6 +96,8 @@ export class UI {
   more = false;
   /** What's wrong now at a place, for the top of its card (Strain, src/ui/strain.ts, once it's read), or null. */
   wrong: ((id: string) => string | null) | null = null;
+  /** The places behind it, each a chip that opens its card (src/ui/cause.ts), or none. */
+  causes: ((id: string) => { text: string; place: string }[]) | null = null;
   /** The open card's stages, by id. */
   private stages = new Map<string, Stage>();
   constructor(sim: Sim, els: Els, on: Handlers, sheet: SheetLike) {
@@ -268,7 +270,8 @@ export class UI {
       else this.lineCard(id);
       this.nextTo(id);
     }
-    panel.insertAdjacentHTML('afterbegin', '<p class="wrong" id="wrong" hidden></p>');
+    panel.insertAdjacentHTML('afterbegin', '<p class="wrong" id="wrong" hidden></p><p class="causes" id="causes" hidden></p>');
+    panel.querySelector('#causes')?.addEventListener('click', e => { const b = (e.target as HTMLElement).closest<HTMLElement>('[data-cause]'); if (b?.dataset['cause']) this.show(b.dataset['cause'], false); });
     this.list();
     this.markPicked();
     this.updateStrip(); this.updatePanel();
@@ -448,6 +451,8 @@ export class UI {
     const set = (k: string, v: string) => { const el = panel.querySelector('#' + k); if (el && el.textContent !== v) el.textContent = v; };
     const p = id === NETWORK ? null : sim.P.get(id), w = this.wrong?.(id) ?? null, wl = panel.querySelector<HTMLElement>('#wrong');
     if (wl) { if (wl.hidden !== !w) wl.hidden = !w; if (w && wl.textContent !== w) wl.textContent = w; }
+    const cl = panel.querySelector<HTMLElement>('#causes'), cs = w && this.causes ? this.causes(id) : [], ck = cs.map(c => c.place + c.text).join('|');
+    if (cl && cl.dataset['k'] !== ck) { cl.dataset['k'] = ck; cl.hidden = !cs.length; cl.innerHTML = cs.map(c => `<button class="chip" data-cause="${c.place}">${c.text}</button>`).join(''); }
     if (p?.kind === 'station' && !g.owned[p.station!]) { const b = panel.querySelector<HTMLButtonElement>('#buyPlace'); if (b) b.disabled = !sim.canBuyStation(p.station!); return; }
     if (p?.kind === 'stop' && !sim.owns(id)) { const b = panel.querySelector<HTMLButtonElement>('#buyPlace'); if (b) b.disabled = !sim.canBuy(id); return; }
     if (p?.kind === 'station') {

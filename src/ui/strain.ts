@@ -136,6 +136,7 @@ export interface StrainPage {
 export function wireStrain(page: StrainPage): StrainRead {
   const read = new StrainRead(page.sim()), { ui, button, rig } = page;
   ui.wrong = id => read.line(id);
+  void import('./cause.ts').then(m => { ui.causes = id => m.causes(page.sim(), read, id); });
   setInterval(() => read.tick(page.sim()), 250);
   let layer: Promise<import('../render/strain.ts').StrainLayer> | null = null, on = false;
   const draw = () => import('../render/strain.ts').then(m => {

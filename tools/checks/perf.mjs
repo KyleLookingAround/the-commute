@@ -34,7 +34,7 @@ const BUDGET = {
   geometries: { open: 400, busy: 400, wide: 650 }, textures: 16, programs: { open: 40, busy: 40, wide: 60 },
   // MB fetched after the first frame at one view, uncompressed (set above what each fetched when it was added)
   view: { open: 0, buxton: 0, marple: 0 },
-  squares: 0,   // MB of world squares, every one fetched after the first frame (set above the total when it was added)
+  // MB of world squares, every one fetched after the first frame: the lines' world allowances added up (tools/lines.mjs)
 };
 const FRAMES = 6;   // frames to time on each page
 
@@ -101,8 +101,10 @@ export default async function ({ ok, open, root, url, SAVE_KEY, browser }) {
       return { tx: (Math.max(...xs) + Math.min(...xs)) / 2, ty: 2, tz: (Math.max(...zs) + Math.min(...zs)) / 2, r: Math.max(800, span * 0.8), th: 5.5, ph: 0.9 };
     };
     const assets = join(dist, 'assets'), world = new Set(all.length ? readdirSync(assets).filter(f => f.endsWith('.txt') && readFileSync(join(assets, f), 'utf8').startsWith('{')) : []);
+    const { allowance, linesOf } = await import('../lines.mjs');
+    BUDGET.squares = linesOf(net).reduce((n, l) => n + allowance(l, 'world'), 0) / 1048576;
     const squaresMB = [...world].reduce((n, f) => n + statSync(join(assets, f)).size, 0) / 1048576;
-    ok(`perf: every world square, fetched in the background after the first frame wherever the camera is, inside its budget (${squaresMB.toFixed(2)} of ${BUDGET.squares} MB, ${world.size} squares)`, squaresMB <= BUDGET.squares);
+    ok(`perf: every world square, fetched in the background after the first frame wherever the camera is, inside its budget (${squaresMB.toFixed(2)} of ${BUDGET.squares.toFixed(1)} MB, ${world.size} squares)`, squaresMB <= BUDGET.squares);
     const VIEWS = { open: null, buxton: frameOf(['middlewood', 'disley', 'new-mills-newtown']), marple: frameOf(['brinnington', 'bredbury', 'romiley', 'marple', 'rose-hill']) };
     for (const [tag, orbit] of Object.entries(VIEWS)) {
       const ctx = await (await browser).newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });

@@ -1,5 +1,5 @@
 // The terrain (src/render/terrain.ts) against the line, from the tiles on disk with every fine tile loaded, the
-// ground built as the page builds it (the base mesh, the strip coarse and fine). No browser.
+// ground built as the page builds it once the lines out's ring (out.json) is in (the base mesh, the strip coarse and fine). No browser.
 // - Clearance: no ground stands in a train's space: wherever a track runs on any line (off the viaduct), nothing drawn within a
 //   body's half width (and half a metre) of its centreline is higher than the underframe, and the ground there is 0.
 // - Platforms: no ground stands over any platform a kit draws (bought or not).
@@ -9,6 +9,8 @@
 //   at the foot of the wall under the east platform's building.
 // - Roads: the replacement buses' roads come down off a station's pad as a ramp no steeper than 1 in 10, and never
 //   run under the ground.
+// - The lines out's ring: the page fetches out.json after its first frame, never before it, and lays the ground it
+//   touches again, without an error.
 // - Size: what's committed of the terrain stays within its budget (3.4 MB, with the Crewe line and its Macclesfield leg).
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -23,7 +25,7 @@ const { viaductOf, bridgesOf } = await import('../../src/render/landmarks.ts');
 const HALF = 1.51 + 0.5, Y0 = 0.5;   // a body's half width as drawn (the geometry check's), and its underframe
 const BUDGET = 3.4 * 1024 * 1024;
 
-export default async function ({ ok, root }) {
+export default async function ({ ok, root, open }) {
   const def = JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')), net = fromGeo(def), c = net.spine;
   const kits = Object.fromEntries(net.stations.map(st => [st.kit, JSON.parse(readFileSync(join(root, 'src/data/kits', st.kit + '.json'), 'utf8'))]));
   const via = viaductOf(c, def), spans = via ? [[Math.min(via.from, via.to), Math.max(via.from, via.to)]] : [];
@@ -31,6 +33,7 @@ export default async function ({ ok, root }) {
   const fineDir = join(root, 'src/data/terrain/fine'), fine = readdirSync(fineDir);
   for (const f of fine) t.addFine(f.replace('.txt', ''), readFileSync(join(fineDir, f), 'utf8'));
   const layer = new TerrainLayer(t, { city: { x: 0, z: 0, r: 0 } }, {});
+  const out = JSON.parse(readFileSync(join(root, 'src/data/terrain/out.json'), 'utf8')); layer.layOut(out.near, true);
 
   // every track's centreline every half metre, in 10 m cells, for how far a point is from the nearest
   const cells = new Map(), key = (x, z) => `${Math.floor(x / 10)},${Math.floor(z / 10)}`;
@@ -80,7 +83,17 @@ export default async function ({ ok, root }) {
   }
   ok('terrain: no ground over a platform', !over.length, over.slice(0, 4).join(', '));
 
-  const size = statSync(join(root, 'src/data/terrain/base.json')).size + fine.reduce((n, f) => n + statSync(join(fineDir, f)).size, 0);
+  // the lines out's ring, on the page: fetched after the first frame, and the ground it touches laid again
+  {
+    const { ctx, page, errs } = await open({ width: 390, height: 844 });
+    const done = await page.waitForFunction(() => window.__view?.ground?.().outIn, null, { timeout: 120000 }).then(() => true, () => false);
+    const at = await page.evaluate(() => ({ first: window.__view.perf().first, fetched: performance.getEntriesByType('resource').filter(r => /\/out-[^/]*\.json$/.test(r.name)).map(r => r.startTime) }));
+    ok('terrain: the lines out\'s ring is fetched after the first frame and laid, without an error', done && at.fetched.length === 1 && at.first > 0 && at.fetched[0] >= at.first && !errs.length,
+      `${done ? 'laid' : 'never laid'}; first frame at ${at.first.toFixed(0)} ms, out.json fetched at ${at.fetched.map(x => x.toFixed(0)).join(', ') || 'never'} ms${errs.length ? '; ' + errs[0] : ''}`);
+    await ctx.close();
+  }
+
+  const size = statSync(join(root, 'src/data/terrain/base.json')).size + statSync(join(root, 'src/data/terrain/out.json')).size + fine.reduce((n, f) => n + statSync(join(fineDir, f)).size, 0);
   ok(`terrain: the tiles are within their budget (${(size / 1048576).toFixed(2)} of ${BUDGET / 1048576} MB)`, size <= BUDGET);
 
   // Levenshulme at street level: its forecourt (the cycle stands), taxi rank and bus stop stand on the street below the

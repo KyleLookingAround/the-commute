@@ -113,7 +113,9 @@ export class BusLayer {
   private readonly glass: THREE.InstancedMesh; private readonly boards: THREE.InstancedMesh; private readonly walkers: THREE.InstancedMesh;
   /** A bus's parts, which all move together (made once, so a frame makes no arrays). */
   private readonly parts: THREE.InstancedMesh[];
-  constructor(scene: THREE.Scene, private readonly net: Network, built: { live: object; group: THREE.Group }[]) {
+  /** The roads drawn (laid again once the lines out's ring is in: relay). */
+  private roads: THREE.Mesh | null = null; private roadMat: THREE.MeshLambertMaterial | undefined;
+  constructor(private readonly scene: THREE.Scene, private readonly net: Network, built: { live: object; group: THREE.Group }[]) {
     this.stops = built.map(b => stops.get(b.live) ?? null);
     const mk = (geo: THREE.BufferGeometry, mat: THREE.Material, n: number) => { const m = new THREE.InstancedMesh(geo, mat, n); m.count = 0; m.frustumCulled = false; scene.add(m); return m; };
     this.body = mk(BODY, lam(PAL.bus), MAX_BUSES); this.band = mk(BAND, lam(PAL['bus-band']), MAX_BUSES);
@@ -124,6 +126,16 @@ export class BusLayer {
     // the depots, from the network data's landmarks
     this.depots = (net.def.landmarks ?? []).filter(l => l.kind === 'depot' && l.lat !== undefined && l.lon !== undefined)
       .map(l => { const p = projectLatLon(l.lat!, l.lon!, net.def.origin); return [p.x, p.z] as XZ; });
+    this.lay();
+  }
+  /** Lay the ways and the roads again on the ground as it is now (once the lines out's ring is in). */
+  relay(): void {
+    this.paths.clear(); this.toDepot.clear();
+    if (this.roads) { this.scene.remove(this.roads); this.roads.geometry.dispose(); this.roads = null; }
+    this.lay();
+  }
+  private lay(): void {
+    const net = this.net;
     // the roads themselves, as ribbons a little above the ground or the ramp: each road from stop to stop, and from each
     // depot to the stop of the station nearest it
     const ways: Path[] = [];
@@ -140,7 +152,7 @@ export class BusLayer {
     }
     if (P.length) {
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.computeVertexNormals();
-      const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: PAL.road, side: THREE.DoubleSide })); m.receiveShadow = true; scene.add(m);
+      const m = new THREE.Mesh(g, this.roadMat ??= new THREE.MeshLambertMaterial({ color: PAL.road, side: THREE.DoubleSide })); m.receiveShadow = true; this.scene.add(m); this.roads = m;
     }
   }
   /** The station whose stop is nearest a point, or -1. */

@@ -1,14 +1,18 @@
 // Ground, towns, roads, permanent way and landmarks, all laid out along the network's corridors.
 import * as THREE from 'three';
 import { MAT, PAL } from './scene.ts';
-import { byCell } from './cells.ts';
+import { byCell, type Split } from './cells.ts';
 import { bridgesOf, buildLandmarks, onCourses, viaductOf } from './landmarks.ts';
-import { Terrain, TerrainLayer, fineFiles, kitFiles, setTerrain, worldFiles } from './terrain.ts';
+import { Terrain, TerrainLayer, fineFiles, kitFiles, outFile, setTerrain, worldFiles } from './terrain.ts';
 import type { BuildingsLayer } from './buildings.ts';
 import { SPINE, newFrame } from '../sim/network.ts';
 import type { Network } from '../sim/network.ts';
 import type { NetworkGeoDef } from '../sim/types.ts';
 
+/** Put instance i of a split layer back at m. */
+const setAt = (s: Split, i: number, m: THREE.Matrix4) => s.meshes[s.mesh[i]!]!.setMatrixAt(s.slot[i]!, m);
+/** A split layer's matrices changed: upload them, and fit each square's bounds again. */
+const settled = (s: Split) => { for (const m of s.meshes) { m.instanceMatrix.needsUpdate = true; m.computeBoundingSphere(); } };
 const seed = (a: number, b: number) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
 
 // Rotation about Y that maps local +x to the corridor direction (dx, dz) and local +z to the offset normal.
@@ -37,7 +41,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   // ---- the ground, from survey: the railway's land level with the line, the real lie of the land round it ----
   const terrain = new Terrain(net, kitFiles(), l => bridgesOf(l, def)); setTerrain(terrain);
   const end = c.at(c.length - 700);
-  const layer = new TerrainLayer(terrain, { city: { x: end.x, z: end.z, r: 1700 } }, fineFiles());
+  const layer = new TerrainLayer(terrain, { city: { x: end.x, z: end.z, r: 1700 } }, fineFiles(), outFile());
   scene.add(layer.group);
   const ground = layer.material;
   const groundY = (x: number, z: number): number => terrain.groundY(x, z);
@@ -60,21 +64,27 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   const unit = new THREE.BoxGeometry(1, 1, 1);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v3 = new THREE.Vector3(), sc = new THREE.Vector3();
   // a road along a line (the spine, or a line out) on the ground, each piece tilted to the slope; none down into the
-  // viaduct's valley, and a line out's stops short of the junction it runs into, where it would cross the other line
-  function ribbon(offset: number, width: number, height: number, y: number, mat: THREE.Material, c = net.spine): void {
+  // viaduct's valley, and a line out's stops short of the junction it runs into, where it would cross the other line.
+  // Gives a function that lays it again on the ground as it is now (a line out's, once its ring is in).
+  function ribbon(offset: number, width: number, height: number, y: number, mat: THREE.Material, c = net.spine): () => void {
     const segs: { s0: number; s1: number }[] = [];
-    for (let i = 0; i < c.pts.length - 1; i++) segs.push({ s0: c.cum[i]!, s1: c.cum[i + 1]! });
-    const inst = new THREE.InstancedMesh(unit, mat, segs.length); inst.count = 0;
-    for (const sg of segs) {
+    for (let i = 0; i < c.pts.length - 1; i++) {
+      const sg = { s0: c.cum[i]!, s1: c.cum[i + 1]! };
       if (c === net.spine && sg.s0 < edge) continue;
       if (c === net.spine && valley && sg.s1 > valley.s0 - 100 && sg.s0 < valley.s1 + 100) continue;
       if (c !== net.spine && sg.s1 > c.end - 600) continue;
+      segs.push(sg);
+    }
+    const piece = (sg: { s0: number; s1: number }) => {
       const a = c.at(sg.s0, offset), b = c.at(sg.s1, offset), mid = c.at((sg.s0 + sg.s1) / 2, offset);
       const ya = groundY(a.x, a.z), yb = groundY(b.x, b.z), len = Math.hypot(b.x - a.x, b.z - a.z);
       e.set(0, yawFor(mid), Math.atan2(yb - ya, len)); q.setFromEuler(e); v3.set(mid.x, (ya + yb) / 2 + y, mid.z); sc.set(Math.hypot(len, yb - ya) + 0.6, height, width);
-      m4.compose(v3, q, sc); inst.setMatrixAt(inst.count++, m4);
-    }
-    scene.add(byCell(inst).group);
+      return m4.compose(v3, q, sc);
+    };
+    const inst = new THREE.InstancedMesh(unit, mat, Math.max(1, segs.length)); inst.count = 0;
+    for (const sg of segs) inst.setMatrixAt(inst.count++, piece(sg));
+    const split = byCell(inst); scene.add(split.group);
+    return () => { segs.forEach((sg, i) => setAt(split, i, piece(sg))); settled(split); };
   }
   // a track's ballast and rails, short pieces so they follow it into a station's layout and across the crossovers
   const STEP = 20, nStep = Math.ceil(c.length / STEP);
@@ -96,7 +106,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   for (const t of net.tracks) { trackRibbon(t.id, 0, 3.4, 0.5, -0.25, MAT.ballast); for (const dx of [-0.72, 0.72]) trackRibbon(t.id, dx, 0.1, 0.16, 0.08, MAT.rail); }
   ribbon(-95, 12, 0.2, 0.1, MAT.road); ribbon(126, 12, 0.2, 0.1, MAT.road);
   // a road along each line out, on one side (the Marple line runs through suburbs most of the way)
-  for (const l of net.lines.slice(1)) ribbon(-95, 12, 0.2, 0.1, MAT.road, l);
+  const outRoads = net.lines.slice(1).map(l => ribbon(-95, 12, 0.2, 0.1, MAT.road, l));
 
   // ---- OHLE: a mast outside each outer track (open-ended: its foot is in the ground, its top under the arm) with an
   // arm reaching over it, and a wire over every track, along each
@@ -130,6 +140,13 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   // ---- houses: terraces through the suburbs, towers at the city end ----
   // each house's footprint (x, z, radius) in cells of HOUSE_CELL metres, so homes that grow keep off them
   const HOUSE_CELL = 60, houses = new Map<string, number[]>();
+  const outHouses: { i: number; x: number; z: number; yaw: number; w: number; d: number; h: number; rr: number }[] = [];
+  /** A house's matrix: on the ground's lowest corner, its walls running down into it. */
+  const house = (x: number, z: number, yaw: number, w: number, d: number, h: number, rr: number) => {
+    const ys = [groundY(x, z), groundY(x - rr, z - rr), groundY(x + rr, z - rr), groundY(x - rr, z + rr), groundY(x + rr, z + rr)], y0 = Math.min(...ys), rise = Math.max(...ys) - y0;
+    e.set(0, yaw, 0); q.setFromEuler(e); v3.set(x, (h + 1 + rise) / 2 + y0 - 0.5, z); sc.set(w, h + rise + 1, d);
+    return m4.compose(v3, q, sc);
+  };
   const cellKey = (x: number, z: number) => `${Math.floor(x / HOUSE_CELL)},${Math.floor(z / HOUSE_CELL)}`;
   (function towns() {
     const inst = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial({ color: PAL.house }), 5000);
@@ -185,14 +202,20 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
         if (onRoad(p.x, p.z, 6 + rr) || offLine(p.x, p.z, rr)) continue;
         const ys = [groundY(p.x, p.z), groundY(p.x - rr, p.z - rr), groundY(p.x + rr, p.z - rr), groundY(p.x - rr, p.z + rr), groundY(p.x + rr, p.z + rr)];
         const y0 = Math.min(...ys); if (Math.max(...ys) - y0 > 5) continue;
-        e.set(0, yawFor(p) + (seed(k, 11) - 0.5) * 0.3, 0); q.setFromEuler(e);
-        v3.set(p.x, (h + 1 + Math.max(...ys) - y0) / 2 + y0 - 0.5, p.z); sc.set(w, h + Math.max(...ys) - y0 + 1, d); m4.compose(v3, q, sc); inst.setMatrixAt(n, m4);
+        const yaw = yawFor(p) + (seed(k, 11) - 0.5) * 0.3;
+        inst.setMatrixAt(n, house(p.x, p.z, yaw, w, d, h, rr));
+        outHouses.push({ i: n, x: p.x, z: p.z, yaw, w, d, h, rr });
         { const k2 = cellKey(p.x, p.z), list = houses.get(k2) ?? []; list.push(p.x, p.z, Math.hypot(w, d) / 2); houses.set(k2, list); }
         col.setHSL(0.04 + seed(k, 9) * 0.06, PAL['house-sat'], PAL['house-light'] + seed(k, 10) * 0.15); inst.setColorAt(n, col);
         n++;
       }
     });
-    inst.count = n; scene.add(byCell(inst).group);
+    inst.count = n; const split = byCell(inst); scene.add(split.group);
+    // once the lines out's ring is in, theirs stand again on the ground as it is there now (the same houses)
+    void layer.outReady.then(() => {
+      for (const o of outHouses) setAt(split, o.i, house(o.x, o.z, o.yaw, o.w, o.d, o.h, o.rr));
+      settled(split); for (const f of outRoads) f();
+    });
   })();
 
   // ---- the landmarks: the viaduct, the river and the M60 under it, the Pyramid, the town, the city's skyline ----

@@ -128,6 +128,9 @@ const life = new StationLife(built, sim);
 const taxis = new TaxiLayer(built);
 const trains = new TrainLayer(scene, net, networkDef.services ?? []);
 const buses = new BusLayer(scene, net, built);
+// the lines out's ground comes in after the first frame: the buses' roads are laid on it again
+let outIn = false;
+void world.terrain.outReady.then(() => { buses.relay(); outIn = true; });
 const links = new LinkLayer(scene, built);
 // where the track runs beside each platform face, from the service that boards there that way (at Stockport the main
 // line northbound, the Hazel Grove line southbound), so passengers stand back from the right edge
@@ -159,6 +162,8 @@ const view = {
   buildings: () => world.buildings.layer.then(l => ({ ...l.stats, squares: l.squares.size })),
   loadBuildings: () => world.buildings.layer.then(l => l.loadAll()),
   access: () => ({ cars: built.map(b => b.live.parks.reduce((a, f) => a + f.mesh.count, 0)), buses: links.count }),
+  // the ground: whether the lines out's ring (fetched after the first frame) is in and laid
+  ground: () => ({ outIn }),
   trouble: () => ({ hazards: trains.hazards.count, cautions: trains.posts.count, buses: buses.count, spare: trains.spare.visible }),
   // life as drawn: suitcases and bikes beside the figures, figures drawn, and what the sound has started
   life: () => ({ cases: pax.layers.reduce((n, L) => n + L.cases.count, 0), bikes: pax.layers.reduce((n, L) => n + L.bikes.count, 0), figures: pax.layers.reduce((n, L) => n + L.im.count, 0), shadows: renderer.shadowMap.enabled, ratio: renderer.getPixelRatio(), heard: { ...sound.heard },

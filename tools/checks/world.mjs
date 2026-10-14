@@ -35,6 +35,7 @@ export default async function ({ ok, root }) {
   const t = new Terrain(net, kits, bridgesOf(c, def));
   const fineDir = join(root, 'src/data/terrain/fine');
   for (const f of readdirSync(fineDir)) t.addFine(f.replace('.txt', ''), readFileSync(join(fineDir, f), 'utf8'));
+  t.addOut(JSON.parse(readFileSync(join(root, 'src/data/terrain/out.json'), 'utf8')).near);
   const dir = join(root, 'src/data/world'), files = readdirSync(dir).filter(f => f.endsWith('.txt'));
 
   // every square reads, with sane pieces

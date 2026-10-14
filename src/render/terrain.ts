@@ -2,7 +2,8 @@
 // valley under the viaduct, the cuttings and the embankments. The railway is the datum: the tracks, stations and trains
 // stay at y = 0, and the ground is drawn at its real height less the rail's real level there, so it rises into cuttings
 // and falls away under embankments and the viaduct without moving a kit.
-// - Base tiles (src/data/terrain/base.json, every 64 m over the map, and every 32 m in blocks within 1.5 km of the line) come with the page; fine tiles (every 2 m within
+// - Base tiles (src/data/terrain/base.json, every 128 m over the map, and every 32 m in blocks within 1.5 km of the spine and 75 m of a
+//   line out) come with the page, and a line out's on to 800 m (out.json) just after the first frame; fine tiles (every 2 m within
 //   100 m of the line) are fetched as the camera comes near. A wider map (phase 8) adds tiles and levels the same way.
 // - The railway's land is flat at 0: every track with its cess, and each station's pad, the ground its kit's parts
 //   stand on. The tracks and kits are drawn at real scale, so the ground beside the land is read where it is, and its
@@ -58,8 +59,9 @@ export interface KitDef { parts: KitPart[] }
 
 export class Terrain {
   readonly net: Network;
-  private base = new Map<string, Tile>(); private near = new Map<string, Tile>(); private fine = new Map<string, Tile>();
-  private baseSize: number; private nearSize: number; private fineSize: number;
+  private base = new Map<string, Tile>(); private near = new Map<string, Tile>(); private out = new Map<string, Tile>(); private fine = new Map<string, Tile>();
+  private baseSize: number; private nearSize: number; private outSize: number; private fineSize: number;
+  private cell: number; private outBlock: number;
   readonly fineCell: number; readonly fineBand: number;
   private railDm: number[]; private railStep: number;
   private datum: { x0: number; z0: number; cell: number; w: number; h: number; v: Float32Array };
@@ -82,6 +84,9 @@ export class Terrain {
       const [i, j] = key.split(',').map(Number) as [number, number], n = data.block + 1;
       this.near.set(key, { x0: i * this.nearSize, z0: j * this.nearSize, cell: data.cell, n, v: decodeGrid(text, n, n) });
     }
+    // and within 75 m of a line out, smaller blocks every cell m (out to 800 m once addOut has them)
+    this.cell = data.cell; this.outBlock = data.outBlock; this.outSize = data.cell * data.outBlock;
+    this.addOut(data.outNear);
     for (const [key, text] of Object.entries(data.tiles)) {
       const n = this.baseSize / data.farCell + 1;
       const [i, j] = key.split(',').map(Number) as [number, number], t: Tile = { x0: i * this.baseSize, z0: j * this.baseSize, cell: data.farCell, n, v: decodeGrid(text, n, n) };
@@ -228,6 +233,7 @@ export class Terrain {
   private baseAt(x: number, z: number): number {
     const cx = Math.max(this.bounds.x0, Math.min(this.bounds.x1 - 0.01, x)), cz = Math.max(this.bounds.z0, Math.min(this.bounds.z1 - 0.01, z));
     const n = sample(this.near, this.nearSize, cx, cz); if (n === n) return n;
+    const o = sample(this.out, this.outSize, cx, cz); if (o === o) return o;
     const v = sample(this.base, this.baseSize, cx, cz);
     return v === v ? v : this.rail(0);
   }
@@ -279,6 +285,21 @@ export class Terrain {
     if (this.bridged(s, L)) return this.beside(L, s, o);
     const out = o > hi ? o - hi : lo - o, g = this.beside(L, s, o);
     return shape(g, out, o > hi ? pHi : pLo, this.beside(L, s, o > hi ? hi + 2.5 : lo - 2.5));
+  }
+  /** Add a line out's blocks (src/data/terrain/out.json's `near`, fetched after the first frame): their keys. */
+  addOut(blocks: Record<string, string>): Set<string> {
+    const n = this.outBlock + 1, S = this.outSize;
+    for (const [key, text] of Object.entries(blocks)) {
+      const [i, j] = key.split(',').map(Number) as [number, number];
+      this.out.set(key, { x0: i * S, z0: j * S, cell: this.cell, n, v: decodeGrid(text, n, n) });
+    }
+    return new Set(Object.keys(blocks));
+  }
+  /** Whether a box has any of the blocks `keys` names in it. */
+  outIn(x0: number, z0: number, x1: number, z1: number, keys: Set<string>): boolean {
+    const S = this.outSize;
+    for (let i = Math.floor(x0 / S); i <= Math.floor(x1 / S); i++) for (let j = Math.floor(z0 / S); j <= Math.floor(z1 / S); j++) if (keys.has(`${i},${j}`)) return true;
+    return false;
   }
   // ---- the fine tiles ----
   /** The fine tiles a circle touches that exist and aren't loaded yet. */
@@ -378,9 +399,15 @@ export class TerrainLayer {
   /** The base mesh's chunks: they take shadows but cast none (the page sets every mesh casting at start; the first frame unsets these). */
   private baseMeshes: THREE.Mesh[] = [];
   /** Each base chunk's full and far geometry, and its middle. */
-  private baseLods: { mesh: THREE.Mesh; full: THREE.BufferGeometry; far: THREE.BufferGeometry; x: number; z: number }[] = [];
-  constructor(readonly t: Terrain, private bands: Bands, files: Record<string, string> = {}) {
+  private baseLods: BaseLod[] = [];
+  /** The ground laid again once the lines out's ring is in (out.json), a little each look: the base mesh's chunks and
+   * the strip's it touches. */
+  private relay: (() => void)[] = []; private relaid: () => void = () => {};
+  /** Resolves once the lines out's ring is in and the ground it touches laid again (at once without one to fetch). */
+  readonly outReady: Promise<void>;
+  constructor(readonly t: Terrain, private bands: Bands, files: Record<string, string> = {}, outUrl = '') {
     this.files = files;
+    this.outReady = outUrl ? new Promise(r => { this.relaid = r; }) : Promise.resolve();
     this.material = new THREE.MeshLambertMaterial({ vertexColors: true });
     this.buildBase();
     for (const g of t.lines) for (let s0 = g.c.start; s0 < g.c.end - 1; s0 += CHUNK) {
@@ -392,12 +419,17 @@ export class TerrainLayer {
     // a sentinel drawn every frame (it's empty) that keeps the strip's detail and tiles following the camera
     const tick = new THREE.Mesh(new THREE.BufferGeometry(), this.material); tick.frustumCulled = false;
     tick.onBeforeRender = (_r, _s, cam) => { if (cam instanceof THREE.PerspectiveCamera) this.follow(cam.position); };
-    tick.onAfterRender = () => { for (const m of this.baseMeshes) m.castShadow = false; tick.onAfterRender = () => {}; };
+    // after the first frame: the base mesh casts no shadows, and the lines out's ring is fetched
+    tick.onAfterRender = () => {
+      for (const m of this.baseMeshes) m.castShadow = false; tick.onAfterRender = () => {};
+      if (outUrl) setTimeout(() => void fetch(outUrl).then(r => r.ok ? r.json() as Promise<{ near: Record<string, string> }> : { near: {} }).catch(() => ({ near: {} })).then(d => this.layOut(d.near)), 0);
+    };
     this.group.add(tick);
   }
   /** Fine chunks near the camera, coarse ones further off; fetch the fine tiles the near ones need. Throttled. */
   follow(at: THREE.Vector3): void {
     const now = performance.now(); if (now - this.last < 250) return; this.last = now;   // cosmetic: when to look again
+    if (this.relay.length) { while (this.relay.length && performance.now() - now < 12) this.relay.shift()!(); if (!this.relay.length) this.relaid(); }
     let built = 0;
     for (const ch of this.chunks) {
       const d = Math.hypot(at.x - ch.mid.x, at.z - ch.mid.z) - CHUNK / 2, near = d < NEAR && at.y < 2500;
@@ -413,12 +445,30 @@ export class TerrainLayer {
       if (b.mesh.geometry !== g) b.mesh.geometry = g;
     }
   }
+  /** The lines out's ring (out.json's blocks) is in: lay again the base mesh's chunks and the strip's chunks it
+   * touches, a few each look (all at once with `now`, for the checks). */
+  layOut(blocks: Record<string, string>, now = false): void {
+    const keys = this.t.addOut(blocks), t = this.t;
+    for (const b of this.baseLods) if (t.outIn(...b.box, keys)) this.relay.push(() => {
+      const lod = this.baseChunk(b.ci, b.cj, b.nx, b.nz), on = b.mesh.geometry === b.full;
+      b.full.dispose(); b.far.dispose(); Object.assign(b, lod); b.mesh.geometry = on ? b.full : b.far;
+    });
+    const reach = CHUNK / 2 + STRIP + 120;
+    for (const ch of this.chunks) if (t.outIn(ch.mid.x - reach, ch.mid.z - reach, ch.mid.x + reach, ch.mid.z + reach, keys)) this.relay.push(() => {
+      const old = ch.coarse; ch.coarse = this.strip(ch.g, ch.s0, ch.s1, ROW_COARSE, OUT_COARSE);
+      if (ch.mesh.geometry === old) ch.mesh.geometry = ch.coarse;
+      old.dispose(); ch.dirty = true;
+    });
+    this.last = -1;
+    if (now || !this.relay.length) { for (const f of this.relay.splice(0)) f(); this.relaid(); }
+  }
   /** Every chunk of the strip as it's drawn fine, built now (for the checks). */
   fineStrips(): THREE.BufferGeometry[] { return this.chunks.map(ch => this.strip(ch.g, ch.s0, ch.s1, ROW_FINE, OUT_FINE)); }
   /** Load every fine tile now (for the checks and a screenshot that wants the detail at once). */
   async loadAll(): Promise<void> { await Promise.all(Object.keys(this.files).map(k => this.get(k))); for (const ch of this.chunks) ch.dirty = true; this.last = -1; }
   /** Load the fine tiles a circle touches (for what stands on the ground there: the buildings wait for them). */
   async ensure(x: number, z: number, r: number): Promise<void> {
+    await this.outReady;
     const keys = this.t.fineWanted(x, z, r, k => k in this.files); if (!keys.length) return;
     await Promise.all(keys.map(k => this.get(k)));
     for (const ch of this.chunks) if (Math.hypot(x - ch.mid.x, z - ch.mid.z) < r + CHUNK) ch.dirty = true;
@@ -519,10 +569,17 @@ export class TerrainLayer {
   /** The base mesh over the whole map, in chunks: sunk well under the strip near the line, and easing to the far
    * ground's level at the map's edge. */
   private buildBase(): void {
-    const t = this.t, b = t.bounds, G = BASE_GRID, k = new THREE.Color();
-    const nx = Math.floor((b.x1 - b.x0) / G), nz = Math.floor((b.z1 - b.z0) / G), fr = { ...FRAME };
-    const EASE = 1200;
+    const b = this.t.bounds, nx = Math.floor((b.x1 - b.x0) / BASE_GRID), nz = Math.floor((b.z1 - b.z0) / BASE_GRID);
     for (let ci = 0; ci < nx; ci += BASE_CHUNK) for (let cj = 0; cj < nz; cj += BASE_CHUNK) {
+      const lod = this.baseChunk(ci, cj, nx, nz), m = new THREE.Mesh(lod.full, this.material); m.receiveShadow = true; this.group.add(m); this.baseMeshes.push(m);
+      this.baseLods.push({ mesh: m, ...lod });
+    }
+  }
+  /** One chunk of the base mesh, from (ci, cj) in cells of BASE_GRID: its full and far geometry, its middle and its box. */
+  private baseChunk(ci: number, cj: number, nx: number, nz: number): Omit<BaseLod, 'mesh'> {
+    const t = this.t, b = t.bounds, G = BASE_GRID, k = new THREE.Color();
+    const EASE = 1200;
+    {
       const w = Math.min(BASE_CHUNK, nx - ci) + 1, h = Math.min(BASE_CHUNK, nz - cj) + 1;
       const pos = new Float32Array(w * h * 3), col = new Float32Array(w * h * 3);
       // is this chunk anywhere near the line? (most aren't, and needn't ask the corridor for each vertex)
@@ -551,7 +608,6 @@ export class TerrainLayer {
       // slopes from the normals: the steep ones are banks
       const nrm = g.getAttribute('normal');
       for (let v = 0; v < w * h; v++) if (nrm.getY(v) < 0.85 && col[v * 3]! !== this.col.yard.r) { col[v * 3] = this.col.bank.r; col[v * 3 + 1] = this.col.bank.g; col[v * 3 + 2] = this.col.bank.b; }
-      const m = new THREE.Mesh(g, this.material); m.receiveShadow = true; this.group.add(m); this.baseMeshes.push(m);
       // the far one: the same vertices, every BASE_STEP-th row and column (and the last), so it costs no more memory
       const rows = (n: number) => { const o: number[] = []; for (let q = 0; q < n - 1; q += BASE_STEP) o.push(q); o.push(n - 1); return o; };
       const ri = rows(w), rj = rows(h), fidx: number[] = [];
@@ -562,10 +618,12 @@ export class TerrainLayer {
       const far = new THREE.BufferGeometry();
       for (const name of ['position', 'color', 'normal']) far.setAttribute(name, g.getAttribute(name));
       far.setIndex(fidx); far.boundingSphere = g.boundingSphere;
-      this.baseLods.push({ mesh: m, full: g, far, x: cx, z: cz });
+      return { full: g, far, x: cx, z: cz, ci, cj, nx, nz, box: [b.x0 + ci * G, b.z0 + cj * G, b.x0 + (ci + w - 1) * G, b.z0 + (cj + h - 1) * G] };
     }
   }
 }
+/** A chunk of the base mesh: its mesh, full and far geometry, middle, where it starts in cells (of how many), and its box. */
+interface BaseLod { mesh: THREE.Mesh; full: THREE.BufferGeometry; far: THREE.BufferGeometry; x: number; z: number; ci: number; cj: number; nx: number; nz: number; box: [number, number, number, number] }
 
 // ---- the page's terrain: one, for everything that stands on the ground ----
 let current: Terrain | null = null;
@@ -578,6 +636,13 @@ export function fineFiles(): Record<string, string> {
     const found = import.meta.glob('../data/terrain/fine/*.txt', { query: '?url', import: 'default', eager: true });
     return Object.fromEntries(Object.entries(found).map(([path, url]) => [path.replace(/^.*\//, '').replace('.txt', ''), url]));
   } catch { return {}; }
+}
+/** The lines out's ring's URL as the build emits it (src/data/terrain/out.json); none outside a build. */
+export function outFile(): string {
+  try {
+    const found = import.meta.glob('../data/terrain/out.json', { query: '?url', import: 'default', eager: true });
+    return Object.values(found)[0] ?? '';
+  } catch { return ''; }
 }
 /** The world tiles' URLs as the build emits them, by square (i_j); none outside a build (the checks read them from disk). */
 export function worldFiles(): Record<string, string> {

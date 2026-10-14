@@ -66,3 +66,16 @@ The session pushes each part to `main` once its checks pass, then confirms that 
 
 - Estimate: about $40. That covers two legs, two junctions, five kits (one big), the census, a service, ground and surroundings, and the balance.
 - At about 500k of context, stop at the end of a part and add a "## Handed on" section here.
+
+## Handed on
+
+14 October 2026, from the sixth pick-up session, stopping after part 1 at about 440k of context, as the cost budget says.
+
+- **Part 1, the corridors and ground, done** (c2561bf; its commit message has the detail). `crewe` runs from about 530 m beyond Wilmslow to Edgeley Junction, and `macclesfield` from about 650 m beyond Poynton to Cheadle Hulme North Junction. (The commit message says 270 m and 600 m; these are the right figures.) Wilmslow South Junction is named for the Styal line. Both lines are wired. The sections for the Crewe line are in the data; the Macclesfield leg gets its sections when it has a station (run `node tools/osm-to-sections.mjs --write` again then). `PLAY` is unchanged. Confirm c2561bf's Publish run first, if this session hasn't.
+- **Next: part 2, the stations.** Notes for it:
+  - **Cheadle Hulme** has four platforms: 1 and 2 on the Crewe line, 3 and 4 on the Macclesfield line. The junction is north of the station, but the station sits on the `crewe` corridor. A Macclesfield train can't call there as the graph stands. Either draw 3 and 4 as scenery and have the Macclesfield trains pass (the option that changes the game less), or move the junction south of the station as a game choice. Say which in the commit.
+  - **OpenStreetMap's platforms** (cached in `data/raw/crewe/`, git-ignored; fetch again if gone): Wilmslow 1 to 4 at about 53.3269, -2.2260; Handforth 1 and 2; Bramhall 1 and 2; Poynton 1 and 2. The station nodes for Poynton and Bramhall sit off the track, which throws `osm-to-network.mjs --via`.
+- **Edgeley Junction:** the Crewe line comes in at about 35 degrees to the line to Piccadilly's start. Its track towards Manchester meets the down slow exactly, but the up slow's end is drawn about 6 m along from the Crewe line's track towards Crewe. The service part decides which main lines the Crewe trains use. If that's the slow lines, a short re-lay of the junction (or a corridor point nearer the main line's heading) would close the gap. The expresses still enter at the main line's start, not up the Crewe line, as the option that changes the game less.
+- **The script before the first frame is 447 of 450 KB.** The bundled terrain grew with the new lines. To fit, I cut a line out's 32 m ground ring to 75 m (it was 800 m; the spine keeps 1.5 km), in `tools/lidar-to-terrain.mjs`. Before adding stations, move the lines out's near ring out of the bundle and fetch it after the first frame, as the fine tiles are, then put the ring back to 800 m. Kits and network data added in the bundle will otherwise go over.
+- **Budgets now:** opening 442,343 of 450,000 triangles; busy save 521,792 of 550,000 (up 9.6k with the new lines' trees, masts and signals); terrain tiles 3.17 of 3.4 MB (the check's budget was raised from 2.6).
+- **Not looked at on screen:** the new lines' ground and the Edgeley join were checked only by the terrain, geometry and layout checks, not by eye.

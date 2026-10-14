@@ -5,7 +5,7 @@ description: Cut a The Commute release - claim the version, write What's new and
 
 # Release
 
-**The first release ends the prototype phase.** In its PR: remove "Phase: prototype" from the project notes, make the Publish workflow check before it deploys (swap the job order in `.github/workflows/deploy.yml`; the comment marks it), and ask the owner to add the ruleset from `START-HERE.md`. From then on everything ships as a PR.
+**The first release ends the prototype phase.** In its PR: remove "Phase: prototype" from the project notes, make the Publish workflow check before it deploys (bring the checks from `.github/workflows/main-check.yml` back into `.github/workflows/deploy.yml` with `build` needing them; the comments mark it), and ask the owner to add the ruleset from `START-HERE.md`. From then on everything ships as a PR.
 
 `main` publishes to GitHub Pages on every merge that can change the page, so a release is about the record: what changed for players, and saves that keep old versions tested. The first release sets up what later ones use: `docs/HISTORY.md` (a table, newest version on top), a What's new list the page shows, `tools/saves/` and a `migrate` check group. Write those into this playbook as you add them.
 
@@ -19,4 +19,4 @@ Saves, before the first release: a migration that throws mustn't be autosaved ov
 2. **What's new.** From the merged PRs since the last release, write one entry at the top of the page's What's new list (the version, a short title and two to four points players will see) and one row at the top of `docs/HISTORY.md`. Leave out code-only changes. The title names what's new in the game, not the release.
 3. **Save fixtures.** If anything changed `SAVE_VERSION` since the last release: run the bot on seed 1 and copy its save to `tools/saves/v<version>.json`, add its hash to the `migrate` check (never change an existing line), and run `npm run check`. Every save, old and new, must load and play. From the first release on, every version gets a migration step (`docs/decisions/ADR-2026-10-08-no-save-compatibility-before-release.md`).
 4. **Roadmap.** Move the shipped items to Done in `docs/ROADMAP.md`.
-5. **Ship** it as a PR (the `steward` playbook), then confirm the Publish run finished green.
+5. **Ship** it as a PR (the `steward` playbook), then confirm the Publish and Check main runs finished green.

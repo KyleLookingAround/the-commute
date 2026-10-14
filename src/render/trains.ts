@@ -103,10 +103,11 @@ export function engineering(seed: number, t: number): { at: number; dir: 1 | -1 
 }
 /** Where the spare unit stands: in Stockport's carriage sidings, in the kit's (u, v); and the unit a contract's perk
  * stables there from the start, on the next siding. */
-const SPARE_AT: [number, number] = [78, -33], STABLED_AT: [number, number] = [78, -38.3];
+const SPARE_AT: [number, number] = [78, -34.6], STABLED_AT: [number, number] = [78, -39.2];
 /** The sidings' other roads (the kit's v), where units that finished at Stockport stand overnight, centred on u = 0
- * (the roads beside the spare's and the perk's unit's). */
-const SIDINGS = [-43.3, -49, -53.9, -59.3, -65];
+ * (the roads beyond the spare's and the perk's unit's, then the two nearer the station). Each is one of the kit's
+ * `rails` with a buffer (src/data/kits/stockport.json): at real scale since 13 October 2026, so they're on its rails. */
+const SIDINGS = [-43.1, -47.4, -52, -30.6, -26.4];
 
 /** A rescue the spare unit is out on, or coming back from: the failure's from and until (sim seconds), where the
  * spare's middle starts (in the sidings) and ends (buffered up to the failed unit), the line it runs out along and the

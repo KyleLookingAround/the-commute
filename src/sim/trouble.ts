@@ -38,7 +38,7 @@ function start(sim: Sim, T: Tuning): void {
   if (h < T.troubleDayFrom || h >= T.troubleDayTo) { tb.next = later(g.t, after(sim, T) / 2); return; }
   // nor where it would still be going in a peak's busiest hour, so bad luck stays a hiccup, not a wrecked morning
   if (T.troubleCalm.some(([a, b]) => h >= a && h < b)) { tb.next = g.t + 120; return; }
-  if (sim.rand() < T.failShare) {
+  if (sim.rand() < T.failShare * (sim.maintained() ? T.maintFails : 1)) {
     // the expresses aren't the player's to rescue
     const ok = g.trains.filter(tr => !sim.svc(tr.svc).express && stationsEither(sim, tr, T.failMargin));
     if (!ok.length) { tb.next = g.t + 120; return; }

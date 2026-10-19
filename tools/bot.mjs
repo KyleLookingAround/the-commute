@@ -156,6 +156,10 @@ export function act(sim) {
     if (!sim.owns(p.id)) { const price = sim.price(p.id); if (price !== undefined && sim.canBuy(p.id) && g.owned[sim.net.station('heaton-chapel').index] && g.cash > price + 10000 && sim.buy(p.id)) return 'bus:' + p.id.slice(4); continue; }
     for (const st of ['every', 'lanes']) { const price = sim.price(p.id, st); if (price !== undefined && g.cash > 3 * price + saving && sim.buy(p.id, st)) return st + ':' + p.id.slice(4); }
   }
+  // the fleet: newer units on each service with three times their price, the maintenance shed once two units have failed
+  // with twice its (the next station saved for)
+  for (const p of P.all) if (p.kind === 'route' && sim.owns(p.id)) { const price = sim.price(p.id, 'stock'); if (price !== undefined && g.cash > 3 * price + saving && sim.buy(p.id, 'stock')) return 'stock:' + p.svc; }
+  if (P.sidings && g.trouble.fails >= 2) { const price = sim.price(P.sidings, 'maint'); if (price !== undefined && g.cash > 2 * price + saving && sim.buy(P.sidings, 'maint')) return 'maint'; }
   // the Bee Network a step at a time, with three times its price (and the next station saved for)
   { const price = sim.price(P.bee, 'bee'); if (price !== undefined && sim.canBuy(P.bee, 'bee') && g.cash > 3 * price + saving && sim.buy(P.bee, 'bee')) return 'bee'; }
   // a bus stop's feeder route, a step at a time, with four times its price (and the next station saved for)

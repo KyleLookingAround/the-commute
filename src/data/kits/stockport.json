@@ -42,6 +42,7 @@
     { "type": "rails", "points": [[-380, -4.9], [-280, -8.9], [100, -8.9], [140, -4.9]], "scenery": true },
     { "type": "rails", "points": [[-200, -8.9], [-483.7, -52]], "scenery": true },
     { "type": "rails", "points": [[120, -26.4], [-315.3, -26.4]], "buffer": true, "scenery": true },
+    { "type": "shed", "u0": -300, "u1": -210, "v": -32.6, "radius": 6.5, "upgrade": "maint", "note": "The maintenance shed (the fleet, step 5): a game piece over two of the carriage sidings, placed by eye" },
     { "type": "rails", "points": [[120, -30.6], [-343.2, -30.6]], "buffer": true, "scenery": true },
     { "type": "rails", "points": [[115, -34.6], [-369.5, -34.6]], "buffer": true, "scenery": true },
     { "type": "rails", "points": [[110, -39.2], [-399.5, -39.2]], "buffer": true, "scenery": true },

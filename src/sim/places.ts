@@ -20,7 +20,7 @@ export interface Upgrade { id: UpgradeId; name: string | null; price: number; de
 /** A stage bought more than once, on a route or a depot: its price each time, up to max. */
 export interface LineUpgrade { id: LineUpgradeId; name: string; prices: number[]; desc: string; max: number; steps?: { name: string; desc: string }[] }
 /** A stage of a route: the line's (units, cars), or a branch's own through running. */
-export type RouteStage = Omit<LineUpgrade, 'id'> & { id: LineUpgradeId | 'through' | 'feeder' | 'bee' | 'every' | 'lanes' };
+export type RouteStage = Omit<LineUpgrade, 'id'> & { id: LineUpgradeId | 'through' | 'feeder' | 'bee' | 'every' | 'lanes' | 'stock' | 'maint' };
 /** A service's frequency as a stage of its route: its data's steps (ServiceDef.frequency), one level each. */
 export function frequencyStage(def: ServiceDef): LineUpgrade | null {
   const f = def.frequency; if (!f?.steps.length) return null;
@@ -89,6 +89,10 @@ export const BEE: RouteStage = { id: 'bee', name: 'The Bee Network', prices: [30
 export const BUS_EVERY: RouteStage = { id: 'every', name: 'More buses', prices: [15000, 40000], desc: 'It comes more often: more take it', max: 2,
   steps: [{ name: 'Every six minutes', desc: 'More buses on the route: more take it' }, { name: 'Every four minutes', desc: 'A bus every few minutes: more again take it' }] };
 export const BUS_LANES: RouteStage = { id: 'lanes', name: 'Bus lanes', prices: [60000], desc: 'Lanes of its own past the queues: quicker, so more take it', max: 1 };
+/** The fleet (step 5): a train service's newer units (a fifth more seats a car, quicker away: NEW_SEATS, NEW_ACCEL in
+ * src/sim/sim.ts), and the sidings' maintenance shed (half as many units failing: MAINT_FAILS). */
+export const NEW_STOCK: RouteStage = { id: 'stock', name: 'Newer units', prices: [50000], desc: 'New trains on the service: a fifth more seats a car, and quicker away', max: 1 };
+export const MAINT: RouteStage = { id: 'maint', name: 'Maintenance shed', prices: [40000], desc: 'A shed over two of the sidings: half as many units fail', max: 1 };
 /** Which kind of place each of those stages is on. */
 export const LINE_PLACE: Record<Exclude<LineUpgradeId, 'timetable'>, 'route' | 'depot'> = { units: 'route', cars: 'route', spare: 'depot' };
 
@@ -263,9 +267,9 @@ export class Places {
       const def = net.def.services?.find(v => v.id === p.svc), f = def && frequencyStage(def);
       const own = id === this.stopper ? LINE_UPGRADES.filter(u => LINE_PLACE[u.id as keyof typeof LINE_PLACE] === 'route') : [];
       const m = def?.manchester, through: RouteStage[] = m ? [{ id: 'through', name: m.name, prices: [m.price], desc: m.desc, max: 1 }] : [];
-      return [...(f ? [f, ...own.filter(u => u.id !== 'units')] : own), ...through];
+      return [...(f ? [f, ...own.filter(u => u.id !== 'units')] : own), ...through, NEW_STOCK];
     }
-    if (id === this.sidings) return LINE_UPGRADES.filter(u => LINE_PLACE[u.id as keyof typeof LINE_PLACE] === 'depot');
+    if (id === this.sidings) return [...LINE_UPGRADES.filter(u => LINE_PLACE[u.id as keyof typeof LINE_PLACE] === 'depot'), MAINT];
     if (p.kind === 'stop' && p.stop?.feeder) return [FEEDER];
     if (p.kind === 'network') return [BEE];
     if (p.kind === 'bus') return [BUS_EVERY, BUS_LANES];
@@ -296,6 +300,8 @@ export function derive(g: GameState, P: Places): GameState {
     // the Bee Network's look at every station owned (step 22): its tap-in posts, then its yellow
     const bee = g.places[P.bee]?.['bee'] ?? 0; if (r && bee >= 1) o.bee1 = true; if (r && bee >= 2) o.bee2 = true;
     const s = P.stopOf[i]; if (s && s in g.places) o.bus = true;
+    // the sidings' maintenance shed, drawn in its station's kit
+    if (P.sidings && P.byId.get(P.sidings)?.station === i && (g.places[P.sidings]?.['maint'] ?? 0) > 0) o.maint = true;
     return Object.freeze(o);
   }));
   const R = g.places[P.stopper] ?? {}, D = (P.sidings ? g.places[P.sidings] : undefined) ?? {};

@@ -82,9 +82,9 @@ test('places: a stop is offered once its station is owned, and is the station\'s
 
 test('places: stages are on the places they belong to: the stopper\'s units, the sidings\' spare unit', () => {
   const sim = fresh(), P = sim.P;
-  assert.deepEqual(P.stagesFor(net, 'route:stopper').map(u => u.id), ['units', 'cars']);
-  assert.deepEqual(P.stagesFor(net, 'depot:stockport-sidings').map(u => u.id), ['spare']);
-  assert.deepEqual(P.stagesFor(net, 'route:hazel-grove').map(u => u.id), ['units', 'through'], 'every service its frequency, the Hazel Grove line its through running');
+  assert.deepEqual(P.stagesFor(net, 'route:stopper').map(u => u.id), ['units', 'cars', 'stock']);
+  assert.deepEqual(P.stagesFor(net, 'depot:stockport-sidings').map(u => u.id), ['spare', 'maint']);
+  assert.deepEqual(P.stagesFor(net, 'route:hazel-grove').map(u => u.id), ['units', 'through', 'stock'], 'every service its frequency, the Hazel Grove line its through running, and newer units');
   assert.ok(P.stagesFor(net, st('stockport')).every(u => u.id !== 'bus' && u.id !== 'spare'));
   assert.ok(!sim.buy('route:stopper', 'units'), 'waits on platform 3, as before');
   sim.grant(st('stockport'), 'crossing'); sim.grant(st('stockport'), 'platform2');

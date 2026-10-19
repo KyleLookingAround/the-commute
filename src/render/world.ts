@@ -69,7 +69,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   const unit = new THREE.BoxGeometry(1, 1, 1);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v3 = new THREE.Vector3(), sc = new THREE.Vector3();
   // a road along a line (the spine, or a line out) on the ground, each piece tilted to the slope (a stand-in where no
-  // real main road runs within 160 m); none down into the viaduct's valley, and a line out's stops short of the junction it runs into, where it would cross the other line.
+  // real main road runs within 160 m and no world square is in); none down into the viaduct's valley, and a line out's stops short of the junction it runs into, where it would cross the other line.
   // Gives a function that lays it again on the ground as it is now (a line out's, once its ring is in).
   const mainCourses = (def as MainDef).mainRoads?.map(r => mainCourse(def as MainDef, r.id)!) ?? [];
   const nearMain = (x: number, z: number) => mainCourses.some(pts => pts.some(([px, pz]) => Math.abs(px - x) < 160 && Math.abs(pz - z) < 160 && Math.hypot(px - x, pz - z) < 160));
@@ -80,8 +80,9 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       if (c === net.spine && sg.s0 < edge) continue;
       if (c === net.spine && valley && sg.s1 > valley.s0 - 100 && sg.s0 < valley.s1 + 100) continue;
       if (c !== net.spine && sg.s1 > c.end - 600) continue;
-      // the real main roads replace it where one runs near (src/render/mainroads.ts)
-      const m = c.at((sg.s0 + sg.s1) / 2, offset); if (nearMain(m.x, m.z)) continue;
+      // the real main roads replace it where one runs near (src/render/mainroads.ts), and the real streets painted on
+      // the ground wherever a world square is in (left as it was, it ran in pieces beside the line over the fields)
+      const m = c.at((sg.s0 + sg.s1) / 2, offset); if (nearMain(m.x, m.z) || squares.has(`${Math.floor(m.x / 1000)}_${Math.floor(m.z / 1000)}`)) continue;
       segs.push(sg);
     }
     const piece = (sg: { s0: number; s1: number }) => {
@@ -90,7 +91,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       e.set(0, yawFor(mid), Math.atan2(yb - ya, len)); q.setFromEuler(e); v3.set(mid.x, (ya + yb) / 2 + y, mid.z); sc.set(Math.hypot(len, yb - ya) + 0.6, height, width);
       return m4.compose(v3, q, sc);
     };
-    const inst = new THREE.InstancedMesh(unit, mat, Math.max(1, segs.length)); inst.count = 0;
+    const inst = new THREE.InstancedMesh(unit, mat, Math.max(1, segs.length)); inst.count = 0; inst.name = 'line';
     for (const sg of segs) inst.setMatrixAt(inst.count++, piece(sg));
     const split = byCell(inst); scene.add(split.group);
     return () => { segs.forEach((sg, i) => setAt(split, i, piece(sg))); settled(split); };
@@ -101,7 +102,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   function trackRibbon(trackId: string, lateral: number, width: number, height: number, y: number, mat: THREE.Material): void {
     // only where the track is: the main lines begin south of Stockport, the Hazel Grove line ends in its platform 1
     const [e0, e1] = net.extent(trackId), i0 = Math.floor(e0 / STEP), i1 = Math.ceil(e1 / STEP);
-    const inst = new THREE.InstancedMesh(unit, mat, Math.max(1, i1 - i0)); inst.count = 0;
+    const inst = new THREE.InstancedMesh(unit, mat, Math.max(1, i1 - i0)); inst.count = 0; inst.name = 'tracks';
     for (let i = i0; i < i1; i++) {
       const s0 = Math.max(e0, i * STEP), s1 = Math.min(e1, (i + 1) * STEP); if (s1 <= s0) continue;
       net.trackAt(trackId, s0, pa); net.trackAt(trackId, s1, pb);
@@ -110,7 +111,8 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
       e.set(0, Math.atan2(-(bz - az), bx - ax), 0); q.setFromEuler(e); v3.set((ax + bx) / 2, y, (az + bz) / 2); sc.set(len + 0.3, height, width);
       m4.compose(v3, q, sc); inst.setMatrixAt(inst.count++, m4);
     }
-    scene.add(byCell(inst).group);
+    // a rail or the ballast's shadow is centimetres long: none, so the shadow map isn't drawn every sleeper's length again
+    const split = byCell(inst); for (const m of split.meshes) m.userData['noShadow'] = true; scene.add(split.group);
   }
   for (const t of net.tracks) { trackRibbon(t.id, 0, 3.4, 0.5, -0.25, MAT.ballast); for (const dx of [-0.72, 0.72]) trackRibbon(t.id, dx, 0.1, 0.16, 0.08, MAT.rail); }
   const roads = [ribbon(-95, 12, 0.2, 0.1, MAT.road), ribbon(126, 12, 0.2, 0.1, MAT.road)];
@@ -134,7 +136,7 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
         const pa2 = net.place(l.id, s, off + inward * 3); v3.set(pa2.x, 6.8, pa2.z); m4.compose(v3, q, sc); arms.setMatrixAt(k, m4); k++;
       }
     }
-    poles.count = arms.count = k; scene.add(byCell(poles).group, byCell(arms).group);
+    poles.count = arms.count = k; poles.name = arms.name = 'masts'; scene.add(byCell(poles).group, byCell(arms).group);
     for (const t of net.tracks) {
       const [e0, e1] = net.extent(t.id);
       for (let s = t.corridor === hg?.corridor ? Math.max(e0, edge) : e0; s < e1; s += STEP) { if (!net.wired(t.corridor, s)) continue; net.trackAt(t.id, s, pa); net.trackAt(t.id, Math.min(e1, s + STEP), pb); wire.push(pa.x, 5.4, pa.z, pb.x, 5.4, pb.z); }
@@ -225,12 +227,12 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
     void layer.outReady.then(() => {
       for (const o of placed) setAt(split, o.i, house(o.x, o.z, o.yaw, o.w, o.d, o.h, o.rr));
       settled(split); for (const f of roads) f();
-      buildLandmarks(scene, net, def, groundY, buildings.real, 'out');
+      { const n0 = scene.children.length; buildLandmarks(scene, net, def, groundY, buildings.real, 'out'); named(scene, n0, 'landmarks'); }
     });
   })();
 
   // ---- the landmarks: the viaduct, the river and the M60 under it, the Pyramid, the town, the city's skyline ----
-  buildLandmarks(scene, net, def, groundY, buildings.real);
+  { const n0 = scene.children.length; buildLandmarks(scene, net, def, groundY, buildings.real); named(scene, n0, 'landmarks'); }
 
   const roadSegs = [...(net.def.roads ?? []), ...mainWays(net.def as unknown as MainDef).map(w => ({ points: w.pts }))].flatMap(r => r.points.slice(1).map((b, i) => [r.points[i]!, b] as const));
   const onCourse = onCourses(def);
@@ -263,4 +265,5 @@ export function buildWorld(scene: THREE.Scene, net: Network, def: NetworkGeoDef)
   };
   return { groundY, yawFor, ground, buildable, terrain: layer, buildings, more };
 }
-
+/** Name what was added to the scene since it held n0 children, where it has no name of its own (the perf log's layers). */
+function named(scene: THREE.Scene, n0: number, name: string): void { for (const o of scene.children.slice(n0)) if (!o.name) o.name = name; }

@@ -22,9 +22,11 @@ const GRADE = 0.1;        // the steepest it dips to it
 const RELAY_MS = 3000;    // the least time between laying the roads again as the ground comes in finer
 const RELAY = 1500;       // m from where the camera looks that they're laid again (the fine ground comes in round it)
 const SLICE = 4;          // ms a frame spends laying them
+const BEND = 0.05;        // m the ground may bend under a straight stretch before it's split (less than LIFT: none shows through)
 const PAINT = 0.03;       // m the lines are painted above the carriageway
 // the white lines: a plain material (no texture, so no shader program of its own), the car parks' bay-line white
-const LINES = new THREE.MeshLambertMaterial({ color: PAL['bay-line'] });
+// (drawn nearer the camera than the road under them in depth, as the road is nearer than the ground: no flicker far off)
+const LINES = new THREE.MeshLambertMaterial({ color: PAL['bay-line'], polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 });
 
 /** A carriageway's way: on a bridge, straight from one end's ground to the other's (never below the ground under it);
  * anywhere else the buses' rule (src/render/buses.ts): on the ground, through the railway's land where it passes under
@@ -50,13 +52,13 @@ export function wayPath(w: MainWay): Path {
   }
   return thin(p, w.pts);
 }
-/** A path thinned to the points where its line turns (the data's own points) or its height bends by more than 0.12 m. */
+/** A path thinned to the points where its line turns (the data's own points) or its height bends by more than BEND m. */
 function thin(p: Path, corners: XZ[]): Path {
   const at = new Set(corners.map(([x, z]) => x.toFixed(2) + ',' + z.toFixed(2)));
   const corner = (k: number) => at.has(p.pts[k]![0].toFixed(2) + ',' + p.pts[k]![1].toFixed(2)), n = p.pts.length, keep = [0];
   for (let a = 0, c = 2; c < n; c++) {
     let fine = !corner(c - 1);
-    for (let k = a + 1; k < c && fine; k++) { const t = (p.d[k]! - p.d[a]!) / ((p.d[c]! - p.d[a]!) || 1); if (Math.abs(p.y[a]! + (p.y[c]! - p.y[a]!) * t - p.y[k]!) > 0.12) fine = false; }
+    for (let k = a + 1; k < c && fine; k++) { const t = (p.d[k]! - p.d[a]!) / ((p.d[c]! - p.d[a]!) || 1); if (Math.abs(p.y[a]! + (p.y[c]! - p.y[a]!) * t - p.y[k]!) > BEND) fine = false; }
     if (!fine) { a = c - 1; keep.push(a); }
   }
   if (n > 1) keep.push(n - 1);
@@ -114,8 +116,9 @@ export class MainRoadLayer {
         const a = k > 0 ? norm(cx - px, cz - pz) : null, b = k < n - 1 ? norm(qx - cx, qz - cz) : null;
         let nx = -((a?.[1] ?? 0) + (b?.[1] ?? 0)), nz = (a?.[0] ?? 0) + (b?.[0] ?? 0);
         const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
-        const s = a && b ? Math.min(2, 1 / Math.max(0.5, nx * -a[1] + nz * a[0])) : 1, y = path.y[k]! + LIFT;
-        P.push(cx + nx * half * s, y, cz + nz * half * s, cx - nx * half * s, y, cz - nz * half * s);
+        const s = a && b ? Math.min(2, 1 / Math.max(0.5, nx * -a[1] + nz * a[0])) : 1;
+        const lx = cx + nx * half * s, lz = cz + nz * half * s, rx = cx - nx * half * s, rz = cz - nz * half * s;
+        P.push(lx, edgeY(path, k, lx, lz, way) + LIFT, lz, rx, edgeY(path, k, rx, rz, way) + LIFT, rz);
         if (k) { const i = base + (k - 1) * 2; idx.push(i, i + 2, i + 1, i + 1, i + 2, i + 3); }
       }
       if (way.def.bridge) decks.push(deck(path, way.width));
@@ -166,6 +169,15 @@ const OPEN_BOX = (() => {
   for (const gi of [2, 4, 5]) { const g = b.groups[gi]!; for (let k = g.start; k < g.start + g.count; k++) keep.push(idx.getX(k)); }
   b.setIndex(keep); b.clearGroups(); return b;
 })();
+/** The height of a point across a carriageway from point k of its path: where the road lies on the ground, the ground
+ * there (a road across a slope leans with it, so its uphill side isn't buried), as far above or below it as the middle
+ * is; on a deck, a ramp or a dip under the line, the middle's. */
+function edgeY(path: Path, k: number, x: number, z: number, way: MainWay): number {
+  const [cx, cz] = path.pts[k]!, y = path.y[k]!;
+  if (way.def.bridge) return y;
+  const g = groundAt(cx, cz);
+  return Math.abs(y - g) < 0.3 ? groundAt(x, z) + (y - g) : y;
+}
 /** A carriageway's white lines into `out` (triangles, wound to face up): solid along each edge of its lanes, dashed
  * between them, down a two-way road's middle the same. A motorway's hard shoulder is on the left of its traffic (the
  * way's own direction: a motorway's carriageways are each one way), its lanes 3.3 m in from that edge. */
@@ -186,24 +198,22 @@ function lines(path: Path, way: MainWay, out: number[]): void {
   // the lines across the lanes: [offset, dash, gap] (a gap of 0 is solid)
   const across: [number, number, number][] = [[left, 1, 0], [left + lanes * LANE, 1, 0]];
   for (let i = 1; i < lanes; i++) across.push([left + i * LANE, motorway ? 2 : way.def.oneway ? 3 : 4, motorway ? 7 : way.def.oneway ? 9 : 5]);
-  // a quad from distance s0 to s1 along segment k (k to k + 1) at offset o
-  const quad = (k: number, s0: number, s1: number, o: number) => {
-    const d0 = path.d[k]!, len = (path.d[k + 1]! - d0) || 1, at = (s: number, side: number): number[] => {
-      const t = (s - d0) / len, [ax, az] = path.pts[k]!, [bx, bz] = path.pts[k + 1]!, off = o + side * w / 2;
-      return [ax + nx[k]! * off + (bx + nx[k + 1]! * off - ax - nx[k]! * off) * t,
-        path.y[k]! + (path.y[k + 1]! - path.y[k]!) * t + LIFT + PAINT,
-        az + nz[k]! * off + (bz + nz[k + 1]! * off - az - nz[k]! * off) * t];
-    };
-    const a = at(s0, -1), b = at(s0, 1), c = at(s1, 1), d = at(s1, -1);
-    // wound as the carriageway's triangles are, so they face up
-    out.push(...a, ...b, ...c, ...a, ...c, ...d);
-  };
   for (const [o, dash, gap] of across) {
+    // each point's two sides of the line, with their heights (each read once)
+    const side = (off: number) => path.pts.map(([x, z], k) => { const px = x + nx[k]! * off, pz = z + nz[k]! * off; return [px, edgeY(path, k, px, pz, way) + LIFT + PAINT, pz] as const; });
+    const A = side(o - w / 2), B = side(o + w / 2);
+    // a quad from distance s0 to s1 along segment k (k to k + 1), wound as the carriageway's triangles are, so it faces up
+    const quad = (k: number, s0: number, s1: number) => {
+      const d0 = path.d[k]!, len = (path.d[k + 1]! - d0) || 1, t0 = (s0 - d0) / len, t1 = (s1 - d0) / len;
+      const at = (S: (readonly [number, number, number])[], t: number) => { const p = S[k]!, q = S[k + 1]!; return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t]; };
+      const a = at(A, t0), b = at(B, t0), c = at(B, t1), d = at(A, t1);
+      out.push(...a, ...b, ...c, ...a, ...c, ...d);
+    };
     for (let k = 0; k < n - 1; k++) {
       const d0 = path.d[k]!, d1 = path.d[k + 1]!;
-      if (!gap) { quad(k, d0, d1, o); continue; }
+      if (!gap) { quad(k, d0, d1); continue; }
       const p = dash + gap;
-      for (let s = Math.floor(d0 / p) * p; s < d1; s += p) { const a = Math.max(s, d0), b = Math.min(s + dash, d1); if (b > a) quad(k, a, b, o); }
+      for (let s = Math.floor(d0 / p) * p; s < d1; s += p) { const a = Math.max(s, d0), b = Math.min(s + dash, d1); if (b > a) quad(k, a, b); }
     }
   }
 }

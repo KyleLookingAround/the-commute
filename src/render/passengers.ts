@@ -176,7 +176,7 @@ export class PassengerLayer {
       const im = new THREE.InstancedMesh(geo, MAT.paxCoat, max), heads = new THREE.InstancedMesh(head, MAT.paxHead, max);
       const cases = new THREE.InstancedMesh(caseGeo, caseMat, max / 4), bikes = new THREE.InstancedMesh(bikeGeo, bikeMat, max / 4);
       const brollies = new THREE.InstancedMesh(brollyGeo, brollyMat, max / 2);
-      im.count = heads.count = cases.count = bikes.count = brollies.count = 0; im.castShadow = true; cases.frustumCulled = bikes.frustumCulled = brollies.frustumCulled = false; for (const m of [im, heads, cases, bikes, brollies]) b.group.add(m);
+      im.count = heads.count = cases.count = bikes.count = brollies.count = 0; im.castShadow = true; im.frustumCulled = heads.frustumCulled = cases.frustumCulled = bikes.frustumCulled = brollies.frustumCulled = false; for (const m of [im, heads, cases, bikes, brollies]) b.group.add(m);
       const f = b.kit.faces;
       // the coin turns over the station's name (placed each frame by placeCoin)
       const cm = new THREE.Mesh(coin, coinMat); cm.visible = false; b.group.add(cm);

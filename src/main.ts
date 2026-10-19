@@ -4,7 +4,7 @@ import networkJson from './data/network.json';
 import { SPINE, fromGeo, newFrame } from './sim/network.ts';
 import { Sim, TUNING } from './sim/sim.ts';
 import type { NetworkGeoDef } from './sim/types.ts';
-import { createScene } from './render/scene.ts';
+import { createScene, snapShadow } from './render/scene.ts';
 import { groundAt } from './render/terrain.ts';
 import { buildWorld } from './render/world.ts';
 import { kits, loadOutKits } from './render/kits.ts';
@@ -564,7 +564,7 @@ function frame(now: number): void {
   // the light follows the season: a long summer day, an early winter dusk
   const light = lighting(solarHour(lockHour ?? sim.hour(), yearAt(sim.g.t)), rig.o);
   sky.update(light.horizon, light.daylight, camera, dt);
-  weather.update(sim.g, sky, sun, scene.fog instanceof THREE.Fog ? scene.fog : null, rig.o, dt, dtGame);
+  weather.update(sim.g, sky, sun, scene.fog instanceof THREE.Fog ? scene.fog : null, rig.o, dt, dtGame); snapShadow(sun);
   pax.setRain(0.8 * weather.look.rain + 0.3 * weather.look.snow); sound.setWeather(weather.look.rain, weather.look.snow);
   sound.update(sim, rig.o, light.daylight, stationsXZ, trains.meshes, realDt); pax.setDaylight(light.daylight);
   // the rise takes about a second however slow the frames, so it gets the frame's real time

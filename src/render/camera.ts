@@ -23,6 +23,7 @@ const R_MIN = 12, R_MAX = 24000, PH_MIN = 0.1, PH_MAX = 1.5;
 const FIT_X = 90, FIT_Y = 40;   // pixels kept clear round each point fitAll holds: half a name's width, and its height
 /** How far from the line the camera may look: a few hundred metres close in, more when zoomed out to see the line. */
 const nearLimit = (r: number) => Math.max(300, r * 0.35);
+const NEAR_PER = 0.015, NEAR_MAX = 200;  // the near plane: this much of the camera's distance, 1 m to NEAR_MAX m
 const KEY_PAN: Record<string, [number, number]> = { ArrowUp: [0, 1], KeyW: [0, 1], ArrowDown: [0, -1], KeyS: [0, -1], ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0] };
 const KEYS = new Set([...Object.keys(KEY_PAN), 'KeyQ', 'KeyE', 'Equal', 'NumpadAdd', 'Minus', 'NumpadSubtract']);
 /** A control that keeps the keys for itself while it has focus. */
@@ -268,6 +269,9 @@ export class OrbitRig {
     this.clampAim();
     if (!this.tween) this.clampLine();
     this.place();
+    // the near plane moves out with the camera: the depth buffer's precision goes as near over distance squared, and at 1 m
+    // a road 0.12 m over the ground flickered through it from a kilometre or two away
+    this.camera.near = Math.min(NEAR_MAX, Math.max(1, o.r * NEAR_PER));
     this.camera.far = Math.max(3000, o.r * 3.5); this.offset(); this.camera.updateProjectionMatrix();
     const fog = this.scene.fog; if (fog instanceof THREE.Fog) { fog.near = Math.max(200, o.r * 0.9); fog.far = Math.max(1600, o.r * 3.4); }
   }

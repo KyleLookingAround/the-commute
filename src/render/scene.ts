@@ -11,7 +11,7 @@ export const MAT = {
   brick: lam(PAL.brick), brickDark: lam(PAL['brick-dark']), concrete: lam(PAL.concrete), platform: lam(PAL.platform), tactile: lam(PAL.tactile),
   ballast: lam(PAL.ballast), rail: lam(PAL.rail), canopy: lam(PAL.canopy, { transparent: true, opacity: 0.6 }), steel: lam(PAL.steel),
   glass: lam(PAL.glass, { transparent: true, opacity: 0.75, emissive: PAL['glass-glow'] }), roof: lam(PAL.roof), timber: lam(PAL.timber),
-  road: lam(PAL.road), park: lam(PAL['link-park']), shed: lam(PAL.shed, { transparent: true, opacity: 0.55, side: THREE.DoubleSide }),
+  road: lam(PAL.road, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }), park: lam(PAL['link-park']), shed: lam(PAL.shed, { transparent: true, opacity: 0.55, side: THREE.DoubleSide }),
   glow: new THREE.MeshBasicMaterial({ color: PAL.lamp }), warm: new THREE.MeshBasicMaterial({ color: PAL.warm }),
   locked: lam(PAL.locked, { transparent: true, opacity: 0.55 }), pax: lam(PAL.pax, { emissive: PAL['pax-glow'] }), paxHead: lam(PAL['pax-head']),
   paxCoat: lam(new THREE.Color(0xffffff)),   // white: each figure's coat colour comes from its instance
@@ -53,6 +53,7 @@ export function createScene(canvas: HTMLCanvasElement): SceneParts {
   sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.6;
   Object.assign(sun.shadow.camera, { left: -320, right: 320, top: 320, bottom: -320, near: 1, far: 2400 });
   const SUN_LOW = new THREE.Color(0xffb070), SUN_HIGH = new THREE.Color(0xfff6e6), sunDir = new THREE.Vector3();
+  const SUN_STEP = Math.PI / 720;
 
   const tmp = new THREE.Color(), tmpWhite = new THREE.Color(0xffffff), light: Light = { horizon: tmp, daylight: 0 };
   function lighting(hour: number, focus: Focus): Light {
@@ -66,7 +67,8 @@ export function createScene(canvas: HTMLCanvasElement): SceneParts {
     sun.color.copy(SUN_LOW).lerp(SUN_HIGH, Math.min(1, el * 1.5));   // orange near the horizon, white overhead
     // the sun's arc: up in the east (+x) at six, through the south (+z) at noon, down in the west at six; it keeps
     // a little height after dark so the lamps' side of things still has a key light
-    const a = Math.max(0, Math.min(Math.PI, (hour - 6) / 12 * Math.PI));
+    // (the sun moves on in steps of SUN_STEP, not every frame, so the shadows don't crawl as the day goes on)
+    const a = Math.round(Math.max(0, Math.min(Math.PI, (hour - 6) / 12 * Math.PI)) / SUN_STEP) * SUN_STEP;
     sunDir.set(Math.cos(a), 0.08 + Math.sin(a) * 0.8, Math.sin(a) * 0.55).normalize();
     sun.position.set(focus.tx, focus.ty, focus.tz).addScaledVector(sunDir, 900);
     sun.target.position.set(focus.tx, focus.ty, focus.tz);
@@ -99,4 +101,17 @@ export function box(parent: THREE.Object3D, w: number, h: number, d: number, mat
 // Box from extents in a local (u, y, v) frame: u -> x, v -> z
 export function boxUV(parent: THREE.Object3D, p: Extents, mat: THREE.Material): THREE.Mesh {
   return box(parent, p.u1 - p.u0, p.y1 - p.y0, p.v1 - p.v0, mat, (p.u0 + p.u1) / 2, (p.y0 + p.y1) / 2, (p.v0 + p.v1) / 2);
+}
+
+const UP = new THREE.Vector3(0, 1, 0), lx = new THREE.Vector3(), ly = new THREE.Vector3(), lz = new THREE.Vector3(), at = new THREE.Vector3();
+/** Move the sun's shadow box to a whole shadow texel, along its own axes, once the sun is placed for the frame (by the
+ * clock and the weather): it follows the camera, and moved by a fraction of a texel every shadow edge shimmered. */
+export function snapShadow(sun: THREE.DirectionalLight): void {
+  lz.subVectors(sun.position, sun.target.position); const far = lz.length(); if (!far) return; lz.divideScalar(far);
+  lx.crossVectors(UP, lz).normalize(); ly.crossVectors(lz, lx);
+  const cam = sun.shadow.camera, texel = (cam.right - cam.left) / sun.shadow.mapSize.x;
+  at.copy(sun.target.position);
+  const px = at.dot(lx), py = at.dot(ly);
+  at.addScaledVector(lx, Math.round(px / texel) * texel - px).addScaledVector(ly, Math.round(py / texel) * texel - py);
+  sun.target.position.copy(at); sun.position.copy(at).addScaledVector(lz, far);
 }

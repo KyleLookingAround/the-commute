@@ -171,8 +171,12 @@ export class BusLayer {
     for (const w of ways) for (let i = 1; i < w.pts.length; i++) {
       const [ax, az] = w.pts[i - 1]!, [bx, bz] = w.pts[i]!, l = Math.hypot(bx - ax, bz - az) || 1;
       if (onMain(ax, az) && onMain(bx, bz) && onMain((ax + bx) / 2, (az + bz) / 2)) continue;
-      const nx = -(bz - az) / l * ROAD_W / 2, nz = (bx - ax) / l * ROAD_W / 2, ya = w.y[i - 1]! + 0.08, yb = w.y[i]! + 0.08;
-      P.push(ax + nx, ya, az + nz, bx + nx, yb, bz + nz, bx - nx, yb, bz - nz, ax + nx, ya, az + nz, bx - nx, yb, bz - nz, ax - nx, ya, az - nz);
+      const nx = -(bz - az) / l * ROAD_W / 2, nz = (bx - ax) / l * ROAD_W / 2;
+      // each side at its own ground where the road lies on it, so across a slope the uphill side isn't buried
+      const ga = groundAt(ax, az), gb = groundAt(bx, bz), ya = w.y[i - 1]!, yb = w.y[i]!, la = Math.abs(ya - ga) < 0.3, lb = Math.abs(yb - gb) < 0.3;
+      const h = (x: number, z: number, y: number, g: number, lie: boolean) => (lie ? groundAt(x, z) + y - g : y) + 0.08;
+      const a1 = h(ax + nx, az + nz, ya, ga, la), a2 = h(ax - nx, az - nz, ya, ga, la), b1 = h(bx + nx, bz + nz, yb, gb, lb), b2 = h(bx - nx, bz - nz, yb, gb, lb);
+      P.push(ax + nx, a1, az + nz, bx + nx, b1, bz + nz, bx - nx, b2, bz - nz, ax + nx, a1, az + nz, bx - nx, b2, bz - nz, ax - nx, a2, az - nz);
     }
     if (P.length) {
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.computeVertexNormals();

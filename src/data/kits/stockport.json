@@ -42,6 +42,8 @@
     { "type": "rails", "points": [[-380, -4.9], [-280, -8.9], [100, -8.9], [140, -4.9]], "scenery": true },
     { "type": "rails", "points": [[-200, -8.9], [-483.7, -52]], "scenery": true },
     { "type": "rails", "points": [[120, -26.4], [-315.3, -26.4]], "buffer": true, "scenery": true },
+    { "type": "footbridge", "u": 68, "v0": 1.9, "v1": 46.8, "towers": [], "upgrade": "hub", "note": "The interchange's second span" },
+    { "type": "footbridge", "u": 64, "v0": 1.9, "v1": 46.8, "towers": [], "upgrade": "hub", "note": "The interchange (Stockport as the hub, step 7): a game piece, a glazed concourse over every platform, placed by eye" },
     { "type": "shed", "u0": -300, "u1": -210, "v": -32.6, "radius": 6.5, "upgrade": "maint", "note": "The maintenance shed (the fleet, step 5): a game piece over two of the carriage sidings, placed by eye" },
     { "type": "rails", "points": [[120, -30.6], [-343.2, -30.6]], "buffer": true, "scenery": true },
     { "type": "rails", "points": [[115, -34.6], [-369.5, -34.6]], "buffer": true, "scenery": true },

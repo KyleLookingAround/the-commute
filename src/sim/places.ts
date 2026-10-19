@@ -45,6 +45,8 @@ export const UPGRADES: Upgrade[] = [
   { id: 'retail', name: null, price: 9000, desc: '+£0.80 per boarding passenger', requires: ['building'] },
   { id: 'platforms', name: null, price: 30000, desc: '+20% catchment', requires: ['platform2', 'building'], stage: true },
   { id: 'signature', name: null, price: 0, desc: '', requires: ['travel'], stage: true },
+  // Stockport as the hub (step 7): where its `grow` has one, a concourse joining every platform (changing there quicker)
+  { id: 'hub', name: null, price: 0, desc: '', requires: ['platforms'], stage: true },
   // the tiers that keep going (step 18): each a further step of an everyday stage, each drawn, priced by the station's size
   { id: 'long', name: '8-car platforms', price: 45000, desc: 'Platform holds 480 instead of 320', requires: ['extend'], scale: true },
   { id: 'canopyFull', name: 'Canopies the full length', price: 25000, desc: 'Waiting in the dry the whole platform: feels a third shorter', requires: ['canopy', 'extend'], scale: true },

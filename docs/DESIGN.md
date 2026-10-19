@@ -166,6 +166,8 @@ Step 18 (`UPGRADES` in `src/sim/places.ts`, `scale: true`): each everyday stage 
 
 **Posters on the main road** (step 23, `posters`, after the booking office, priced as a tier): billboards where the traffic sits bring 6% more trips at the station (`postersBonus`); drawn as a hoarding in the network's yellow and navy 12 m short of the nearest main road within 300 m, facing it (`tools/tiers.mjs`, from `mainRoads`), or by the way in where none is near.
 
+**Stockport as the hub** (step 7, the `hub` stage where a station's `grow` has one: Stockport's, after platforms 0 to 2, £150,000): the interchange, a glazed concourse over every platform (two footbridge spans in the kit, placed by eye), takes three minutes off each change there (`hubSave`, against `change`'s five, in `src/sim/journeys.ts`), so the Hazel Grove, Marple and main lines feed one another through it. The bot buys it with three times its price after saving for the next station, about day 13.
+
 **Platforms hold a platform's worth for each pair open** (`Sim.capacity`): a station with two holds what one platform does, Stockport with platforms 0 to 2 two and a half times that and Piccadilly with its shed and bays six times.
 
 ## Surges

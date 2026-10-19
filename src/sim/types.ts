@@ -187,7 +187,7 @@ export interface Frame { x: number; z: number; heading: number; dx: number; dz: 
  * the big stations the rest of the station. Offered only where the station's `grow` lists them. `bus` is the bus stop
  * or bus station by it, a place of its own (`stops` in the network data), which the view still shows on the station's
  * card. */
-export type StageId = 'crossing' | 'platform2' | 'building' | 'platforms' | 'taxi' | 'carpark' | 'carpark2' | 'bus' | 'signature';
+export type StageId = 'crossing' | 'platform2' | 'building' | 'platforms' | 'taxi' | 'carpark' | 'carpark2' | 'bus' | 'signature' | 'hub';
 export type UpgradeId = StageId | 'kiosk' | 'barriers' | 'canopy' | 'lifts' | 'extend' | 'retail' | 'long' | 'canopyFull' | 'travel' | 'shops' | 'cyclehub' | 'bee1' | 'bee2' | 'posters' | 'maint';
 export type LineUpgradeId = 'units' | 'cars' | 'timetable' | 'spare';
 /** A group of passengers who joined a platform queue together: when (game seconds), where to, how many, whether

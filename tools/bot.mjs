@@ -144,7 +144,7 @@ export function act(sim) {
     const S = g.st[i], days = Math.max(1, g.day - 1), boardedDay = S.boarded / days, takenDay = S.revenue / days;
     const pays = (back, p) => (back * 10 >= p && g.cash > 2 * p + saving) || g.cash > 10 * p + saving;
     for (const [id, ok] of [['long', p => S.lost > 600 && g.cash > 2 * p + saving], ['travel', p => pays(0.4 * boardedDay, p)],
-      ['shops', p => pays(1.2 * boardedDay, p)], ['cyclehub', p => pays(0.08 * takenDay, p)], ['posters', p => pays(0.06 * takenDay, p)], ['canopyFull', p => g.cash > 3 * p + saving], ['signature', p => g.cash > 3 * p + saving]]) {
+      ['shops', p => pays(1.2 * boardedDay, p)], ['cyclehub', p => pays(0.08 * takenDay, p)], ['posters', p => pays(0.06 * takenDay, p)], ['canopyFull', p => g.cash > 3 * p + saving], ['signature', p => g.cash > 3 * p + saving], ['hub', p => g.cash > 3 * p + saving]]) {
       const u = UPGRADES.find(x => x.id === id); if (g.ups[i][id] || !sim.offered(i, u) || !sim.ready(i, u)) continue;
       if (ok(sim.upgradePrice(i, u))) { const r = up(i, id); if (r) return r; }
     }

@@ -61,7 +61,7 @@ export const TUNING = {
   doorsPerCar: 2, boardPerDoor: 0.7,           // passengers a second through each door: a 2-car unit boards about 110 in a 45 s stop
   doorsCrowd: 0.7,                             // ...slowing as it fills, to 30% of that when full: people squeeze in
   platformCap: 150, platformCapExtended: 320, platformCapLong: 480,
-  collectNoBarriers: 0.82, collectBooking: 0.9, platformsBonus: 1.2, christmasPull: 0.5, tapSave: 60, newSeats: 1.2, newAccel: 1.1, maintFails: 0.5, busShare: [0.08, 0.13, 0.18], busLanes: 0.05, kioskPerPax: 0.35, retailPerPax: 0.8, travelPerPax: 0.4, shopsPerPax: 1.2, cycleBonus: 1.08, postersBonus: 1.06,
+  collectNoBarriers: 0.82, collectBooking: 0.9, platformsBonus: 1.2, christmasPull: 0.5, tapSave: 60, hubSave: 3 * 60, newSeats: 1.2, newAccel: 1.1, maintFails: 0.5, busShare: [0.08, 0.13, 0.18], busLanes: 0.05, kioskPerPax: 0.35, retailPerPax: 0.8, travelPerPax: 0.4, shopsPerPax: 1.2, cycleBonus: 1.08, postersBonus: 1.06,
   // door to door (src/sim/journeys.ts), in sim seconds, which are real ones: people travel when the whole journey fits
   // about half an hour each way (Marchetti's constant), and walking and waiting weigh twice riding (UK appraisal practice)
   walk: 8 * 60, walkRound: 8 * 60, walkStairs: 3 * 60, liftsSave: 60,   // the walk each end; the far side's extra, round or over the stairs
@@ -831,7 +831,7 @@ export class Sim {
     h = (Math.imul(h, 31) + this.beeLevel()) | 0;
     for (let i = 0; i < this.S.length; i++) {
       const u = g.ups[i] ?? {};
-      h = (Math.imul(h, 31) + (g.owned[i] ? 1 : 0) + (u.crossing ? 2 : 0) + (u.lifts ? 4 : 0) + (u.canopy ? 8 : 0) + (u.platform2 ? 16 : 0) + (u.platforms ? 32 : 0) + (u.canopyFull ? 64 : 0)) | 0;
+      h = (Math.imul(h, 31) + (g.owned[i] ? 1 : 0) + (u.crossing ? 2 : 0) + (u.lifts ? 4 : 0) + (u.canopy ? 8 : 0) + (u.platform2 ? 16 : 0) + (u.platforms ? 32 : 0) + (u.canopyFull ? 64 : 0) + (u.hub ? 128 : 0)) | 0;
     }
     return h >>> 0;
   }

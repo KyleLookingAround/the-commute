@@ -87,6 +87,8 @@ export function journeys(sim: Sim, T: Tuning): (Journey | null)[][] {
     const l = x === y ? null : leg(k, x, y); if (l) rides[x]!.push({ to: y, leg: l });
   }
   const table: (Journey | null)[][] = [];
+  // a change's cost: its five minutes, less where the station has its interchange (Stockport as the hub, step 7)
+  const change = (x: number) => T.change - (sim.ups(x).hub ? T.hubSave : 0);
   // the search's nodes: a station and the service ridden there (m = 0 at the start), so a change is always onto another
   // service: riding past and coming back on the same line isn't a journey people make
   const m = sim.svcs.length + 1, N = n * m;
@@ -105,7 +107,7 @@ export function journeys(sim: Sim, T: Tuning): (Journey | null)[][] {
       if (x !== i && !sim.reachable(x)) continue;
       for (const { to, leg: l } of rides[x]!) {
         if (l.svc === came) continue;
-        const f = felt[u]! + ww[x]! * waits[l.svc]! + (x === i ? 0 : T.change) + l.ride, w = to * m + l.svc + 1;
+        const f = felt[u]! + ww[x]! * waits[l.svc]! + (x === i ? 0 : change(x)) + l.ride, w = to * m + l.svc + 1;
         if (f < felt[w]!) { felt[w] = f; via[w] = u; by[w] = l; }
       }
     }
@@ -118,7 +120,7 @@ export function journeys(sim: Sim, T: Tuning): (Journey | null)[][] {
       for (let u = end; u >= 0 && by[u];) { const v = via[u]!; legs.unshift(by[u]!); if (Math.floor(v / m) !== i) at.unshift(Math.floor(v / m)); u = v; }
       const w = walks[i]! + walks[j]!, ride = legs.reduce((a, l) => a + l.ride, 0), changes = legs.length - 1;
       const wait = legs.reduce((a, l) => a + waits[l.svc]!, 0), firstWait = ww[i]! * waits[legs[0]!.svc]!;
-      const f = T.walkWeight * walkFeel * w + firstWait + legs.slice(1).reduce((a, l, k) => a + ww[at[k]!]! * waits[l.svc]!, 0) + ride + changes * T.change;
+      const f = T.walkWeight * walkFeel * w + firstWait + legs.slice(1).reduce((a, l, k) => a + ww[at[k]!]! * waits[l.svc]!, 0) + ride + at.reduce((a, x) => a + change(x), 0);
       row.push({ walk: w, wait, ride, changes, felt: f, firstWait, legs, at });
     }
     table.push(row);

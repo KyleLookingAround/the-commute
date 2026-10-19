@@ -6,10 +6,10 @@
 // and laid again as the ground's read more finely. View only: nothing here changes the game.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { MAT } from './scene.ts';
+import { MAT, PAL } from './scene.ts';
 import { pathThrough, type Path } from './buses.ts';
 import { groundAt, groundVersion, onRailway } from './terrain.ts';
-import { courseOf, deckAt, deckEnds, deckY, mainWays, type MainDef, type MainWay } from './mainways.ts';
+import { courseOf, deckAt, deckEnds, deckY, LANE, mainWays, type MainDef, type MainWay } from './mainways.ts';
 import type { XZ } from '../sim/types.ts';
 
 const LIFT = 0.12;        // m a carriageway is drawn above the ground (over the buses' roads, 0.08, and the streets' paint)
@@ -22,6 +22,9 @@ const GRADE = 0.1;        // the steepest it dips to it
 const RELAY_MS = 3000;    // the least time between laying the roads again as the ground comes in finer
 const RELAY = 1500;       // m from where the camera looks that they're laid again (the fine ground comes in round it)
 const SLICE = 4;          // ms a frame spends laying them
+const PAINT = 0.03;       // m the lines are painted above the carriageway
+// the white lines: a plain material (no texture, so no shader program of its own), the car parks' bay-line white
+const LINES = new THREE.MeshLambertMaterial({ color: PAL['bay-line'] });
 
 /** A carriageway's way: on a bridge, straight from one end's ground to the other's (never below the ground under it);
  * anywhere else the buses' rule (src/render/buses.ts): on the ground, through the railway's land where it passes under
@@ -124,6 +127,14 @@ export class MainRoadLayer {
       const m = new THREE.Mesh(g, MAT.road); m.receiveShadow = true; m.castShadow = false; m.userData['noShadow'] = true; m.name = 'main-roads-ways';
       this.group.add(m);
     }
+    const L: number[] = [];
+    for (const { way, path } of this.laid) if (path) lines(path, way, L);
+    if (L.length) {
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(L, 3));
+      g.computeVertexNormals();
+      const m = new THREE.Mesh(g, LINES); m.receiveShadow = true; m.castShadow = false; m.userData['noShadow'] = true; m.name = 'main-roads-lines';
+      this.group.add(m);
+    }
     // down a motorway's middle, its central reserve's barrier and lamp columns
     const def = this.p.def, onDeck = deckAt(def), unit = OPEN_BOX, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
     const bars: THREE.Matrix4[] = [], poles: THREE.Matrix4[] = [], lamps: THREE.Matrix4[] = [];
@@ -155,6 +166,47 @@ const OPEN_BOX = (() => {
   for (const gi of [2, 4, 5]) { const g = b.groups[gi]!; for (let k = g.start; k < g.start + g.count; k++) keep.push(idx.getX(k)); }
   b.setIndex(keep); b.clearGroups(); return b;
 })();
+/** A carriageway's white lines into `out` (triangles, wound to face up): solid along each edge of its lanes, dashed
+ * between them, down a two-way road's middle the same. A motorway's hard shoulder is on the left of its traffic (the
+ * way's own direction: a motorway's carriageways are each one way), its lanes 3.3 m in from that edge. */
+function lines(path: Path, way: MainWay, out: number[]): void {
+  const n = path.pts.length; if (n < 2) return;
+  const motorway = /^M/.test(way.def.ref ?? way.road), lanes = Math.max(1, way.def.lanes), half = way.width / 2;
+  // each point's sideways step (to the right of the way's direction) held to the width round a bend, as the carriageway's
+  const nx: number[] = [], nz: number[] = [];
+  for (let k = 0; k < n; k++) {
+    const [px, pz] = path.pts[Math.max(0, k - 1)]!, [qx, qz] = path.pts[Math.min(n - 1, k + 1)]!, [cx, cz] = path.pts[k]!;
+    const a = k > 0 ? norm(cx - px, cz - pz) : null, b = k < n - 1 ? norm(qx - cx, qz - cz) : null;
+    let x = -((a?.[1] ?? 0) + (b?.[1] ?? 0)), z = (a?.[0] ?? 0) + (b?.[0] ?? 0);
+    const l = Math.hypot(x, z) || 1; x /= l; z /= l;
+    const s = a && b ? Math.min(2, 1 / Math.max(0.5, x * -a[1] + z * a[0])) : 1;
+    nx.push(x * s); nz.push(z * s);
+  }
+  const left = -half + (motorway ? 3.3 : 0.5), w = motorway ? 0.2 : 0.12;
+  // the lines across the lanes: [offset, dash, gap] (a gap of 0 is solid)
+  const across: [number, number, number][] = [[left, 1, 0], [left + lanes * LANE, 1, 0]];
+  for (let i = 1; i < lanes; i++) across.push([left + i * LANE, motorway ? 2 : way.def.oneway ? 3 : 4, motorway ? 7 : way.def.oneway ? 9 : 5]);
+  // a quad from distance s0 to s1 along segment k (k to k + 1) at offset o
+  const quad = (k: number, s0: number, s1: number, o: number) => {
+    const d0 = path.d[k]!, len = (path.d[k + 1]! - d0) || 1, at = (s: number, side: number): number[] => {
+      const t = (s - d0) / len, [ax, az] = path.pts[k]!, [bx, bz] = path.pts[k + 1]!, off = o + side * w / 2;
+      return [ax + nx[k]! * off + (bx + nx[k + 1]! * off - ax - nx[k]! * off) * t,
+        path.y[k]! + (path.y[k + 1]! - path.y[k]!) * t + LIFT + PAINT,
+        az + nz[k]! * off + (bz + nz[k + 1]! * off - az - nz[k]! * off) * t];
+    };
+    const a = at(s0, -1), b = at(s0, 1), c = at(s1, 1), d = at(s1, -1);
+    // wound as the carriageway's triangles are, so they face up
+    out.push(...a, ...b, ...c, ...a, ...c, ...d);
+  };
+  for (const [o, dash, gap] of across) {
+    for (let k = 0; k < n - 1; k++) {
+      const d0 = path.d[k]!, d1 = path.d[k + 1]!;
+      if (!gap) { quad(k, d0, d1, o); continue; }
+      const p = dash + gap;
+      for (let s = Math.floor(d0 / p) * p; s < d1; s += p) { const a = Math.max(s, d0), b = Math.min(s + dash, d1); if (b > a) quad(k, a, b, o); }
+    }
+  }
+}
 const norm = (x: number, z: number): [number, number] => { const l = Math.hypot(x, z) || 1; return [x / l, z / l]; };
 
 /** A bridge's deck under a carriageway: its sides from the parapets' tops to the underside, and a pier down to the

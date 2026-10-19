@@ -501,7 +501,7 @@ export function alongLine(net: Network, st: Station, F: Frame, points: [number, 
 export function buildStations(scene: THREE.Scene, net: Network, kits: Record<string, Kit>): BuiltStation[] {
   return net.stations.map(st => {
     const frame = net.stationFrame(st.id);
-    const gp = new THREE.Group(); gp.position.set(frame.x, 0, frame.z); gp.rotation.y = yawFor(frame); scene.add(gp);
+    const gp = new THREE.Group(); gp.name = 'stations'; gp.position.set(frame.x, 0, frame.z); gp.rotation.y = yawFor(frame); scene.add(gp);
     const label = new THREE.Object3D(); label.position.set(0, 14, 0); gp.add(label);
     const b: BuiltStation = { station: st, kit: EMPTY_KIT, group: gp, fixed: new THREE.Group(), gated: [], label, lockedNow: null, rise: 1, fold: 0, live: emptyLive() };
     const kit = kits[st.kit]; if (kit) fill(net, b, kit);

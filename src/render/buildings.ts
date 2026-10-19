@@ -27,6 +27,9 @@ const TREE_NEAR = 550;   // a chunk's trees this near are drawn one by one with 
 const TREE_BIG = 8;      // clumps (spread 8 m or more) as plainer crowns
 const FAR_LOW = 1600;    // on Low, nothing further than this
 const FAR_ALL = 9000;    // and on any setting nothing further than this (the whole network in view)
+const SMALL = 150;       // m²: a building with less footprint than this (a house, a garage) is a small one, whose far
+const FAR_SMALL = 3000;  // block is drawn only this near the camera (a pixel or two on a phone by then),
+const FAR_SMALL_LOW = 1500;   // or this near on Low; the big ones as far as anything
 const RAIL_MARGIN = 4;   // metres kept clear beyond the railway's land
 const RAIL_REACH = 300;  // the land (80 m at its widest) and its slopes (the terrain's strip, 150 m) lie within this of the line
 const KIT_MARGIN = 3;
@@ -294,8 +297,9 @@ class Builder {
 
 /** A piece as drawn: on its ground. */
 interface Placed { p: Piece; cs: number[]; y0: number; y1: number }
-/** A square as drawn: one merged block mesh for far off, and its chunks in full (built while the camera's near). */
-interface Square { key: string; x0: number; z0: number; d: number; placed: Placed[]; far: THREE.Mesh; farTrees: THREE.InstancedMesh[]; chunks: Chunk[] }
+/** A square as drawn: merged block meshes for far off (the big buildings, and the small, which go first), and its chunks
+ * in full (built while the camera's near). */
+interface Square { key: string; x0: number; z0: number; d: number; placed: Placed[]; far: THREE.Mesh; farSmall: THREE.Mesh; farTrees: THREE.InstancedMesh[]; chunks: Chunk[] }
 /** A chunk: its pieces, trees and hedges, and its meshes in full while the camera's near (buildings, the two kinds of
  * crown, the trunks, the hedges; the hedges aren't drawn further off). */
 interface Chunk { x: number; z: number; list: Placed[]; trees: number[]; hedges: number[]; mesh: THREE.Mesh | null; crowns: THREE.InstancedMesh[] | null; hedge: THREE.Mesh | null }
@@ -417,7 +421,7 @@ export class BuildingsLayer {
       const d = sq.d, near = d < NEAR;
       const full = near && sq.chunks.every(ch => ch.mesh);
       const show = !(this.low && d > FAR_LOW) && d < FAR_ALL && !fogged(sq);
-      sq.far.visible = !full && show;
+      sq.far.visible = !full && show; sq.farSmall.visible = sq.far.visible && d < (this.low ? FAR_SMALL_LOW : FAR_SMALL);
       for (const ch of sq.chunks) {
         if (!ch.mesh) continue;
         if (d > NEAR + 400) {
@@ -580,7 +584,7 @@ export class BuildingsLayer {
     }
     for (let k = 0; k < hedges.length; k += HEDGE) chunk((hedges[k]! + hedges[k + 2]!) / 2, (hedges[k + 1]! + hedges[k + 3]!) / 2).hedges.push(...hedges.slice(k, k + HEDGE));
     const [i, j] = key.split('_').map(Number) as [number, number];
-    this.drawn.push({ key, x0: i * SQUARE, z0: j * SQUARE, d: Infinity, placed: out, far: this.mesh(out, true), farTrees: this.trees(all, true), chunks: [...by.values()] });
+    this.drawn.push({ key, x0: i * SQUARE, z0: j * SQUARE, d: Infinity, placed: out, far: this.mesh(out.filter(q => q.p.w * q.p.d >= SMALL), true), farSmall: this.mesh(out.filter(q => q.p.w * q.p.d < SMALL), true), farTrees: this.trees(all, true), chunks: [...by.values()] });
     this.last = -1;
   }
 

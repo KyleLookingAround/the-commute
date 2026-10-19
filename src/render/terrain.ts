@@ -406,7 +406,7 @@ interface Bands { city: { x: number; z: number; r: number } }
  * reach's glow is patched into it, src/render/reach.ts). */
 export class TerrainLayer {
   readonly material: THREE.MeshLambertMaterial;
-  readonly group = new THREE.Group();
+  readonly group = Object.assign(new THREE.Group(), { name: 'terrain' });
   private chunks: { g: GroundLine; s0: number; s1: number; mid: THREE.Vector3; mesh: THREE.Mesh; coarse: THREE.BufferGeometry; fine: THREE.BufferGeometry | null; dirty: boolean }[] = [];
   private files: Record<string, string>; private loading = new Map<string, Promise<void>>();
   private col = palette(); private last = -1;

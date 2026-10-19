@@ -30,6 +30,7 @@ export function byCell(inst: THREE.InstancedMesh, cell = CELL): Split {
     let list = lists.get(key); if (!list) { list = []; lists.set(key, list); } list.push(i);
   }
   const group = new THREE.Group(), meshes: THREE.InstancedMesh[] = [], mesh = new Uint16Array(n), slot = new Uint32Array(n);
+  group.name = inst.name;
   for (const list of lists.values()) {
     const m = new THREE.InstancedMesh(inst.geometry, inst.material, list.length);
     m.castShadow = inst.castShadow; m.receiveShadow = inst.receiveShadow; m.renderOrder = inst.renderOrder;

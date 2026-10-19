@@ -562,7 +562,8 @@ triangles: () => {
     if (!(o instanceof THREE.Mesh) || (o.frustumCulled && !fr.intersectsObject(o))) return;
     const g = o.geometry, n = Math.round((g.index ? g.index.count : g.getAttribute('position')?.count ?? 0) / 3 * (o instanceof THREE.InstancedMesh ? o.count : 1));
     let top: THREE.Object3D = o; while (top.parent && top.parent !== scene) top = top.parent;
-    const key = top.name || o.name || top.type;
+    const mat = Array.isArray(o.material) ? o.material[0] : o.material, hex = mat && 'color' in mat && mat.color instanceof THREE.Color ? mat.color.getHexString() : '';
+    const key = top.name || o.name || `${top.type}#${hex}`;
     seen[key] = (seen[key] ?? 0) + n; if (o.castShadow && renderer.shadowMap.enabled) shadow[key] = (shadow[key] ?? 0) + n;
   });
   return { seen, shadow };

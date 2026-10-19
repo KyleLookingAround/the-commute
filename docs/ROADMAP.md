@@ -84,7 +84,7 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
 - Next come steps 4 to 9, 12 and 15, inside today's map: services, the fleet, timetabling, Stockport as the hub, the A6 and the 192, the main roads, buses as a network, and the gridlock opening.
 - The ideas review of 14 October 2026 (`docs/ideas/2026-10-14-review.md`) adds steps 16 to 23, inside today's map. The build order, once the sessions now running land:
   1. 18 first (the owner, 19 October 2026). Over 14 game days (the bot at 32 sim hours) the late game was not calm: from day 9 homes grown past the trains and platforms had 12 to 50% of each peak giving up while the bot held £1.4m with nothing to buy, so the fixes came before more demand. Built the same day: the tiers below, and platforms holding a platform's worth for each pair open, so Piccadilly's shed and bays hold six times a halt's. Lost over 14 days fell from about 39,000 to 11,000 a seed and each peak from day 4 loses about 6% on the mean; cash still reaches £1.8m. 16, 17, 24 and 25 are built.
-  2. 26, tuned to the band the bot's new `peak lost % from day 4` measures (it was first: the third pass saw a calm day 7, before homes outgrew the line).
+  2. 26, tuned to the band the bot's new `peak lost % from day 4` measures (it was first: the third pass saw a calm day 7, before homes outgrew the line). Its surges built 19 October 2026: match days and Christmas at Merseyway (`docs/DESIGN.md`, Surges); each peak from day 4 then loses 7 to 9% on the mean over 14 game days, spiking on match days. The jobs coming back and further growth wait while demand already outgrows the line.
   3. 19's punctuality part.
   4. 20 after the gridlock's G4.
   5. 21, the feeder buses, before steps 6 and 12.

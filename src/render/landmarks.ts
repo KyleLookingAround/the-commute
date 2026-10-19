@@ -517,7 +517,17 @@ function merseyway(g: THREE.Group, len: number): void {
       box(g, bl - 1, 0.1, 2.6, MAT.warm, x, D + 3.75, z - side * 10.4);
     }
   }
+  // the Christmas tree on the walk in December, when the shoppers come (src/sim/surges.ts): lit at dusk with the shops
+  const tree = new THREE.Group(); tree.name = 'christmas'; tree.visible = false; g.add(tree);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(3.2, 10, 8), new THREE.MeshLambertMaterial({ color: PAL['leaf-summer'] })); cone.position.y = D + 6.5; tree.add(cone);
+  box(tree, 0.6, 1.5, 0.6, MAT.timber, 0, D + 0.75, 0);
+  for (let k = 0; k < 14; k++) { const a = k * 2.4, h = 1 + (k / 14) * 8, r = 3.1 * (1 - h / 10.5); box(tree, 0.35, 0.35, 0.35, MAT.warm, Math.cos(a) * r, D + 1.5 + h, Math.sin(a) * r); }
+  box(tree, 0.8, 0.8, 0.8, MAT.glow, 0, D + 11.7, 0);
+  CHRISTMAS.push(tree);
 }
+/** The Christmas trees (Merseyway's), shown through December. */
+const CHRISTMAS: THREE.Object3D[] = [];
+export function setChristmas(on: boolean): void { for (const t of CHRISTMAS) if (t.visible !== on) t.visible = on; }
 
 // ---- the city on the horizon: Beetham Tower, Deansgate Square and the other tall buildings, as silhouettes ----
 // Real positions and heights; while the city is beyond the camera's far plane the whole skyline is drawn scaled towards

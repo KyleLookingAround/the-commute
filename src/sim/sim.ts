@@ -10,7 +10,8 @@ import { BASE, DAY, clockAt, clockText, hourAt, simAtHour } from './day.ts';
 import { SAVE_VERSION } from './save.ts';
 import { variants, type Blocks, type Movement, type Network, type Route } from './network.ts';
 import { journeys, cycle, runTime, waitWeight, type Journey } from './journeys.ts';
-import { freshWeather, stepWeather, feel, weatherKey } from './weather.ts';
+import { freshWeather, stepWeather, feel, weatherKey, yearAt } from './weather.ts';
+import { CLUBS, crowdAt, isDecember, matchOn } from './surges.ts';
 import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
 import { stepExpress, nextSlot, EXPRESS_UNITS } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
@@ -60,7 +61,7 @@ export const TUNING = {
   doorsPerCar: 2, boardPerDoor: 0.7,           // passengers a second through each door: a 2-car unit boards about 110 in a 45 s stop
   doorsCrowd: 0.7,                             // ...slowing as it fills, to 30% of that when full: people squeeze in
   platformCap: 150, platformCapExtended: 320, platformCapLong: 480,
-  collectNoBarriers: 0.82, collectBooking: 0.9, platformsBonus: 1.2, kioskPerPax: 0.35, retailPerPax: 0.8, travelPerPax: 0.4, shopsPerPax: 1.2, cycleBonus: 1.08,
+  collectNoBarriers: 0.82, collectBooking: 0.9, platformsBonus: 1.2, christmasPull: 0.5, kioskPerPax: 0.35, retailPerPax: 0.8, travelPerPax: 0.4, shopsPerPax: 1.2, cycleBonus: 1.08,
   // door to door (src/sim/journeys.ts), in sim seconds, which are real ones: people travel when the whole journey fits
   // about half an hour each way (Marchetti's constant), and walking and waiting weigh twice riding (UK appraisal practice)
   walk: 8 * 60, walkRound: 8 * 60, walkStairs: 3 * 60, liftsSave: 60,   // the walk each end; the far side's extra, round or over the stairs
@@ -156,6 +157,8 @@ export class Sim {
   /** Scratch for generate: trips an hour to each station, and how full each service runs each way. */
   private rates: Float64Array; private crowding: Float64Array; private trainsEachWay: Float64Array;
   private hourT = NaN; private hourNow = 0;
+  /** The surge now (worked out once a step): the station pulling a crowd and how much more it draws, or -1. */
+  private surgeT = NaN; private surgeAt = -1; private surgeBy = 0; private surgeGoing = true;
   /** What the run's perks do (src/sim/contract.ts): nothing at all without any. */
   fx: Effects;
   /** Every place on the network, what touches what (src/sim/places.ts). */
@@ -851,8 +854,27 @@ export class Sim {
   homes(i: number): number { return this.g.homes[i] ?? this.station(i).catchment; }
   /** The most homes station i's land could hold. */
   ceiling(i: number): number { const s = this.station(i), sg = this.ups(i).signature ? s.grow?.signature?.homes ?? 0 : 0; return Math.max(s.catchment, s.ceiling ?? s.catchment) * (1 + sg); }
-  /** What draws people to station i now: its census draw, more once its signature stage brings a draw of its own. */
-  drawOf(i: number): number { const s = this.station(i); return s.draw * (1 + (this.ups(i).signature ? s.grow?.signature?.draw ?? 0 : 0)); }
+  /** What draws people to station i: its census draw, more once its signature stage brings a draw of its own (a surge
+   * adds its own trips, tripRates). */
+  drawOf(i: number): number {
+    const s = this.station(i), d = s.draw * (1 + (this.ups(i).signature ? s.grow?.signature?.draw ?? 0 : 0));
+    return d;
+  }
+  /** The surge now (src/sim/surges.ts): on a match day the home ground's station before kick-off and after the final
+   * whistle, by its share of the crowd about; in December Stockport by day, to it until two and home after. Each adds
+   * trips of its own (tripRates): to that station from every home while going, from it to every home after. */
+  surge(): { at: number; by: number; going: boolean } { this.refreshSurge(); return { at: this.surgeAt, by: this.surgeBy, going: this.surgeGoing }; }
+  private refreshSurge(): void {
+    if (this.surgeT !== this.g.t) {
+      this.surgeT = this.g.t; this.surgeAt = -1; this.surgeBy = 0;
+      const clock = clockAt(this.g.t) / 3600, hour = clock % 24, club = CLUBS[matchOn(this.g.seed, Math.floor(clock / 24))];
+      const crowd = club ? crowdAt(hour).share : 0;
+      if (club && crowd > 0) {
+        const at = this.net.station(club.station).index, alt = this.net.station(club.else).index;
+        this.surgeAt = this.g.owned[at] ? at : alt; this.surgeBy = (this.g.owned[at] ? club.pull : CLUBS[1].pull) * crowd / 0.45; this.surgeGoing = crowdAt(hour).going;
+      } else if (hour >= 10 && hour < 18 && isDecember(yearAt(this.g.t))) { this.surgeAt = this.net.station('stockport').index; this.surgeBy = TUNING.christmasPull; this.surgeGoing = hour < 14; }
+    }
+  }
   /** How fast station i's homes are growing now, as a share of the most they could (0 to 1): the reach of its trip. */
   growthRate(i: number): number { if (this.jkey < 0) this.refreshJourneys(); return this.growth[i]!; }
   /** dt seconds of growth (the peaks' sim seconds by the clock): each owned station's homes close on its ceiling, the
@@ -886,13 +908,15 @@ export class Sim {
   /** What scales station i's trips an hour at hour h: the hour's demand, its platforms, the weather, over Piccadilly's draw. */
   tripScale(i: number, h: number): number { return demandCurve(h) * TUNING.demand * (this.ups(i).platforms ? TUNING.platformsBonus : 1) * (this.ups(i).cyclehub ? TUNING.cycleBonus : 1) * feel(this.g).travel / this.net.station('piccadilly').draw; }
   tripRates(i: number, h: number): number {
-    const a = this.station(i), out = h < 12 ? TUNING.amOut : TUNING.pmOut, scale = this.tripScale(i, h);
+    const out = h < 12 ? TUNING.amOut : TUNING.pmOut, scale = this.tripScale(i, h);
+    this.refreshSurge(); const sAt = this.surgeAt, sBy = this.surgeBy, sGo = this.surgeGoing;
     let tot = 0;
     for (let j = 0; j < this.S.length; j++) {
       const J = j === i ? null : this.journey(i, j);
       if (!J) { this.rates[j] = 0; continue; }
-      const b = this.station(j), reach = this.reach(this.felt(J));
-      tot += this.rates[j] = scale * reach * (out * this.homes(i) * this.drawOf(j) + (1 - out) * this.drawOf(i) * this.homes(j));
+      const reach = this.reach(this.felt(J));
+      const extra = j === sAt && sGo ? this.homes(i) * this.drawOf(j) * sBy : i === sAt && !sGo ? this.drawOf(i) * this.homes(j) * sBy : 0;
+      tot += this.rates[j] = scale * reach * (out * this.homes(i) * this.drawOf(j) + (1 - out) * this.drawOf(i) * this.homes(j) + extra);
     }
     return tot;
   }

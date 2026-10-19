@@ -14,6 +14,7 @@
 // After dark each bought platform's lamps throw a warm pool of light on it (the lamps of what's been built: a second
 // platform's once it's bought), so a quiet night platform reads as lamp-lit rather than gone.
 import * as THREE from 'three';
+import { CLUBS, crowdAt, matchOn } from '../sim/surges.ts';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { MAT, PAL } from './scene.ts';
 import type { BuiltStation, Face, Kit } from './stations.ts';
@@ -65,22 +66,6 @@ const caseMat = new THREE.MeshLambertMaterial({ color: 0xffffff }), bikeMat = ne
 /** Who a figure is: a commuter in work clothes, a student with a suitcase, a cyclist wheeling a bike, a fan in the
  * club's colours, or anyone else. */
 export type Kind = 'commuter' | 'student' | 'cyclist' | 'fan' | 'other';
-/** The clubs whose crowds ride the line on a match day: where their ground is (towards Manchester or at Stockport,
- * Edgeley Park) and the coat their fans wear (an index into the layer's coats). */
-export const CLUBS = [{ name: 'City', ground: 'north', coat: 8 }, { name: 'United', ground: 'north', coat: 9 }, { name: 'County', ground: 'south', coat: 10 }] as const;
-/** The club playing at home on a game day, by its place in CLUBS, or -1: about one day in six, the same every time for
- * a seed. Cosmetic: it changes nobody's journey. */
-export function matchOn(seed: number, day: number): number {
-  if (hash(seed % 9973, day * 3.17) >= 0.17) return -1;
-  const h = hash(day, seed % 9973 + 5); return h < 0.45 ? 0 : h < 0.8 ? 1 : 2;
-}
-/** How much of a match day's crowd is about at an hour: going to the ground before a three o'clock kick-off, coming
- * home after the final whistle; 0 outside those. */
-export function crowdAt(hour: number): { share: number; going: boolean } {
-  if (hour >= 12 && hour < 15) return { share: 0.45, going: true };
-  if (hour >= 16.8 && hour < 19) return { share: 0.45, going: false };
-  return { share: 0, going: true };
-}
 /** Who someone joining a platform at an hour is: fans (a share of everyone, on a match day's platform towards or from
  * the ground), commuters mostly at the peaks, students more where people are going to the city (toCity, 0 to 1) and by
  * day, cyclists by day, then anyone. h: a cosmetic number in [0, 1). */

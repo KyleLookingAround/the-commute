@@ -6,6 +6,8 @@
 // in spring, deep green in summer, gold in autumn, bare in winter; and the day's length and the sun's height follow the
 // season (solarHour). The fair-weather setting draws every spell as a sunny or cloudy one; the seasons still turn.
 import * as THREE from 'three';
+import { setChristmas } from './landmarks.ts';
+import { isDecember } from '../sim/surges.ts';
 import { byCell, type Split } from './cells.ts';
 import { PAL, MAT } from './scene.ts';
 import type { Sky } from './sky.ts';
@@ -226,6 +228,7 @@ export class WeatherLayer {
 
   /** The trees' crowns by the year: redone only when the year or the snow has moved enough to see. */
   private treesFor(L: Look): void {
+    setChristmas(isDecember(L.year));
     if (Math.abs(L.year - this.treeYear) < 0.004 && Math.abs(L.settle - this.treeSnow) < 0.05) return;
     this.treeYear = L.year; this.treeSnow = L.settle; this.world.buildings.season(L.year, L.settle);
     const y = L.year * 4, i = Math.floor(y) % 4, f = y - Math.floor(y), t = f < 0.75 ? 0 : (f - 0.75) / 0.25;

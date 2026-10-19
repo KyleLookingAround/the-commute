@@ -24,6 +24,9 @@ const RELAY = 1500;       // m from where the camera looks that they're laid aga
 const SLICE = 4;          // ms a frame spends laying them
 const BEND = 0.05;        // m the ground may bend under a straight stretch before it's split (less than LIFT: none shows through)
 const PAINT = 0.03;       // m the lines are painted above the carriageway
+const LINE_CELL = 500;    // m: the lines are drawn in squares this size,
+const LINE_NEAR = 1100;   // those whose middle is within this of where the camera looks,
+const LINE_HIGH = 1400;   // and none once the camera is further out than this (smaller than a pixel by then)
 // the white lines: a plain material (no texture, so no shader program of its own), the car parks' bay-line white
 // (drawn nearer the camera than the road under them in depth, as the road is nearer than the ground: no flicker far off)
 const LINES = new THREE.MeshLambertMaterial({ color: PAL['bay-line'], polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 });
@@ -66,7 +69,7 @@ function thin(p: Path, corners: XZ[]): Path {
 }
 
 /** What the layer needs from the page. */
-export interface MainRoadParts { scene: THREE.Scene; def: MainDef; focus?: () => { tx: number; tz: number } }
+export interface MainRoadParts { scene: THREE.Scene; def: MainDef; focus?: () => { tx: number; tz: number; r?: number } }
 
 export class MainRoadLayer {
   readonly group = new THREE.Group();
@@ -75,6 +78,8 @@ export class MainRoadLayer {
   /** The carriageways still to lay (or lay again), by index, a few each frame. */
   private queue: number[] = []; private queued = new Set<number>();
   private laidOn = -1; private laidAt = 0;
+  /** The white lines, a mesh a square, shown only near where the camera looks. */
+  private lineCells: { m: THREE.Mesh; x: number; z: number }[] = [];
   constructor(private readonly p: MainRoadParts) {
     this.group.name = 'main-roads';
     p.scene.add(this.group);
@@ -87,7 +92,8 @@ export class MainRoadLayer {
   /** Each frame: a few carriageways laid, SLICE ms at most, and the roads built again once they're all in; as the
    * ground's read more finely (at most every 3 s), those within RELAY m of where the camera looks laid again. */
   sync(): void {
-    const now = performance.now();
+    const now = performance.now(), f0 = this.p.focus?.();
+    for (const c of this.lineCells) { const on = !f0 || ((f0.r ?? 0) <= LINE_HIGH && Math.abs(c.x - f0.tx) < LINE_NEAR && Math.abs(c.z - f0.tz) < LINE_NEAR); if (c.m.visible !== on) c.m.visible = on; }
     if (groundVersion() !== this.laidOn && now - this.laidAt >= RELAY_MS) {
       this.laidOn = groundVersion(); this.laidAt = now;
       const f = this.p.focus?.();
@@ -130,13 +136,19 @@ export class MainRoadLayer {
       const m = new THREE.Mesh(g, MAT.road); m.receiveShadow = true; m.castShadow = false; m.userData['noShadow'] = true; m.name = 'main-roads-ways';
       this.group.add(m);
     }
-    const L: number[] = [];
-    for (const { way, path } of this.laid) if (path) lines(path, way, L);
-    if (L.length) {
-      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(L, 3));
-      g.computeVertexNormals();
-      const m = new THREE.Mesh(g, LINES); m.receiveShadow = true; m.castShadow = false; m.userData['noShadow'] = true; m.name = 'main-roads-lines';
-      this.group.add(m);
+    const cells = new Map<string, { x: number; z: number; P: number[] }>();
+    const cell = (x: number, z: number) => {
+      const i = Math.floor(x / LINE_CELL), j = Math.floor(z / LINE_CELL), k = i + '_' + j;
+      let c = cells.get(k); if (!c) cells.set(k, c = { x: (i + 0.5) * LINE_CELL, z: (j + 0.5) * LINE_CELL, P: [] });
+      return c.P;
+    };
+    for (const { way, path } of this.laid) if (path) lines(path, way, cell);
+    this.lineCells = [];
+    for (const c of cells.values()) {
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(c.P, 3));
+      g.computeVertexNormals(); g.computeBoundingSphere();
+      const m = new THREE.Mesh(g, LINES); m.receiveShadow = true; m.castShadow = false; m.userData['noShadow'] = true; m.name = 'main-roads-lines'; m.visible = false;
+      this.group.add(m); this.lineCells.push({ m, x: c.x, z: c.z });
     }
     // down a motorway's middle, its central reserve's barrier and lamp columns
     const def = this.p.def, onDeck = deckAt(def), unit = OPEN_BOX, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
@@ -178,10 +190,10 @@ function edgeY(path: Path, k: number, x: number, z: number, way: MainWay): numbe
   const g = groundAt(cx, cz);
   return Math.abs(y - g) < 0.3 ? groundAt(x, z) + (y - g) : y;
 }
-/** A carriageway's white lines into `out` (triangles, wound to face up): solid along each edge of its lanes, dashed
+/** A carriageway's white lines into the square each piece starts in (triangles, wound to face up): solid along each edge of its lanes, dashed
  * between them, down a two-way road's middle the same. A motorway's hard shoulder is on the left of its traffic (the
  * way's own direction: a motorway's carriageways are each one way), its lanes 3.3 m in from that edge. */
-function lines(path: Path, way: MainWay, out: number[]): void {
+function lines(path: Path, way: MainWay, cell: (x: number, z: number) => number[]): void {
   const n = path.pts.length; if (n < 2) return;
   const motorway = /^M/.test(way.def.ref ?? way.road), lanes = Math.max(1, way.def.lanes), half = way.width / 2;
   // each point's sideways step (to the right of the way's direction) held to the width round a bend, as the carriageway's
@@ -207,7 +219,7 @@ function lines(path: Path, way: MainWay, out: number[]): void {
       const d0 = path.d[k]!, len = (path.d[k + 1]! - d0) || 1, t0 = (s0 - d0) / len, t1 = (s1 - d0) / len;
       const at = (S: (readonly [number, number, number])[], t: number) => { const p = S[k]!, q = S[k + 1]!; return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t]; };
       const a = at(A, t0), b = at(B, t0), c = at(B, t1), d = at(A, t1);
-      out.push(...a, ...b, ...c, ...a, ...c, ...d);
+      cell(a[0]!, a[2]!).push(...a, ...b, ...c, ...a, ...c, ...d);
     };
     for (let k = 0; k < n - 1; k++) {
       const d0 = path.d[k]!, d1 = path.d[k + 1]!;

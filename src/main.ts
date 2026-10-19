@@ -56,7 +56,7 @@ declare global {
     __orbit?: Partial<import('./render/camera.ts').Orbit>;
     /** For the checks: how many groups of parts the preview shows, how many are still rising into place, and how many
      * times the camera has framed something (a card's parts, a Built chip's, a train). */
-    __view?: { programNames?: () => string[]; perf?: () => { calls: number; triangles: number; geometries: number; textures: number; programs: number; meshes: number; casters: number; first: number; frames: number; sim: number; sync: number; draw: number }; reach?: () => { now: number[]; target: number[]; ghosts: number; minutes: boolean }; homes?: () => { shown: number[]; room: number[]; rising: number }; preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean }; life?: () => { cases: number; bikes: number; figures: number; shadows: boolean; ratio: number; heard: { running: boolean; brakes: number; departs: number; calls: number; birds: number }; pools: number; lamplight: number; works: [number, number] | null; beacons: number; expresses: number };
+    __view?: { programNames?: () => string[]; triangles?: () => { seen: Record<string, number>; shadow: Record<string, number> }; perf?: () => { calls: number; triangles: number; geometries: number; textures: number; programs: number; meshes: number; casters: number; first: number; frames: number; sim: number; sync: number; draw: number }; reach?: () => { now: number[]; target: number[]; ghosts: number; minutes: boolean }; homes?: () => { shown: number[]; room: number[]; rising: number }; preview: number; rising: () => number; framed: number; trouble?: () => { hazards: number; cautions: number; buses: number; spare: boolean }; life?: () => { cases: number; bikes: number; figures: number; shadows: boolean; ratio: number; heard: { running: boolean; brakes: number; departs: number; calls: number; birds: number }; pools: number; lamplight: number; works: [number, number] | null; beacons: number; expresses: number };
       camera?: () => import('./render/camera.ts').Orbit & { above: number; fromLine: number; flying: boolean; riding: number; moves: number; compass: boolean; along: number };
       spot?: (kind: 'station' | 'train' | 'ghost', i: number) => [number, number] | null; open?: () => { x: number; y: number; w: number; h: number }; under?: (x: number, y: number) => [number, number] | null;
       weather?: () => { now: string; rain: number; snow: number; fog: number; cover: number; wet: number; settle: number; season: number; falling: boolean; brollies: number; trees: number; fogFar: number; patter: number } };
@@ -552,6 +552,20 @@ Object.assign(view, { perf: () => {
   scene.traverse(o => { if (o instanceof THREE.Mesh && o.visible) { meshes++; if (o.castShadow) casters++; } });
   const r = renderer.info.render, m = renderer.info.memory;
   return { calls: r.calls, triangles: r.triangles, geometries: m.geometries, textures: m.textures, programs: renderer.info.programs?.length ?? 0, meshes, casters, ...cost };
+},
+// the triangles in view by layer (the scene's child each mesh is under, by name), and again for those casting shadows
+// (drawn a second time into the sun's map): where a frame's triangles go, for the perf check's log and the stats view
+triangles: () => {
+  const fr = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+  const seen: Record<string, number> = {}, shadow: Record<string, number> = {};
+  scene.traverseVisible(o => {
+    if (!(o instanceof THREE.Mesh) || (o.frustumCulled && !fr.intersectsObject(o))) return;
+    const g = o.geometry, n = Math.round((g.index ? g.index.count : g.getAttribute('position')?.count ?? 0) / 3 * (o instanceof THREE.InstancedMesh ? o.count : 1));
+    let top: THREE.Object3D = o; while (top.parent && top.parent !== scene) top = top.parent;
+    const key = top.name || o.name || top.type;
+    seen[key] = (seen[key] ?? 0) + n; if (o.castShadow && renderer.shadowMap.enabled) shadow[key] = (shadow[key] ?? 0) + n;
+  });
+  return { seen, shadow };
 },
 // the shader programs held, each its name and the end of its cache key (which carries any patch's own key): the perf
 // check prints them when there are too many

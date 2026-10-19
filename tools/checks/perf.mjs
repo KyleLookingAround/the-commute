@@ -82,6 +82,9 @@ export default async function ({ ok, open, side, root, url, SAVE_KEY, browser })
       await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
       const ms = x => x.toFixed(1);
       console.log(`      ${tag} (${r.r.toFixed(0)} m out): ${r.calls} calls, ${r.triangles} triangles, ${r.geometries} geometries, ${r.textures} textures, ${r.programs} programs, ${r.meshes} meshes (${r.casters} cast shadows); first frame at ${ms(r.first)} ms; a frame ${ms(r.wall)} ms (script: sim ${ms(r.sim)}, sync ${ms(r.sync)}, draw ${ms(r.draw)})`);
+      // where they go: the triangles in view by layer, the largest first, and those cast into the sun's shadow map
+      const by = await page.evaluate(() => window.__view.triangles?.());
+      if (by) for (const [k, t] of [['in view', by.seen], ['shadows', by.shadow]]) console.log(`        ${k}: ` + Object.entries(t).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([n, v]) => `${n} ${(v / 1000).toFixed(1)}k`).join(', '));
       const over = [
         tag === 'wide' && r.r < 4000 && `the camera is only ${r.r.toFixed(0)} m out`,
         BUDGET.calls[tag] && r.calls > BUDGET.calls[tag] && `${r.calls} calls, budget ${BUDGET.calls[tag]}`,

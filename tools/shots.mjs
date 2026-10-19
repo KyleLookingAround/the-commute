@@ -9,6 +9,7 @@
 // frame from r m away, turned that many radians from looking along the line and tilted from straight down:
 // node tools/shots.mjs --stations heaton-chapel bridge=-77,0,45,1.6,1.3 writes station-heaton-chapel-bridge-desktop.png.
 // --weather <sun|cloud|rain|fog|snow> (with either kind) settles that spell over the map first (window.__weather), and
+// --world waits for the real buildings round the camera to come in first, and
 // --day <n> starts a new game on that game day (window.__day: snow wants a winter one, day 60 or so); each file's name
 // then ends -<spell>: node tools/shots.mjs 13 --weather rain writes build/shots/phone-13-rain.png and the rest.
 // node tools/shots.mjs --audit [prefix ...]: the end-of-phase visual audit (docs/briefs/visual-audit.md), a complete
@@ -32,6 +33,8 @@ mkdirSync(out, { recursive: true });
 // --weather and --day take a value each, and come out of the rest
 const all = process.argv.slice(2), opt = name => { const k = all.indexOf(name); if (k < 0) return null; const v = all[k + 1]; all.splice(k, 2); return v ?? null; };
 const SKIES = ['sun', 'cloud', 'rain', 'fog', 'snow'], weather = opt('--weather'), day = opt('--day');
+// --world (a flag, with --stations) waits for the real surroundings round the camera before each shot
+const world = all.includes('--world') && (all.splice(all.indexOf('--world'), 1), true);
 if (weather !== null && !SKIES.includes(weather)) { console.log(`--weather is one of ${SKIES.join(', ')}`); process.exit(1); }
 const tag = weather ? `-${weather}` : '';
 /** What every page gets before it loads: the seed, and the weather and day asked for. */
@@ -98,6 +101,7 @@ async function stationShots(only, extra) {
       const page = await ctx.newPage(); await page.goto(url);
       await page.waitForSelector('html[data-sim="ready"]', { timeout: 15000 }).catch(() => {});
       await page.waitForTimeout(1500);
+      if (world) { await page.waitForFunction(() => window.__view.buildings().then(s => s.trees > 0), null, { timeout: 120000, polling: 1000 }).catch(() => {}); await page.waitForTimeout(6000); }
       await page.screenshot({ path: join(out, `station-${st.id}-${view}-${size}${tag}.png`) });
       await ctx.close();
     }

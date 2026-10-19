@@ -245,7 +245,7 @@ export interface GameState {
   st: StationState[]; trains: Train[];
   /** late: main-line and branch departures more than five minutes behind the timetable (src/sim/contract.ts weighs
    * them in the reputation). through: long-distance passengers on and off the expresses at owned stations; express: what the expresses paid. */
-  stats: { boarded: number; lost: number; cab: number; through: number; express: number; car: number; bus: number; late: number };
+  stats: { boarded: number; lost: number; cab: number; through: number; express: number; car: number; bus: number; late: number; deps: number };
   /** By service, the timetabled departure of the unit that last turned round at each end of its run (0 the south end,
    * 1 the north), which the next unit keeps a headway behind. */
   ends: Record<string, [number, number]>;

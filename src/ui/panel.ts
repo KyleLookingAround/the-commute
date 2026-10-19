@@ -6,7 +6,7 @@
 import { UPGRADES, LINE_UPGRADES } from '../sim/sim.ts';
 import type { LineUpgrade, Upgrade } from '../sim/places.ts';
 import { pace } from '../sim/day.ts';
-import { renewable, reputation } from '../sim/contract.ts';
+import { punctuality, renewable, reputation } from '../sim/contract.ts';
 import type { Sim } from '../sim/sim.ts';
 import type { GameState } from '../sim/types.ts';
 import type { At } from './sheet.ts';
@@ -433,7 +433,7 @@ export class UI {
   /** The whole network: its figures, and once Piccadilly is owned, Renew the contract. */
   private networkCard(): void {
     const g = this.g, sim = this.sim, panel = this.els.panel;
-    panel.innerHTML = this.stats([['nStations', 'Stations'], ['nBoard', 'Boarded'], ['nEarned', 'Earned'], ['nRep', 'Reputation']], [['nLost', 'Gave up'], ['nLate', 'Late'], ['nBus', 'By bus']]);
+    panel.innerHTML = this.stats([['nStations', 'Stations'], ['nBoard', 'Boarded'], ['nEarned', 'Earned'], ['nRep', 'Reputation']], [['nLost', 'Gave up'], ['nLate', 'On time'], ['nBus', 'By bus']]);
     panel.querySelector('details')?.addEventListener('toggle', e => { this.more = (e.target as HTMLDetailsElement).open; });
     // once the whole line is owned, the contract can be renewed, whenever the player likes; hidden until then
     if (renewable(g, sim.net.station('piccadilly').index)) {
@@ -482,7 +482,7 @@ export class UI {
       const S = sim.state(p.station!); set('sBus', num(S.bus)); set('sWait', `${S.waiting} waiting`);
     } else if (!p) {
       set('nStations', String(g.owned.filter(Boolean).length)); set('nBoard', fmtCount(g.stats.boarded)); set('nEarned', fmtShort(g.earned)); set('nRep', `★ ${reputation(g)}`);
-      set('nLost', fmtCount(g.stats.lost)); set('nLate', fmtCount(g.stats.late)); set('nBus', fmtCount(g.trouble.bused)); set('lRep', String(reputation(g)));
+      set('nLost', fmtCount(g.stats.lost)); set('nLate', `${Math.floor(100 * punctuality(g))}%`); set('nBus', fmtCount(g.trouble.bused)); set('lRep', String(reputation(g)));
     }
     // each card's Buy shows once the money is there; until then, how far there is to go
     panel.querySelectorAll<HTMLElement>('[data-card]').forEach(card => {

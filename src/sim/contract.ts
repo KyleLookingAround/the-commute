@@ -33,12 +33,14 @@ export function readCareer(raw: unknown): Career | null {
 
 // ---- reputation ----
 /** Reputation earned: a point for every hundred passengers who started a journey, less three for each who gave up and
- * went home and twenty for each departure more than five minutes late, so a well-run line banks more than a big one
- * run badly. A cab taken instead of the train counts half. Never below nothing. */
-export const REP = { per: 100, cab: 0.5, lost: 3, late: 20 };
+ * went home, all times the punctuality (the share of departures within five minutes), so a well-run line banks more
+ * than a big one run badly. A cab taken instead of the train counts half. Never below nothing. */
+export const REP = { per: 100, cab: 0.5, lost: 3 };
+/** The share of departures from stops within five minutes of time, 0 to 1 (1 before any). */
+export function punctuality(g: GameState): number { const s = g.stats, n = s.deps ?? 0; return n ? Math.max(0, 1 - (s.late ?? 0) / n) : 1; }
 export function reputation(g: GameState): number {
   const s = g.stats;
-  return Math.max(0, Math.floor((s.boarded + REP.cab * s.cab - REP.lost * s.lost - REP.late * (s.late ?? 0)) / REP.per));
+  return Math.max(0, Math.floor((s.boarded + REP.cab * s.cab - REP.lost * s.lost) * punctuality(g) / REP.per));
 }
 
 /** Whether the contract can be renewed: once the player owns the whole line, Piccadilly. */

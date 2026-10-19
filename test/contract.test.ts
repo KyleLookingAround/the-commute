@@ -32,12 +32,12 @@ test('contract: the tree has three or four branches of eight to twelve perks, ea
   for (const p of tree.perks) assert.ok(tree.branches.some(b => b.id === p.branch), `${p.id}'s branch`);
 });
 
-test('contract: reputation counts passengers carried and how well, so a well-run line banks more than one run badly', () => {
+test('contract: reputation counts passengers carried and how well (times the share on time), so a well-run line banks more than one run badly', () => {
   const g = Sim.halt(net(), 1);
   g.stats.boarded = 10000; const good = reputation(g);
   g.stats.lost = 1500; const lossy = reputation(g);
-  g.stats.lost = 0; g.stats.late = 100; const late = reputation(g);
-  assert.equal(good, 100);
+  g.stats.lost = 0; g.stats.deps = 400; g.stats.late = 100; const late = reputation(g);
+  assert.equal(good, 100); assert.equal(late, 75, 'three in four on time');
   assert.ok(lossy < good && late < good, `${good} ${lossy} ${late}`);
   g.stats.boarded = 100; g.stats.lost = 5000; assert.equal(reputation(g), 0, 'never below nothing');
 });

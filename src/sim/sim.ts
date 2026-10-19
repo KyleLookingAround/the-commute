@@ -236,7 +236,7 @@ export class Sim {
       places: owned, perks: [...perks], start: from.id,
       st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0, cab: 0, cabs: [], through: 0, car: 0, bus: 0, carAcc: 0, busAcc: 0, parked: [] })),
       trains: [], ends: {}, trouble: freshTrouble(), held: {}, weather: freshWeather(seed, t),
-      stats: { boarded: 0, lost: 0, cab: 0, through: 0, express: 0, car: 0, bus: 0, late: 0 },
+      stats: { boarded: 0, lost: 0, cab: 0, through: 0, express: 0, car: 0, bus: 0, late: 0, deps: 0 },
       homes: network.stations.map(s => s.catchment),
     } as Omit<GameState, 'owned' | 'ups' | 'line'> as GameState, P);
   }
@@ -615,7 +615,7 @@ export class Sim {
     tr.state = 'run'; tr.calling = null; tr.next = this.nextStop(tr);
     if (i !== null) {
       this.onDepart?.(tr, i, tr.late);
-      if (tr.late > 300) g.stats.late++;
+      g.stats.deps = (g.stats.deps ?? 0) + 1; if (tr.late > 300) g.stats.late++;
       const j = tr.next, v = this.svc(tr.svc), run = runTime(Math.abs(this.station(j).s - this.station(i).s), this.runSpeed(v, i, j), this.runAccel(v, i, j), TUNING.brake);
       tr.due += run + (this.isEnd(tr, j) ? this.turnaround() : TUNING.dwell);
     }

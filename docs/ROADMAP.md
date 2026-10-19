@@ -140,6 +140,7 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
    - Punctuality (the share within 5 minutes) replaces the late-departure term in the contract's reputation.
    - The Network card shows punctuality and the day's Delay Repay.
    - After services' frequencies land, since they change lateness. Bot at 16 h.
+   - **Punctuality built** (19 October 2026): reputation is the passengers carried times the share of departures within five minutes, and the Network card shows On time; reputation banked holds at 64 on the mean.
    - Cut by the third pass (`docs/ideas/2026-10-14-review-3.md`): with the bot buying every buy, day 7's trains all leave within 5 minutes, so refunds would cost nothing. Build only the punctuality part now: the share within 5 minutes in the contract's reputation and on the Network card. Delay Repay waits until step 26 brings lateness back, and only if the bot shows it does.
 20. **Gridlock that keeps moving** (M, ideas review 14 October 2026; idea 5). Over 16 h the bot takes 0.6 to 4% of cars off and the M60 stays at 1.2. After G4:
    - build G5

@@ -43,14 +43,31 @@ export function reputation(g: GameState): number {
   return Math.max(0, Math.floor((s.boarded + REP.cab * s.cab - REP.lost * s.lost) * punctuality(g) / REP.per));
 }
 
+// ---- the franchise's targets (step 23) ----
+/** What the franchise asks of a contract, each banking `rep` more reputation if it's met when the contract is renewed:
+ * nine in ten departures within five minutes (of a hundred or more), fewer than one in twenty of those who came giving
+ * up (of a thousand or more), and the main line owned end to end, Hazel Grove to Piccadilly. */
+export interface Target { id: string; name: string; rep: number; met: (g: GameState, stationIds: string[]) => boolean }
+const MAIN_LINE = ['hazel-grove', 'woodsmoor', 'davenport', 'stockport', 'heaton-chapel', 'levenshulme', 'ardwick', 'piccadilly'];
+export const TARGETS: Target[] = [
+  { id: 'ontime', name: 'Nine in ten on time', rep: 8, met: g => (g.stats.deps ?? 0) >= 100 && punctuality(g) >= 0.9 },
+  { id: 'fewlost', name: 'Fewer than one in twenty give up', rep: 8, met: g => g.stats.boarded + g.stats.lost >= 1000 && g.stats.lost < 0.05 * (g.stats.boarded + g.stats.lost) },
+  { id: 'mainline', name: 'Hazel Grove to Piccadilly', rep: 8, met: (g, ids) => MAIN_LINE.every(id => { const i = ids.indexOf(id); return i < 0 || !!g.owned[i]; }) },
+];
+/** The targets met now, and the reputation they'd bank. */
+export function targetsMet(g: GameState, stationIds: string[]): { met: string[]; rep: number } {
+  const met = TARGETS.filter(t => t.met(g, stationIds)); return { met: met.map(t => t.id), rep: met.reduce((a, t) => a + t.rep, 0) };
+}
+
 /** Whether the contract can be renewed: once the player owns the whole line, Piccadilly. */
 export function renewable(g: GameState, piccadilly: number): boolean { return !!g.owned[piccadilly]; }
 
-/** The career once this run's contract is renewed: its reputation banked, its milestones kept, one more contract. The
+/** The career once this run's contract is renewed: its reputation banked with its targets' (each met a milestone), its
+ * milestones kept, one more contract. The
  * run itself is the caller's to start again (Sim.fresh with the career's perks). */
 export function renew(c: Career, g: GameState, stationIds: string[]): Career {
-  const rep = reputation(g), n = c.renewals + 1;
-  const reached = stationIds.filter((_, i) => g.owned[i]).map(id => 'owns:' + id);
+  const t = targetsMet(g, stationIds), rep = reputation(g) + t.rep, n = c.renewals + 1;
+  const reached = [...stationIds.filter((_, i) => g.owned[i]).map(id => 'owns:' + id), ...t.met.map(id => 'target:' + id)];
   return { ...c, rep: c.rep + rep, renewals: n, milestones: [...new Set([...c.milestones, ...reached, 'renewed'])], contracts: [...c.contracts, { n, day: g.day, rep }] };
 }
 

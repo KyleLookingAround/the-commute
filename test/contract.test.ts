@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fromGeo } from '../src/sim/network.ts';
 import { Sim } from '../src/sim/sim.ts';
-import { freshCareer, reputation, renew, renewable, buyPerk, perkState, canBuyPerk, readCareer, effects, careerEmpty, CAREER_VERSION } from '../src/sim/contract.ts';
+import { freshCareer, reputation, renew, renewable, buyPerk, perkState, canBuyPerk, readCareer, effects, careerEmpty, CAREER_VERSION, targetsMet } from '../src/sim/contract.ts';
 import type { ContractDef, NetworkGeoDef } from '../src/sim/types.ts';
 
 const def = JSON.parse(readFileSync(new URL('../src/data/network.json', import.meta.url), 'utf8')) as NetworkGeoDef;
@@ -47,8 +47,9 @@ test('contract: renewal is offered once Piccadilly is owned, and banks the run i
   assert.equal(renewable(fresh.g, picc()), false);
   const sim = played(); assert.ok(renewable(sim.g, picc()));
   const rep = reputation(sim.g); assert.ok(rep > 0, 'a run with the whole line earns reputation');
-  const c0 = freshCareer(), c = renew(c0, sim.g, sim.S.map(s => s.id));
-  assert.equal(c.rep, rep); assert.equal(c.renewals, 1); assert.deepEqual(c.contracts, [{ n: 1, day: sim.g.day, rep }]);
+  const c0 = freshCareer(), c = renew(c0, sim.g, sim.S.map(s => s.id)), t = targetsMet(sim.g, sim.S.map(s => s.id));
+  assert.equal(c.rep, rep + t.rep, 'the run\'s reputation and its targets\''); assert.equal(c.renewals, 1); assert.deepEqual(c.contracts, [{ n: 1, day: sim.g.day, rep: rep + t.rep }]);
+  for (const id of t.met) assert.ok(c.milestones.includes('target:' + id));
   assert.ok(c.milestones.includes('owns:piccadilly') && c.milestones.includes('renewed'));
   assert.deepEqual(c0, freshCareer(), 'the career renewed from is left as it was');
   assert.ok(careerEmpty(c0) && !careerEmpty(c));
@@ -110,4 +111,12 @@ test('contract: a save file carries the career beside the run, and putting it on
   // a file whose career is from another version still loads its run
   const odd = fromFile(toFile({ g: sim.g, career: { ...career, v: 99 } }));
   assert.ok(odd.ok); assert.equal(odd.saved.career, undefined);
+});
+
+test('contract: the franchise\'s targets each bank more when met: on time, few giving up, the main line', () => {
+  const g = Sim.halt(net(), 1), ids = net().stations.map(s => s.id);
+  assert.deepEqual(targetsMet(g, ids).met, [], 'a new run has met none');
+  g.stats.boarded = 10000; g.stats.lost = 100; g.stats.deps = 200; g.stats.late = 10;
+  assert.deepEqual(targetsMet(g, ids).met, ['ontime', 'fewlost']);
+  g.stats.late = 40; assert.deepEqual(targetsMet(g, ids).met, ['fewlost'], 'four in five on time misses it');
 });

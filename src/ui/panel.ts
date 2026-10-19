@@ -6,7 +6,7 @@
 import { UPGRADES, LINE_UPGRADES } from '../sim/sim.ts';
 import type { LineUpgrade, Upgrade } from '../sim/places.ts';
 import { pace } from '../sim/day.ts';
-import { punctuality, renewable, reputation } from '../sim/contract.ts';
+import { TARGETS, punctuality, renewable, reputation, targetsMet } from '../sim/contract.ts';
 import type { Sim } from '../sim/sim.ts';
 import type { GameState } from '../sim/types.ts';
 import type { Road, StretchDef } from '../sim/traffic.ts';
@@ -470,6 +470,8 @@ export class UI {
     // led by the score (docs/design/gridlock.md, The road card): cars off the roads at 08:00, a figure that only rises
     panel.innerHTML = this.stats([['nOff', 'Cars off'], ['nStations', 'Stations'], ['nBoard', 'Boarded'], ['nRep', 'Reputation']], [['nEarned', 'Earned'], ['nLost', 'Gave up'], ['nLate', 'On time'], ['nBus', 'By bus'], ['nStart', 'Cars at 08:00 at the start']]);
     panel.querySelector('details')?.addEventListener('toggle', e => { this.more = (e.target as HTMLDetailsElement).open; });
+    // the franchise's targets, each ticked once it's met (banked with the reputation when the contract is renewed)
+    panel.insertAdjacentHTML('beforeend', `<ul class="targets" aria-label="The franchise's targets">${TARGETS.map(t => `<li data-target="${t.id}"><span class="tick" aria-hidden="true"></span>${t.name} <small>★ ${t.rep}</small></li>`).join('')}</ul>`);
     // joining the Bee Network (step 22), a step at a time, each seen across the map
     const bee = sim.P.bee;
     this.stageCards(sim.P.stagesFor(sim.net, bee).filter(u => sim.stageReady(bee, u.id)).map(x => {
@@ -535,6 +537,7 @@ export class UI {
       const S = sim.state(p.station!); set('sBus', num(S.bus)); set('sWait', `${S.waiting} waiting`);
     } else if (!p) {
       set('nStations', String(g.owned.filter(Boolean).length)); set('nBoard', fmtCount(g.stats.boarded)); set('nEarned', fmtShort(g.earned)); set('nRep', `★ ${reputation(g)}`);
+      { const met = new Set(targetsMet(g, sim.S.map(st => st.id)).met); panel.querySelectorAll<HTMLElement>('[data-target]').forEach(li => { const on = met.has(li.dataset['target'] ?? ''); if (li.classList.contains('met') !== on) li.classList.toggle('met', on); }); }
       { const sc = this.roads?.score(); set('nOff', sc ? num(Math.round(sc.off)) : '–'); set('nStart', sc ? num(Math.round(sc.start)) : '–'); }
       set('nLost', fmtCount(g.stats.lost)); set('nLate', `${Math.floor(100 * punctuality(g))}%`); set('nBus', fmtCount(g.trouble.bused)); set('lRep', String(reputation(g)));
     }

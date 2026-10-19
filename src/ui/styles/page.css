@@ -187,3 +187,11 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .causes[hidden]{display:none}
 .causes{display:flex;flex-wrap:wrap;gap:var(--s-2);margin:0 0 var(--s-2)}
 .causes .chip{min-height:var(--touch);padding:0 var(--s-3);border:1px solid var(--map-strain-2);border-radius:var(--r-pill);background:transparent;color:var(--fg);font-size:var(--text-sm)}
+/* the franchise's targets on the Network card: a ring, filled once met */
+.targets{list-style:none;margin:10px 0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:var(--text-sm);color:var(--soft)}
+.targets li{display:flex;align-items:center;gap:8px}
+.targets .tick{width:var(--dot);height:var(--dot);border-radius:50%;border:2px solid var(--soft);flex:none}
+.targets li.met{color:var(--fg)}
+.targets li.met .tick{background:var(--ok);border-color:var(--ok)}
+.targets small{color:var(--accent);margin-left:auto}
+

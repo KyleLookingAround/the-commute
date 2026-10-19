@@ -99,6 +99,10 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .card .nm{font-weight:800;font-size:var(--text-sm);line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card .st{font-family:var(--mono);font-size:var(--text-sm);font-variant-numeric:tabular-nums;color:var(--fg)}
 .card.lock .st{color:var(--accent)}
+/* a place of the player's that can build a stage now: a dot in its corner (on the map, on its name) */
+.card{position:relative}
+.card.can::after,.lbl.can::after{content:"";position:absolute;top:6px;right:6px;width:var(--dot);height:var(--dot);border-radius:50%;background:var(--ok);box-shadow:0 0 0 2px var(--card),0 0 8px var(--ok)}
+.lbl.can::after{top:calc(var(--dot) / -2);right:calc(var(--dot) / -2)}
 .card meter,.ucard .togo meter{width:100%;height:6px;border:0;border-radius:var(--r-pill);background:var(--panel-hi);appearance:none}
 .card meter::-webkit-meter-bar,.ucard .togo meter::-webkit-meter-bar{background:var(--panel-hi);border:0;border-radius:var(--r-pill);height:6px}
 .card meter::-webkit-meter-optimum-value,.card meter::-webkit-meter-suboptimum-value,.card meter::-webkit-meter-even-less-good-value,.ucard .togo meter::-webkit-meter-optimum-value,.ucard .togo meter::-webkit-meter-suboptimum-value,.ucard .togo meter::-webkit-meter-even-less-good-value{background:var(--accent);border-radius:var(--r-pill)}

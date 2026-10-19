@@ -206,6 +206,11 @@ export class UI {
     for (const root of [this.els.strip, this.els.panel]) {
       root.querySelectorAll<HTMLElement>('[data-pst]').forEach(el => { const txt = this.chipText(el.dataset['pst'] ?? ''); if (el.textContent !== txt) el.textContent = txt; });
       root.querySelectorAll<HTMLMeterElement>('[data-sm]').forEach(m => { if (m.getAttribute('value') !== cash) m.setAttribute('value', cash); });
+      // a dot on a place the player has that can build a stage with the cash in hand
+      root.querySelectorAll<HTMLElement>('.card[data-place],.card[data-next],.card[data-list]').forEach(c => {
+        const id = c.dataset['place'] ?? c.dataset['next'] ?? c.dataset['list'] ?? '', can = this.sim.canGrow(id);
+        if (c.classList.contains('can') !== can) { c.classList.toggle('can', can); c.title = can ? 'Ready to build' : ''; }
+      });
     }
   }
   /** What a place's chip says under its name: its figure if it's the player's, its price if not. */

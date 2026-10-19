@@ -342,6 +342,8 @@ function nextStations(): void {
     edgeHtml[i] = `<em>${s.name.replace('Manchester ', '')}</em><b>${fmt(sim.stationPrice(i))}</b>`;
     edgeLabel[i] = `${s.name}, ${fmt(sim.stationPrice(i))}: open it`;
   }
+  // an owned station that can build a stage with the cash in hand: a dot on its name, as on its chip
+  built.forEach((_, i) => { const d = lbls[i], can = !!sim.g.owned[i] && sim.canGrow(sim.P.station[i]!); if (d && d.classList.contains('can') !== can) d.classList.toggle('can', can); });
   built.forEach((_, i) => { const m = lblMeter[i]; if (m) { const w = `${Math.min(100, Math.floor(100 * sim.g.cash / sim.stationPrice(i)))}%`; if (m.style.width !== w) m.style.width = w; } });
 }
 /** A station further out than the next ones (not offered) shows its dim price only within this of the camera; further,

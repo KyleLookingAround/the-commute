@@ -1018,6 +1018,13 @@ export class Sim {
     if (p.kind === 'section' || p.kind === 'junction') return this.price(id, stage) !== undefined;
     return this.stageReady(id, stage);
   }
+  /** Whether a place the player has can build one of its stages now, with the cash in hand: the Places row and the
+   * station's name on the map mark it. A fact, not a pick: every place that can grow is marked alike. */
+  canGrow(id: string): boolean {
+    const p = this.P.byId.get(id); if (!p || (p.kind === 'station' ? !this.g.owned[p.station!] : !this.owns(id))) return false;
+    const stages = p.kind === 'section' ? [SECTION_SPEED.id, SECTION_SIGNALS.id, SECTION_WIRES.id] : p.kind === 'junction' ? [JUNCTION_FLYOVER.id] : this.P.stagesFor(this.net, id).map(u => u.id);
+    return stages.some(s => this.canBuy(id, s));
+  }
   /** Buy a place, or build one of its stages: pay, record it, and let what it changes take effect. */
   buy(id: string, stage?: string): boolean {
     if (!this.canBuy(id, stage)) return false;

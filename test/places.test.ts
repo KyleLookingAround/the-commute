@@ -106,3 +106,11 @@ test('places: the save holds places only, and a game read back is the same game'
   assert.ok(back.g.ups[0]!.bus && back.g.ups[0]!.crossing && back.g.line.units === 1);
   assert.throws(() => { (back.g as unknown as { owned: boolean[] }).owned = []; }, 'what\'s worked out from places can\'t be written over');
 });
+
+test('places: a place the player has can grow when a stage there is open and the cash covers it, and only then', () => {
+  const sim = fresh();
+  assert.ok(sim.canGrow(st('stockport')), 'Stockport, a halt, with £10m in hand');
+  assert.ok(!sim.canGrow(st('heaton-chapel')), 'not the player\'s yet: its price shows instead');
+  sim.g.cash = 0;
+  assert.ok(!sim.canGrow(st('stockport')), 'nothing it could build is paid for');
+});

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fromGeo } from '../src/sim/network.ts';
-import { Sim } from '../src/sim/sim.ts';
+import { Sim, TUNING } from '../src/sim/sim.ts';
 import { simAtHour } from '../src/sim/day.ts';
 import { StrainRead } from '../src/ui/strain.ts';
 import { causes } from '../src/ui/cause.ts';
@@ -14,6 +14,8 @@ import type { NetworkGeoDef } from '../src/sim/types.ts';
 // @ts-expect-error the bot is plain JavaScript
 import { act } from '../tools/bot.mjs';
 
+// word of mouth held still, so the bot's busy line stays strained enough to name causes (this file runs on its own)
+(TUNING as { wordCut: number }).wordCut = 0;
 const net = fromGeo(JSON.parse(readFileSync(new URL('../src/data/network.json', import.meta.url), 'utf8')) as NetworkGeoDef);
 /** The bot's game on seed 1 to day 5's morning, then an hour on, read as the page reads it (or not). */
 function play(read: boolean): { sim: Sim; seen: Map<string, Set<string>>; hash: string } {

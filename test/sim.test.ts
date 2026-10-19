@@ -561,8 +561,10 @@ test('homes: growth is slow (a few game days, not minutes), saved, and brings mo
   assert.ok(grew > 0 && grew < 0.05 * gap, `a sim hour closes ${(100 * grew / gap).toFixed(1)}% of the gap`);
   const g = JSON.parse(JSON.stringify(sim.g)), again = new Sim(net(), g);
   assert.equal(again.homes(0), sim.homes(0), 'homes are saved');
+  // (against the trips now: word of mouth has moved since the start)
+  const now = sim.tripRates(0, 8); void before;
   sim.g.homes[0] = sim.ceiling(0);
-  assert.ok(sim.tripRates(0, 8) > before * 1.05, 'more homes, more trips');
+  assert.ok(sim.tripRates(0, 8) > now * 1.05, 'more homes, more trips');
 });
 
 // ---- every platform in use ----

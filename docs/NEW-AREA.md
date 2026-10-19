@@ -20,7 +20,7 @@ Each box names the tool that makes it and the check that proves it. A box that c
 - [ ] The ground from the LIDAR (`tools/lidar-to-terrain.mjs`) and the real buildings, trees, hedges and ground cover (`tools/osm-to-world.mjs`), within the area's budget in `tools/lines.mjs`. Check: `terrain`, `world`.
 - [ ] The main roads along their real courses, with their junctions and bridges (`tools/osm-to-roads.mjs --main`), joined to every station's own streets, nothing sinking into the ground, nothing laid over the rails. Check: `roads`, `surroundings`.
 - [ ] Signals, masts and the lineside as the rest of the line has them. Check: `signals`, `landmarks`.
-- [ ] Depots and sidings where the real ones are (`depots` in the network data), drawn with their roads, and doing a job in the game (Longsight: the stopper's peak units).
+- [ ] Depots and sidings where the real ones are (`depots` in the network data), drawn with their roads, and only once they do a job in the game: a depot that adds trains to a full line makes things worse (`docs/DESIGN.md`, Why the stopper can't just run more units).
 
 ## 3. The stations
 
@@ -63,7 +63,7 @@ Each box names the tool that makes it and the check that proves it. A box that c
 
 As of 19 October 2026:
 
-- **The loop (section 1):** buying capacity doesn't yet clearly fix a problem. When the bot bought Longsight's units early, the stopper still left Stockport full and the network carried 7% fewer in all. Room on the trains fills with new riders at once. The late game needs problems a buy fixes for a while, before any area is added.
+- **The loop (section 1):** buying capacity doesn't yet clearly fix a problem. More stopper units made things worse (the line is full: they queued at Stockport), and room on the trains filled with new riders at once. Word of mouth (riders adjusting to how full the trains are) and towns that grow where the player invests are the fix being built. The late game needs problems a buy fixes for a while, before any area is added.
 - **The streets round each station** clearing as it's served (step 20): built on the session branch, not yet checked or on `main`.
 - **The A6's own buildings** from the photo library's `areas` (step 8).
 - **The bus garage** (Stagecoach's on Daw Bank) and bus priority at junctions (step 12): no job in the game yet.

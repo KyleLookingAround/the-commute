@@ -130,10 +130,7 @@ export interface BusRouteDef { id: string; name: string; along: string[]; road: 
   /** How often it comes at each step of More buses, minutes (10, 6 and 4 if not given), and the buses drawn on it (8, 12 and 18). */
   every?: number[]; buses?: number[] }
 /** A depot: a yard where units stand, coming with the station it opens off (Stockport's carriage sidings). */
-export interface DepotDef { id: string; name: string; station: string; note?: string;
-  /** Where its roads lie beside the line, if not in its station's kit: on a corridor at chainage s, each road's middle
-   * v across it (Longsight's, from its real place). */
-  at?: { corridor: string; s: number; v: number[] } }
+export interface DepotDef { id: string; name: string; station: string; note?: string }
 export interface LandmarkDef {
   id: string; name: string; kind: string; corridor?: string;
   from?: LatLon; to?: LatLon; at?: LatLon; lat?: number; lon?: number; arches?: number; height?: number; todo?: string;
@@ -213,6 +210,10 @@ export interface StationState {
   /** Long-distance passengers getting on and off the expresses here. */
   through: number;
   car: number; bus: number; carAcc: number; busAcc: number; parked: number[];
+  /** Word of mouth (docs/DESIGN.md, Word of mouth): how many of the station's would-be riders try the train, 0.4 to 1,
+   * falling while people give up there and rising again once trains have room; and the people who gave up and who
+   * boarded there lately (each fading over a couple of clock hours), which it reads. */
+  word: number; wordLost: number; wordBoard: number;
 }
 /** svc: the service it runs; calling: the station a dwelling train is boarding at; boardAcc: boarding it has room for
  * this stop and hasn't used yet, in passengers (its doors take a share of a passenger each second; below zero while

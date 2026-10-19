@@ -17,7 +17,7 @@ import { stepExpress, nextSlot, EXPRESS_UNITS } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
 import { traffic, type TrafficDef } from './traffic.ts';
 import { effects, type Effects } from './contract.ts';
-import { places, build, derive, frequencyStage, placeId, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, JUNCTION_FLYOVER, FEEDER, SHELTER, BEE, BUS_EVERY, BUS_LANES, NEW_STOCK, MAINT, YARD, type Places, type Upgrade } from './places.ts';
+import { places, build, derive, frequencyStage, placeId, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, JUNCTION_FLYOVER, FEEDER, SHELTER, BEE, BUS_EVERY, BUS_LANES, NEW_STOCK, MAINT, type Places, type Upgrade } from './places.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
 // a station's stages and the line's, now stages of places (src/sim/places.ts); here too, where the view finds them
@@ -62,7 +62,7 @@ export const TUNING = {
   doorsPerCar: 2, boardPerDoor: 0.7,           // passengers a second through each door: a 2-car unit boards about 110 in a 45 s stop
   doorsCrowd: 0.7,                             // ...slowing as it fills, to 30% of that when full: people squeeze in
   platformCap: 150, platformCapExtended: 320, platformCapLong: 480,
-  collectNoBarriers: 0.82, collectBooking: 0.9, platformsBonus: 1.2, christmasPull: 0.5, tapSave: 60, hubSave: 3 * 60, newSeats: 1.2, newAccel: 1.1, maintFails: 0.5, busShare: [0.08, 0.13, 0.18], busLanes: 0.05, kioskPerPax: 0.35, retailPerPax: 0.8, travelPerPax: 0.4, shopsPerPax: 1.2, cycleBonus: 1.08, postersBonus: 1.06,
+  collectNoBarriers: 0.82, collectBooking: 0.9, platformsBonus: 1.2, christmasPull: 0.5, investHomes: 0.05, investMost: 12, wordCut: 2, wordMin: 0.4, wordMemory: 2, wordFall: 4, wordRise: 8, wordSeen: 20, tapSave: 60, hubSave: 3 * 60, newSeats: 1.2, newAccel: 1.1, maintFails: 0.5, busShare: [0.08, 0.13, 0.18], busLanes: 0.05, kioskPerPax: 0.35, retailPerPax: 0.8, travelPerPax: 0.4, shopsPerPax: 1.2, cycleBonus: 1.08, postersBonus: 1.06,
   // door to door (src/sim/journeys.ts), in sim seconds, which are real ones: people travel when the whole journey fits
   // about half an hour each way (Marchetti's constant), and walking and waiting weigh twice riding (UK appraisal practice)
   walk: 8 * 60, walkRound: 8 * 60, walkStairs: 3 * 60, liftsSave: 60,   // the walk each end; the far side's extra, round or over the stairs
@@ -235,7 +235,7 @@ export class Sim {
     return derive({
       v: SAVE_VERSION, seed, rngState: seed >>> 0, t, day: from.clock.day, cash: from.cash + fx.cash, earned: 0,
       places: owned, perks: [...perks], start: from.id,
-      st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0, cab: 0, cabs: [], through: 0, car: 0, bus: 0, carAcc: 0, busAcc: 0, parked: [] })),
+      st: network.stations.map((): StationState => ({ acc: 0, q: [[], []], waiting: 0, boarded: 0, alighted: 0, changed: 0, revenue: 0, lost: 0, cab: 0, cabs: [], through: 0, car: 0, bus: 0, carAcc: 0, busAcc: 0, parked: [], word: 1, wordLost: 0, wordBoard: 0 })),
       trains: [], ends: {}, trouble: freshTrouble(), held: {}, weather: freshWeather(seed, t),
       stats: { boarded: 0, lost: 0, cab: 0, through: 0, express: 0, car: 0, bus: 0, late: 0, deps: 0 },
       homes: network.stations.map(s => s.catchment),
@@ -434,9 +434,7 @@ export class Sim {
   /** The units a service runs all day: one, or the most its frequency's steps bought run. */
   unitsAllDay(v: Svc): number { let n = 1; (v.def.frequency?.steps ?? []).slice(0, this.freqLevel(v)).forEach(x => { n = Math.max(n, x.units ?? 0); }); return n; }
   /** The more units a service runs in the peaks only. */
-  unitsPeak(v: Svc): number { let n = 0; (v.def.frequency?.steps ?? []).slice(0, this.freqLevel(v)).forEach(x => { n += x.peak ?? 0; }); return n + (placeId('route', v.id) === this.P.stopper ? this.yardUnits() : 0); }
-  /** The stopper's peak units out of Longsight depot (YARD), each only once its peak timetable runs. */
-  yardUnits(): number { const v = this.svcs[0]; return this.P.longsight && v && this.freqLevel(v) >= (v.def.frequency?.steps.length ?? 0) ? this.g.places[this.P.longsight]?.[YARD.id] ?? 0 : 0; }
+  unitsPeak(v: Svc): number { let n = 0; (v.def.frequency?.steps ?? []).slice(0, this.freqLevel(v)).forEach(x => { n += x.peak ?? 0; }); return n; }
   /** The units a service has out now: its all-day ones, and its peak ones in the peaks. */
   unitsNow(v: Svc): number { return this.span(v).length < 2 ? 0 : this.unitsAllDay(v) + (this.inPeak(this.g.t) ? this.unitsPeak(v) : 0); }
   /** Whether sim time t is in a peak by the clock (TUNING.peaks). */
@@ -864,7 +862,15 @@ export class Sim {
   /** Station i's homes now (its census catchment, grown). */
   homes(i: number): number { return this.g.homes[i] ?? this.station(i).catchment; }
   /** The most homes station i's land could hold. */
-  ceiling(i: number): number { const s = this.station(i), sg = this.ups(i).signature ? s.grow?.signature?.homes ?? 0 : 0; return Math.max(s.catchment, s.ceiling ?? s.catchment) * (1 + sg); }
+  ceiling(i: number): number { const s = this.station(i), sg = this.ups(i).signature ? s.grow?.signature?.homes ?? 0 : 0; return Math.max(s.catchment, s.ceiling ?? s.catchment) * (1 + sg) * (1 + TUNING.investHomes * Math.min(TUNING.investMost, this.invested(i))); }
+  /** The most station i's land could ever hold: its ceiling with every stage bought (what the map lays plots for). */
+  ceilingMost(i: number): number { const s = this.station(i); return Math.max(s.catchment, s.ceiling ?? s.catchment) * (1 + (s.grow?.signature?.homes ?? 0)) * (1 + TUNING.investHomes * TUNING.investMost); }
+  /** The stages built at station i and its bus stop (towns that grow where the player invests: each raises its ceiling). */
+  invested(i: number): number {
+    let n = 0; const r = this.g.places[this.P.station[i]!]; if (r) for (const k in r) n += r[k] ?? 0;
+    const s = this.P.stopOf[i], q = s ? this.g.places[s] : undefined; if (q) for (const k in q) n += q[k] ?? 0;
+    return n;
+  }
   /** How far station i's bus stop's feeder route has come: 0 none, then each FEEDER step bought. */
   /** dc clock-paced seconds of the bus routes the player runs (step 8): each takes its share of the trips along it the
    * trains don't carry (between any two of its stations, owned or not: it stops near every door), each paying its fare
@@ -962,7 +968,7 @@ export class Sim {
   /** What scales station i's trips an hour at hour h: the hour's demand, its platforms, the weather, over Piccadilly's draw. */
   tripScale(i: number, h: number): number { return demandCurve(h) * TUNING.demand * (this.ups(i).platforms ? TUNING.platformsBonus : 1) * (this.ups(i).cyclehub ? TUNING.cycleBonus : 1) * (this.ups(i).posters ? TUNING.postersBonus : 1) * feel(this.g).travel / this.net.station('piccadilly').draw; }
   tripRates(i: number, h: number): number {
-    const out = h < 12 ? TUNING.amOut : TUNING.pmOut, scale = this.tripScale(i, h);
+    const out = h < 12 ? TUNING.amOut : TUNING.pmOut, scale = this.tripScale(i, h) * (this.state(i).word ?? 1);
     this.refreshSurge(); const sAt = this.surgeAt, sBy = this.surgeBy, sGo = this.surgeGoing;
     let tot = 0;
     for (let j = 0; j < this.S.length; j++) {
@@ -1053,6 +1059,20 @@ export class Sim {
     }
   }
   rand(): number { return rand(this.g); }
+  /** The people given up and boarded at each station as last heard (not saved: read again from the station on load). */
+  private heard: [number, number][] = [];
+  /** Word of mouth at station i, dc sim seconds by the clock on: who gave up and who boarded there lately, and the
+   * share of would-be riders who try the train easing towards 1 less wordCut times the share who gave up (falling
+   * over wordFall clock hours, rising back over wordRise), never under wordMin. With too few people about lately
+   * (the night) it holds. */
+  private hearWord(i: number, dc: number): void {
+    const S = this.state(i), T = TUNING, was = this.heard[i] ?? [S.lost, S.boarded], hrs = dc * BASE / 3600, fade = Math.exp(-hrs / T.wordMemory);
+    S.wordLost = (S.wordLost ?? 0) * fade + Math.max(0, S.lost - was[0]); S.wordBoard = (S.wordBoard ?? 0) * fade + Math.max(0, S.boarded - was[1]);
+    this.heard[i] = [S.lost, S.boarded];
+    const seen = S.wordLost + S.wordBoard, w = S.word ?? 1; if (seen < T.wordSeen) return;
+    const want = Math.max(T.wordMin, 1 - T.wordCut * S.wordLost / seen);
+    S.word = w + (want - w) * (1 - Math.exp(-hrs / (want < w ? T.wordFall : T.wordRise)));
+  }
 
   // ---- stepping ----
   step(dt: number): void {
@@ -1063,7 +1083,7 @@ export class Sim {
     // runs fast, so each clock hour carries what it did before the clock sped up
     const dc = (clockAt(g.t) - clockAt(t0)) / BASE;
     stepWeather(g, dt); this.refreshJourneys(); this.measureCrowding(); this.grow(dc);
-    for (let i = 0; i < this.S.length; i++) { if (!g.owned[i]) continue; this.generate(i, dc); stepAccess(this, TUNING, i, dc); this.expire(i); }
+    for (let i = 0; i < this.S.length; i++) { if (!g.owned[i]) continue; this.generate(i, dc); stepAccess(this, TUNING, i, dc); this.expire(i); this.hearWord(i, dc); }
     this.stepBuses(dc);
     stepTrouble(this, TUNING);
     this.occupy();
@@ -1087,8 +1107,7 @@ export class Sim {
     if (p.kind === 'station') { const u = UPGRADES.find(x => x.id === stage && !x.stop); return u ? this.upgradePrice(p.station!, u) : undefined; }
     if (p.kind === 'junction') return stage === JUNCTION_FLYOVER.id && this.flyoverOffered(id) ? this.cost(JUNCTION_FLYOVER.price) : undefined;
     if (p.kind === 'section') { const x = this.sectionAt(id); return stage === SECTION_SPEED.id ? x?.price : stage === SECTION_SIGNALS.id ? x?.signalsPrice : stage === SECTION_WIRES.id ? x?.wiresPrice : undefined; }
-    if (stage === NEW_STOCK.id || stage === MAINT.id || stage === YARD.id) { const u = stage === NEW_STOCK.id ? NEW_STOCK : stage === MAINT.id ? MAINT : YARD; const lvl = this.stageLevel(id, stage);
-      if (u === YARD) return this.P.stagesFor(this.net, id).includes(u) && lvl < u.max ? this.cost(u.prices[lvl]!) : undefined; return this.P.stagesFor(this.net, id).includes(u) && this.stageLevel(id, stage) < u.max ? this.cost(u.prices[0]!) : undefined; }
+    if (stage === NEW_STOCK.id || stage === MAINT.id) { const u = stage === NEW_STOCK.id ? NEW_STOCK : MAINT; return this.P.stagesFor(this.net, id).includes(u) && this.stageLevel(id, stage) < u.max ? this.cost(u.prices[0]!) : undefined; }
     if (p.kind === 'network' && stage === BEE.id) { const lvl = this.stageLevel(id, stage); return lvl < BEE.max ? this.cost(BEE.prices[lvl]!) : undefined; }
     if (p.kind === 'stop' && stage === SHELTER.id) { const lvl = this.stageLevel(id, stage); return p.stop?.kind === 'bus-stop' && lvl < SHELTER.max ? this.cost(SHELTER.prices[lvl]!) : undefined; }
     if (p.kind === 'stop' && stage === FEEDER.id) { const lvl = this.stageLevel(id, stage); return p.stop?.feeder && lvl < FEEDER.max ? this.cost(FEEDER.prices[lvl]!) : undefined; }
@@ -1109,8 +1128,6 @@ export class Sim {
    * built, the spare unit once a train has failed; a branch's frequency once it runs. */
   stageReady(id: string, stage: string): boolean {
     if (stage === FEEDER.id || stage === SHELTER.id || stage === BUS_EVERY.id || stage === BUS_LANES.id || stage === NEW_STOCK.id || stage === MAINT.id) return this.owns(id);
-    // Longsight's peak units once the stopper runs its peak timetable
-    if (stage === YARD.id) { const v = this.svcs[0]; return this.owns(id) && !!v && this.freqLevel(v) >= (v.def.frequency?.steps.length ?? 0); }
     // the Bee Network's one fare waits on a feeder route running
     if (stage === BEE.id) return this.stageLevel(id, stage) < 2 || this.P.all.some(p => p.kind === 'stop' && this.stageLevel(p.id, FEEDER.id) > 0);
     if (stage === 'through') { const n = this.svc(this.P.get(id).svc!).base.manchester?.needs, i = n ? this.net.station(n.station).index : -1; return this.owns(id) && (!n || (!!this.g.owned[i] && !!this.ups(i)[n.upgrade as UpgradeId])); }

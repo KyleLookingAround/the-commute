@@ -3,9 +3,11 @@
 // first, so they fill the reach's glow. Where they can go is worked out once at start, clear of the tracks, the
 // stations, the railway's land (pads and walls), the roads and the houses already drawn; the sim only says how many
 // show. A new one rises into place as a bought part does (at once with reduced motion). Instanced: walls, pitched
-// roofs, flat roofs and window bands.
+// roofs, flat roofs and window bands. Towns grow where the player invests (docs/DESIGN.md, Homes that grow): plots are
+// laid for the most a station could ever hold, and the flats nearest it gain a floor for every TALL_EVERY stages built
+// there, up to TALL_MOST, so a well-built station's centre stands taller.
 import * as THREE from 'three';
-import type { Sim } from '../sim/sim.ts';
+import { TUNING, type Sim } from '../sim/sim.ts';
 import type { Network } from '../sim/network.ts';
 import type { World } from './world.ts';
 import { PAL } from './scene.ts';
@@ -17,11 +19,12 @@ const NEAR = 150, FAR = 720;          // metres from the station: inside its own
 const FAR_OUT = 1200;                 // and further out where the real gaps nearer are full
 const TRACK_CLEAR = 30, STATION_CLEAR = 210, LAND_CLEAR = 10;
 const STOREY = 3;
+const TALL_NEAR = 320, TALL_EVERY = 4, TALL_MOST = 3;   // flats this near a station rise a floor every 4 stages built there, to 3 more
 
 const hash = (a: number, b: number) => { const s = Math.sin(a * 91.7 + b * 247.3) * 43758.5453; return s - Math.floor(s); };
 
 /** A building's place and shape: centre, yaw, footprint w (along) by d, wall height h, and whether it's flats. */
-interface Plot { x: number; y: number; z: number; yaw: number; w: number; d: number; h: number; flats: boolean; floors: number; rise: number; gap: '' | 'brown' | 'open' }
+interface Plot { x: number; y: number; z: number; yaw: number; w: number; d: number; h: number; flats: boolean; floors: number; rise: number; gap: '' | 'brown' | 'open'; tall: boolean }
 
 export class HomesLayer {
   /** Each station's plots, nearest first, and how many show. */
@@ -65,7 +68,9 @@ export class HomesLayer {
     };
     let walls = 0, bands = 0;
     net.stations.forEach((s, i) => {
-      const want = Math.max(0, Math.ceil(((s.ceiling ?? s.catchment) - s.catchment) / HOMES_PER_PLOT)), list: Plot[] = [];
+      // as many plots as the most its land could ever hold (Sim.ceilingMost: every stage bought, its signature too)
+      const most = Math.max(s.catchment, s.ceiling ?? s.catchment) * (1 + (s.grow?.signature?.homes ?? 0)) * (1 + TUNING.investHomes * TUNING.investMost);
+      const want = Math.max(0, Math.ceil((most - s.catchment) / HOMES_PER_PLOT)), list: Plot[] = [];
       // candidates nearest first, with a little shuffle so the rings aren't perfect: the real gaps first (OSM's
       // brownfield, building land and greenfield, and open ground with no building or tree), out to FAR; then, short of
       // room, further out (to FAR_OUT), real gaps still; then any clear ground there, as before the real surroundings
@@ -90,12 +95,12 @@ export class HomesLayer {
         const yaw = Math.atan2(f.z - z, f.x - x) + (hash(seed, 8) < 0.5 ? 0 : Math.PI / 2) + (hash(seed, 9) - 0.5) * 0.2;
         // on the lowest of its corners, so no side stands off a slope (buildable keeps them level within 4 m)
         const g = world.groundY, y = Math.min(g(x, z), g(x - rad, z), g(x + rad, z), g(x, z - rad), g(x, z + rad)) - 0.3;
-        list.push({ x, y, z, yaw, w, d, h: floors * STOREY, flats, floors, rise: 1, gap: pass === 0 ? gap : '' });
+        list.push({ x, y, z, yaw, w, d, h: floors * STOREY, flats, floors, rise: 1, gap: pass === 0 ? gap : '', tall: flats && r < TALL_NEAR });
         taken.push(x, z, rad);
       }
       this.plots.push(list);
       this.at.push(list.map(() => walls++));
-      this.bandAt.push(list.map(p => { const b = bands; bands += p.flats ? p.floors : 0; return b; }));
+      this.bandAt.push(list.map(p => { const b = bands; bands += p.flats ? p.floors + (p.tall ? TALL_MOST : 0) : 0; return b; }));
     });
     const unit = new THREE.BoxGeometry(1, 1, 1);
     // a pitched roof: a prism along x, its ridge at the top, 1 high and 1 across
@@ -122,8 +127,12 @@ export class HomesLayer {
     }
     // the window bands lie on the walls, whose shadow is theirs
     this.bands.castShadow = false; this.bands.userData['noShadow'] = true;
-    this.shown = net.stations.map(() => 0);
+    this.shown = net.stations.map(() => 0); this.tallBy = net.stations.map(() => 0);
   }
+  /** The floors each station's nearest flats have risen by, from the stages built there. */
+  private tallBy: number[] = [];
+  /** A plot's floors now. */
+  private floorsOf(i: number, p: Plot): number { return p.floors + (p.tall ? this.tallBy[i]! : 0); }
 
   /** Of each station's plots, how many stand on a real gap within its ring: OSM's brownfield, building land or
    * greenfield, open ground; the rest stand further out. */
@@ -141,6 +150,13 @@ export class HomesLayer {
       const list = this.plots[i]!, s = sim.S[i]!;
       const want = Math.min(list.length, this.hold?.[i] ?? Infinity, Math.max(0, Math.floor((sim.homes(i) - s.catchment) / HOMES_PER_PLOT)));
       let n = this.shown[i]!;
+      // the flats nearest a station a floor taller for every few stages built there: those standing raised again
+      const tall = Math.min(TALL_MOST, Math.floor(sim.invested(i) / TALL_EVERY));
+      if (tall !== this.tallBy[i]) {
+        for (let j = 0; j < n; j++) if (list[j]!.tall) this.hide(i, j);
+        this.tallBy[i] = tall;
+        for (let j = 0; j < n; j++) if (list[j]!.tall) this.place(i, j, Math.max(0.01, settle(list[j]!.rise)));
+      }
       while (n < want) { const p = list[n]!; p.rise = this.first ? 1 : 0; if (p.rise < 1) this.rising.push(i, n); this.place(i, n, 1); n++; }
       while (n > want) { n--; list[n]!.rise = 1; this.hide(i, n); }   // a new game: they go at once
       this.shown[i] = n;
@@ -159,7 +175,7 @@ export class HomesLayer {
   private hide(i: number, j: number): void {
     const w = this.at[i]![j]!, p = this.plots[i]![j]!;
     this.walls.setMatrixAt(w, this.zero); this.roofs.setMatrixAt(w, this.zero); this.tops.setMatrixAt(w, this.zero);
-    if (p.flats) for (let f = 0; f < p.floors; f++) this.bands.setMatrixAt(this.bandAt[i]![j]! + f, this.zero);
+    if (p.flats) for (let f = 0; f < this.floorsOf(i, p); f++) this.bands.setMatrixAt(this.bandAt[i]![j]! + f, this.zero);
     this.dirty();
   }
 
@@ -167,12 +183,12 @@ export class HomesLayer {
   private place(i: number, j: number, k: number): void {
     const p = this.plots[i]![j]!, w = this.at[i]![j]!, { m4, q, e, v, sc } = this;
     e.set(0, p.yaw, 0); q.setFromEuler(e);
-    const h = p.h * k;
+    const floors = this.floorsOf(i, p), h = floors * STOREY * k;
     v.set(p.x, p.y + h / 2, p.z); sc.set(p.w, h, p.d); m4.compose(v, q, sc); this.walls.setMatrixAt(w, m4);
     if (p.flats) {
       v.set(p.x, p.y + h + 0.3 * k, p.z); sc.set(p.w + 0.6, 0.6 * k, p.d + 0.6); m4.compose(v, q, sc); this.tops.setMatrixAt(w, m4);
       this.roofs.setMatrixAt(w, this.zero);
-      for (let f = 0; f < p.floors; f++) {
+      for (let f = 0; f < floors; f++) {
         v.set(p.x, p.y + (f * STOREY + 1.7) * k, p.z); sc.set(p.w + 0.12, 1.1 * k, p.d + 0.12); m4.compose(v, q, sc);
         this.bands.setMatrixAt(this.bandAt[i]![j]! + f, m4);
       }

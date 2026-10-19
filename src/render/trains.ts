@@ -74,7 +74,6 @@ export interface Berth { st: Station; at: number; def: PlatformDef | null; turn:
 export interface Berths { ahead: Berth | null; behind: Berth | null }
 export const NO_BERTHS: Berths = { ahead: null, behind: null };
 const CAR = 23, PITCH = CAR + 0.6;   // a car's length, and from one car's middle to the next
-const LONGSIGHT_LEN = 200;           // m of each of Longsight depot's stabling roads drawn
 const BOGIE = 8;                     // a car's bogies stand this far either side of its middle, and steer it
 // a train running in to the end of its run crosses to the track it will leave on over CROSS metres, finishing HOLD
 // metres before it stops: its whole length is then past the crossover, so it runs into the platform it leaves from
@@ -367,18 +366,6 @@ export class TrainLayer {
     this.services = Object.fromEntries(services.map(s => [s.id, s])); this.svcList = services;
     const ex = services.find(s => s.through || s.scenery);
     this.fast = ex ? { svc: ex, range: serviceRange(net, ex) } : null;
-    // Longsight depot's stabling roads beside the line (the fleet, step 5): ballast and rails, where the stopper's peak
-    // units out of Longsight rest between the peaks
-    const ls = net.def.depots?.find(d => d.id === 'longsight')?.at;
-    if (ls) {
-      const F = net.corridor(ls.corridor).at(ls.s, 0, newFrame()), gp = new THREE.Group(), yaw = yawFor(F); gp.name = 'longsight';
-      this.longsight = { F, v: ls.v };
-      const put = (w: number, h: number, mat: THREE.Material, v: number, y: number) => {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(LONGSIGHT_LEN, h, w), mat); m.position.set(F.x + v * F.nx, y, F.z + v * F.nz); m.rotation.y = yaw; m.receiveShadow = true; gp.add(m);
-      };
-      for (const v of ls.v) { put(3.4, 0.5, MAT.ballast, v, -0.24); for (const d of [-0.72, 0.72]) put(0.1, 0.16, MAT.rail, v + d, 0.09); }
-      scene.add(gp);
-    }
     this.riders = new THREE.InstancedMesh(riderGeo, riderMat, MAX_RIDERS); this.standing = new THREE.InstancedMesh(standGeo, riderMat, MAX_STANDING);
     for (const im of [this.riders, this.standing]) { im.count = 0; im.frustumCulled = false; scene.add(im); }
     this.coats = [PAL.pax, PAL['pax-2'], PAL['pax-3'], PAL['pax-4']];
@@ -547,26 +534,12 @@ export class TrainLayer {
       }
     });
   }
-  /** Longsight depot's frame (its middle on the line) and its stabling roads' offsets across it. */
-  private longsight: { F: Frame; v: number[] } | null = null;
-  /** A stopper unit out of Longsight resting on its kth stabling road there. */
-  private restLongsight(u: Unit, k: number): void {
-    const L = this.longsight!, F = L.F, v = L.v[k % L.v.length]!, n = u.cars.length;
-    u.cars.forEach((m, c) => {
-      const along = (c - (n - 1) / 2) * PITCH; m.position.set(F.x + along * F.dx + v * F.nx, 0, F.z + along * F.dz + v * F.nz);
-      m.rotation.y = yawFor(F); m.updateMatrix();
-    });
-    u.group.visible = true;
-  }
   sync(sim: Sim, dtGame: number): void {
     const g = sim.g;
     while (this.units.length < g.trains.length) { const u = this.unit(2, NORTHERN); this.units.push(u); this.meshes.push(u.group); }
     const at = this.counts; at.r = 0; at.s = 0; this.lamps.count = 0;
     let yard = 0;
     const roads = this.roadsUsed; roads.clear();
-    // the stopper's own peak units rest in Stockport's sidings, those out of Longsight at Longsight
-    const stopper = this.svcList.find(s => !s.through && !s.scenery)?.id, own = stopper ? sim.unitsPeak(sim.svc(stopper)) - sim.yardUnits() : 0;
-    let stopperAway = 0, atLongsight = 0;
     // the services as they run now, for the rescue (a new list only when one changes variant)
     if (sim.svcs.some((v, k) => this.live[k] !== v.def)) this.live = sim.svcs.map(v => v.def);
     g.trains.forEach((tr, i) => {
@@ -580,8 +553,7 @@ export class TrainLayer {
       // a peak unit resting between the peaks: in Stockport's sidings, or on the roads its service rests on
       if (tr.state === 'away') {
         const f = svc.frequency, at = f ? this.net.station(f.stable) : null;
-        if (tr.svc === stopper && this.longsight && stopperAway++ >= own) this.restLongsight(u, atLongsight++);
-        else if (at?.index === 0) this.stable(u, yard++);
+        if (at?.index === 0) this.stable(u, yard++);
         else if (at && f?.roads?.length) { const k = roads.get(at.id) ?? 0; roads.set(at.id, k + 1); const [ru = 0, rv = 0] = f.roads[k % f.roads.length]!; this.stable(u, 0, at.id, ru, rv); }
         else u.group.visible = false;
         this.windows(u, 0); return;

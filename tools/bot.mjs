@@ -159,6 +159,10 @@ export function act(sim) {
   // the fleet: newer units on each service with three times their price, the maintenance shed once two units have failed
   // with twice its (the next station saved for)
   for (const p of P.all) if (p.kind === 'route' && sim.owns(p.id)) { const price = sim.price(p.id, 'stock'); if (price !== undefined && g.cash > 3 * price + saving && sim.buy(p.id, 'stock')) return 'stock:' + p.svc; }
+  // Longsight's peak units when the stopper's trains have been leaving full or late, with twice the price (and the next
+  // station saved for: bought ahead of stations, room on the trains fills with riders the homes grow into, and the
+  // network carries fewer in all)
+  if (P.longsight && strained) { const price = sim.price(P.longsight, 'yard'); if (price !== undefined && sim.canBuy(P.longsight, 'yard') && g.cash > 2 * price + saving && sim.buy(P.longsight, 'yard')) return 'yard'; }
   if (P.sidings && g.trouble.fails >= 2) { const price = sim.price(P.sidings, 'maint'); if (price !== undefined && g.cash > 2 * price + saving && sim.buy(P.sidings, 'maint')) return 'maint'; }
   // the Bee Network a step at a time, with three times its price (and the next station saved for)
   { const price = sim.price(P.bee, 'bee'); if (price !== undefined && sim.canBuy(P.bee, 'bee') && g.cash > 3 * price + saving && sim.buy(P.bee, 'bee')) return 'bee'; }

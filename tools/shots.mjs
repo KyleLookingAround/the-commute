@@ -80,6 +80,8 @@ async function stationShots(only, extra) {
     for (let k = 0; k < 3; k++) sim.grant(sim.P.bee, 'bee');
     // every bus stop's feeder route, to its bigger buses
     for (const p of sim.P.all) if (p.kind === 'stop' && p.stop?.feeder && sim.owns(p.id)) for (let k = 0; k < 3; k++) sim.grant(p.id, 'feeder');
+    // Longsight's two peak units (they rest there between the peaks, as at 13:00 in the shot)
+    if (sim.P.longsight) for (let k = 0; k < 2; k++) sim.grant(sim.P.longsight, 'yard');
     // and every bus stop grown to its live times
     for (const p of sim.P.all) if (p.kind === 'stop' && p.stop?.kind === 'bus-stop' && sim.owns(p.id)) for (let k = 0; k < 2; k++) sim.grant(p.id, 'shelter');
     // a while into the morning, so the units and the expresses stand at their platforms round the line

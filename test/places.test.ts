@@ -139,3 +139,17 @@ test('places: the 358 is offered once Marple is open, and carries its own riders
   assert.ok((sim.g.stats.ridersBy?.[id] ?? 0) > 0, 'it carries riders');
   assert.equal(sim.g.stats.ridersBy?.['bus:192'] ?? 0, 0, 'its riders are its own');
 });
+
+test('places: Longsight depot comes with Ardwick, and once the stopper runs its peak timetable buys it two more peak units', () => {
+  const sim = fresh(), id = 'depot:longsight', v = sim.svc('stopper');
+  assert.deepEqual(sim.P.stagesFor(net, id).map(u => u.id), ['yard']);
+  for (const s of ['heaton-chapel', 'levenshulme', 'ardwick']) sim.buy(st(s));
+  for (const u of ['crossing', 'platform2', 'building', 'platforms']) sim.buyUpgrade(0, u);
+  assert.ok(sim.owns(id), 'it comes with Ardwick');
+  assert.equal(sim.canBuy(id, 'yard'), false, 'not before the peak timetable');
+  while (sim.canBuy(sim.P.stopper, 'units')) sim.buy(sim.P.stopper, 'units');
+  const before = sim.unitsPeak(v);
+  assert.ok(sim.buy(id, 'yard')); assert.ok(sim.buy(id, 'yard'));
+  assert.equal(sim.unitsPeak(v), before + 2); assert.equal(sim.yardUnits(), 2);
+  assert.equal(sim.price(id, 'yard'), undefined);
+});

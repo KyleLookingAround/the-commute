@@ -17,7 +17,7 @@ import { stepExpress, nextSlot, EXPRESS_UNITS } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
 import { traffic, type TrafficDef } from './traffic.ts';
 import { effects, type Effects } from './contract.ts';
-import { places, build, derive, frequencyStage, placeId, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, JUNCTION_FLYOVER, FEEDER, SHELTER, BEE, BUS_EVERY, BUS_LANES, NEW_STOCK, MAINT, type Places, type Upgrade } from './places.ts';
+import { places, build, derive, frequencyStage, placeId, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, JUNCTION_FLYOVER, FEEDER, SHELTER, BEE, BUS_EVERY, BUS_LANES, NEW_STOCK, MAINT, YARD, type Places, type Upgrade } from './places.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
 // a station's stages and the line's, now stages of places (src/sim/places.ts); here too, where the view finds them
@@ -434,7 +434,9 @@ export class Sim {
   /** The units a service runs all day: one, or the most its frequency's steps bought run. */
   unitsAllDay(v: Svc): number { let n = 1; (v.def.frequency?.steps ?? []).slice(0, this.freqLevel(v)).forEach(x => { n = Math.max(n, x.units ?? 0); }); return n; }
   /** The more units a service runs in the peaks only. */
-  unitsPeak(v: Svc): number { let n = 0; (v.def.frequency?.steps ?? []).slice(0, this.freqLevel(v)).forEach(x => { n += x.peak ?? 0; }); return n; }
+  unitsPeak(v: Svc): number { let n = 0; (v.def.frequency?.steps ?? []).slice(0, this.freqLevel(v)).forEach(x => { n += x.peak ?? 0; }); return n + (placeId('route', v.id) === this.P.stopper ? this.yardUnits() : 0); }
+  /** The stopper's peak units out of Longsight depot (YARD), each only once its peak timetable runs. */
+  yardUnits(): number { const v = this.svcs[0]; return this.P.longsight && v && this.freqLevel(v) >= (v.def.frequency?.steps.length ?? 0) ? this.g.places[this.P.longsight]?.[YARD.id] ?? 0 : 0; }
   /** The units a service has out now: its all-day ones, and its peak ones in the peaks. */
   unitsNow(v: Svc): number { return this.span(v).length < 2 ? 0 : this.unitsAllDay(v) + (this.inPeak(this.g.t) ? this.unitsPeak(v) : 0); }
   /** Whether sim time t is in a peak by the clock (TUNING.peaks). */
@@ -1085,7 +1087,8 @@ export class Sim {
     if (p.kind === 'station') { const u = UPGRADES.find(x => x.id === stage && !x.stop); return u ? this.upgradePrice(p.station!, u) : undefined; }
     if (p.kind === 'junction') return stage === JUNCTION_FLYOVER.id && this.flyoverOffered(id) ? this.cost(JUNCTION_FLYOVER.price) : undefined;
     if (p.kind === 'section') { const x = this.sectionAt(id); return stage === SECTION_SPEED.id ? x?.price : stage === SECTION_SIGNALS.id ? x?.signalsPrice : stage === SECTION_WIRES.id ? x?.wiresPrice : undefined; }
-    if (stage === NEW_STOCK.id || stage === MAINT.id) { const u = stage === NEW_STOCK.id ? NEW_STOCK : MAINT; return this.P.stagesFor(this.net, id).includes(u) && this.stageLevel(id, stage) < u.max ? this.cost(u.prices[0]!) : undefined; }
+    if (stage === NEW_STOCK.id || stage === MAINT.id || stage === YARD.id) { const u = stage === NEW_STOCK.id ? NEW_STOCK : stage === MAINT.id ? MAINT : YARD; const lvl = this.stageLevel(id, stage);
+      if (u === YARD) return this.P.stagesFor(this.net, id).includes(u) && lvl < u.max ? this.cost(u.prices[lvl]!) : undefined; return this.P.stagesFor(this.net, id).includes(u) && this.stageLevel(id, stage) < u.max ? this.cost(u.prices[0]!) : undefined; }
     if (p.kind === 'network' && stage === BEE.id) { const lvl = this.stageLevel(id, stage); return lvl < BEE.max ? this.cost(BEE.prices[lvl]!) : undefined; }
     if (p.kind === 'stop' && stage === SHELTER.id) { const lvl = this.stageLevel(id, stage); return p.stop?.kind === 'bus-stop' && lvl < SHELTER.max ? this.cost(SHELTER.prices[lvl]!) : undefined; }
     if (p.kind === 'stop' && stage === FEEDER.id) { const lvl = this.stageLevel(id, stage); return p.stop?.feeder && lvl < FEEDER.max ? this.cost(FEEDER.prices[lvl]!) : undefined; }
@@ -1106,6 +1109,8 @@ export class Sim {
    * built, the spare unit once a train has failed; a branch's frequency once it runs. */
   stageReady(id: string, stage: string): boolean {
     if (stage === FEEDER.id || stage === SHELTER.id || stage === BUS_EVERY.id || stage === BUS_LANES.id || stage === NEW_STOCK.id || stage === MAINT.id) return this.owns(id);
+    // Longsight's peak units once the stopper runs its peak timetable
+    if (stage === YARD.id) { const v = this.svcs[0]; return this.owns(id) && !!v && this.freqLevel(v) >= (v.def.frequency?.steps.length ?? 0); }
     // the Bee Network's one fare waits on a feeder route running
     if (stage === BEE.id) return this.stageLevel(id, stage) < 2 || this.P.all.some(p => p.kind === 'stop' && this.stageLevel(p.id, FEEDER.id) > 0);
     if (stage === 'through') { const n = this.svc(this.P.get(id).svc!).base.manchester?.needs, i = n ? this.net.station(n.station).index : -1; return this.owns(id) && (!n || (!!this.g.owned[i] && !!this.ups(i)[n.upgrade as UpgradeId])); }

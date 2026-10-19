@@ -130,7 +130,10 @@ export interface BusRouteDef { id: string; name: string; along: string[]; road: 
   /** How often it comes at each step of More buses, minutes (10, 6 and 4 if not given), and the buses drawn on it (8, 12 and 18). */
   every?: number[]; buses?: number[] }
 /** A depot: a yard where units stand, coming with the station it opens off (Stockport's carriage sidings). */
-export interface DepotDef { id: string; name: string; station: string; note?: string }
+export interface DepotDef { id: string; name: string; station: string; note?: string;
+  /** Where its roads lie beside the line, if not in its station's kit: on a corridor at chainage s, each road's middle
+   * v across it (Longsight's, from its real place). */
+  at?: { corridor: string; s: number; v: number[] } }
 export interface LandmarkDef {
   id: string; name: string; kind: string; corridor?: string;
   from?: LatLon; to?: LatLon; at?: LatLon; lat?: number; lon?: number; arches?: number; height?: number; todo?: string;

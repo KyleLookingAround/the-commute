@@ -259,6 +259,7 @@ export class UI {
   figure(id: string): string {
     const p = this.sim.P.byId.get(id); if (!p) return '';
     if (p.kind === 'route') { const n = this.sim.unitsFor(this.sim.svc(p.svc!)); return `${n} unit${n === 1 ? '' : 's'}`; }
+    if (p.kind === 'depot' && id === this.sim.P.longsight) { const n = this.sim.stageLevel(id, 'yard'); return n ? `${n} peak unit${n === 1 ? '' : 's'}` : 'room for two'; }
     if (p.kind === 'depot') return this.g.line.spare ? 'spare ready' : 'no spare';
     if (p.kind === 'bus') return `every ${this.sim.busEvery(id)} min`;
     return '';
@@ -378,6 +379,7 @@ export class UI {
     const sim = this.sim, g = this.g, p = sim.P.get(id), panel = this.els.panel;
     // a service: its figures, and its trains through the last hour as a stringline (a simple timetable view, step 6)
     if (p.kind === 'route') panel.innerHTML = this.stats([['rUnits', 'Units'], ['rCars', 'Cars'], ['rEvery', 'Every'], ['rAboard', 'Aboard']], id === sim.P.stopper ? [['rSpeed', 'Line speed'], ['rBus', 'By bus']] : []) + stringlineHtml(sim, p.svc!);
+    else if (p.kind === 'depot' && id === sim.P.longsight) panel.innerHTML = this.stats([['dYard', 'Peak units'], ['dUnits', 'Stopper units']]) + '<p class="blurb">Room for more of the stopper’s units, out for each peak and resting here between them. Once the stopper runs its peak timetable.</p>';
     else if (p.kind === 'depot') panel.innerHTML = this.stats([['dSpare', 'Spare unit'], ['dFails', 'Failures'], ['dBus', 'By bus']]);
     else if (p.kind === 'section') { this.sectionCard(id); return; }
     else if (p.kind === 'junction') { this.junctionCard(id); return; }
@@ -561,6 +563,7 @@ export class UI {
       const chart = panel.querySelector<SVGSVGElement>('.stringline svg'), k = `${v.id}:${this.line.version}`;
       if (chart && chart.dataset['k'] !== k) { chart.dataset['k'] = k; chart.innerHTML = this.line.svg(sim, v.id); }
     } else if (p?.kind === 'depot') {
+      set('dYard', String(sim.yardUnits())); set('dUnits', String(sim.unitsFor(sim.svc(sim.P.get(sim.P.stopper).svc!))));
       set('dSpare', g.line.spare ? 'Ready' : 'None'); set('dFails', num(g.trouble.fails)); set('dBus', num(g.trouble.bused));
     } else if (p?.kind === 'section') {
       const x = sim.sectionAt(id); set('xSpeed', x ? `${x.mph} mph` : '–'); set('xLen', x ? `${x.miles.toFixed(1)} mi` : '–'); set('xWires', x ? (x.wired ? 'Electric' : 'Diesel') : '–');

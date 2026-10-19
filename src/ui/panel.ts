@@ -490,6 +490,8 @@ export class UI {
     // led by the score (docs/design/gridlock.md, The road card): cars off the roads at 08:00, a figure that only rises
     panel.innerHTML = this.stats([['nOff', 'Cars off'], ['nStations', 'Stations'], ['nBoard', 'Boarded'], ['nRep', 'Reputation']], [['nEarned', 'Earned'], ['nLost', 'Gave up'], ['nLate', 'On time'], ['nBus', 'By bus'], ['nStart', 'Cars at 08:00 at the start']]);
     panel.querySelector('details')?.addEventListener('toggle', e => { this.more = (e.target as HTMLDetailsElement).open; });
+    // the score by game day, a sparkline under the figures (shown from the second day)
+    panel.querySelector('.stats')?.insertAdjacentHTML('afterend', '<svg class="spark" viewBox="0 0 100 20" preserveAspectRatio="none" role="img" aria-label="Cars off by game day" hidden><polyline vector-effect="non-scaling-stroke"/></svg>');
     // the franchise's targets, each ticked once it's met (banked with the reputation when the contract is renewed)
     panel.insertAdjacentHTML('beforeend', `<ul class="targets" aria-label="The franchise's targets">${TARGETS.map(t => `<li data-target="${t.id}"><span class="tick" aria-hidden="true"></span>${t.name} <small>★ ${t.rep}</small></li>`).join('')}</ul>`);
     // joining the Bee Network (step 22), a step at a time, each seen across the map
@@ -563,7 +565,10 @@ export class UI {
     } else if (!p) {
       set('nStations', String(g.owned.filter(Boolean).length)); set('nBoard', fmtCount(g.stats.boarded)); set('nEarned', fmtShort(g.earned)); set('nRep', `★ ${reputation(g)}`);
       { const met = new Set(targetsMet(g, sim.S.map(st => st.id)).met); panel.querySelectorAll<HTMLElement>('[data-target]').forEach(li => { const on = met.has(li.dataset['target'] ?? ''); if (li.classList.contains('met') !== on) li.classList.toggle('met', on); }); }
-      { const sc = this.roads?.score(); set('nOff', sc ? num(Math.round(sc.off)) : '–'); set('nStart', sc ? num(Math.round(sc.start)) : '–'); }
+      { const sc = this.roads?.score(); set('nOff', sc ? num(Math.round(sc.off)) : '–'); set('nStart', sc ? num(Math.round(sc.start)) : '–');
+        // each day's cars off, today's as it stands last
+        const svg = panel.querySelector<SVGSVGElement>('.spark'), days = [...(g.offDays ?? []).map(x => x ?? 0), ...(sc ? [sc.off] : [])];
+        if (svg) { svg.toggleAttribute('hidden', days.length < 2); if (days.length >= 2) { const hi = Math.max(1, ...days), pts = days.map((x, k) => `${(100 * k / (days.length - 1)).toFixed(1)},${(19 - 18 * Math.max(0, x) / hi).toFixed(1)}`).join(' '); const pl = svg.querySelector('polyline'); if (pl && pl.getAttribute('points') !== pts) pl.setAttribute('points', pts); } } }
       set('nLost', fmtCount(g.stats.lost)); set('nLate', `${Math.floor(100 * punctuality(g))}%`); set('nBus', fmtCount(g.trouble.bused)); set('lRep', String(reputation(g)));
     }
     // each card's Buy shows once the money is there; until then, how far there is to go

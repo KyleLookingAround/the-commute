@@ -8,7 +8,7 @@
      text (--lock) at 4.5:1 or more */
   --bg:#0c1020; --surface:#151b32; --surface-2:#1f2748; --line:#5e6a98; --line-soft:#2b3459; --line-strong:#7480b0;
   --ink:#f0ebdd; --soft:#9aa2bf; --accent:#f2b63a; --accent-ink:#1b1403; --accent-soft:#5a4a1f;
-  --ok:#6fe3a5; --dot:8px; --ok-soft:#2f6b4c; --card:#0f1428; --accent-glow:rgba(242,182,58,.25); --ghost:var(--map-ghost); --ghost-glow:rgba(79,220,255,.28); --danger:#ff6a57; --lock:#7d86a6; --focus:#7fd8ff;
+  --ok:#6fe3a5; --dot:8px; --spark-h:20px; --ok-soft:#2f6b4c; --card:#0f1428; --accent-glow:rgba(242,182,58,.25); --ghost:var(--map-ghost); --ghost-glow:rgba(79,220,255,.28); --danger:#ff6a57; --lock:#7d86a6; --focus:#7fd8ff;
   /* older names, kept as aliases */
   --panel:var(--surface); --panel-hi:var(--surface-2); --fg:var(--ink); --muted:var(--soft);
   /* type */

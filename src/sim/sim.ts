@@ -15,6 +15,8 @@ import { CLUBS, crowdAt, isDecember, matchOn } from './surges.ts';
 import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
 import { stepExpress, nextSlot, EXPRESS_UNITS } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
+import { traffic, type TrafficDef } from './traffic.ts';
+import trafficJson from '../data/traffic.json';
 import { effects, type Effects } from './contract.ts';
 import { places, build, derive, frequencyStage, placeId, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, JUNCTION_FLYOVER, FEEDER, SHELTER, BEE, BUS_EVERY, BUS_LANES, NEW_STOCK, MAINT, type Places, type Upgrade } from './places.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
@@ -1046,7 +1048,8 @@ export class Sim {
   // ---- stepping ----
   step(dt: number): void {
     const g = this.g; this.ensureTrains();
-    const d0 = Math.floor(g.t / DAY), t0 = g.t; g.t += dt; if (Math.floor(g.t / DAY) > d0) g.day++;
+    const d0 = Math.floor(g.t / DAY), t0 = g.t; g.t += dt;
+    if (Math.floor(g.t / DAY) > d0) { (g.offDays ??= [])[g.day] = Math.round(traffic(this, TUNING, trafficJson as unknown as TrafficDef, 8).off); g.day++; }
     // what the clock paces (demand, car parks and buses, homes growing) steps by the clock: dt in the peaks' sim seconds, more when the clock
     // runs fast, so each clock hour carries what it did before the clock sped up
     const dc = (clockAt(g.t) - clockAt(t0)) / BASE;

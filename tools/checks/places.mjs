@@ -8,11 +8,11 @@
 // among them; the stopper offers no extra unit before platform 3 (but newer units) and the sidings no spare before a train has failed (but the shed); the
 // Network card no renewal before Piccadilly), and has Next to chips for what touches it. The offered bus stop at
 // Levenshulme opens with Buy, and Ardwick (Shut) with Reopen. The full list of places by kind is under each card. And a
-// new game: Stockport alone on the row, Shut, with Reopen · £1,000, which leaves a halt and about £3,000. And tapping a road's traffic opens its card, the Network card leading with the cars off. No errors.
+// new game: Stockport alone on the row, Shut, with Reopen · £1,000, which leaves a halt and about £3,000. And tapping a road's traffic opens its card, the Network card leading with the cars off, and their sparkline by game day. No errors.
 // Covers: @page @sim src/render/stations.ts src/render/traffic.ts
 import { reveal } from '../reveal.mjs';
 import { register } from 'tsx/esm/api';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 export default async function ({ ok, open, root }) {
@@ -107,6 +107,17 @@ export default async function ({ ok, open, root }) {
     const bad = [!pt && 'Mersey Square\'s stretch is not on screen', !/Wellington Road/.test(card.name) && `the card is "${card.name}"`, !/^Road · \d+% full$/.test(card.sub) && `its header reads "${card.sub}"`,
       card.figs.some(f => !/\d|none/.test(f)) && `its figures read ${card.figs.join(', ')}`, card.wide && 'it scrolls sideways', !/\d/.test(off) && `the Network card's score reads "${off}"`, errs[0]].filter(Boolean);
     ok('places: at 320×568 tapping a road\'s traffic opens its card with its figures, and the Network card leads with the cars off the roads', !bad.length, bad.join('; ') || `${card.name} · ${card.sub} · ${card.figs.join(', ')} · ${off} off`);
+    await ctx.close();
+  }
+  // the score by game day: three days recorded, and the Network card's sparkline has them and today, inside the card
+  {
+    const days = { ...sim.g, offDays: [120, 480, 900] };
+    const { ctx, page, errs } = await open({ width: 320, height: 568 }, { touch: true, save: JSON.stringify({ g: days, selected: 0 }) });
+    await page.evaluate(() => document.getElementById('cash')?.click());
+    await page.waitForFunction(() => { const s = document.querySelector('#panel .spark'); return s && !s.hasAttribute('hidden'); }, null, { timeout: 30000 }).catch(() => {});
+    const sp = await page.evaluate(() => { const s = document.querySelector('#panel .spark'), b = s?.getBoundingClientRect(); return s ? { shown: !s.hasAttribute('hidden'), pts: (s.querySelector('polyline')?.getAttribute('points') ?? '').split(' ').filter(Boolean).length, w: b.width, h: b.height, right: b.right } : null; });
+    mkdirSync(join(root, 'build/shots'), { recursive: true }); await page.screenshot({ path: join(root, 'build/shots/places-spark.png') });
+    ok('places: at 320×568 the Network card draws the cars off by game day as a sparkline, today\'s last', !!sp && sp.shown && sp.pts === 4 && sp.w > 100 && sp.h > 10 && sp.right <= 320 && !errs.length, JSON.stringify(sp) + (errs[0] ?? ''));
     await ctx.close();
   }
 }

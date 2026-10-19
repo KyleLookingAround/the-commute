@@ -56,7 +56,7 @@ export const UPGRADES: Upgrade[] = [
 /** The stages of the main-line stopper (units, cars, timetable) and of Stockport's sidings (the spare unit). */
 export const LINE_UPGRADES: LineUpgrade[] = [
   { id: 'units', name: 'Extra unit', prices: [6000, 20000, 50000, 120000, 240000], desc: 'One more train in service: shorter waits, more passengers', max: 5 },
-  { id: 'cars', name: 'Longer trains', prices: [12000, 40000, 150000], desc: '+2 cars per unit', max: 3 },
+  { id: 'cars', name: 'Longer trains', prices: [12000, 40000], desc: '+2 cars per unit', max: 2 },
   { id: 'spare', name: 'Spare unit', prices: [8000], desc: 'Stands by in Stockport’s sidings: a failed train is moving again in half the time', max: 1 },
 ];
 /** A section of line's stage (the line between stations, docs/briefs/line-between-stations.md): line speed, 15 mph a

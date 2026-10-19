@@ -1,14 +1,15 @@
 // The stages that keep going (step 18, docs/DESIGN.md, Stages that keep going) drawn into every station's kit, from
 // the kit's own parts, so each tier shows on the map wherever it's bought:
-//   long        8-car platforms: each platform extension carried on 20 m beyond its far end, with its lamps
+//   long        8-car platforms: each platform extension carried on 20 m beyond its far end, a little narrower, with
+//               its lamps
 //   canopyFull  canopies the full length: each canopy carried to within 4 m of both ends of its platform as extended
 //   travel      a travel centre: a large unit by the kiosk
 //   shops       a row of shops: two small units beyond the bakery
 //   cyclehub    a cycle hub: a stand of twelve by the cycle racks (or the car park, or the kiosk where there are none)
 //   bee1, bee2  the Bee Network (step 22, derived at every station owned): three yellow tap-in posts by the kiosk, then
 //               a yellow totem at the way in
-//   posters     a poster campaign's billboard (step 23) 12 m short of the nearest main road within 800 m, facing it, or by
-//               the way in where none is near
+//   posters     a poster campaign's billboard (step 23) 12 m short of the nearest main road within 300 m, facing it, or by
+//               the way in where none is near (a part far out would stretch the station's extent)
 //   signature   the station's own stage (`grow.signature` in the network data), as its `look` says: a brown sign at the
 //               way in (by the racks or the car park), a tower crane out beyond the station's street side, or (Piccadilly's
 //               platforms 15 and 16) an island platform beyond the outermost one
@@ -36,7 +37,9 @@ for (const f of readdirSync(dir).filter(f => f.endsWith('.json'))) {
   // 8-car platforms: past each extension's far end (the end further from the station's middle)
   for (const p of platforms.filter(p => gates(p).includes('extend'))) {
     const others = gates(p).filter(g => g !== 'extend'), far = (p.u0 + p.u1) / 2 > 0, u0 = far ? p.u1 : p.u0 - 20, u1 = far ? p.u1 + 20 : p.u0;
-    add({ type: 'platform', u0, u1, v0: p.v0, v1: p.v1, ...(p.y !== undefined ? { y: p.y } : {}), ...(p.mat ? { mat: p.mat } : {}), upgrade: gate('long', ...others) });
+    // (narrowed 1.2 m along each edge: past the extension the line may curve or reach a crossover, and a train's body
+    // sweeps wider there)
+    add({ type: 'platform', u0, u1, v0: p.v0 + 1.2, v1: p.v1 - 1.2, ...(p.y !== undefined ? { y: p.y } : {}), ...(p.mat ? { mat: p.mat } : {}), upgrade: gate('long', ...others) });
     add({ type: 'lamps', u0: u0 + 3, u1: u1 - 3, v: (p.v0 + p.v1) / 2, every: 15, ...(p.y !== undefined ? { y: p.y } : {}), upgrade: gate('long', ...others) });
   }
   // canopies the full length of their platform as extended
@@ -71,7 +74,7 @@ for (const f of readdirSync(dir).filter(f => f.endsWith('.json'))) {
     add({ type: 'lamps', u0: out.u0 + 6, u1: out.u1 - 6, v: out.v0 - 13 - w / 2, every: 25, upgrade: 'signature' });
   }
   // a poster campaign's billboard, by the nearest main road (in the kit's frame: u along the line, v across it)
-  { const F = net.stationFrame(kit.id); let best = null, bd = 800;
+  { const F = net.stationFrame(kit.id); let best = null, bd = 300;
     for (const q of roadPts) { const d = Math.hypot(q.x - F.x, q.z - F.z); if (d < bd) { bd = d; best = q; } }
     if (best) {
       const X = best.x - F.x, Z = best.z - F.z, u = X * F.dx + Z * F.dz, v = X * F.nx + Z * F.nz, l = Math.hypot(u, v) || 1;

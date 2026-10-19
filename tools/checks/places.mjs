@@ -33,8 +33,8 @@ export default async function ({ ok, open, root }) {
     ["Levenshulme's bus stop (not owned)", '#strip [data-place="stop:levenshulme-station-view"]', 'stop:levenshulme-station-view', /^Bus stop · £/, null, ['station:levenshulme']],
     ["the stopper's", '#strip [data-place="route:stopper"]', 'route:stopper', /^Train service · 1 unit$/, 'cars', ['station:stockport', 'station:heaton-chapel', 'station:levenshulme', 'station:ardwick']],
     ["the sidings'", '#strip [data-place="depot:stockport-sidings"]', 'depot:stockport-sidings', /^Depot · /, sim.g.trouble.fails ? 'spare' : '', ['station:stockport']],
-    ["Stockport Interchange's", ['#strip [data-place="station:stockport"]', '[data-next="stop:stockport-interchange"]'], 'stop:stockport-interchange', /^Bus station · /, '', ['station:stockport']],
-    ['the Network', '#cash', 'network', /^Network · 3 stations$/, '', []],
+    ["Stockport Interchange's", ['#strip [data-place="station:stockport"]', '[data-next="stop:stockport-interchange"]'], 'stop:stockport-interchange', /^Bus station · /, 'feeder', ['station:stockport']],
+    ['the Network', '#cash', 'network', /^Network · 3 stations$/, 'bee', []],
   ];
   const { ctx, page, errs } = await open({ width: 320, height: 568 }, { touch: true, save });
   const tap = async sel => {
@@ -45,7 +45,7 @@ export default async function ({ ok, open, root }) {
   };
   // the row: what's owned or offered, in network order, and nothing else
   const row = await page.evaluate(() => [...document.querySelectorAll('#strip [data-place]')].map(b => b.dataset.place));
-  const want = ['station:stockport', 'stop:stockport-interchange', 'depot:stockport-sidings', 'station:heaton-chapel', 'station:levenshulme', 'stop:levenshulme-station-view', 'station:ardwick', 'route:stopper', 'station:davenport'];
+  const want = ['station:stockport', 'stop:stockport-interchange', 'depot:stockport-sidings', 'bus:192', 'station:heaton-chapel', 'station:levenshulme', 'stop:levenshulme-station-view', 'station:ardwick', 'route:stopper', 'station:davenport'];
   const badRow = [row[0] !== 'station:stockport' && `starts with ${row[0]}`, ...want.filter(k => !row.includes(k)).map(k => `no ${k}`), ...row.filter(k => !want.includes(k)).map(k => `${k} listed`),
     row.indexOf('station:levenshulme') < row.indexOf('station:heaton-chapel') && 'Levenshulme before Heaton Chapel'].filter(Boolean);
   ok('places: at 320×568 the Places row lists what is owned or offered, in network order, and nothing locked', !badRow.length, badRow.join('; ') || row.join(', '));

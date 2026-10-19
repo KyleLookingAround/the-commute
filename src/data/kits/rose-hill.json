@@ -36,7 +36,7 @@
     { "type": "busstop", "u": -20, "v": -14.5, "back": [1, 0], "kerb": -1, "door": [12, -8], "street": true, "note": "On the station's road along the forecourt, at street level, the replacement buses' stop the game's (OpenStreetMap (main API, 14 October 2026))" },
     { "type": "road", "points": [[-56, -70], [-58, -64], [-60, -54], [-62, -32], [-66, -21], [-61, -13], [-45, -12], [-34, -13], [11, -18]], "w": 6, "scenery": true, "note": "The station's road off Railway Road round the car park to the forecourt, a service road in OpenStreetMap (main API, 14 October 2026)" },
     { "type": "buslink", "u": 82, "v": 102.4, "back": [0, -1], "kerb": -1, "street": true, "upgrade": "bus", "note": "Stop A on Stockport Road (A626) at The Drive, from the export" },
-    { "type": "platform", "u0": 55, "u1": 75, "v0": -5.7, "v1": -1.7, "upgrade": "long", "tier": true },
+    { "type": "platform", "u0": 55, "u1": 75, "v0": -4.5, "v1": -2.9, "upgrade": "long", "tier": true },
     { "type": "lamps", "u0": 58, "u1": 72, "v": -3.7, "every": 15, "upgrade": "long", "tier": true },
     { "type": "canopy", "u0": -41, "u1": -12, "v0": -5.7, "v1": -1.7, "upgrade": "canopyFull", "tier": true },
     { "type": "canopy", "u0": 22, "u1": 51, "v0": -5.7, "v1": -1.7, "upgrade": "canopyFull", "tier": true },

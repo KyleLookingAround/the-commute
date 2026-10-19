@@ -3,7 +3,7 @@
 // the Buy bar, and the cash, clock and toasts over the map (docs/design/buying.md, One card for every place). Plain DOM, rebuilt on actions and lightly refreshed
 // on a timer. Picking a card in portrait sinks the sheet to its peek, where the Buy bar holds it, so its ghost stands
 // in open map.
-import { UPGRADES, LINE_UPGRADES } from '../sim/sim.ts';
+import { UPGRADES, LINE_UPGRADES, TUNING } from '../sim/sim.ts';
 import type { LineUpgrade, Upgrade } from '../sim/places.ts';
 import { pace } from '../sim/day.ts';
 import { TARGETS, punctuality, renewable, reputation, targetsMet } from '../sim/contract.ts';
@@ -171,6 +171,7 @@ export class UI {
     const sim = this.sim, p = sim.P.byId.get(id); if (!p) return false;
     if (p.kind === 'station') return !!this.g.owned[p.station!] || sim.offerable(p.station!);
     if (p.kind === 'stop') return sim.owns(id) || !!this.g.owned[p.station!];
+    if (p.kind === 'bus') return sim.owns(id) || !!this.g.owned[sim.net.station('stockport').index];
     return (p.kind === 'route' || p.kind === 'depot') && sim.owns(id);
   }
   /** The places the row lists, in network order: each line out from Stockport in turn, a station's stop and depot after
@@ -184,6 +185,7 @@ export class UI {
     for (const p of P.all) {
       if (!this.listed(p.id)) continue;
       if (p.kind === 'stop' || p.kind === 'depot') put(P.station[p.station!]!, p.id);
+      else if (p.kind === 'bus') put(P.station[this.sim.net.station('stockport').index]!, p.id);
       else if (p.kind === 'route') {
         const calls = new Set(P.touching(p.id)), last = [...stations].reverse().find(k => calls.has(k) && this.listed(k));
         put(last ?? P.station[0]!, p.id);
@@ -194,7 +196,7 @@ export class UI {
   /** A chip for a place: its name and figure, or fogged with its price and a meter of how near the cash is. */
   private chip(id: string, key: 'place' | 'next' | 'list'): HTMLButtonElement {
     const sim = this.sim, p = sim.P.get(id), owned = p.kind === 'station' ? !!this.g.owned[p.station!] : sim.owns(id);
-    const near = !owned && (p.kind === 'stop' ? !!this.g.owned[p.station!] : p.kind === 'station' && !sim.stationNeeds(p.station!));
+    const near = !owned && (p.kind === 'stop' ? !!this.g.owned[p.station!] : p.kind === 'bus' ? true : p.kind === 'station' && !sim.stationNeeds(p.station!));
     const b = document.createElement('button'); b.className = 'card' + (owned ? '' : ' lock'); b.dataset[key] = id;
     b.setAttribute('aria-pressed', String(id === this.at));
     const name = SHORT[id] ?? p.name.replace('Manchester ', '');
@@ -227,6 +229,7 @@ export class UI {
     const sim = this.sim, g = this.g, p = sim.P.byId.get(id); if (!p) return '';
     if (p.kind === 'station') { const i = p.station!; return g.owned[i] ? `${g.st[i]?.waiting ?? 0} waiting` : fmt(sim.stationPrice(i)); }
     if (p.kind === 'stop') return sim.owns(id) ? `${num(g.st[p.station!]?.bus ?? 0)} by bus` : fmt(sim.price(id) ?? 0);
+    if (p.kind === 'bus') return sim.owns(id) ? this.figure(id) : fmt(sim.price(id) ?? 0);
     return this.figure(id);
   }
   /** Next to: a chip for each place touching this one that's owned or offered; a tap flies there and opens it. */
@@ -255,6 +258,7 @@ export class UI {
     const p = this.sim.P.byId.get(id); if (!p) return '';
     if (p.kind === 'route') { const n = this.sim.unitsFor(this.sim.svc(p.svc!)); return `${n} unit${n === 1 ? '' : 's'}`; }
     if (p.kind === 'depot') return this.g.line.spare ? 'spare ready' : 'no spare';
+    if (p.kind === 'bus') return `every ${[10, 6, 4][this.sim.stageLevel(id, 'every')]} min`;
     return '';
   }
   /** The header's line under the name: the place's kind and one figure. */
@@ -270,6 +274,7 @@ export class UI {
     if (p.kind === 'stop') { const kind = p.stop?.kind === 'bus-station' ? 'Bus station' : 'Bus stop'; return `${kind} · ${sim.owns(id) ? `${num(g.st[p.station!]?.bus ?? 0)} by bus` : fmt(sim.price(id) ?? 0)}`; }
     if (p.kind === 'route') return `Train service · ${this.figure(id)}`;
     if (p.kind === 'depot') return `Depot · ${this.figure(id)}`;
+    if (p.kind === 'bus') return `Bus route · ${sim.owns(id) ? this.figure(id) : fmt(sim.price(id) ?? 0)}`;
     return p.kind === 'section' ? 'Line' : 'Junction';
   }
   buildPanel(): void {
@@ -284,6 +289,7 @@ export class UI {
       const p = this.sim.P.get(id);
       if (p.kind === 'station') this.stationCard(p.station!);
       else if (p.kind === 'stop') this.stopCard(id);
+      else if (p.kind === 'bus') this.busCard(id);
       else this.lineCard(id);
       this.nextTo(id);
     }
@@ -455,6 +461,19 @@ export class UI {
       return { id: u.id, stage, saves: null, opens: lvl + 1 < u.max ? [u.steps![lvl + 1]!.name] : [], built };
     }), k => show(k));
   }
+  /** A bus route (step 8): Buy to start it, then how many ride it and how often it comes, and its stages. */
+  private busCard(id: string): void {
+    const sim = this.sim, p = sim.P.get(id), b = p.bus!, g = this.g;
+    if (!sim.owns(id)) { this.buyCard(b.desc, `Buy · ${fmt(sim.price(id) ?? 0)}`, sim.canBuy(id), () => { if (sim.buy(id)) { this.toast(`${b.name} runs`); this.changed(); } }); return; }
+    this.els.panel.innerHTML = this.stats([['bRiders', 'Riders'], ['bEvery', 'Every'], ['bShare', 'Takes'], ['bFare', 'Fare']]) + `<p class="blurb">${b.desc}</p>`;
+    this.stageCards(sim.P.stagesFor(sim.net, id).map(x => {
+      const u = x as LineUpgrade, lvl = sim.stageLevel(id, u.id), price = sim.price(id, u.id), name = u.steps?.[lvl]?.name ?? u.name;
+      const built = lvl ? (u.steps ? u.steps[lvl - 1]!.name : u.name) : null;
+      if (lvl >= u.max || price === undefined) return { id: u.id, stage: null, saves: null, opens: [], built };
+      const stage: Stage = { name, adds: u.steps?.[lvl]?.desc ?? u.desc, price, can: () => g.cash >= price, buy: () => { if (!sim.buy(id, u.id)) return false; this.toast(`${b.name}: ${name.toLowerCase()}`); this.changed(); return true; }, pick: () => {} };
+      return { id: u.id, stage, saves: null, opens: u.steps && lvl + 1 < u.max ? [u.steps[lvl + 1]!.name] : [], built };
+    }), () => {});
+  }
   /** The whole network: its figures, and once Piccadilly is owned, Renew the contract. */
   /** A road stretch's card: the cars an hour along it now, how full it is, its speed and queue, and the drive now
    * against when it's clear; Next to, the stations it serves (neutral, as any card's: never a recommended buy). */
@@ -519,6 +538,11 @@ export class UI {
     if (cl && cl.dataset['k'] !== ck) { cl.dataset['k'] = ck; cl.hidden = !cs.length; cl.innerHTML = cs.map(c => `<button class="chip" data-cause="${c.place}">${c.text}</button>`).join(''); }
     if (p?.kind === 'station' && !g.owned[p.station!]) { const b = panel.querySelector<HTMLButtonElement>('#buyPlace'); if (b) b.disabled = !sim.canBuyStation(p.station!); return; }
     if (p?.kind === 'stop' && !sim.owns(id)) { const b = panel.querySelector<HTMLButtonElement>('#buyPlace'); if (b) b.disabled = !sim.canBuy(id); return; }
+    if (p?.kind === 'bus') {
+      if (!sim.owns(id)) { const b = panel.querySelector<HTMLButtonElement>('#buyPlace'); if (b) b.disabled = !sim.canBuy(id); return; }
+      set('bRiders', num(Math.round(g.stats.riders ?? 0))); set('bEvery', `${[10, 6, 4][sim.stageLevel(id, 'every')]} min`); set('bShare', `${Math.round(100 * sim.busShare(id))}%`); set('bFare', fmt(p.bus!.fare * TUNING.fareMult));
+      return;
+    }
     if (p?.kind === 'station') {
       const i = p.station!, S = sim.state(i);
       set('pWait', String(S.waiting)); set('pBoard', num(S.boarded)); set('pOff', num(S.alighted)); set('pRev', fmtShort(S.revenue)); set('pLost', num(S.lost)); set('pChg', num(S.changed));

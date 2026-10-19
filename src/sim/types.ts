@@ -121,6 +121,10 @@ export interface ServiceDef {
  * the stretch of it each way from the stop, [lat, lon] about every 40 m. */
 export interface FeederDef { ref: string; name: string; points: [number, number][]; note?: string }
 export interface StopDef { id: string; name: string; /** 'bus-stop' or 'bus-station' */ kind: string; station: string; lat: number; lon: number; price: number; desc: string; note?: string; feeder?: FeederDef }
+/** A bus route the player runs (step 8, docs/DESIGN.md, The 192): the stations along it (it stops near every door, so it
+ * serves the trips between any two of them the trains don't, owned or not), the main road it runs (`mainRoads`), what
+ * it costs to start and its fare. */
+export interface BusRouteDef { id: string; name: string; along: string[]; road: string; price: number; fare: number; desc: string; note?: string }
 /** A depot: a yard where units stand, coming with the station it opens off (Stockport's carriage sidings). */
 export interface DepotDef { id: string; name: string; station: string; note?: string }
 export interface LandmarkDef {
@@ -141,6 +145,8 @@ export interface NetworkGeoDef {
   landmarks?: LandmarkDef[]; services?: ServiceDef[]; roads?: RoadGeoDef[]; roadNote?: string;
   /** Bus stops and bus stations by the stations, and the depots: places of their own (src/sim/places.ts). */
   stops?: StopDef[]; depots?: DepotDef[]; stopNote?: string;
+  /** The bus routes the player runs (step 8): the 192 along the A6. */
+  busRoutes?: BusRouteDef[];
   /** The perks reputation buys between contracts (src/sim/contract.ts). */
   contract?: ContractDef;
   /** Where a contract can start (docs/design/gridlock.md §7): the first is the first game's, and the default. */
@@ -248,7 +254,7 @@ export interface GameState {
   st: StationState[]; trains: Train[];
   /** late: main-line and branch departures more than five minutes behind the timetable (src/sim/contract.ts weighs
    * them in the reputation). through: long-distance passengers on and off the expresses at owned stations; express: what the expresses paid. */
-  stats: { boarded: number; lost: number; cab: number; through: number; express: number; car: number; bus: number; late: number; deps: number };
+  stats: { boarded: number; lost: number; cab: number; through: number; express: number; car: number; bus: number; late: number; deps: number; riders?: number };
   /** By service, the timetabled departure of the unit that last turned round at each end of its run (0 the south end,
    * 1 the north), which the next unit keeps a headway behind. */
   ends: Record<string, [number, number]>;

@@ -130,6 +130,8 @@ function more(): void {
   void import('./render/mainroads.ts').then(m => {
     mainRoads = new m.MainRoadLayer({ scene, def: networkDef, focus: () => rig.o });
     Object.assign(view, { mainRoads: () => mainRoads?.stats() ?? null });
+    // the bus routes the player runs (the 192), along those roads
+    void import('./render/busroutes.ts').then(b => { busRoutes = new b.BusRouteLayer(scene, networkDef); Object.assign(view, { busRoutes: () => busRoutes?.count ?? 0 }); });
   });
   void import('./render/traffic.ts').then(m => {
     roads = new m.TrafficLayer({ scene, net, def: networkDef, sim: () => sim, focus: () => rig.o, ground: world.buildings.layer.then(() => world.ground), reduced: rig.reduced });
@@ -149,6 +151,7 @@ function more(): void {
 let kitsIn = false;
 let roads: import('./render/traffic.ts').TrafficLayer | null = null;
 let mainRoads: import('./render/mainroads.ts').MainRoadLayer | null = null;
+let busRoutes: import('./render/busroutes.ts').BusRouteLayer | null = null;
 let netView: import('./render/networkview.ts').NetworkView | null = null;
 /** After time away: what each station earned and the toast, until the welcome back plays (src/render/away.ts). */
 let cameBack: { earned: number[]; msg: string } | null = null;
@@ -593,7 +596,7 @@ function frame(now: number): void {
   sound.update(sim, rig.o, light.daylight, stationsXZ, trains.meshes, realDt); pax.setDaylight(light.daylight);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
   syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt, sim); trains.sync(sim, dtGame); pax.sync(sim.g, dtGame); pax.placeCoin(camera); labels();
-  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim); feeders.sync(sim, dtGame); netView?.update(sim, rig.o.r, realDt); back?.update(realDt); roads?.sync(dt, dtGame, light.daylight); mainRoads?.sync();
+  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim); feeders.sync(sim, dtGame); busRoutes?.sync(sim, dtGame); netView?.update(sim, rig.o.r, realDt); back?.update(realDt); roads?.sync(dt, dtGame, light.daylight); mainRoads?.sync();
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); nextStations(); followGlide(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
   const t2 = performance.now();

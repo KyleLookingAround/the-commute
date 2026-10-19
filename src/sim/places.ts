@@ -6,9 +6,9 @@
 // holds what's owned by place id (GameState.places); `derive` works out the per-station views the rest of the sim and
 // the view read. Pure: no rendering, nothing from the DOM.
 import type { Network } from './network.ts';
-import type { GameState, LineUpgradeId, ServiceDef, StageId, StartDef, StopDef, UpgradeId } from './types.ts';
+import type { GameState, LineUpgradeId, ServiceDef, StageId, StartDef, StopDef, UpgradeId, BusRouteDef } from './types.ts';
 
-export type PlaceKind = 'station' | 'section' | 'junction' | 'route' | 'stop' | 'depot' | 'network';
+export type PlaceKind = 'station' | 'section' | 'junction' | 'route' | 'stop' | 'depot' | 'network' | 'bus';
 
 /** A station's stage. name null: the station names it (its retail, or its stage in `grow`). requires: stages at the
  * same station that must be built first; one the station doesn't offer counts as built. stage: offered only where the
@@ -20,7 +20,7 @@ export interface Upgrade { id: UpgradeId; name: string | null; price: number; de
 /** A stage bought more than once, on a route or a depot: its price each time, up to max. */
 export interface LineUpgrade { id: LineUpgradeId; name: string; prices: number[]; desc: string; max: number; steps?: { name: string; desc: string }[] }
 /** A stage of a route: the line's (units, cars), or a branch's own through running. */
-export type RouteStage = Omit<LineUpgrade, 'id'> & { id: LineUpgradeId | 'through' | 'feeder' | 'bee' };
+export type RouteStage = Omit<LineUpgrade, 'id'> & { id: LineUpgradeId | 'through' | 'feeder' | 'bee' | 'every' | 'lanes' };
 /** A service's frequency as a stage of its route: its data's steps (ServiceDef.frequency), one level each. */
 export function frequencyStage(def: ServiceDef): LineUpgrade | null {
   const f = def.frequency; if (!f?.steps.length) return null;
@@ -84,6 +84,11 @@ export const FEEDER: RouteStage = { id: 'feeder', name: 'Feeder buses', prices: 
  * once a feeder runs (more again, and the change from the bus quicker: BEE_CHANGE). */
 export const BEE: RouteStage = { id: 'bee', name: 'The Bee Network', prices: [30000, 80000, 150000], desc: 'Greater Manchester’s one network', max: 3,
   steps: [{ name: 'Contactless', desc: 'Tap in and tap out: no queue for a ticket, a minute off every journey' }, { name: 'The yellow', desc: 'Bee Network yellow on the stations and trains: the network’s bus riders come by train too' }, { name: 'One fare and a daily cap', desc: 'One ticket across bus and train: more come by bus, and the change is quicker' }] };
+/** A bus route's stages (step 8): more buses, so it comes more often, then bus lanes past the queues. The share of the
+ * trips along it the trains don't carry that it takes, at each (BUS_SHARE, BUS_LANES in src/sim/sim.ts). */
+export const BUS_EVERY: RouteStage = { id: 'every', name: 'More buses', prices: [15000, 40000], desc: 'It comes more often: more take it', max: 2,
+  steps: [{ name: 'Every six minutes', desc: 'More buses on the route: more take it' }, { name: 'Every four minutes', desc: 'A bus every few minutes: more again take it' }] };
+export const BUS_LANES: RouteStage = { id: 'lanes', name: 'Bus lanes', prices: [60000], desc: 'Lanes of its own past the queues: quicker, so more take it', max: 1 };
 /** Which kind of place each of those stages is on. */
 export const LINE_PLACE: Record<Exclude<LineUpgradeId, 'timetable'>, 'route' | 'depot'> = { units: 'route', cars: 'route', spare: 'depot' };
 
@@ -91,7 +96,7 @@ export const placeId = (kind: PlaceKind, name: string): string => `${kind}:${nam
 
 /** A place as the network data gives it. station: the station's index (a station; the one a stop or depot stands by);
  * svc: a route's service; ends: a section's ends, as nodes (station or junction place ids), along `corridor`. */
-export interface Place { id: string; kind: PlaceKind; name: string; station?: number; svc?: string; ends?: [string, string]; corridor?: string; stop?: StopDef; s0?: number; s1?: number }
+export interface Place { id: string; kind: PlaceKind; name: string; station?: number; svc?: string; ends?: [string, string]; corridor?: string; stop?: StopDef; bus?: BusRouteDef; s0?: number; s1?: number }
 
 /** Every place on a network, what touches what, and what comes with what. Built once a network (`places`). */
 export class Places {
@@ -131,6 +136,7 @@ export class Places {
     this.stopOf = net.stations.map(() => null);
     for (const s of net.def.stops ?? []) { const i = net.station(s.station).index; this.stopOf[i] = add({ id: placeId('stop', s.id), kind: 'stop', name: s.name, station: i, stop: s }); }
     add({ id: this.bee, kind: 'network', name: 'The Bee Network' });
+    for (const b of net.def.busRoutes ?? []) add({ id: placeId('bus', b.id), kind: 'bus', name: b.name, bus: b });
     const depots = (net.def.depots ?? []).map(d => add({ id: placeId('depot', d.id), kind: 'depot', name: d.name, station: net.station(d.station).index }));
     this.sidings = depots[0] ?? null;
     // the lines as a graph: along each corridor its stations and junctions in chainage order (a junction on the
@@ -195,7 +201,7 @@ export class Places {
     if (id in g.places) return true;
     const p = this.byId.get(id); if (!p) return false;
     switch (p.kind) {
-      case 'station': case 'stop': case 'network': return false;
+      case 'station': case 'stop': case 'network': case 'bus': return false;
       case 'depot': return this.owns(g, this.station[p.station!]!);
       case 'route': {
         const v = this.svcs.find(x => x.id === id)!; if (this.heldAt(g, id) !== null) return false;
@@ -262,6 +268,7 @@ export class Places {
     if (id === this.sidings) return LINE_UPGRADES.filter(u => LINE_PLACE[u.id as keyof typeof LINE_PLACE] === 'depot');
     if (p.kind === 'stop' && p.stop?.feeder) return [FEEDER];
     if (p.kind === 'network') return [BEE];
+    if (p.kind === 'bus') return [BUS_EVERY, BUS_LANES];
     return [];
   }
 }

@@ -197,4 +197,15 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .spark{display:block;width:100%;height:var(--spark-h);margin:6px 0 2px}
 .spark[hidden]{display:none}
 .spark polyline{fill:none;stroke:var(--ok);stroke-width:2;stroke-linejoin:round}
+.stringline{margin:8px 0 4px}
+.stringline svg{display:block;width:100%;height:var(--line-h);background:var(--card);border-radius:6px}
+.stringline .chart{position:relative}
+.stringline .end{position:absolute;left:6px;font-size:var(--text-sm);color:var(--soft);pointer-events:none}
+.stringline .end.top{top:4px}
+.stringline .end.foot{bottom:4px}
+.stringline line{stroke:var(--lock);stroke-width:1;vector-effect:non-scaling-stroke;opacity:.5}
+.stringline polyline{fill:none;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.stringline polyline.ok{stroke:var(--ok)}
+.stringline polyline.late{stroke:var(--accent)}
+.stringline figcaption{margin-top:4px;font-size:var(--text-sm);color:var(--soft)}
 

@@ -8,7 +8,7 @@
 // among them; the stopper offers no extra unit before platform 3 (but newer units) and the sidings no spare before a train has failed (but the shed); the
 // Network card no renewal before Piccadilly), and has Next to chips for what touches it. The offered bus stop at
 // Levenshulme opens with Buy, and Ardwick (Shut) with Reopen. The full list of places by kind is under each card. And a
-// new game: Stockport alone on the row, Shut, with Reopen · £1,000, which leaves a halt and about £3,000. And tapping a road's traffic opens its card, the Network card leading with the cars off, and their sparkline by game day. No errors.
+// new game: Stockport alone on the row, Shut, with Reopen · £1,000, which leaves a halt and about £3,000. And tapping a road's traffic opens its card, the Network card leading with the cars off, and their sparkline by game day; and a service's card with its trains through the last hour as a stringline. No errors.
 // Covers: @page @sim src/render/stations.ts src/render/traffic.ts
 import { reveal } from '../reveal.mjs';
 import { register } from 'tsx/esm/api';
@@ -107,6 +107,21 @@ export default async function ({ ok, open, root }) {
     const bad = [!pt && 'Mersey Square\'s stretch is not on screen', !/Wellington Road/.test(card.name) && `the card is "${card.name}"`, !/^Road · \d+% full$/.test(card.sub) && `its header reads "${card.sub}"`,
       card.figs.some(f => !/\d|none/.test(f)) && `its figures read ${card.figs.join(', ')}`, card.wide && 'it scrolls sideways', !/\d/.test(off) && `the Network card's score reads "${off}"`, errs[0]].filter(Boolean);
     ok('places: at 320×568 tapping a road\'s traffic opens its card with its figures, and the Network card leads with the cars off the roads', !bad.length, bad.join('; ') || `${card.name} · ${card.sub} · ${card.figs.join(', ')} · ${off} off`);
+    await ctx.close();
+  }
+  // a service's trains through the last hour, a stringline on its card: from the bot's game on day 6 at 07:30, run at
+  // 10× a minute or so, the stopper's card has a line for each of its units, inside the card
+  {
+    const { botSave } = await import('./networkview.mjs');
+    const { save: busy } = await botSave(root, 1, 6, 7.5);
+    const { ctx, page, errs } = await open({ width: 320, height: 568 }, { touch: true, save: busy });
+    await page.evaluate(() => document.getElementById('sp10')?.click());
+    await page.evaluate(() => document.querySelector('#strip [data-place="route:stopper"]')?.click());
+    await page.waitForFunction(() => document.querySelectorAll('#panel .stringline polyline').length >= 2, null, { timeout: 90000 }).catch(() => {});
+    const sl = await page.evaluate(() => { const f = document.querySelector('#panel .stringline'), b = f?.getBoundingClientRect(); return f ? { lines: f.querySelectorAll('polyline').length, rules: f.querySelectorAll('line').length, w: b.width, right: b.right } : null; });
+    await page.evaluate(() => document.getElementById('sp1')?.click());
+    mkdirSync(join(root, 'build/shots'), { recursive: true }); await page.screenshot({ path: join(root, 'build/shots/places-stringline.png') });
+    ok('places: at 320×568 a service\'s card draws its trains through the last hour as a stringline, a rule at each station', !!sl && sl.lines >= 2 && sl.rules >= 4 && sl.w > 200 && sl.right <= 320 && !errs.length, JSON.stringify(sl) + (errs[0] ?? ''));
     await ctx.close();
   }
   // the score by game day: three days recorded, and the Network card's sparkline has them and today, inside the card

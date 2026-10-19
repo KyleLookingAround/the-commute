@@ -7,6 +7,7 @@ import { UPGRADES, LINE_UPGRADES, TUNING } from '../sim/sim.ts';
 import type { LineUpgrade, Upgrade } from '../sim/places.ts';
 import { pace } from '../sim/day.ts';
 import { parked } from '../sim/access.ts';
+import { Stringline, stringlineHtml } from './stringline.ts';
 import { TARGETS, punctuality, renewable, reputation, targetsMet } from '../sim/contract.ts';
 import type { Sim } from '../sim/sim.ts';
 import type { GameState } from '../sim/types.ts';
@@ -375,7 +376,8 @@ export class UI {
   /** A train service or the sidings: its figures, and its stages as cards like a station's. */
   private lineCard(id: string): void {
     const sim = this.sim, g = this.g, p = sim.P.get(id), panel = this.els.panel;
-    if (p.kind === 'route') panel.innerHTML = this.stats([['rUnits', 'Units'], ['rCars', 'Cars'], ['rEvery', 'Every'], ['rAboard', 'Aboard']], id === sim.P.stopper ? [['rSpeed', 'Line speed'], ['rBus', 'By bus']] : []);
+    // a service: its figures, and its trains through the last hour as a stringline (a simple timetable view, step 6)
+    if (p.kind === 'route') panel.innerHTML = this.stats([['rUnits', 'Units'], ['rCars', 'Cars'], ['rEvery', 'Every'], ['rAboard', 'Aboard']], id === sim.P.stopper ? [['rSpeed', 'Line speed'], ['rBus', 'By bus']] : []) + stringlineHtml(sim, p.svc!);
     else if (p.kind === 'depot') panel.innerHTML = this.stats([['dSpare', 'Spare unit'], ['dFails', 'Failures'], ['dBus', 'By bus']]);
     else if (p.kind === 'section') { this.sectionCard(id); return; }
     else if (p.kind === 'junction') { this.junctionCard(id); return; }
@@ -556,6 +558,8 @@ export class UI {
       const v = sim.svc(p.svc!), mine = g.trains.filter(t => t.svc === v.id), every = sim.headway(v.id);
       set('rUnits', String(sim.unitsFor(v))); set('rCars', String(mine[0]?.cars ?? sim.carsPerUnit())); set('rEvery', every ? `${Math.round(every / 60)} min` : '–');
       set('rAboard', num(mine.reduce((n, t) => n + t.onboard, 0))); set('rSpeed', `${g.line.timetable ? 90 : 75} mph`); set('rBus', num(g.trouble.bused));
+      const chart = panel.querySelector<SVGSVGElement>('.stringline svg'), k = `${v.id}:${this.line.version}`;
+      if (chart && chart.dataset['k'] !== k) { chart.dataset['k'] = k; chart.innerHTML = this.line.svg(sim, v.id); }
     } else if (p?.kind === 'depot') {
       set('dSpare', g.line.spare ? 'Ready' : 'None'); set('dFails', num(g.trouble.fails)); set('dBus', num(g.trouble.bused));
     } else if (p?.kind === 'section') {
@@ -583,7 +587,10 @@ export class UI {
       const txt = short > 0 ? `${fmt(short)} to go` : ''; if (t && t.textContent !== txt) t.textContent = txt;
     });
   }
+  /** Every service's trains through the last hour, sampled whether or not a card shows them. */
+  private readonly line = new Stringline();
   tick(): void {
+    this.line.sample(this.sim);
     const g = this.g, c = fmt(g.cash); if (this.els.cash.textContent !== c) this.els.cash.textContent = c;
     // a fast-forward mark while the night races by, so the player knows why the time leapt
     const fast = pace(g.t) >= 3, ck = `Day ${g.day} · ${this.sim.clock()}${fast ? ' »' : ''}`;

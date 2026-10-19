@@ -9,6 +9,7 @@ import { pace } from '../sim/day.ts';
 import { punctuality, renewable, reputation } from '../sim/contract.ts';
 import type { Sim } from '../sim/sim.ts';
 import type { GameState } from '../sim/types.ts';
+import type { Road, StretchDef } from '../sim/traffic.ts';
 import type { At } from './sheet.ts';
 
 /** What the UI needs of the sheet (src/ui/sheet.ts). */
@@ -40,6 +41,12 @@ const milesFrom = (miles: number): string => `${Math.abs(miles)} mi${miles < 0 ?
 const SHORT: Record<string, string | undefined> = { 'route:stopper': 'Stopper', 'depot:stockport-sidings': 'Sidings' };
 /** The Network card's id: not a place, but opened the same way (from the cash pill). */
 export const NETWORK = 'network';
+
+/** The roads as the map reads them (src/render/traffic.ts, once it's in): a stretch by id as it stands now, its data,
+ * and the score: cars off the roads at the morning peak, against the start's. A road's card's id is `road:` and its
+ * stretch's id; a road is never bought. */
+export interface RoadsRead { road(id: string): Road | undefined; def(id: string): StretchDef | undefined; score(): { off: number; start: number } | null }
+export const ROAD = 'road:';
 
 /** The page's elements the UI writes to, by id. */
 export interface Els {
@@ -98,6 +105,8 @@ export class UI {
   wrong: ((id: string) => string | null) | null = null;
   /** The places behind it, each a chip that opens its card (src/ui/cause.ts), or none. */
   causes: ((id: string) => { text: string; place: string }[]) | null = null;
+  /** The roads (null until the traffic is in). */
+  roads: RoadsRead | null = null;
   /** The open card's stages, by id. */
   private stages = new Map<string, Stage>();
   constructor(sim: Sim, els: Els, on: Handlers, sheet: SheetLike) {
@@ -133,9 +142,9 @@ export class UI {
   /** Open any place's card (a station's opens as select does), or the Network card, raising the sheet to show it and
    * flying to the place; fly false (a train tapped to ride with): the card opens in the sheet as it stands. */
   show(id: string, fly = true): void {
-    const p = id === NETWORK ? null : this.sim.P.byId.get(id);
+    const p = id === NETWORK ? null : this.sim.P.byId.get(id), road = id.startsWith(ROAD) && !!this.roads?.def(id.slice(ROAD.length));
     if (p?.kind === 'station') { this.select(p.station!); return; }
-    if (id !== NETWORK && !p) return;
+    if (id !== NETWORK && !p && !road) return;
     this.pick(null); this.open = id; if (fly) this.raise();
     this.buildStrip(); this.buildPanel(); this.tick();
     if (fly && p) this.on.focusPlace(id);
@@ -251,6 +260,7 @@ export class UI {
   /** The header's line under the name: the place's kind and one figure. */
   private sub(): string {
     const g = this.g, sim = this.sim, id = this.at;
+    if (id.startsWith(ROAD)) { const r = this.roads?.road(id.slice(ROAD.length)); return `Road · ${r ? `${Math.round(100 * r.load)}% full` : 'clear'}`; }
     if (id === NETWORK) { const n = g.owned.filter(Boolean).length; return `Network · ${n} station${n === 1 ? '' : 's'}`; }
     const p = sim.P.get(id);
     if (p.kind === 'station') {
@@ -263,11 +273,13 @@ export class UI {
     return p.kind === 'section' ? 'Line' : 'Junction';
   }
   buildPanel(): void {
-    const id = this.at, panel = this.els.panel, name = id === NETWORK ? 'The network' : this.sim.P.get(id).name;
+    const id = this.at, panel = this.els.panel, road = id.startsWith(ROAD) ? this.roads?.def(id.slice(ROAD.length)) : undefined;
+    const name = id === NETWORK ? 'The network' : road ? road.name : this.sim.P.get(id).name;
     if (this.els.shName.textContent !== name) this.els.shName.textContent = name;
     this.stages.clear(); panel.innerHTML = '';
     panel.dataset['place'] = id;
     if (id === NETWORK) this.networkCard();
+    else if (road) this.roadCard(road);
     else {
       const p = this.sim.P.get(id);
       if (p.kind === 'station') this.stationCard(p.station!);
@@ -431,9 +443,19 @@ export class UI {
     this.stageCards([], () => {});
   }
   /** The whole network: its figures, and once Piccadilly is owned, Renew the contract. */
+  /** A road stretch's card: the cars an hour along it now, how full it is, its speed and queue, and the drive now
+   * against when it's clear; Next to, the stations it serves (neutral, as any card's: never a recommended buy). */
+  private roadCard(d: StretchDef): void {
+    const panel = this.els.panel;
+    panel.innerHTML = this.stats([['oCars', 'Cars an hour'], ['oLoad', 'Load'], ['oSpeed', 'Speed'], ['oQueue', 'Queue']], [['oDrive', 'Drive now'], ['oFree', 'When clear']]);
+    panel.querySelector('details')?.addEventListener('toggle', e => { this.more = (e.target as HTMLDetailsElement).open; });
+    const ids = new Set(this.sim.S.map(st => st.id)), near = [...new Set(d.serves.flatMap(v => [...v.a, ...v.b]))].filter(st => ids.has(st)).map(st => this.sim.P.station[this.sim.net.station(st).index]).filter((k): k is string => !!k && this.listed(k));
+    if (near.length) { const n = document.createElement('div'); n.className = 'next'; n.innerHTML = '<span>Next to</span>'; for (const k of near) n.appendChild(this.chip(k, 'next')); panel.appendChild(n); }
+  }
   private networkCard(): void {
     const g = this.g, sim = this.sim, panel = this.els.panel;
-    panel.innerHTML = this.stats([['nStations', 'Stations'], ['nBoard', 'Boarded'], ['nEarned', 'Earned'], ['nRep', 'Reputation']], [['nLost', 'Gave up'], ['nLate', 'On time'], ['nBus', 'By bus']]);
+    // led by the score (docs/design/gridlock.md, The road card): cars off the roads at 08:00, a figure that only rises
+    panel.innerHTML = this.stats([['nOff', 'Cars off'], ['nStations', 'Stations'], ['nBoard', 'Boarded'], ['nRep', 'Reputation']], [['nEarned', 'Earned'], ['nLost', 'Gave up'], ['nLate', 'On time'], ['nBus', 'By bus'], ['nStart', 'Cars at 08:00 at the start']]);
     panel.querySelector('details')?.addEventListener('toggle', e => { this.more = (e.target as HTMLDetailsElement).open; });
     // once the whole line is owned, the contract can be renewed, whenever the player likes; hidden until then
     if (renewable(g, sim.net.station('piccadilly').index)) {
@@ -458,6 +480,11 @@ export class UI {
   updatePanel(): void {
     const g = this.g, sim = this.sim, id = this.at, panel = this.els.panel;
     const set = (k: string, v: string) => { const el = panel.querySelector('#' + k); if (el && el.textContent !== v) el.textContent = v; };
+    if (id.startsWith(ROAD)) {
+      const r = this.roads?.road(id.slice(ROAD.length)), mins = (m: number) => `${m < 10 ? m.toFixed(1) : Math.round(m)} min`;
+      if (r) { set('oCars', num(Math.round(r.cars))); set('oLoad', `${Math.round(100 * r.load)}%`); set('oSpeed', `${Math.round(r.speed * 0.621)} mph`); set('oQueue', r.queue >= 1 ? `${num(Math.round(r.queue))} cars` : 'none'); set('oDrive', mins(r.drive)); set('oFree', mins(r.free)); }
+      return;
+    }
     const p = id === NETWORK ? null : sim.P.get(id), w = this.wrong?.(id) ?? null, wl = panel.querySelector<HTMLElement>('#wrong');
     if (wl) { if (wl.hidden !== !w) wl.hidden = !w; if (w && wl.textContent !== w) wl.textContent = w; }
     const cl = panel.querySelector<HTMLElement>('#causes'), cs = w && this.causes ? this.causes(id) : [], ck = cs.map(c => c.place + c.text).join('|');
@@ -482,6 +509,7 @@ export class UI {
       const S = sim.state(p.station!); set('sBus', num(S.bus)); set('sWait', `${S.waiting} waiting`);
     } else if (!p) {
       set('nStations', String(g.owned.filter(Boolean).length)); set('nBoard', fmtCount(g.stats.boarded)); set('nEarned', fmtShort(g.earned)); set('nRep', `★ ${reputation(g)}`);
+      { const sc = this.roads?.score(); set('nOff', sc ? num(Math.round(sc.off)) : '–'); set('nStart', sc ? num(Math.round(sc.start)) : '–'); }
       set('nLost', fmtCount(g.stats.lost)); set('nLate', `${Math.floor(100 * punctuality(g))}%`); set('nBus', fmtCount(g.trouble.bused)); set('lRep', String(reputation(g)));
     }
     // each card's Buy shows once the money is there; until then, how far there is to go

@@ -32,7 +32,7 @@ import { fullScreen } from './ui/fullscreen.ts';
 import { playOffline } from './app/offline.ts';
 import { statsView } from './app/stats.ts';
 import { loadPrefs, savePrefs, type Prefs } from './app/prefs.ts';
-import { UI, fmt } from './ui/panel.ts';
+import { ROAD, UI, fmt } from './ui/panel.ts';
 import type { ContractSheet } from './ui/contract.ts';
 import type { Els } from './ui/panel.ts';
 import { wireSaves, wireStartOver } from './ui/saves.ts';
@@ -131,7 +131,9 @@ function more(): void {
   void import('./render/traffic.ts').then(m => {
     roads = new m.TrafficLayer({ scene, net, def: networkDef, sim: () => sim, focus: () => rig.o, ground: world.buildings.layer.then(() => world.ground), reduced: rig.reduced });
     roads.setLow(prefs.fewer);
-    Object.assign(view, { traffic: () => roads?.stats() ?? null });
+    Object.assign(view, { traffic: () => roads?.stats() ?? null, roadPoint: (id: string) => roads?.screenOf(id, camera, canvas.clientWidth, canvas.clientHeight) ?? null });
+    // the roads' cards and the Network card's score (src/ui/panel.ts)
+    const R = roads; ui.roads = { road: id => R.road(id), def: id => R.def(id), score: () => R.score() };
   });
   void world.more().then(() => {
     for (const i of fillStations(net, built, kits)) {
@@ -467,7 +469,9 @@ const picker = new Picker(camera, canvas, built, trains.meshes, [trains.spare, t
 rig.onTap = (x, y) => {
   // an edge marker first: the map keeps the gestures that start on one, and its tap opens the station
   const r = canvas.getBoundingClientRect(), mark = edges.hit(x - r.left, y - r.top); if (mark >= 0) { ui.select(mark); return; }
-  const hit = netView?.pick(x, y) ?? picker.pick(x, y); if (!hit) { void lineLayer.then(L => { const s = L.tap(x, y); if (s) ui.show(s); }); return; }
+  const hit = netView?.pick(x, y) ?? picker.pick(x, y);
+  // nothing tapped: a road's traffic (its card), else a section of line
+  if (!hit) { const r = roads?.tap(x, y, camera, canvas.clientWidth, canvas.clientHeight); if (r) { ui.show(ROAD + r); return; } void lineLayer.then(L => { const s = L.tap(x, y); if (s) ui.show(s); }); return; }
   if (hit.kind === 'train') {
     const m = trains.meshes[hit.i], tr = sim.g.trains[hit.i]; if (m) rig.ride(m);
     if (tr && sim.owns(`route:${tr.svc}`)) ui.show(`route:${tr.svc}`, false);

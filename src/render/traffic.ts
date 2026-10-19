@@ -18,11 +18,12 @@ import type { Network } from '../sim/network.ts';
 import { courseOf, deckAt, LANE, type MainDef } from './mainways.ts';
 import type { Sim } from '../sim/sim.ts';
 import { TUNING } from '../sim/sim.ts';
-import { traffic, trafficKey, type Road, type TrafficDef } from '../sim/traffic.ts';
+import { traffic, trafficKey, type Road, type StretchDef, type TrafficDef } from '../sim/traffic.ts';
 import type { NetworkGeoDef, XZ } from '../sim/types.ts';
 import trafficJson from '../data/traffic.json';
 
 const D = trafficJson as unknown as TrafficDef;
+const TAP = new THREE.Vector3();
 
 type LL = [number, number];
 /** Where a stretch runs (src/data/traffic.json): on which main road, its count point, and the junction its queue backs up
@@ -169,6 +170,8 @@ export class TrafficLayer {
   /** The roads as last read, by stretch, and the loads the wash shows (easing towards the read ones). */
   private roads = new Map<string, Road>(); private shown = new Map<string, number>();
   private key = -1; private acc = READ_EVERY; private hour = 0;
+  /** The cars off the roads at the morning peak, and the same at the start (the Network card's score), as last read. */
+  private off = 0; private start = 0; private read = false;
   /** The cars' own clock (sim seconds): the moving cars' places come from it. */
   private clock = 0;
   private cap = MAX_CARS; private fade = 0;
@@ -278,7 +281,7 @@ export class TrafficLayer {
     if (this.acc >= READ_EVERY) {
       this.acc = 0;
       const k = trafficKey(sim, D);
-      if (k !== this.key) { this.key = k; const t = traffic(sim, TUNING, D); this.hour = t.hour; this.roads.clear(); for (const r of t.roads) this.roads.set(r.id, r); }
+      if (k !== this.key) { this.key = k; const t = traffic(sim, TUNING, D); this.hour = t.hour; this.off = t.off; this.start = t.start; this.read = true; this.roads.clear(); for (const r of t.roads) this.roads.set(r.id, r); }
       this.washEase();
     }
     if (!this.p.reduced) this.clock += dtGame;
@@ -288,6 +291,29 @@ export class TrafficLayer {
     this.place();
   }
 
+  /** A stretch as it stands now, by id (its card). */
+  road(id: string): Road | undefined { return this.roads.get(id); }
+  /** A stretch's data, by id. */
+  def(id: string): StretchDef | undefined { return D.stretches.find(d => d.id === id); }
+  /** The score: cars off the roads at the morning peak against the start's, once read. */
+  score(): { off: number; start: number } | null { return this.read ? { off: this.off, start: this.start } : null; }
+  /** Where a stretch's middle is on the canvas, or null if it isn't laid or is behind the camera (the checks). */
+  screenOf(id: string, camera: THREE.Camera, w: number, h: number): [number, number] | null {
+    const L = this.laid.find(l => l.id === id); if (!L) return null;
+    const k = Math.floor(L.path.pts.length / 2), [px, pz] = L.path.pts[k]!; TAP.set(px, L.path.y[k]!, pz).project(camera);
+    return TAP.z > 1 ? null : [(TAP.x + 1) / 2 * w, (1 - TAP.y) / 2 * h];
+  }
+  /** The stretch under a tap at (x, y) on the canvas (within 24 px of where its road is drawn), or null. */
+  tap(x: number, y: number, camera: THREE.Camera, w: number, h: number): string | null {
+    let best: string | null = null, bd = 24 * 24;
+    for (const L of this.laid) for (let k = 0; k < L.path.pts.length; k += 2) {
+      const [px, pz] = L.path.pts[k]!; TAP.set(px, L.path.y[k]!, pz).project(camera);
+      if (TAP.z > 1) continue;
+      const dx = (TAP.x + 1) / 2 * w - x, dy = (1 - TAP.y) / 2 * h - y, d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = L.id; }
+    }
+    return best;
+  }
   /** Ease each stretch's shown load towards the read one and write the wash's cells if any moved. */
   private washEase(): void {
     let moved = false;

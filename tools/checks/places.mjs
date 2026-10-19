@@ -8,8 +8,8 @@
 // among them; the stopper offers no extra unit before platform 3 and the sidings no spare before a train has failed; the
 // Network card no renewal before Piccadilly), and has Next to chips for what touches it. The offered bus stop at
 // Levenshulme opens with Buy, and Ardwick (Shut) with Reopen. The full list of places by kind is under each card. And a
-// new game: Stockport alone on the row, Shut, with Reopen · £1,000, which leaves a halt and about £3,000. No errors.
-// Covers: @page @sim src/render/stations.ts
+// new game: Stockport alone on the row, Shut, with Reopen · £1,000, which leaves a halt and about £3,000. And tapping a road's traffic opens its card, the Network card leading with the cars off. No errors.
+// Covers: @page @sim src/render/stations.ts src/render/traffic.ts
 import { reveal } from '../reveal.mjs';
 import { register } from 'tsx/esm/api';
 import { readFileSync } from 'node:fs';
@@ -88,6 +88,25 @@ export default async function ({ ok, open, root }) {
     const bad = [a.row !== 'station:stockport' && `the row lists ${a.row}`, !/^Shut · /.test(a.sub) && `the header reads "${a.sub}"`, a.buy !== 'Reopen · £1,000' && `its button reads "${a.buy}"`,
       !tapped && 'no button to tap', !/^Halt · /.test(b.sub) && `after Reopen the header reads "${b.sub}"`, !(+b.cash.replace(/[^\d]/g, '') >= 3000 && +b.cash.replace(/[^\d]/g, '') < 4000) && `after Reopen the cash reads "${b.cash}"`, errs[0]].filter(Boolean);
     ok('places: at 320×568 a new game offers only Reopen Stockport at £1,000, and reopening it leaves a halt and about £3,000', !bad.length, bad.join('; ') || `${a.sub} → ${b.sub}, ${b.cash}`);
+    await ctx.close();
+  }
+
+  // a road (docs/design/gridlock.md, The road card): tap the traffic on Wellington Road over Mersey Square and its card
+  // opens with its four figures and the drive now against clear; the Network card leads with the cars off the roads
+  {
+    const { ctx, page, errs } = await open({ width: 320, height: 568 }, { touch: true });
+    await page.waitForFunction(() => (window.__view.traffic?.()?.laid?.length ?? 0) > 0, null, { timeout: 120000 }).catch(() => {});
+    const pt = await page.evaluate(() => window.__view.roadPoint?.('a6-mersey-square') ?? null);
+    if (pt) await page.touchscreen.tap(pt[0], pt[1]);
+    await page.waitForFunction(() => document.getElementById('panel')?.dataset.place === 'road:a6-mersey-square', null, { timeout: 15000 }).catch(() => {});
+    const card = await page.evaluate(() => ({ name: document.getElementById('shName')?.textContent ?? '', sub: document.getElementById('shSub')?.textContent ?? '',
+      figs: ['oCars', 'oLoad', 'oSpeed', 'oQueue', 'oDrive', 'oFree'].map(k => document.getElementById(k)?.textContent ?? ''), wide: document.documentElement.scrollWidth > innerWidth }));
+    await page.evaluate(() => document.getElementById('cash')?.click());
+    await page.waitForFunction(() => /\d/.test(document.getElementById('nOff')?.textContent ?? ''), null, { timeout: 15000 }).catch(() => {});
+    const off = await page.evaluate(() => document.getElementById('nOff')?.textContent ?? '');
+    const bad = [!pt && 'Mersey Square\'s stretch is not on screen', !/Wellington Road/.test(card.name) && `the card is "${card.name}"`, !/^Road · \d+% full$/.test(card.sub) && `its header reads "${card.sub}"`,
+      card.figs.some(f => !/\d|none/.test(f)) && `its figures read ${card.figs.join(', ')}`, card.wide && 'it scrolls sideways', !/\d/.test(off) && `the Network card's score reads "${off}"`, errs[0]].filter(Boolean);
+    ok('places: at 320×568 tapping a road\'s traffic opens its card with its figures, and the Network card leads with the cars off the roads', !bad.length, bad.join('; ') || `${card.name} · ${card.sub} · ${card.figs.join(', ')} · ${off} off`);
     await ctx.close();
   }
 }

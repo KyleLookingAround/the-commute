@@ -109,6 +109,10 @@ const WASH_U = {
   uJam1: { value: PAL['jam-1'].clone() }, uJam2: { value: PAL['jam-2'].clone() },
   uStreet: { value: PAL['cover-street'].clone().convertLinearToSRGB() },   // as the cover's texture holds it
 };
+/** Strain's traffic row (docs/design/gridlock.md, G4): while the Strain view is on, the wash is drawn stronger, eased
+ * there and back. */
+let strong = 0, strongTo = 0;
+export function strongWash(on: boolean): void { strongTo = on ? 1 : 0; }
 /** The wash, in GLSL: how far towards amber or coral the road here goes, from the texture (red: the nearest stretch's
  * load over 2; green: how near it is), times `mask` (1 on a road's own material, the cover's streets on the ground). */
 const WASH_GLSL = `
@@ -117,7 +121,7 @@ const WASH_GLSL = `
   if (juv.x > 0.0 && juv.y > 0.0 && juv.x < 1.0 && juv.y < 1.0) {
     vec4 j = texture2D(uJam, juv);
     float load = j.r * 2.0, busy = smoothstep(0.85, 0.95, load), jam = smoothstep(1.05, 1.15, load);
-    diffuseColor.rgb = mix(diffuseColor.rgb, mix(uJam1, uJam2, jam), busy * j.g * uWash * JAM_MASK * 0.8);
+    diffuseColor.rgb = mix(diffuseColor.rgb, mix(uJam1, uJam2, jam), min(1.0, busy * j.g * uWash * JAM_MASK * 0.8));
   }
 }`;
 /** Tint a material's roads with the wash: `mask` is the GLSL for how much of a pixel is road. Keeps what the material's
@@ -286,7 +290,8 @@ export class TrafficLayer {
     }
     if (!this.p.reduced) this.clock += dtGame;
     this.fade = Math.min(1, this.fade + dt);
-    WASH_U.uWash.value = this.fade;
+    strong += Math.max(-dt * 2, Math.min(dt * 2, strongTo - strong));
+    WASH_U.uWash.value = this.fade * (1 + 0.25 * strong);
     this.U.uLit.value = 1 - Math.max(0, Math.min(1, (daylight - 0.04) / 0.2));
     this.place();
   }

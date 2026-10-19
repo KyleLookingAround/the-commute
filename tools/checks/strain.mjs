@@ -4,10 +4,11 @@
 // platform, people giving up, late departures by the stretch behind them and a full car park, with the card's line in
 // plain figures. In the browser, at 320 px (touch) and on a desktop, from that save: the Strain button is off at the
 // start and its drawing isn't fetched; Stockport's card says what's wrong with the view off; turned on, the glows show
-// (a crowded platform and a full car park at once, and then a late stretch and the walk home), the reach steps back,
+// (a crowded platform and a full car park at once, and then a late stretch and the walk home), the reach steps back and
+// the roads' wash is drawn stronger,
 // they breathe, every glow is at least 40 px across on screen, and a tap on Stockport's opens its card at half height
 // with the line at its top; with reduced motion they stand still; the view is remembered on reload, and turned off it
-// fades out and stops drawing. Screenshots go to build/shots/strain-*.png. No errors.
+// fades out and stops drawing, the wash back as it was. Screenshots go to build/shots/strain-*.png. No errors.
 // Covers: @page @sim src/render/strain.ts
 import { reveal } from '../reveal.mjs';
 import { register } from 'tsx/esm/api';
@@ -94,6 +95,9 @@ export default async function ({ ok, open, root, side }) {
     const s1 = await st();
     await p.waitForTimeout(1500);
     const s2 = await st();
+    // the roads' wash drawn stronger while it's on
+    await p.waitForFunction(() => (window.__view.traffic?.()?.wash ?? 0) > 1.2, null, { timeout: 30000 }).catch(() => {});
+    const wash1 = await p.evaluate(() => window.__view.traffic?.()?.wash ?? null);
     // the late stretch and the walk home come as trains leave late and people give up: each kind seen at some point, at 10×
     await tap('#sp10');
     const seen = await p.evaluate(async () => {
@@ -109,7 +113,7 @@ export default async function ({ ok, open, root, side }) {
     const bad1 = [!s1 && 'no Strain on window.__view', s1 && !s1.pressed && 'the button is not pressed', !seen.crowd && 'no crowded platform', !seen.park && 'no full car park',
       !seen.late && 'no late stretch', !(seen.walk && seen.walkers) && 'no walk home', s1 && !(s1.back > 0.95) && `the reach didn't step back (${s1?.back})`,
       s1 && s2 && s1.breath === s2.breath && 'the glows are not breathing', s2 && s2.spots.some(g => g.w < 39.5) && `a glow is under 40 px (${s2.spots.map(g => g.w.toFixed(0)).join(', ')})`,
-      drawnBefore === 0 && loaded.length < 1 && 'the drawing was never fetched', errs[0]].filter(Boolean);
+      drawnBefore === 0 && loaded.length < 1 && 'the drawing was never fetched', !(wash1 > 1.2) && `the roads' wash isn't drawn stronger (${wash1})`, errs[0]].filter(Boolean);
     ok(`strain: at ${w}×${h} turned on, the glows show for each kind of problem, at least 40 px, breathing, with the reach stepped back`, !bad1.length, bad1.join('; ') + ` ${JSON.stringify(seen)}`);
 
     // a tap on Stockport's platform glow opens its card at half height, the line at its top
@@ -136,9 +140,11 @@ export default async function ({ ok, open, root, side }) {
     await tap('#vStrain');
     await p.waitForFunction(() => { const s = window.__view.strain?.(); return s && !s.running; }, null, { timeout: 20000 }).catch(() => {});
     const r3 = await st();
+    await p.waitForFunction(() => (window.__view.traffic?.()?.wash ?? 0) <= 1.001, null, { timeout: 20000 }).catch(() => {});
+    const wash3 = await p.evaluate(() => window.__view.traffic?.()?.wash ?? null);
     const pressed = await p.evaluate(() => document.getElementById('vStrain')?.getAttribute('aria-pressed'));
     const bad3 = [!(r1?.on > 0) && 'the view was not remembered on reload', r1 && r2 && r1.breath !== r2.breath && 'the glows breathe with reduced motion',
-      r3 && (r3.running || r3.back > 0 || r3.on) && 'turned off, it kept drawing', pressed !== 'false' && 'the button is still pressed', errs[0]].filter(Boolean);
+      r3 && (r3.running || r3.back > 0 || r3.on) && 'turned off, it kept drawing', pressed !== 'false' && 'the button is still pressed', !(wash3 <= 1.001) && `the roads' wash stayed stronger (${wash3})`, errs[0]].filter(Boolean);
     ok(`strain: at ${w}×${h} the view is remembered, still with reduced motion, and turns off`, !bad3.length, bad3.join('; '));
     await ctx.close();
   }));

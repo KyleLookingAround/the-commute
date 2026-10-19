@@ -150,6 +150,8 @@ export function wireStrain(page: StrainPage): StrainRead {
   });
   const set = (v: boolean) => {
     on = v; button.setAttribute('aria-pressed', String(on));
+    // the roads' wash drawn stronger while it's on (Strain's traffic row)
+    void import('../render/traffic.ts').then(m => m.strongWash(on));
     if (on || layer) void (layer ??= draw()).then(l => l.setOn(on));
   };
   button.addEventListener('click', () => { set(!on); saveViews({ ...loadViews(), strain: on }); });

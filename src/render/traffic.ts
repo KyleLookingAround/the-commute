@@ -282,6 +282,7 @@ export class TrafficLayer {
     // the roads laid again as the ground's read more finely, at most every 3 s, while the camera's near enough for cars
     if (groundVersion() !== this.laidOn && this.p.focus().r < FAR) { const now = performance.now(); if (now - this.laidAt > 3000) { this.laidOn = groundVersion(); this.laidAt = now; this.lay(); this.washRoads(); } }
     this.acc += dt;
+    sim.roads ??= D;
     if (this.acc >= READ_EVERY) {
       this.acc = 0;
       const k = trafficKey(sim, D);

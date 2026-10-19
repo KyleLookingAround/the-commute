@@ -16,7 +16,6 @@ import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
 import { stepExpress, nextSlot, EXPRESS_UNITS } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
 import { traffic, type TrafficDef } from './traffic.ts';
-import trafficJson from '../data/traffic.json';
 import { effects, type Effects } from './contract.ts';
 import { places, build, derive, frequencyStage, placeId, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, JUNCTION_FLYOVER, FEEDER, SHELTER, BEE, BUS_EVERY, BUS_LANES, NEW_STOCK, MAINT, type Places, type Upgrade } from './places.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
@@ -896,6 +895,10 @@ export class Sim {
     const b = this.P.byId.get(id)?.bus; at = b ? b.along.map(s => this.net.station(s).index) : []; this.busAt.set(id, at); return at;
   }
   private busAt = new Map<string, number[]>();
+  /** The roads (src/data/traffic.json), once whoever draws them has loaded them: then the cars off at 08:00 are recorded
+   * at the end of each game day (`offDays`). Kept out of the sim's own imports so the stretches' data stays in the
+   * traffic layer's chunk, after the first frame. */
+  roads: TrafficDef | null = null;
   /** Riders an hour on each bus route the player runs, as last stepped (not saved: the view shows how full its buses are). */
   readonly busRate = new Map<string, number>();
   /** How far the network has joined the Bee Network: 0 not yet, then each BEE step. */
@@ -1053,7 +1056,7 @@ export class Sim {
   step(dt: number): void {
     const g = this.g; this.ensureTrains();
     const d0 = Math.floor(g.t / DAY), t0 = g.t; g.t += dt;
-    if (Math.floor(g.t / DAY) > d0) { (g.offDays ??= [])[g.day] = Math.round(traffic(this, TUNING, trafficJson as unknown as TrafficDef, 8).off); g.day++; }
+    if (Math.floor(g.t / DAY) > d0) { if (this.roads) (g.offDays ??= [])[g.day] = Math.round(traffic(this, TUNING, this.roads, 8).off); g.day++; }
     // what the clock paces (demand, car parks and buses, homes growing) steps by the clock: dt in the peaks' sim seconds, more when the clock
     // runs fast, so each clock hour carries what it did before the clock sped up
     const dc = (clockAt(g.t) - clockAt(t0)) / BASE;

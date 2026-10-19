@@ -28,7 +28,8 @@ export default async function ({ ok, open, root }) {
 
   // drawing changes nothing: the same seed and buys, one run drawn as the page draws it
   const run = draw => {
-    const sim = new Sim(net, Sim.halt(net, 2)); sim.g.cash = 1e6;
+    // (both with the roads' data, as the page's sim has once the layer's loaded, so each records the cars off by day)
+    const sim = new Sim(net, Sim.halt(net, 2)); sim.g.cash = 1e6; sim.roads = JSON.parse(readFileSync(join(root, 'src/data/traffic.json'), 'utf8'));
     sim.buyUpgrade(0, 'crossing'); sim.buy(sim.P.station[net.station('heaton-chapel').index]);
     const L = draw ? new TrafficLayer({ scene: new THREE.Scene(), net, def, sim: () => sim, focus: () => ({ tx: 20, tz: -500, r: 260 }), ground: Promise.resolve(null), reduced: false }) : null;
     let cars = 0;

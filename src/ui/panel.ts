@@ -6,6 +6,7 @@
 import { UPGRADES, LINE_UPGRADES, TUNING } from '../sim/sim.ts';
 import type { LineUpgrade, Upgrade } from '../sim/places.ts';
 import { pace } from '../sim/day.ts';
+import { parked } from '../sim/access.ts';
 import { TARGETS, punctuality, renewable, reputation, targetsMet } from '../sim/contract.ts';
 import type { Sim } from '../sim/sim.ts';
 import type { GameState } from '../sim/types.ts';
@@ -354,7 +355,8 @@ export class UI {
     // there's a car park or bus link
     const b = sim.ups(i), more: [string, string][] = [['pHomes', 'Homes'], ['pOff', 'Arrived'], ['pChg', 'Changed']];
     if (sim.state(i).cabs.length) more.push(['pCab', 'By cab']);
-    if (b.carpark) more.push(['pCar', 'By car']);
+    // a car park's cars: each one parked is a car off the roads beyond the station (docs/design/gridlock.md, G4)
+    if (b.carpark) more.push(['pCar', 'By car'], ['pPark', 'Cars off the road']);
     if (b.bus) more.push(['pBus', 'By bus']);
     panel.innerHTML = this.stats([['pWait', 'Waiting'], ['pBoard', 'Boarded'], ['pRev', 'Revenue'], ['pLost', 'Gave up']], more);
     panel.querySelector('details')?.addEventListener('toggle', e => { this.more = (e.target as HTMLDetailsElement).open; });
@@ -549,7 +551,7 @@ export class UI {
     if (p?.kind === 'station') {
       const i = p.station!, S = sim.state(i);
       set('pWait', String(S.waiting)); set('pBoard', num(S.boarded)); set('pOff', num(S.alighted)); set('pRev', fmtShort(S.revenue)); set('pLost', num(S.lost)); set('pChg', num(S.changed));
-      set('pHomes', num(Math.round(sim.homes(i)))); set('pCab', num(S.cab)); set('pCar', num(S.car)); set('pBus', num(S.bus));
+      set('pHomes', num(Math.round(sim.homes(i)))); set('pCab', num(S.cab)); set('pCar', num(S.car)); set('pPark', num(parked(S))); set('pBus', num(S.bus));
     } else if (p?.kind === 'route') {
       const v = sim.svc(p.svc!), mine = g.trains.filter(t => t.svc === v.id), every = sim.headway(v.id);
       set('rUnits', String(sim.unitsFor(v))); set('rCars', String(mine[0]?.cars ?? sim.carsPerUnit())); set('rEvery', every ? `${Math.round(every / 60)} min` : '–');

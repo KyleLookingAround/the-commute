@@ -111,6 +111,19 @@ export function pathThrough(raw: XZ[], rawUnder: boolean[] = []): Path {
   }
   return { pts, d, y, len: d[d.length - 1]!, under };
 }
+/** A way with the points dropped where it runs on straight and level (within 2° and 0.05 m of the line from the last
+ * point kept, and never more than 60 m between them): the same road drawn in a fraction of the pieces. */
+function straighter(p: Path): Path {
+  const keep = [0], n = p.pts.length;
+  for (let a = 0, c = 2; c < n; c++) {
+    const [ax, az] = p.pts[a]!, [bx, bz] = p.pts[c - 1]!, [cx, cz] = p.pts[c]!, d = p.d[c]! - p.d[a]!;
+    let fine = d <= 60 && Math.abs(Math.atan2(Math.sin(Math.atan2(cz - bz, cx - bx) - Math.atan2(bz - az, bx - ax)), Math.cos(Math.atan2(cz - bz, cx - bx) - Math.atan2(bz - az, bx - ax)))) < 0.035 && !p.under?.[c - 1];
+    for (let k = a + 1; k < c && fine; k++) { const t = (p.d[k]! - p.d[a]!) / (d || 1); if (Math.abs(p.y[a]! + (p.y[c]! - p.y[a]!) * t - p.y[k]!) > 0.05) fine = false; }
+    if (!fine) { a = c - 1; keep.push(a); }
+  }
+  if (n > 1) keep.push(n - 1);
+  return { pts: keep.map(k => p.pts[k]!), d: keep.map(k => p.d[k]!), y: keep.map(k => p.y[k]!), len: p.len, under: p.under && keep.map(k => p.under![k]!) };
+}
 const reversed = (p: Path): Path => ({ pts: [...p.pts].reverse(), d: p.d.map(x => p.len - x).reverse(), y: [...p.y].reverse(), len: p.len, under: p.under && [...p.under].reverse() });
 /** A bus the sim has finished with, driving back to the depot from station `at` since sim time t. */
 interface Leaving { id: number; at: number; t: number }
@@ -168,7 +181,7 @@ export class BusLayer {
     for (const dp of this.depots) { const k = this.nearestStop(dp); const at = k >= 0 ? this.stop(k)?.at : null; if (at) ways.push(pathThrough([dp, at])); }
     // (drawn only off the main roads: along the A6 the bus drives the main road's own carriageway, src/render/mainroads.ts)
     const P: number[] = [], onMain = onMainRoad(net.def as unknown as MainDef, -1);
-    for (const w of ways) for (let i = 1; i < w.pts.length; i++) {
+    for (const w0 of ways) for (let w = straighter(w0), i = 1; i < w.pts.length; i++) {
       const [ax, az] = w.pts[i - 1]!, [bx, bz] = w.pts[i]!, l = Math.hypot(bx - ax, bz - az) || 1;
       if (onMain(ax, az) && onMain(bx, bz) && onMain((ax + bx) / 2, (az + bz) / 2)) continue;
       const nx = -(bz - az) / l * ROAD_W / 2, nz = (bx - ax) / l * ROAD_W / 2;

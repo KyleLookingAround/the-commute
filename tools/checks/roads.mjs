@@ -9,7 +9,7 @@
 // - Gridlock's stretches (src/data/traffic.json) each run on a road the data has, centred on their count point within
 //   60 m of its course, their queues backing up from one of its junctions.
 // - The buses' roads give way along the A6: no bus road is drawn over a main road's carriageway.
-// - The bus routes the player runs (the 192, the 375) have their buses on their own roads once bought, none before,
+// - The bus routes the player runs (the 192, the 358) have their buses on their own roads once bought, none before,
 //   and a stop with a shelter each way by at least half their stations.
 // Covers: src/render/mainroads.ts src/render/mainways.ts src/render/traffic.ts src/render/buses.ts src/render/busroutes.ts src/data/network.json src/data/traffic.json src/data/terrain/** tools/osm-to-roads.mjs
 import { readFileSync, readdirSync } from 'node:fs';

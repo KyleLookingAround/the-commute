@@ -128,8 +128,8 @@ test('places: a bus stop grows from a pole to a shelter to live times, each maki
   assert.equal(sim.price(stop, 'shelter'), undefined);
 });
 
-test('places: the 375 is offered once Marple is open, and carries its own riders between Stockport, Rose Hill and Marple', () => {
-  const sim = fresh(), id = 'bus:375';
+test('places: the 358 is offered once Marple is open, and carries its own riders between Stockport, Rose Hill and Marple', () => {
+  const sim = fresh(), id = 'bus:358';
   assert.ok(sim.P.byId.has(id));
   assert.equal(sim.canBuy(id), false, 'not before Marple');
   sim.grant(st('marple'));

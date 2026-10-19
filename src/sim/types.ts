@@ -53,7 +53,10 @@ export interface StationGeoDef {
   straight?: number[];
   /** The stages this station grows through after it's a halt, by upgrade: what each is called here, and a description
    * or price where they differ from the usual. A stage not listed isn't offered here. */
-  grow?: Partial<Record<StageId, { name: string; desc?: string; price?: number; spaces?: number }>>;
+  /** signature (step 18): the station's own stage from its real history or plans, what it brings (homes: its ceiling
+   * that much higher; draw: it draws that much more; platforms: that many more open), how it's drawn (sign: a brown
+   * tourist sign, crane: a tower crane over new building, platform: a new platform) and a note of where it's from. */
+  grow?: Partial<Record<StageId, { name: string; desc?: string; price?: number; spaces?: number; homes?: number; draw?: number; platforms?: number; look?: string; note?: string }>>;
   /** Something that must be built elsewhere before this station can be bought. */
   needs?: { station: string; upgrade: string };
   /** The platform faces trains stand at, where they're more than the halt's one and the second platform's (the sim
@@ -175,7 +178,7 @@ export interface Frame { x: number; z: number; heading: number; dx: number; dz: 
  * the big stations the rest of the station. Offered only where the station's `grow` lists them. `bus` is the bus stop
  * or bus station by it, a place of its own (`stops` in the network data), which the view still shows on the station's
  * card. */
-export type StageId = 'crossing' | 'platform2' | 'building' | 'platforms' | 'taxi' | 'carpark' | 'carpark2' | 'bus';
+export type StageId = 'crossing' | 'platform2' | 'building' | 'platforms' | 'taxi' | 'carpark' | 'carpark2' | 'bus' | 'signature';
 export type UpgradeId = StageId | 'kiosk' | 'barriers' | 'canopy' | 'lifts' | 'extend' | 'retail' | 'long' | 'canopyFull' | 'travel' | 'shops' | 'cyclehub';
 export type LineUpgradeId = 'units' | 'cars' | 'timetable' | 'spare';
 /** A group of passengers who joined a platform queue together: when (game seconds), where to, how many, whether

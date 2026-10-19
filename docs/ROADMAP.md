@@ -126,7 +126,7 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
 
    `MAX_AWAY` stays at half a game day.
 18. **Stages that keep going, and one each station has alone** (M to L, ideas review 14 October 2026; idea 2). Every station buys the same five stages within an hour of opening, and late on £230,000 waits on £300,000 stations.
-   - **Built** (19 October 2026): the everyday tiers, priced from the station's homes (at Heaton Chapel's 200 their list price, more in proportion at a bigger one): 8-car platforms (480 a platform), canopies the full length, a travel centre, a row of shops and a cycle hub, each drawn into every kit by `tools/tiers.mjs` from its own parts; two more extra units and a third step of longer trains on the stopper. The bot buys them. Left: the signature stages, and cash still piling up late.
+   - **Built** (19 October 2026): the everyday tiers, priced from the station's homes (at Heaton Chapel's 200 their list price, more in proportion at a bigger one): 8-car platforms (480 a platform), canopies the full length, a travel centre, a row of shops and a cycle hub, each drawn into every kit by `tools/tiers.mjs` from its own parts; two more extra units and a third step of longer trains on the stopper. The bot buys them. Then the same day the signature stages, for the 13 stations with one known (`docs/DESIGN.md`, Stages that keep going); the others wait for a real one. At 32 sim hours cash ends at £0.7–0.8m and each peak from day 4 loses about 7% on the mean.
    - The everyday stages get further tiers priced from what the station earns, each drawn:
      - canopies to full length
      - the booking office to a travel centre

@@ -44,7 +44,7 @@
   --map-kit-city:#7ec3ee; --map-kit-united:#d8262f; --map-kit-county:#1f55b5;
   /* the preview's ghost: blueprint cyan, apart from the passengers' amber, and clear of brick, grass and platform by day and at dusk */
   --map-signal:#1d2128; --map-signal-green:#3dff7a; --map-signal-yellow:#ffc21a; --map-signal-red:#ff3b30; --map-board:#f7f7f2; --map-board-ink:#14161a;
-  --map-board-led:#ffb52e; --map-shop-lit:#ffe2a6; --map-shutter:#9aa3ad; --map-bay-line:#eeeeea;
+  --map-board-led:#ffb52e; --map-shop-lit:#ffe2a6; --map-shutter:#9aa3ad; --map-bay-line:#eeeeea; --map-sign-brown:#7a3e1d;
   --map-cab:#1f2126; --map-cab-sign:#ffc928; --map-cab-bay:#f2d23c;
   /* things going wrong: hazard and caution lamps, the rail replacement buses and their stop */
   --map-hazard:#ffa21a; --map-bus:#2f7fd6; --map-bus-band:#ffd23f; --map-bus-stop:#d8322f;

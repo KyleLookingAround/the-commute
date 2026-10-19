@@ -80,6 +80,8 @@
     { "type": "retail", "u": -111, "v": 4.4, "label": "Travel centre", "upgrade": "travel", "tier": true },
     { "type": "retail", "u": 74.5, "v": 24, "y": 0, "label": "Coffee", "small": true, "upgrade": "shops", "tier": true },
     { "type": "retail", "u": 79, "v": 24, "y": 0, "label": "News", "small": true, "upgrade": "shops", "tier": true },
-    { "type": "cycles", "u": 92, "v": 0, "n": 12, "across": true, "upgrade": "cyclehub", "tier": true }
+    { "type": "cycles", "u": 92, "v": 0, "n": 12, "across": true, "upgrade": "cyclehub", "tier": true },
+    { "type": "platform", "u0": -180, "u1": 75, "v0": -130.6, "v1": -121.8, "upgrade": "signature", "tier": true },
+    { "type": "lamps", "u0": -174, "u1": 69, "v": -126.2, "every": 25, "upgrade": "signature", "tier": true }
   ]
 }

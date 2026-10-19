@@ -43,6 +43,7 @@
     { "type": "retail", "u": -26, "v": -4.7, "label": "Travel centre", "upgrade": "travel", "tier": true },
     { "type": "retail", "u": 32.5, "v": -4.7, "label": "Coffee", "small": true, "upgrade": "shops", "tier": true },
     { "type": "retail", "u": 37, "v": -4.7, "label": "News", "small": true, "upgrade": "shops", "tier": true },
-    { "type": "cycles", "u": -26, "v": -8, "n": 12, "upgrade": "cyclehub", "tier": true }
+    { "type": "cycles", "u": -26, "v": -8, "n": 12, "upgrade": "cyclehub", "tier": true },
+    { "type": "sign", "u": -29, "v": -8, "facing": 1, "upgrade": "signature", "tier": true }
   ]
 }

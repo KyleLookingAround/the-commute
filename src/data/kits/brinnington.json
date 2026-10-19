@@ -41,7 +41,7 @@
     { "type": "platform", "u0": -115, "u1": -95, "v0": -5.7, "v1": -1.7, "upgrade": "long", "tier": true },
     { "type": "lamps", "u0": -112, "u1": -98, "v": -3.7, "every": 15, "upgrade": "long", "tier": true },
     { "type": "platform", "u0": -115, "u1": -95, "v0": 5.2, "v1": 9.2, "upgrade": ["long", "platform2"], "tier": true },
-    { "type": "lamps", "u0": -112, "u1": -98, "v": 7.199999999999999, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "lamps", "u0": -112, "u1": -98, "v": 7.2, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
     { "type": "canopy", "u0": -91, "u1": -40, "v0": -5.7, "v1": -1.7, "upgrade": "canopyFull", "tier": true },
     { "type": "canopy", "u0": 0, "u1": 49, "v0": -5.7, "v1": -1.7, "upgrade": "canopyFull", "tier": true },
     { "type": "canopy", "u0": -91, "u1": -40, "v0": 5.2, "v1": 9.2, "upgrade": ["canopyFull", "platform2"], "tier": true },
@@ -49,6 +49,7 @@
     { "type": "retail", "u": -29, "v": -4.7, "label": "Travel centre", "upgrade": "travel", "tier": true },
     { "type": "retail", "u": 14.5, "v": -4.7, "label": "Coffee", "small": true, "upgrade": "shops", "tier": true },
     { "type": "retail", "u": 19, "v": -4.7, "label": "News", "small": true, "upgrade": "shops", "tier": true },
-    { "type": "cycles", "u": 42, "v": -20.8, "n": 12, "street": true, "upgrade": "cyclehub", "tier": true }
+    { "type": "cycles", "u": 42, "v": -20.8, "n": 12, "street": true, "upgrade": "cyclehub", "tier": true },
+    { "type": "sign", "u": 55, "v": -20.8, "facing": 1, "street": true, "upgrade": "signature", "tier": true }
   ]
 }

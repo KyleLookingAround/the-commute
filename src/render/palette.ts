@@ -15,7 +15,7 @@ const FALLBACK = {
   'home-roof': '#5d6b80', 'home-tile': '#a8473a', 'home-glass': '#cfe6f5',
   reach: '#ffcf5c', 'mins-1': '#ffe066', 'mins-2': '#ffad5a', 'mins-3': '#f07fa0', 'mins-4': '#a58be0',
   signal: '#1d2128', 'signal-green': '#3dff7a', 'signal-yellow': '#ffc21a', 'signal-red': '#ff3b30', board: '#f7f7f2', 'board-ink': '#14161a',
-  'board-led': '#ffb52e', 'shop-lit': '#ffe2a6', shutter: '#9aa3ad', 'bay-line': '#eeeeea',
+  'board-led': '#ffb52e', 'shop-lit': '#ffe2a6', shutter: '#9aa3ad', 'bay-line': '#eeeeea', 'sign-brown': '#7a3e1d',
   'cab': '#1f2126', 'cab-sign': '#ffc928', 'cab-bay': '#f2d23c',
   hazard: '#ffa21a', bus: '#2f7fd6', 'bus-band': '#ffd23f', 'bus-stop': '#d8322f',
   'link-bus': '#f5c518', 'link-band': '#26282d', 'link-park': '#72b84f', 'link-trees': '#3e8a3a', 'reach-outer': '#ffe7a3',

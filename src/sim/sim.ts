@@ -342,6 +342,7 @@ export class Sim {
   capacity(i: number): number {
     const u = this.ups(i), one = u.long ? TUNING.platformCapLong : u.extend ? TUNING.platformCapExtended : TUNING.platformCap;
     let open = 0; for (const p of this.plats[i]!) { const n = p.def.upgrade; if (!n || (typeof n === 'string' ? u[n as UpgradeId] : n.every(k => u[k as UpgradeId]))) open++; }
+    if (u.signature) open += this.station(i).grow?.signature?.platforms ?? 0;
     return one * Math.max(1, open / 2);
   }
   /** The game clock's hour of the day (src/sim/day.ts), worked out once a step. */
@@ -849,7 +850,9 @@ export class Sim {
   /** Station i's homes now (its census catchment, grown). */
   homes(i: number): number { return this.g.homes[i] ?? this.station(i).catchment; }
   /** The most homes station i's land could hold. */
-  ceiling(i: number): number { const s = this.station(i); return Math.max(s.catchment, s.ceiling ?? s.catchment); }
+  ceiling(i: number): number { const s = this.station(i), sg = this.ups(i).signature ? s.grow?.signature?.homes ?? 0 : 0; return Math.max(s.catchment, s.ceiling ?? s.catchment) * (1 + sg); }
+  /** What draws people to station i now: its census draw, more once its signature stage brings a draw of its own. */
+  drawOf(i: number): number { const s = this.station(i); return s.draw * (1 + (this.ups(i).signature ? s.grow?.signature?.draw ?? 0 : 0)); }
   /** How fast station i's homes are growing now, as a share of the most they could (0 to 1): the reach of its trip. */
   growthRate(i: number): number { if (this.jkey < 0) this.refreshJourneys(); return this.growth[i]!; }
   /** dt seconds of growth (the peaks' sim seconds by the clock): each owned station's homes close on its ceiling, the
@@ -889,7 +892,7 @@ export class Sim {
       const J = j === i ? null : this.journey(i, j);
       if (!J) { this.rates[j] = 0; continue; }
       const b = this.station(j), reach = this.reach(this.felt(J));
-      tot += this.rates[j] = scale * reach * (out * this.homes(i) * b.draw + (1 - out) * a.draw * this.homes(j));
+      tot += this.rates[j] = scale * reach * (out * this.homes(i) * this.drawOf(j) + (1 - out) * this.drawOf(i) * this.homes(j));
     }
     return tot;
   }

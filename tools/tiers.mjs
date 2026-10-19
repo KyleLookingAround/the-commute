@@ -5,6 +5,9 @@
 //   travel      a travel centre: a large unit by the kiosk
 //   shops       a row of shops: two small units beyond the bakery
 //   cyclehub    a cycle hub: a stand of twelve by the cycle racks (or the car park, or the kiosk where there are none)
+//   signature   the station's own stage (`grow.signature` in the network data), as its `look` says: a brown sign at the
+//               way in (by the racks or the car park), a tower crane out beyond the station's street side, or (Piccadilly's
+//               platforms 15 and 16) an island platform beyond the outermost one
 // Placed by rule from the kit, not surveyed: each generated part carries "tier": true, and running this again replaces
 // them. Plain Node, writes src/data/kits/*.json:  node tools/tiers.mjs
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
@@ -12,13 +15,14 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), '..', 'src/data/kits');
+const sigs = Object.fromEntries(JSON.parse(readFileSync(join(dir, '..', 'network.json'), 'utf8')).stations.map(s => [s.id, s.grow?.signature]).filter(([, g]) => g));
 const gates = p => p.upgrade === undefined ? [] : [p.upgrade].flat();
 const gate = (...ids) => ids.length === 1 ? ids[0] : ids;
 const same = (a, b) => Math.abs(a.v0 - b.v0) < 0.5 && Math.abs(a.v1 - b.v1) < 0.5;
 
 for (const f of readdirSync(dir).filter(f => f.endsWith('.json'))) {
   const path = join(dir, f), kit = JSON.parse(readFileSync(path, 'utf8'));
-  const parts = kit.parts.filter(p => !p.tier), add = p => out.push({ ...p, tier: true }), out = [];
+  const parts = kit.parts.filter(p => !p.tier), add = p => out.push({ ...JSON.parse(JSON.stringify(p, (k, v) => typeof v === 'number' ? Math.round(v * 10) / 10 : v)), tier: true }), out = [];
   const platforms = parts.filter(p => p.type === 'platform');
   // 8-car platforms: past each extension's far end (the end further from the station's middle)
   for (const p of platforms.filter(p => gates(p).includes('extend'))) {
@@ -43,6 +47,20 @@ for (const f of readdirSync(dir).filter(f => f.endsWith('.json'))) {
   if (racks) add({ ...racks, u: racks.u + (racks.u > 0 ? -8 : 8), n: 12, upgrade: 'cyclehub' });
   else if (park) add({ type: 'cycles', u: park.u0 - 6, v: (park.v0 + park.v1) / 2, n: 12, street: true, upgrade: 'cyclehub' });
   else if (kiosk) add({ type: 'cycles', u: kiosk.u - toward(kiosk) * 9, v: kiosk.v, n: 12, ...(kiosk.y !== undefined ? { y: kiosk.y } : {}), upgrade: 'cyclehub' });
+  // the signature stage
+  const sig = sigs[kit.id], street = parts.filter(p => p.street);
+  if (sig?.look === 'sign') {
+    const at = racks ?? park ?? kiosk, u = at.u ?? at.u0 - 4, v = at.v ?? (at.v0 + at.v1) / 2;
+    add({ type: 'sign', u: u + 5, v, facing: v > 0 ? -1 : 1, ...(at.street ? { street: true } : at.y !== undefined ? { y: at.y } : {}), upgrade: 'signature' });
+  } else if (sig?.look === 'crane') {
+    const side = street.length ? Math.sign(street.reduce((a, p) => a + (p.v ?? (p.v0 + p.v1) / 2), 0)) || 1 : 1;
+    const far = Math.max(30, ...street.map(p => Math.abs(p.v ?? Math.max(Math.abs(p.v0), Math.abs(p.v1)))));
+    add({ type: 'crane', u: -20, v: side * (far + 35), yaw: side > 0 ? 0.6 : -2.5, street: true, upgrade: 'signature' });
+  } else if (sig?.look === 'platform') {
+    const out = platforms.reduce((a, p) => Math.min(p.v0, p.v1) < Math.min(a.v0, a.v1) ? p : a), w = out.v1 - out.v0;
+    add({ type: 'platform', u0: out.u0, u1: out.u1, v0: out.v0 - 13 - w, v1: out.v0 - 13, upgrade: 'signature' });
+    add({ type: 'lamps', u0: out.u0 + 6, u1: out.u1 - 6, v: out.v0 - 13 - w / 2, every: 25, upgrade: 'signature' });
+  }
   // written as the kits are, a part a line: the lines generated before taken out, the new ones in before the parts' end
   const text = readFileSync(path, 'utf8').split('\n').filter(l => !l.includes('"tier": true'));
   const end = text.lastIndexOf('  ]'), line = p => '    ' + JSON.stringify(p).replace(/":/g, '": ').replace(/,"/g, ', "').replace(/^\{/, '{ ').replace(/\}$/, ' }');

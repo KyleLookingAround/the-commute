@@ -36,7 +36,7 @@
     { "type": "platform", "u0": 81, "u1": 101, "v0": -5.7, "v1": -1.7, "upgrade": "long", "tier": true },
     { "type": "lamps", "u0": 84, "u1": 98, "v": -3.7, "every": 15, "upgrade": "long", "tier": true },
     { "type": "platform", "u0": 80, "u1": 100, "v0": 5.2, "v1": 9.2, "upgrade": ["long", "platform2"], "tier": true },
-    { "type": "lamps", "u0": 83, "u1": 97, "v": 7.199999999999999, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "lamps", "u0": 83, "u1": 97, "v": 7.2, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
     { "type": "canopy", "u0": 30, "u1": 77, "v0": -5.7, "v1": -1.7, "upgrade": "canopyFull", "tier": true },
     { "type": "canopy", "u0": 30, "u1": 76, "v0": 5.2, "v1": 9.2, "upgrade": ["canopyFull", "platform2"], "tier": true },
     { "type": "retail", "u": 19, "v": -4.7, "label": "Travel centre", "upgrade": "travel", "tier": true },

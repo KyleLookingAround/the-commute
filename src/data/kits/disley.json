@@ -39,7 +39,7 @@
     {"type": "busstop", "u": 14, "v": -19.5, "back": [1, 0.15], "kerb": -1, "door": [2, -11.2], "street": true, "note": "On Station Approach where it ends by the platform, at street level, the replacement buses' stop the game's (OpenStreetMap, main API, 14 October 2026)"},
     {"type": "road", "points": [[-127, -56], [-119, -58], [-107, -54], [-77, -37], [-65, -31], [-55, -26], [-25, -21], [-15, -20], [0, -18], [24, -14]], "w": 6, "scenery": true, "note": "Station Approach, down off Buxton Road (the A6) to the platform, a service road in OpenStreetMap (main API, 14 October 2026)"},
     { "type": "platform", "u0": 92, "u1": 112, "v0": -9.2, "v1": -5.2, "upgrade": "long", "tier": true },
-    { "type": "lamps", "u0": 95, "u1": 109, "v": -7.199999999999999, "every": 15, "upgrade": "long", "tier": true },
+    { "type": "lamps", "u0": 95, "u1": 109, "v": -7.2, "every": 15, "upgrade": "long", "tier": true },
     { "type": "platform", "u0": 94, "u1": 114, "v0": 1.7, "v1": 5.7, "upgrade": ["long", "platform2"], "tier": true },
     { "type": "lamps", "u0": 97, "u1": 111, "v": 3.7, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
     { "type": "canopy", "u0": -31, "u1": 8, "v0": -9.2, "v1": -5.2, "upgrade": "canopyFull", "tier": true },
@@ -49,6 +49,7 @@
     { "type": "retail", "u": -15, "v": -8.2, "label": "Travel centre", "upgrade": "travel", "tier": true },
     { "type": "retail", "u": 19.5, "v": -16.8, "label": "Coffee", "small": true, "upgrade": "shops", "tier": true },
     { "type": "retail", "u": 24, "v": -16.8, "label": "News", "small": true, "upgrade": "shops", "tier": true },
-    { "type": "cycles", "u": -76, "v": -47.5, "n": 12, "street": true, "upgrade": "cyclehub", "tier": true }
+    { "type": "cycles", "u": -76, "v": -47.5, "n": 12, "street": true, "upgrade": "cyclehub", "tier": true },
+    { "type": "sign", "u": -69, "v": -47.5, "facing": 1, "street": true, "upgrade": "signature", "tier": true }
   ]
 }

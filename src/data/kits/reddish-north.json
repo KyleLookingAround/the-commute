@@ -50,9 +50,9 @@
     { "type": "platform", "u0": 72, "u1": 92, "v0": -7.3, "v1": -1.7, "upgrade": "long", "tier": true },
     { "type": "lamps", "u0": 75, "u1": 89, "v": -4.5, "every": 15, "upgrade": "long", "tier": true },
     { "type": "platform", "u0": -92, "u1": -72, "v0": 5.2, "v1": 9.2, "upgrade": ["long", "platform2"], "tier": true },
-    { "type": "lamps", "u0": -89, "u1": -75, "v": 7.199999999999999, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "lamps", "u0": -89, "u1": -75, "v": 7.2, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
     { "type": "platform", "u0": 72, "u1": 92, "v0": 5.2, "v1": 9.2, "upgrade": ["long", "platform2"], "tier": true },
-    { "type": "lamps", "u0": 75, "u1": 89, "v": 7.199999999999999, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "lamps", "u0": 75, "u1": 89, "v": 7.2, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
     { "type": "canopy", "u0": -68, "u1": -50, "v0": -7.3, "v1": -1.7, "upgrade": "canopyFull", "tier": true },
     { "type": "canopy", "u0": -22, "u1": 68, "v0": -7.3, "v1": -1.7, "upgrade": "canopyFull", "tier": true },
     { "type": "canopy", "u0": -68, "u1": -44, "v0": 5.2, "v1": 9.2, "upgrade": ["canopyFull", "platform2"], "tier": true },
@@ -60,6 +60,7 @@
     { "type": "retail", "u": 31, "v": -6.3, "label": "Travel centre", "upgrade": "travel", "tier": true },
     { "type": "retail", "u": -43, "v": -6.3, "label": "Coffee", "small": true, "upgrade": "shops", "tier": true },
     { "type": "retail", "u": -47.5, "v": -6.3, "label": "News", "small": true, "upgrade": "shops", "tier": true },
-    { "type": "cycles", "u": -14, "v": -8.3, "n": 12, "upgrade": "cyclehub", "tier": true }
+    { "type": "cycles", "u": -14, "v": -8.3, "n": 12, "upgrade": "cyclehub", "tier": true },
+    { "type": "crane", "u": -20, "v": -65, "yaw": -2.5, "street": true, "upgrade": "signature", "tier": true }
   ]
 }

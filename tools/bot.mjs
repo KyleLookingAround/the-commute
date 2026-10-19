@@ -136,13 +136,16 @@ export function act(sim) {
   if (g.cash > 12000) for (let i = 0; i < sim.S.length; i++) { const r = up(i, 'canopy'); if (r) return r; }
   // the tiers that keep going (step 18): 8-car platforms where many have given up, with twice the price; the travel
   // centre, a row of shops and a cycle hub where they pay back within three game days (the hub's 8% more homes taken as
-  // 8% more fares); full-length canopies with three times the price
+  // 8% more fares); full-length canopies and the station's signature stage with three times the price
+  // (the next station offered saved for first: what it costs is kept back)
+  const saving = offered.length ? sim.stationPrice(offered[0]) : 0;
   for (let i = 0; i < sim.S.length; i++) {
     if (!g.owned[i]) continue;
     const S = g.st[i], days = Math.max(1, g.day - 1), boardedDay = S.boarded / days, takenDay = S.revenue / days;
-    for (const [id, ok] of [['long', p => S.lost > 600 && g.cash > 2 * p], ['travel', p => 0.4 * boardedDay * 3 >= p && g.cash > 2 * p],
-      ['shops', p => 1.2 * boardedDay * 3 >= p && g.cash > 2 * p], ['cyclehub', p => 0.08 * takenDay * 3 >= p && g.cash > 2 * p], ['canopyFull', p => g.cash > 3 * p]]) {
-      const u = UPGRADES.find(x => x.id === id); if (g.ups[i][id] || !sim.ready(i, u)) continue;
+    const pays = (back, p) => (back * 10 >= p && g.cash > 2 * p + saving) || g.cash > 10 * p + saving;
+    for (const [id, ok] of [['long', p => S.lost > 600 && g.cash > 2 * p + saving], ['travel', p => pays(0.4 * boardedDay, p)],
+      ['shops', p => pays(1.2 * boardedDay, p)], ['cyclehub', p => pays(0.08 * takenDay, p)], ['canopyFull', p => g.cash > 3 * p + saving], ['signature', p => g.cash > 3 * p + saving]]) {
+      const u = UPGRADES.find(x => x.id === id); if (g.ups[i][id] || !sim.offered(i, u) || !sim.ready(i, u)) continue;
       if (ok(sim.upgradePrice(i, u))) { const r = up(i, id); if (r) return r; }
     }
   }

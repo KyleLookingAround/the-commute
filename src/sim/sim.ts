@@ -876,6 +876,7 @@ export class Sim {
         const J = this.journey(i, j), rail = J ? this.reach(this.felt(J)) : 0;
         rate += this.tripScale(i, h) * (out * this.homes(i) * this.drawOf(j) + (1 - out) * this.drawOf(i) * this.homes(j)) * (1 - rail) * share;
       }
+      this.busRate.set(p.id, rate);
       const n = rate * dc / 3600, rev = n * p.bus.fare * TUNING.fareMult;
       g.stats.riders = (g.stats.riders ?? 0) + n; g.cash += rev; g.earned += rev;
     }
@@ -889,6 +890,8 @@ export class Sim {
     const b = this.P.byId.get(id)?.bus; at = b ? b.along.map(s => this.net.station(s).index) : []; this.busAt.set(id, at); return at;
   }
   private busAt = new Map<string, number[]>();
+  /** Riders an hour on each bus route the player runs, as last stepped (not saved: the view shows how full its buses are). */
+  readonly busRate = new Map<string, number>();
   /** How far the network has joined the Bee Network: 0 not yet, then each BEE step. */
   beeLevel(): number { return this.g.places[this.P.bee]?.[BEE.id] ?? 0; }
   feederLevel(i: number): number { const s = this.P.stopOf[i]; return s ? this.g.places[s]?.[FEEDER.id] ?? 0 : 0; }

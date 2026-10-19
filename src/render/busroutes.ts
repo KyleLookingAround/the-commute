@@ -1,7 +1,9 @@
 // The bus routes the player runs (step 8, docs/DESIGN.md, The 192) on the map: the 192's buses along the A6's real
 // course (`course` of its main road), up on Wellington Road's deck over Mersey Square, both ways on the left, as many
 // as it runs (more with each More buses, quicker once it has its lanes), in the network's blue until the Bee Network's
-// yellow. One instanced mesh, coloured by instance. Loaded with the main roads, after the first frame; view only.
+// yellow, their windows lit warmer the fuller they are (riders an hour on the route, Sim.busRate, against what its buses
+// carry). Two instanced meshes, body and windows, coloured by instance. Loaded with the main roads, after the first
+// frame; view only.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PAL } from './scene.ts';
@@ -14,12 +16,15 @@ const MAX = 48;
 const BUSES = [8, 12, 18];  // buses on the route at each step of More buses (every ten, six and four minutes)
 const SPEED = 6, LANES = 8; // m a sim second along the A6, and with its bus lanes
 const B = (w: number, h: number, d: number, x: number, y: number, z: number) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
-const BODY = mergeGeometries([B(11, 4.2, 2.5, 0, 2.4, 0), B(9.8, 0.8, 2.56, -0.3, 2.3, 0), B(9.8, 0.8, 2.56, -0.3, 3.8, 0)]);
+const BODY = B(11, 4.2, 2.5, 0, 2.4, 0), WINDOWS = mergeGeometries([B(9.8, 0.8, 2.56, -0.3, 2.3, 0), B(9.8, 0.8, 2.56, -0.3, 3.8, 0)]);
+const CARRY = 28;           // riders an hour a bus on the route carries when it's full
+const hash = (n: number) => { let x = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b); x ^= x >>> 13; x = Math.imul(x, 0xc2b2ae35); x ^= x >>> 16; return (x >>> 0) / 4294967296; };
 
 interface Route { id: string; pts: XZ[]; d: number[]; y: number[]; len: number }
 
 export class BusRouteLayer {
-  private readonly mesh: THREE.InstancedMesh;
+  private readonly mesh: THREE.InstancedMesh; private readonly windows: THREE.InstancedMesh;
+  private readonly empty = PAL['win-empty'].clone(); private readonly busy = PAL['win-busy'].clone(); private readonly c = new THREE.Color();
   private routes: Route[] = [];
   private clock = 0; private laidOn = -1; private laidAt = 0;
   private readonly m4 = new THREE.Matrix4(); private readonly q = new THREE.Quaternion(); private readonly v = new THREE.Vector3(); private readonly one = new THREE.Vector3(1, 1, 1); private readonly up = new THREE.Vector3(0, 1, 0);
@@ -29,8 +34,10 @@ export class BusRouteLayer {
   constructor(scene: THREE.Scene, private readonly def: MainDef & { busRoutes?: { id: string; road: string }[] }) {
     this.mesh = new THREE.InstancedMesh(BODY, new THREE.MeshLambertMaterial({ color: 0xffffff }), MAX);
     this.mesh.count = 0; this.mesh.frustumCulled = false; this.mesh.castShadow = true; this.mesh.name = 'bus-routes';
-    for (let k = 0; k < MAX; k++) this.mesh.setColorAt(k, this.blue);
-    scene.add(this.mesh);
+    this.windows = new THREE.InstancedMesh(WINDOWS, new THREE.MeshLambertMaterial({ color: 0xffffff }), MAX);
+    this.windows.count = 0; this.windows.frustumCulled = false; this.windows.name = 'bus-routes-windows';
+    for (let k = 0; k < MAX; k++) { this.mesh.setColorAt(k, this.blue); this.windows.setColorAt(k, this.empty); }
+    scene.add(this.mesh, this.windows);
     this.lay();
   }
   /** Each route along its road as the ground is drawn now, on a deck where its road has one (again as the ground's finer). */
@@ -55,6 +62,7 @@ export class BusRouteLayer {
     for (const r of this.routes) {
       if (!sim.owns(r.id)) continue;
       const lvl = sim.stageLevel(r.id, 'every'), buses = BUSES[lvl] ?? 8, speed = sim.stageLevel(r.id, 'lanes') ? LANES : SPEED, L = r.len;
+      const full = Math.min(1, (sim.busRate.get(r.id) ?? 0) / (buses * CARRY));
       for (let k = 0; k < buses && n < MAX; k++) {
         // round the route and back, spread evenly round the round trip
         const s0 = ((this.clock * speed + k * 2 * L / buses) % (2 * L) + 2 * L) % (2 * L), back = s0 > L, s = back ? 2 * L - s0 : s0;
@@ -63,14 +71,16 @@ export class BusRouteLayer {
         const dx = (bx - ax) * (back ? -1 : 1), dz = (bz - az) * (back ? -1 : 1), l = Math.hypot(dx, dz) || 1;
         this.v.set(ax + (bx - ax) * t + dz / l * 2, r.y[i - 1]! + (r.y[i]! - r.y[i - 1]!) * t, az + (bz - az) * t - dx / l * 2);
         this.q.setFromAxisAngle(this.up, Math.atan2(-dz, dx)); this.m4.compose(this.v, this.q, this.one);
-        this.mesh.setMatrixAt(n++, this.m4);
+        // how full: the route's, a little more or less on each bus
+        this.c.copy(this.empty).lerp(this.busy, Math.max(0, Math.min(1, full + (hash(k) - 0.5) * 0.3)));
+        this.mesh.setMatrixAt(n, this.m4); this.windows.setMatrixAt(n, this.m4); this.windows.setColorAt(n, this.c); n++;
       }
     }
     // the Bee Network's yellow once it's bought (step 22), the network's blue before
     const tint = sim.beeLevel() >= 2 ? 1 : 0;
     if (tint !== this.tint) { this.tint = tint; for (let k = 0; k < MAX; k++) this.mesh.setColorAt(k, tint ? this.yellow : this.blue); if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true; }
-    if (this.mesh.count !== n) this.mesh.count = n;
-    if (n) this.mesh.instanceMatrix.needsUpdate = true;
+    if (this.mesh.count !== n) { this.mesh.count = n; this.windows.count = n; }
+    if (n) { this.mesh.instanceMatrix.needsUpdate = true; this.windows.instanceMatrix.needsUpdate = true; if (this.windows.instanceColor) this.windows.instanceColor.needsUpdate = true; }
     this.count = n;
   }
 }

@@ -122,8 +122,10 @@ export class HomesLayer {
     }
     // each building's colours are set as it first shows: the colour buffers made now, so the shaders have them from the start
     for (const m of [this.walls, this.roofs, this.tops]) m.setColorAt(0, PAL['home-1']);
-    // the window bands lie on the walls, whose shadow is theirs
-    this.bands.castShadow = false; this.bands.userData['noShadow'] = true;
+    // the window bands lie on the walls, and the roofs sit on them: the walls' shadow is theirs (towns that grow can
+    // stand hundreds of homes, so only the walls cast)
+    for (const m of [this.bands, this.roofs, this.tops]) { m.castShadow = false; m.userData['noShadow'] = true; }
+    this.walls.name = 'homes'; this.roofs.name = 'homes-roofs'; this.tops.name = 'homes-tops'; this.bands.name = 'homes-windows';
     this.shown = net.stations.map(() => 0); this.tallBy = net.stations.map(() => 0);
   }
   /** The next free instance slot for a building's walls, roof and top, and for its window bands. */

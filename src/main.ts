@@ -131,7 +131,7 @@ function more(): void {
     mainRoads = new m.MainRoadLayer({ scene, def: networkDef, focus: () => rig.o });
     Object.assign(view, { mainRoads: () => mainRoads?.stats() ?? null });
     // the bus routes the player runs (the 192), along those roads
-    void import('./render/busroutes.ts').then(b => { busRoutes = new b.BusRouteLayer(scene, networkDef); Object.assign(view, { busRoutes: () => busRoutes?.count ?? 0 }); });
+    void import('./render/busroutes.ts').then(b => { busRoutes = new b.BusRouteLayer(scene, networkDef, st => { const F = net.stationFrame(st); return [F.x, F.z]; }); Object.assign(view, { busRoutes: () => busRoutes?.count ?? 0 }); });
   });
   void import('./render/traffic.ts').then(m => {
     roads = new m.TrafficLayer({ scene, net, def: networkDef, sim: () => sim, focus: () => rig.o, ground: world.buildings.layer.then(() => world.ground), reduced: rig.reduced });

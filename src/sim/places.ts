@@ -50,6 +50,7 @@ export const UPGRADES: Upgrade[] = [
   { id: 'canopyFull', name: 'Canopies the full length', price: 25000, desc: 'Waiting in the dry the whole platform: feels a third shorter', requires: ['canopy', 'extend'], scale: true },
   { id: 'travel', name: 'Travel centre', price: 15000, desc: '+£0.40 per boarding passenger', requires: ['building', 'barriers'], scale: true },
   { id: 'shops', name: 'A row of shops', price: 25000, desc: '+£1.20 per boarding passenger', requires: ['retail'], scale: true },
+  { id: 'posters', name: 'Posters on the main road', price: 6000, desc: 'Billboards where the traffic sits: 6% more come by train', requires: ['building'], scale: true },
   { id: 'cyclehub', name: 'Cycle hub', price: 15000, desc: '+8% catchment: more ride in from further', requires: ['building', 'lifts'], scale: true },
 ];
 /** The stages of the main-line stopper (units, cars, timetable) and of Stockport's sidings (the spare unit). */

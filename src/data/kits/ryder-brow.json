@@ -43,6 +43,7 @@
     { "type": "retail", "u": -32.5, "v": -4.7, "label": "Coffee", "small": true, "upgrade": "shops", "tier": true },
     { "type": "retail", "u": -37, "v": -4.7, "label": "News", "small": true, "upgrade": "shops", "tier": true },
     { "type": "cycles", "u": 25, "v": -5.1, "n": 12, "y": 1, "upgrade": "cyclehub", "tier": true },
+    { "type": "billboard", "u": 567.9, "v": 292.1, "yaw": 1.1, "street": true, "upgrade": "posters", "tier": true },
     { "type": "box", "u0": 23.9, "u1": 24.2, "v0": -3.2, "v1": -2.9, "y0": 0, "y1": 1.2, "mat": "tactile", "upgrade": "bee1", "tier": true },
     { "type": "box", "u0": 22.7, "u1": 23, "v0": -3.2, "v1": -2.9, "y0": 0, "y1": 1.2, "mat": "tactile", "upgrade": "bee1", "tier": true },
     { "type": "box", "u0": 21.5, "u1": 21.8, "v0": -3.2, "v1": -2.9, "y0": 0, "y1": 1.2, "mat": "tactile", "upgrade": "bee1", "tier": true },

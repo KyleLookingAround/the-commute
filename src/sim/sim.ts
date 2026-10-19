@@ -61,7 +61,7 @@ export const TUNING = {
   doorsPerCar: 2, boardPerDoor: 0.7,           // passengers a second through each door: a 2-car unit boards about 110 in a 45 s stop
   doorsCrowd: 0.7,                             // ...slowing as it fills, to 30% of that when full: people squeeze in
   platformCap: 150, platformCapExtended: 320, platformCapLong: 480,
-  collectNoBarriers: 0.82, collectBooking: 0.9, platformsBonus: 1.2, christmasPull: 0.5, tapSave: 60, kioskPerPax: 0.35, retailPerPax: 0.8, travelPerPax: 0.4, shopsPerPax: 1.2, cycleBonus: 1.08,
+  collectNoBarriers: 0.82, collectBooking: 0.9, platformsBonus: 1.2, christmasPull: 0.5, tapSave: 60, kioskPerPax: 0.35, retailPerPax: 0.8, travelPerPax: 0.4, shopsPerPax: 1.2, cycleBonus: 1.08, postersBonus: 1.06,
   // door to door (src/sim/journeys.ts), in sim seconds, which are real ones: people travel when the whole journey fits
   // about half an hour each way (Marchetti's constant), and walking and waiting weigh twice riding (UK appraisal practice)
   walk: 8 * 60, walkRound: 8 * 60, walkStairs: 3 * 60, liftsSave: 60,   // the walk each end; the far side's extra, round or over the stairs
@@ -911,7 +911,7 @@ export class Sim {
    * draws people at the other (and in the evening home again), times the hour's demand, falling away smoothly as the
    * door-to-door journey passes the time budget. Returns the total. */
   /** What scales station i's trips an hour at hour h: the hour's demand, its platforms, the weather, over Piccadilly's draw. */
-  tripScale(i: number, h: number): number { return demandCurve(h) * TUNING.demand * (this.ups(i).platforms ? TUNING.platformsBonus : 1) * (this.ups(i).cyclehub ? TUNING.cycleBonus : 1) * feel(this.g).travel / this.net.station('piccadilly').draw; }
+  tripScale(i: number, h: number): number { return demandCurve(h) * TUNING.demand * (this.ups(i).platforms ? TUNING.platformsBonus : 1) * (this.ups(i).cyclehub ? TUNING.cycleBonus : 1) * (this.ups(i).posters ? TUNING.postersBonus : 1) * feel(this.g).travel / this.net.station('piccadilly').draw; }
   tripRates(i: number, h: number): number {
     const out = h < 12 ? TUNING.amOut : TUNING.pmOut, scale = this.tripScale(i, h);
     this.refreshSurge(); const sAt = this.surgeAt, sBy = this.surgeBy, sGo = this.surgeGoing;

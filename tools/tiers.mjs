@@ -7,6 +7,8 @@
 //   cyclehub    a cycle hub: a stand of twelve by the cycle racks (or the car park, or the kiosk where there are none)
 //   bee1, bee2  the Bee Network (step 22, derived at every station owned): three yellow tap-in posts by the kiosk, then
 //               a yellow totem at the way in
+//   posters     a poster campaign's billboard (step 23) 12 m short of the nearest main road within 800 m, facing it, or by
+//               the way in where none is near
 //   signature   the station's own stage (`grow.signature` in the network data), as its `look` says: a brown sign at the
 //               way in (by the racks or the car park), a tower crane out beyond the station's street side, or (Piccadilly's
 //               platforms 15 and 16) an island platform beyond the outermost one
@@ -17,6 +19,11 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), '..', 'src/data/kits');
+// the network, for where each kit stands (the posters' billboards face the real main roads)
+const { register } = await import('tsx/esm/api'); register();
+const { fromGeo, projectLatLon } = await import('../src/sim/network.ts');
+const def = JSON.parse(readFileSync(join(dir, '..', 'network.json'), 'utf8')), net = fromGeo(def);
+const roadPts = (def.mainRoads ?? []).flatMap(r => r.ways.flatMap(w => w.points.map(([la, lo]) => projectLatLon(la, lo, def.origin))));
 const sigs = Object.fromEntries(JSON.parse(readFileSync(join(dir, '..', 'network.json'), 'utf8')).stations.map(s => [s.id, s.grow?.signature]).filter(([, g]) => g));
 const gates = p => p.upgrade === undefined ? [] : [p.upgrade].flat();
 const gate = (...ids) => ids.length === 1 ? ids[0] : ids;
@@ -63,6 +70,13 @@ for (const f of readdirSync(dir).filter(f => f.endsWith('.json'))) {
     add({ type: 'platform', u0: out.u0, u1: out.u1, v0: out.v0 - 13 - w, v1: out.v0 - 13, upgrade: 'signature' });
     add({ type: 'lamps', u0: out.u0 + 6, u1: out.u1 - 6, v: out.v0 - 13 - w / 2, every: 25, upgrade: 'signature' });
   }
+  // a poster campaign's billboard, by the nearest main road (in the kit's frame: u along the line, v across it)
+  { const F = net.stationFrame(kit.id); let best = null, bd = 800;
+    for (const q of roadPts) { const d = Math.hypot(q.x - F.x, q.z - F.z); if (d < bd) { bd = d; best = q; } }
+    if (best) {
+      const X = best.x - F.x, Z = best.z - F.z, u = X * F.dx + Z * F.dz, v = X * F.nx + Z * F.nz, l = Math.hypot(u, v) || 1;
+      add({ type: 'billboard', u: u - u / l * 12, v: v - v / l * 12, yaw: Math.atan2(u, v), street: true, upgrade: 'posters' });
+    } else { const at = racks ?? park ?? kiosk; if (at) add({ type: 'billboard', u: (at.u ?? at.u0) + 10, v: at.v ?? (at.v0 + at.v1) / 2, yaw: 0, ...(at.street ? { street: true } : { y: at.y ?? 0 }), upgrade: 'posters' }); } }
   // the Bee Network's tap-in posts by the kiosk, and its yellow totem at the way in (where the sign goes)
   if (kiosk) for (const k of [0, 1, 2]) { const u = kiosk.u + toward(kiosk) * (4 + k * 1.2), v = kiosk.v + 1.6, y = kiosk.y ?? 0; add({ type: 'box', u0: u - 0.15, u1: u + 0.15, v0: v - 0.15, v1: v + 0.15, y0: y, y1: y + 1.2, mat: 'tactile', upgrade: 'bee1' }); }
   { const at = racks ?? park ?? kiosk; if (at) { const u = (at.u ?? at.u0 - 4) - 4, v = at.v ?? (at.v0 + at.v1) / 2, y = at.street ? 0 : at.y ?? 0;

@@ -154,7 +154,7 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
 23. **Smaller depth** (S each, ideas review 14 October 2026; ideas 8 to 10):
    - (the surges moved to step 26, third pass)
    - contract targets from the franchise (punctuality, cars off the A6, a station reached) that bank extra reputation, using the milestones already recorded (built 19 October 2026: on time, few giving up and the main line, 8 each; cars off left)
-   - poster campaigns on billboards along the jammed A6 and M60, one a station at a time
+   - poster campaigns on billboards along the jammed A6 and M60, one a station at a time (built 19 October 2026: a billboard by the nearest main road, 6% more trips)
 
 24. **Teach the bot every buy** (S, ideas review 14 October 2026, second pass: `docs/ideas/2026-10-14-review-2.md`). On day 7 the bot runs two units with the first longer trains while holding over £200,000: its policy stops at `units < 2` and `cars < 1`, and never buys lifts or retail.
    - Teach it to buy the third unit and the second longer trains when its trains leave full or late.

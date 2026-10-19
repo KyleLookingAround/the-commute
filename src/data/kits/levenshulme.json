@@ -54,6 +54,7 @@
     { "type": "retail", "u": -39, "v": -9.2, "label": "News", "small": true, "upgrade": "shops", "tier": true },
     { "type": "cycles", "u": -54, "v": 28.8, "n": 12, "street": true, "upgrade": "cyclehub", "tier": true },
     { "type": "sign", "u": -57, "v": 28.8, "facing": -1, "street": true, "upgrade": "signature", "tier": true },
+    { "type": "billboard", "u": -15.1, "v": 82.2, "yaw": -0.2, "street": true, "upgrade": "posters", "tier": true },
     { "type": "box", "u0": 25.9, "u1": 26.2, "v0": -7.7, "v1": -7.4, "y0": 0, "y1": 1.2, "mat": "tactile", "upgrade": "bee1", "tier": true },
     { "type": "box", "u0": 24.7, "u1": 25, "v0": -7.7, "v1": -7.4, "y0": 0, "y1": 1.2, "mat": "tactile", "upgrade": "bee1", "tier": true },
     { "type": "box", "u0": 23.5, "u1": 23.8, "v0": -7.7, "v1": -7.4, "y0": 0, "y1": 1.2, "mat": "tactile", "upgrade": "bee1", "tier": true },

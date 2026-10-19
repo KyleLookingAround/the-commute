@@ -162,6 +162,8 @@ Step 18 (`UPGRADES` in `src/sim/places.ts`, `scale: true`): each everyday stage 
 
 **Signature stages** (`grow.signature` in the network data, the `signature` stage after the travel centre): a station's own stage from its real history or plans, each with a note (from memory, to be checked against a source): Stockport's Town Centre West and Reddish North's Houldsworth Mill raise the homes' ceiling (half and a third again), drawn as a tower crane; Piccadilly's platforms 15 and 16 open four more platforms' room, drawn as a new island beyond 13 and 14; and a place worth the trip draws more (`Sim.drawOf`), drawn as a brown sign at the way in: Levenshulme Market, Lyme Park at Disley, Stepping Hill Hospital at Woodsmoor, the Apollo at Ardwick, Belle Vue Speedway, the Etihad Campus at Ashburys, Reddish Vale at Brinnington, Marple Locks, the Torrs at New Mills and the Middlewood Way at Rose Hill. The rest have none yet rather than one made up. The bot buys them with three times the price, after saving for the next station.
 
+**Posters on the main road** (step 23, `posters`, after the booking office, priced as a tier): billboards where the traffic sits bring 6% more trips at the station (`postersBonus`); drawn as a hoarding in the network's yellow and navy 12 m short of the nearest main road within 800 m, facing it (`tools/tiers.mjs`, from `mainRoads`), or by the way in where none is near.
+
 **Platforms hold a platform's worth for each pair open** (`Sim.capacity`): a station with two holds what one platform does, Stockport with platforms 0 to 2 two and a half times that and Piccadilly with its shed and bays six times.
 
 ## Surges

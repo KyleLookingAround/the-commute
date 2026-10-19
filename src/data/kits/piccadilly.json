@@ -83,6 +83,7 @@
     { "type": "cycles", "u": 92, "v": 0, "n": 12, "across": true, "upgrade": "cyclehub", "tier": true },
     { "type": "platform", "u0": -180, "u1": 75, "v0": -130.6, "v1": -121.8, "upgrade": "signature", "tier": true },
     { "type": "lamps", "u0": -174, "u1": 69, "v": -126.2, "every": 25, "upgrade": "signature", "tier": true },
+    { "type": "billboard", "u": 8.8, "v": -130, "yaw": 3.1, "street": true, "upgrade": "posters", "tier": true },
     { "type": "box", "u0": -116.1, "u1": -115.8, "v0": 5.9, "v1": 6.2, "y0": 0, "y1": 1.2, "mat": "tactile", "upgrade": "bee1", "tier": true },
     { "type": "box", "u0": -114.9, "u1": -114.6, "v0": 5.9, "v1": 6.2, "y0": 0, "y1": 1.2, "mat": "tactile", "upgrade": "bee1", "tier": true },
     { "type": "box", "u0": -113.7, "u1": -113.4, "v0": 5.9, "v1": 6.2, "y0": 0, "y1": 1.2, "mat": "tactile", "upgrade": "bee1", "tier": true },

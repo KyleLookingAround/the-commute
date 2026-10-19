@@ -93,6 +93,8 @@ export type Part =
   // a station's signature stage (step 18): a brown tourist sign on two posts at the way in, facing +v or -v; a tower
   // crane over new building, its jib turned yaw radians
   | (Gated & { type: 'sign'; u: number; v: number; facing?: 1 | -1; street?: boolean; note?: string; tier?: boolean })
+  // a poster campaign's billboard (step 23) by the main road, turned yaw radians to face it
+  | (Gated & { type: 'billboard'; u: number; v: number; yaw?: number; street?: boolean; tier?: boolean })
   | (Gated & { type: 'crane'; u: number; v: number; yaw?: number; h?: number; street?: boolean; note?: string; tier?: boolean })
   /** A street from OpenStreetMap through (u, v) points in order, w wide (7 m if not given), laid on the ground as drawn
    * under each point, or at a point's own height where it gives one ([u, v, y]: onto a bridge's deck). It joins a
@@ -363,6 +365,14 @@ const partBuilders: Builders = {
     box(g, 3.7, 1.4, 0.14, SIGN_BROWN ??= new THREE.MeshLambertMaterial({ color: PAL['sign-brown'] }), 0, 2.45, 0);
     for (const [w, y] of [[2.6, 2.8], [2.0, 2.45], [2.3, 2.1]] as const) box(g, w, 0.16, 0.16, SIGN_EDGE, 0.2, y, 0);
   },
+  billboard(gp, p) {
+    // a 48-sheet hoarding on two legs: the poster in the network's colours, the yellow and the navy
+    const g = new THREE.Group(); g.position.set(p.u, 0, p.v); g.rotation.y = p.yaw ?? 0; gp.add(g);
+    for (const x of [-2.4, 2.4]) box(g, 0.25, 3.2, 0.25, MAT.steel, x, 1.6, 0);
+    box(g, 6.4, 3.3, 0.25, MAT.steel, 0, 4.6, 0);
+    box(g, 6, 1.8, 0.3, CRANE ??= new THREE.MeshLambertMaterial({ color: PAL['eng'] }), 0, 5.15, 0);
+    box(g, 6, 1.2, 0.3, POSTER ??= new THREE.MeshLambertMaterial({ color: PAL['shelter'] }), 0, 3.65, 0);
+  },
   crane(gp, p) {
     // a tower crane: its mast, the jib out one way and the counter-jib with its weights the other, the cab at the top
     const h = p.h ?? 36, g = new THREE.Group(); g.position.set(p.u, 0, p.v); g.rotation.y = p.yaw ?? 0; gp.add(g);
@@ -384,7 +394,7 @@ const partBuilders: Builders = {
 // ---- the contract's plaque ----
 // One part, by Stockport's entrance: a brass plate on a sandstone pier that reads the contract's number, with a line
 // for each contract renewed; the plate and its pier grow a line taller each time. Drawn on a canvas where there is one.
-let SIGN_BROWN: THREE.Material | null = null, SIGN_EDGE: THREE.Material | null = null, CRANE: THREE.Material | null = null;
+let POSTER: THREE.Material | null = null, SIGN_BROWN: THREE.Material | null = null, SIGN_EDGE: THREE.Material | null = null, CRANE: THREE.Material | null = null;
 const PLAQUE_W = 5, PLAQUE_HEAD = 1.4, PLAQUE_LINE = 0.6, PLAQUE_PX = 84;
 interface Plaque { group: THREE.Group; pier: THREE.Mesh; plate: THREE.Mesh; canvas: HTMLCanvasElement | null; tex: THREE.CanvasTexture | null }
 const PLAQUES: Plaque[] = [];

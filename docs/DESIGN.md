@@ -45,6 +45,18 @@ Where the line brings places within reach, people move there (Marchetti's consta
 
 **Towns that grow where the player invests** (19 October 2026, `invested` and `ceiling` in `src/sim/sim.ts`): every stage built at a station and its bus stop raises its ceiling by 5% (`investHomes`), up to twelve (`investMost`: 60% more), so the homes keep growing round the places the player builds up, and with them the trips. On the map the homes layer lays plots for the most a station could ever hold, and the flats within 320 m of it rise a floor for every four stages built there, up to three more, so a well-built station's centre stands taller than a halt's.
 
+### Chains: fewer, bigger choices
+
+A station's card offers a few chains, not every stage (19 October 2026, `CHAINS` in `src/sim/places.ts`): each chain is a problem and its steps are the stages that answer it, one or more bought together, and the card shows each chain's next step that can be built now, marked "Fixes what's wrong" where Strain names that problem there (a crowded platform, people giving up, a full car park).
+
+- **Getting to the trains** (people giving up): the way across, then lifts, then a cycle hub.
+- **Room on the platforms** (a crowded platform): the second platform; a canopy with the platform extension; 8-car platforms with canopies the full length; more platforms; Stockport's interchange.
+- **The booking hall** (the fares): the booking hall; ticket barriers with the shop; a travel centre with a row of shops.
+- **From beyond a walk** (a full car park): the taxi rank; the car park; the multi-storey with posters on the main road.
+- **Its own stage**: the station's signature stage.
+
+A step costs its stages together and is built in one go (`Sim.buyStep`); a stage a station doesn't offer drops out of its step, and an empty step out of the chain. Underneath they're the same stages, so the kits, the bot and the saves are unchanged. The bus stop keeps its own card.
+
 ### Word of mouth
 
 People learn from the trains they find full (19 October 2026, `hearWord` in `src/sim/sim.ts`). Each station keeps who gave up there and who boarded there lately, each fading over two clock hours (`wordMemory`), and its `word`, the share of its would-be riders who try the train, eases towards 1 less twice the share who gave up (`wordCut`), never under 0.4 (`wordMin`): falling over about four clock hours while people give up, rising back over about eight once trains have room. Trips from the station are scaled by it (`tripRates`). So losses settle instead of piling up, and room on the trains pays off as word comes back: more board, and the fares follow. The station card shows it under More. Taken over 32 sim hours, each peak from day 4 loses 6 to 8% on the mean where it lost 10 to 11%.

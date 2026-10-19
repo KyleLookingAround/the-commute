@@ -17,6 +17,7 @@ import { stepExpress, nextSlot, EXPRESS_UNITS } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
 import { traffic, type TrafficDef } from './traffic.ts';
 import { effects, type Effects } from './contract.ts';
+import { CHAINS, type Chain } from './places.ts';
 import { places, build, derive, frequencyStage, placeId, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, JUNCTION_FLYOVER, FEEDER, SHELTER, BEE, BUS_EVERY, BUS_LANES, NEW_STOCK, MAINT, type Places, type Upgrade } from './places.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
@@ -403,6 +404,27 @@ export class Sim {
   }
   /** The upgrades a player can see at a station: bought or ready to buy. The rest stay hidden until they're reachable. */
   visibleUpgrades(i: number): Upgrade[] { return UPGRADES.filter(u => this.offered(i, u) && (this.ups(i)[u.id] || this.ready(i, u))); }
+  /** A chain's next step at station i (CHAINS): the upgrades in its first step with any left to build that the station
+   * offers, those it offers and hasn't built, and how far along the chain that is; null once the chain's all built. */
+  chainNext(i: number, c: Chain): { ups: Upgrade[]; step: number; steps: number } | null {
+    const offered = c.steps.map(st => st.map(id => UPGRADES.find(u => u.id === id)!).filter(u => this.offered(i, u))).filter(st => st.length);
+    const ups = this.ups(i);
+    for (let k = 0; k < offered.length; k++) { const left = offered[k]!.filter(u => !ups[u.id]); if (left.length) return { ups: left, step: k, steps: offered.length }; }
+    return null;
+  }
+  /** Whether a step can be built now: each of its upgrades ready, counting the step's own as built. */
+  stepReady(i: number, ups: Upgrade[]): boolean {
+    const b = this.ups(i), ids = new Set(ups.map(u => u.id));
+    return ups.every(u => (u.requires ?? []).every(r => { const ru = UPGRADES.find(x => x.id === r); return !ru || !this.offered(i, ru) || !!b[r] || ids.has(r); }));
+  }
+  /** What a step costs: its upgrades' prices together. */
+  stepPrice(i: number, ups: Upgrade[]): number { return ups.reduce((a, u) => a + this.upgradePrice(i, u), 0); }
+  /** Build a step: every upgrade in it, in the chain's order, if there's the cash for them all. */
+  buyStep(i: number, ups: Upgrade[]): boolean {
+    if (!this.g.owned[i] || !this.stepReady(i, ups) || this.g.cash < this.stepPrice(i, ups)) return false;
+    for (const u of ups) if (!this.buyUpgrade(i, u.id)) return false;
+    return true;
+  }
   /** What building an upgrade opens up next: upgrades here that wait on it, the line's extra units, stations elsewhere. */
   opens(i: number, id: UpgradeId): string[] {
     const here = UPGRADES.filter(u => u.requires?.includes(id) && this.offered(i, u)).map(u => this.upgradeName(i, u));

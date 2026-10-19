@@ -167,6 +167,7 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
    - **The city's jobs come back.** Piccadilly's draw rises day by day from the lockdown census towards a normal year's figure, from the ONS Business Register and Employment Survey (BRES, by area, on Nomis).
    - **Homes grow faster and further where the line is good.** Ceilings rise with what's bought nearby, including step 18's regeneration stages.
    - **Surges you can see**, as seeded demand: match days at Edgeley Park (Life's crowd made real), Stepping Hill's shift changes at Woodsmoor, Christmas at Merseyway.
+   - **Chains** (built 19 October 2026, `docs/DESIGN.md`, Chains): a station's card offers four or five chains, each a problem, its next step one or more stages bought together.
    - **Word of mouth and towns that grow with investment** (built 19 October 2026, the owner's direction: `docs/DESIGN.md`, Homes that grow and Word of mouth): riders adjust to how full the trains are, and each stage built raises a station's ceiling, its flats rising taller. Pacing not retuned yet, on the owner's word.
    - **A pressure band in the baselines:** the share lost at each peak from day 4 stays within about 6 to 14% (set 19 October 2026; first proposed as 2 to 6%, which the late game's growth outruns), so the bot measures that pressure is there.
    - Bot at 16 and 32 h.

@@ -150,6 +150,8 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .ucard .price{font-family:var(--mono);font-size:var(--text-sm);font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums;white-space:nowrap}
 .ucard .tags{display:flex;gap:var(--s-1);flex-wrap:wrap}
 .ucard .tag{font-family:var(--mono);font-size:var(--text-xs);letter-spacing:.06em;text-transform:uppercase;color:var(--accent-ink);background:var(--accent);border-radius:var(--r-pill);padding:1px 7px}
+.ucard .tag.fixes{color:var(--card);background:var(--danger)}
+.ucard.fix{border-color:var(--danger)}
 .ucard .adds{font-size:var(--text-sm);color:var(--fg);line-height:1.35}
 .ucard .saves{font-size:var(--text-sm);color:var(--map-reach);line-height:1.35}
 .ucard .opens,.built{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-1);font-size:var(--text-sm);color:var(--muted)}

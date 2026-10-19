@@ -66,7 +66,7 @@ export class HomesLayer {
       if (off > lo - LAND_CLEAR - r && off < hi + LAND_CLEAR + r) return false;
       return world.buildable(x, z, r);
     };
-    let walls = 0, bands = 0;
+    let walls = 0, bands = 0; this.nextWall = 0; this.nextBand = 0;
     net.stations.forEach((s, i) => {
       // as many plots as the most its land could ever hold (Sim.ceilingMost: every stage bought, its signature too)
       const most = Math.max(s.catchment, s.ceiling ?? s.catchment) * (1 + (s.grow?.signature?.homes ?? 0)) * (1 + TUNING.investHomes * TUNING.investMost);
@@ -99,8 +99,9 @@ export class HomesLayer {
         taken.push(x, z, rad);
       }
       this.plots.push(list);
-      this.at.push(list.map(() => walls++));
-      this.bandAt.push(list.map(p => { const b = bands; bands += p.flats ? p.floors + (p.tall ? TALL_MOST : 0) : 0; return b; }));
+      // instance slots are handed out as buildings first show (slot), so the meshes draw only those shown
+      this.at.push(list.map(() => { walls++; return -1; }));
+      this.bandAt.push(list.map(p => { bands += p.flats ? p.floors + (p.tall ? TALL_MOST : 0) : 0; return -1; }));
     });
     const unit = new THREE.BoxGeometry(1, 1, 1);
     // a pitched roof: a prism along x, its ridge at the top, 1 high and 1 across
@@ -111,23 +112,32 @@ export class HomesLayer {
     this.roofs = new THREE.InstancedMesh(prism, new THREE.MeshLambertMaterial(), n);
     this.tops = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial(), n);
     this.bands = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial({ color: PAL['home-glass'], emissive: PAL['glass-glow'] }), Math.max(1, bands));
-    const walls6 = [PAL['home-1'], PAL['home-2'], PAL['home-3'], PAL['home-4'], PAL['home-5'], PAL['home-6']];
-    this.plots.forEach((list, i) => list.forEach((p, k) => {
-      const j = this.at[i]![k]!, h = hash(i * 7919 + k, 10);
-      // terraces mostly brick, some rendered in pastels; flats rendered or buff brick
-      const wall = p.flats ? walls6[[1, 2, 3, 5, 2][Math.floor(h * 5)]!]! : walls6[[0, 0, 1, 2, 3, 4, 5][Math.floor(h * 7)]!]!;
-      this.walls.setColorAt(j, wall);
-      this.roofs.setColorAt(j, hash(i * 7919 + k, 11) < 0.4 ? PAL['home-roof'] : PAL['home-tile']);
-      this.tops.setColorAt(j, wall);   // a flat roof's parapet in its walls' colour, so flats show from above
-    }));
     this.meshes = [this.walls, this.roofs, this.tops, this.bands];
     for (const m of this.meshes) {
       for (let j = 0; j < m.count; j++) m.setMatrixAt(j, this.zero);
-      m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true; scene.add(m);
+      m.count = 0; m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true; scene.add(m);
     }
+    // each building's colours are set as it first shows: the colour buffers made now, so the shaders have them from the start
+    for (const m of [this.walls, this.roofs, this.tops]) m.setColorAt(0, PAL['home-1']);
     // the window bands lie on the walls, whose shadow is theirs
     this.bands.castShadow = false; this.bands.userData['noShadow'] = true;
     this.shown = net.stations.map(() => 0); this.tallBy = net.stations.map(() => 0);
+  }
+  /** The next free instance slot for a building's walls, roof and top, and for its window bands. */
+  private nextWall = 0; private nextBand = 0;
+  /** Plot j at station i its instance slots and colours, the first time it shows. */
+  private slot(i: number, j: number): void {
+    if (this.at[i]![j]! >= 0) return;
+    const p = this.plots[i]![j]!, w = this.nextWall++, h = hash(i * 7919 + j, 10);
+    this.at[i]![j] = w; this.bandAt[i]![j] = this.nextBand; this.nextBand += p.flats ? p.floors + (p.tall ? TALL_MOST : 0) : 0;
+    const walls6 = [PAL['home-1'], PAL['home-2'], PAL['home-3'], PAL['home-4'], PAL['home-5'], PAL['home-6']];
+    // terraces mostly brick, some rendered in pastels; flats rendered or buff brick
+    const wall = p.flats ? walls6[[1, 2, 3, 5, 2][Math.floor(h * 5)]!]! : walls6[[0, 0, 1, 2, 3, 4, 5][Math.floor(h * 7)]!]!;
+    this.walls.setColorAt(w, wall);
+    this.roofs.setColorAt(w, hash(i * 7919 + j, 11) < 0.4 ? PAL['home-roof'] : PAL['home-tile']);
+    this.tops.setColorAt(w, wall);   // a flat roof's parapet in its walls' colour, so flats show from above
+    for (const m of [this.walls, this.roofs, this.tops]) { m.count = this.nextWall; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
+    this.bands.count = this.nextBand;
   }
   /** The floors each station's nearest flats have risen by, from the stages built there. */
   private tallBy: number[] = [];
@@ -173,7 +183,7 @@ export class HomesLayer {
   }
 
   private hide(i: number, j: number): void {
-    const w = this.at[i]![j]!, p = this.plots[i]![j]!;
+    const w = this.at[i]![j]!, p = this.plots[i]![j]!; if (w < 0) return;
     this.walls.setMatrixAt(w, this.zero); this.roofs.setMatrixAt(w, this.zero); this.tops.setMatrixAt(w, this.zero);
     if (p.flats) for (let f = 0; f < this.floorsOf(i, p); f++) this.bands.setMatrixAt(this.bandAt[i]![j]! + f, this.zero);
     this.dirty();
@@ -181,6 +191,7 @@ export class HomesLayer {
 
   /** Put plot j at station i in place, k of the way up. */
   private place(i: number, j: number, k: number): void {
+    this.slot(i, j);
     const p = this.plots[i]![j]!, w = this.at[i]![j]!, { m4, q, e, v, sc } = this;
     e.set(0, p.yaw, 0); q.setFromEuler(e);
     const floors = this.floorsOf(i, p), h = floors * STOREY * k;

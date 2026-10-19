@@ -4,7 +4,7 @@
 // station not owned), in network order with Stockport first. Each kind's card opens the way a player gets to it (from
 // its chip on the row; Stockport Interchange from Next to on Stockport's card; the Network card from the cash pill),
 // names the place and its kind in the header, fits the screen with nothing scrolling sideways and every tap target
-// 44 px, lists only stages that can be built now (a station's cards are the sim's visible ones, its bus stop no longer
+// 44 px, lists only stages that can be built now (a station's cards are each chain's next step, its bus stop no longer
 // among them; the stopper offers no extra unit before platform 3 (but newer units) and the sidings no spare before a train has failed (but the shed); the
 // Network card no renewal before Piccadilly), and has Next to chips for what touches it. The offered bus stop at
 // Levenshulme opens with Buy, and Ardwick (Shut) with Reopen. The full list of places by kind is under each card. And a
@@ -25,7 +25,9 @@ export default async function ({ ok, open, root }) {
   for (const id of ['heaton-chapel', 'levenshulme']) sim.buyStation(net.station(id).index);
   sim.advance(600); sim.g.cash = 4000;
   const save = JSON.stringify({ g: sim.g, selected: 0 });
-  const visible = i => sim.visibleUpgrades(i).filter(u => !sim.ups(i)[u.id] && !u.stop).map(u => u.id).sort().join(',');
+  // a station's cards: each chain's next step it can build now, by its first upgrade (docs/DESIGN.md, Chains)
+  const { CHAINS } = await import('../../src/sim/places.ts');
+  const visible = i => CHAINS.map(c => sim.chainNext(i, c)).filter(n => n && sim.stepReady(i, n.ups)).map(n => n.ups[0].id).sort().join(',');
   const CARDS = [
     ["Stockport's", '#strip [data-place="station:stockport"]', 'station:stockport', /^(Halt|Station) · /, visible(0), ['station:heaton-chapel', 'station:davenport', 'route:stopper', 'stop:stockport-interchange', 'depot:stockport-sidings', 'section:main:stockport:heaton-norris-junction']],
     ["Levenshulme's", '#strip [data-place="station:levenshulme"]', 'station:levenshulme', /^(Halt|Station) · /, visible(net.station('levenshulme').index), ['station:heaton-chapel', 'station:ardwick', 'route:stopper', 'stop:levenshulme-station-view', 'section:main:heaton-chapel:levenshulme']],

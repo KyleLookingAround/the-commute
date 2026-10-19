@@ -4,6 +4,7 @@
 // on a timer. Picking a card in portrait sinks the sheet to its peek, where the Buy bar holds it, so its ghost stands
 // in open map.
 import { UPGRADES, LINE_UPGRADES, TUNING } from '../sim/sim.ts';
+import { CHAINS } from '../sim/places.ts';
 import type { LineUpgrade, Upgrade } from '../sim/places.ts';
 import { pace } from '../sim/day.ts';
 import { parked } from '../sim/access.ts';
@@ -307,18 +308,18 @@ export class UI {
     return `<div class="stats four">${cells(four)}</div>` + (more.length ? `<details class="more"${this.more ? ' open' : ''}><summary>More</summary><div class="stats">${cells(more)}</div></details>` : '');
   }
   /** Lay out the open card's stages, a card each, and what's built as chips; the rest stays hidden until it's reachable. */
-  private stageCards(list: { id: string; stage: Stage | null; grow?: boolean; saves: string | null; opens: string[]; built: string | null }[], built: (id: string) => void): void {
+  private stageCards(list: { id: string; stage: Stage | null; grow?: boolean; tag?: string; fix?: boolean; saves: string | null; opens: string[]; built: string | null }[], built: (id: string) => void): void {
     const panel = this.els.panel, ups = document.createElement('div'); ups.className = 'ups'; ups.id = 'ups'; panel.appendChild(ups);
     const done: [string, string][] = [];
-    for (const { id, stage: s, grow, saves, opens, built: b } of list) {
+    for (const { id, stage: s, grow, tag, fix, saves, opens, built: b } of list) {
       if (b !== null) done.push([id, b]);
       if (!s) continue;
       this.stages.set(id, s);
-      const d = document.createElement('article'); d.className = 'ucard' + (grow ? ' grow' : ''); d.dataset['card'] = id;
+      const d = document.createElement('article'); d.className = 'ucard' + (grow ? ' grow' : '') + (fix ? ' fix' : ''); d.dataset['card'] = id;
       // the tags row is where a badge goes (a stage now; a manager's pick later)
       d.innerHTML = `<button class="pick" aria-pressed="false" data-pick="${id}">
           <span class="head"><b>${s.name}</b><span class="price">${s.price ? fmt(s.price) : 'Free'}</span></span>
-          ${grow ? '<span class="tags"><span class="tag">Next stage</span></span>' : ''}
+          ${tag ? `<span class="tags"><span class="tag">${tag}</span>${fix ? '<span class="tag fixes">Fixes what’s wrong</span>' : ''}</span>` : grow ? '<span class="tags"><span class="tag">Next stage</span></span>' : ''}
           <span class="adds">${s.adds}</span>
           ${saved(saves)}
           ${opens.length ? `<span class="opens"><span>Then</span> ${opens.map(o => `<i>${o}</i>`).join('')}</span>` : ''}
@@ -362,17 +363,23 @@ export class UI {
     if (b.bus) more.push(['pBus', 'By bus']);
     panel.innerHTML = this.stats([['pWait', 'Waiting'], ['pBoard', 'Boarded'], ['pRev', 'Revenue'], ['pLost', 'Gave up']], more);
     panel.querySelector('details')?.addEventListener('toggle', e => { this.more = (e.target as HTMLDetailsElement).open; });
-    const bought = sim.ups(i);
-    this.stageCards(sim.visibleUpgrades(i).filter(u => !u.stop).map((u: Upgrade) => {
-      const name = sim.upgradeName(i, u);
+    // a few bigger choices (docs/DESIGN.md, Chains): each chain's next step, the one answering what's wrong here marked
+    const bought = sim.ups(i), wrong = this.wrong?.(this.at) ?? '';
+    const now = { crowd: /^Platforms?:/.test(wrong) || / · Platforms?:/.test(wrong), walk: /gave up/.test(wrong), park: /Car park full/.test(wrong) };
+    const done = UPGRADES.filter(u => !u.stop && bought[u.id] && sim.offered(i, u)).map(u => ({ id: u.id, stage: null, saves: null, opens: [], built: sim.upgradeName(i, u) }));
+    const steps = CHAINS.flatMap(c => {
+      const next = sim.chainNext(i, c); if (!next || !sim.stepReady(i, next.ups)) return [];
+      const ups = next.ups, first = ups[0]!, name = ups.map(u => sim.upgradeName(i, u)).join(' and '), price = sim.stepPrice(i, ups);
       const stage: Stage = {
-        name, adds: sim.upgradeDesc(i, u), price: sim.upgradePrice(i, u), can: () => sim.canBuyUpgrade(i, u.id),
-        buy: () => { if (!sim.buyUpgrade(i, u.id)) return false; this.toast(`${name} built at ${s.name}`); this.on.built(i, u.id); return true; },
-        pick: on => this.on.preview(i, on ? u.id : null),
+        name, adds: ups.map(u => sim.upgradeDesc(i, u)).join('. '), price, can: () => g.cash >= price,
+        buy: () => { if (!sim.buyStep(i, ups)) return false; this.toast(`${name} built at ${s.name}`); for (const u of ups) this.on.built(i, u.id); return true; },
+        pick: on => this.on.preview(i, on ? first.id : null),
       };
-      return bought[u.id] ? { id: u.id, stage: null, saves: null, opens: [], built: name }
-        : { id: u.id, stage, grow: !!u.stage, saves: this.on.saves(i, u.id), opens: sim.opens(i, u.id), built: null };
-    }), k => this.on.showBuilt(i, k));
+      const after = c.steps.slice(next.step + 1).map(st => st.map(id => UPGRADES.find(u => u.id === id)!).filter(u => sim.offered(i, u))).find(st => st.length);
+      const tag = c.id === 'own' ? 'Its own' : `${c.name} · ${next.step + 1} of ${next.steps}`;
+      return [{ id: first.id, stage, tag, fix: !!c.fixes && now[c.fixes], saves: this.on.saves(i, first.id), opens: after ? [after.map(u => sim.upgradeName(i, u)).join(' and ')] : [], built: null }];
+    });
+    this.stageCards([...steps, ...done], k => this.on.showBuilt(i, k));
   }
   /** A train service or the sidings: its figures, and its stages as cards like a station's. */
   private lineCard(id: string): void {

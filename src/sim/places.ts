@@ -55,6 +55,17 @@ export const UPGRADES: Upgrade[] = [
   { id: 'posters', name: 'Posters on the main road', price: 6000, desc: 'Billboards where the traffic sits: 6% more come by train', requires: ['building'], scale: true },
   { id: 'cyclehub', name: 'Cycle hub', price: 15000, desc: '+8% catchment: more ride in from further', requires: ['building', 'lifts'], scale: true },
 ];
+/** A station's stages as a few chains, each a problem it fixes (fewer, bigger choices: docs/DESIGN.md, Chains): the
+ * card offers each chain's next step, a step being one or more of UPGRADES bought together. `fixes`: the kind of
+ * trouble Strain names (src/ui/strain.ts) that the chain answers, if any. A station's own stage stands alone. */
+export interface Chain { id: string; name: string; fixes: 'crowd' | 'walk' | 'park' | null; steps: UpgradeId[][] }
+export const CHAINS: Chain[] = [
+  { id: 'walk', name: 'Getting to the trains', fixes: 'walk', steps: [['crossing'], ['lifts'], ['cyclehub']] },
+  { id: 'room', name: 'Room on the platforms', fixes: 'crowd', steps: [['platform2'], ['canopy', 'extend'], ['long', 'canopyFull'], ['platforms'], ['hub']] },
+  { id: 'hall', name: 'The booking hall', fixes: null, steps: [['building'], ['barriers', 'retail'], ['travel', 'shops']] },
+  { id: 'beyond', name: 'From beyond a walk', fixes: 'park', steps: [['taxi'], ['carpark'], ['carpark2', 'posters']] },
+  { id: 'own', name: 'Its own stage', fixes: null, steps: [['signature']] },
+];
 /** The stages of the main-line stopper (units, cars, timetable) and of Stockport's sidings (the spare unit). */
 export const LINE_UPGRADES: LineUpgrade[] = [
   { id: 'units', name: 'Extra unit', prices: [6000, 20000, 50000, 120000, 240000], desc: 'One more train in service: shorter waits, more passengers', max: 5 },

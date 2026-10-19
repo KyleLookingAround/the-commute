@@ -6,6 +6,11 @@
 // the first frame, with the stretches' data. It only reads the sim, never steps it, and draws nothing that changes the
 // game: the cars move on their own clock.
 //
+// The streets round each station (step 20, docs/DESIGN.md, Streets that clear): the wash's soft spot round every station,
+// as busy as the hour (the sim's demand curve) and as jammed as the station is unserved: a shut station's streets coral
+// at the peak, an open one's amber, clearing as each thing is bought there (its car park, its bus stop and how it's
+// grown, its feeder, every other stage), so every buy clears something near it. Not the sim's figures: a look of them.
+//
 // Where each stretch runs: on its main road (`mainRoads` in the network data, along its real course from OpenStreetMap),
 // centred on its DfT count point and as long as the DfT's link, its queue backing up from the junction its data names
 // (`on`, `at` and `head` in src/data/traffic.json). A stretch whose road isn't in the data yet is neither carred nor washed.
@@ -17,7 +22,7 @@ import { projectLatLon } from '../sim/network.ts';
 import type { Network } from '../sim/network.ts';
 import { courseOf, deckAt, LANE, type MainDef } from './mainways.ts';
 import type { Sim } from '../sim/sim.ts';
-import { TUNING } from '../sim/sim.ts';
+import { TUNING, demandCurve } from '../sim/sim.ts';
 import { traffic, trafficKey, type Road, type StretchDef, type TrafficDef } from '../sim/traffic.ts';
 import type { NetworkGeoDef, XZ } from '../sim/types.ts';
 import trafficJson from '../data/traffic.json';
@@ -36,7 +41,8 @@ const FAR = 1800;          // further out than this (the camera's distance) the 
 const GAP = 7;             // m a queued car takes in its lane
 const SLOW = 18;           // km/h under which a moving car's brake lights are lit
 const CHUNK = 40;          // m: a stretch is tested against the camera in pieces this long
-const WASH = 64;           // the congestion texture's cells each way
+const WASH = 128;          // the congestion texture's cells each way
+const SPOT_IN = 250, SPOT_OUT = 650;   // m: a station's streets jammed in full this near it, fading to nothing by this
 const READ_EVERY = 0.5;    // real seconds between looks at whether the roads have moved
 const RINGS = 3;           // the cars are placed nearest first, in this many rings out to NEAR
 
@@ -180,6 +186,10 @@ export class TrafficLayer {
   private clock = 0;
   private cap = MAX_CARS; private fade = 0;
   private readonly tex: THREE.DataTexture; private readonly cells: Uint8Array<ArrayBuffer>; private nearest: Int8Array = new Int8Array(0);
+  /** Each cell's nearest stretch's nearness, and its nearest station (-1 none within SPOT_OUT) and how near. */
+  private nearW = new Uint8Array(0); private spot = new Int8Array(0); private spotW = new Uint8Array(0);
+  /** Each station's streets' load as last shown (easing), by station index. */
+  private streets: number[] = [];
   private readonly box = { x0: 0, z0: 0, w: 1, h: 1 };
   private hidden: THREE.Object3D | null = null;
   /** What was drawn last frame (the checks). */
@@ -258,19 +268,26 @@ export class TrafficLayer {
       for (let k = 0; k < n; k++) { const at = place(path, Math.min(path.len, (k + 0.5) * CHUNK)); mids[k * 2] = at.x; mids[k * 2 + 1] = at.z; }
       this.laid.push({ id: s.id, path, head, lanes, offset, mids, width: lanes * w * 2 });
     }
-    // the wash's bounds: every stretch, and a margin
+    // the wash's bounds: every stretch and every station, and a margin
     let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
-    for (const L of this.laid) for (const [x, z] of L.path.pts) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
-    const M = 500; Object.assign(this.box, { x0: x0 - M, z0: z0 - M, w: x1 - x0 + 2 * M, h: z1 - z0 + 2 * M });
+    const grow = (x: number, z: number) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); };
+    for (const L of this.laid) for (const [x, z] of L.path.pts) grow(x, z);
+    const at = this.p.net.stations.map(st => { const F = this.p.net.stationFrame(st.id); grow(F.x, F.z); return [F.x, F.z] as const; });
+    const M = SPOT_OUT; Object.assign(this.box, { x0: x0 - M, z0: z0 - M, w: x1 - x0 + 2 * M, h: z1 - z0 + 2 * M });
     WASH_U.uJamBox.value.set(this.box.x0, this.box.z0, 1 / this.box.w, 1 / this.box.h);
     // each cell: the stretch nearest its middle, and how near (the road itself full, the streets round it fading out)
-    this.nearest = new Int8Array(WASH * WASH).fill(-1);
+    this.nearest = new Int8Array(WASH * WASH).fill(-1); this.nearW = new Uint8Array(WASH * WASH);
+    this.spot = new Int8Array(WASH * WASH).fill(-1); this.spotW = new Uint8Array(WASH * WASH);
     for (let j = 0; j < WASH; j++) for (let i = 0; i < WASH; i++) {
       const x = this.box.x0 + (i + 0.5) / WASH * this.box.w, z = this.box.z0 + (j + 0.5) / WASH * this.box.h;
       let best = Infinity, k = -1;
       this.laid.forEach((L, n) => { for (let q = 0; q < L.path.pts.length; q += 10) { const [px, pz] = L.path.pts[q]!, e = Math.hypot(px - x, pz - z); if (e < best) { best = e; k = n; } } });
       const c = (j * WASH + i) * 4, near = best < 80 ? 1 : Math.max(0, 1 - (best - 80) / 280);
-      this.nearest[j * WASH + i] = near > 0 ? k : -1; this.cells[c + 1] = Math.round(near * 255); this.cells[c + 3] = 255;
+      this.nearest[j * WASH + i] = near > 0 ? k : -1; this.nearW[j * WASH + i] = Math.round(near * 255); this.cells[c + 1] = Math.round(near * 255); this.cells[c + 3] = 255;
+      // and the station nearest, its streets
+      let sb = Infinity, si = -1; at.forEach(([sx, sz], n) => { const e = Math.hypot(sx - x, sz - z); if (e < sb) { sb = e; si = n; } });
+      const sn = sb < SPOT_IN ? 1 : Math.max(0, 1 - (sb - SPOT_IN) / (SPOT_OUT - SPOT_IN));
+      if (sn > 0) { this.spot[j * WASH + i] = si; this.spotW[j * WASH + i] = Math.round(sn * 255); }
     }
     this.tex.needsUpdate = true;
   }
@@ -287,7 +304,7 @@ export class TrafficLayer {
       this.acc = 0;
       const k = trafficKey(sim, D);
       if (k !== this.key) { this.key = k; const t = traffic(sim, TUNING, D); this.hour = t.hour; this.off = t.off; this.start = t.start; this.read = true; this.roads.clear(); for (const r of t.roads) this.roads.set(r.id, r); }
-      this.washEase();
+      this.washEase(sim);
     }
     if (!this.p.reduced) this.clock += dtGame;
     this.fade = Math.min(1, this.fade + dt);
@@ -320,18 +337,28 @@ export class TrafficLayer {
     }
     return best;
   }
-  /** Ease each stretch's shown load towards the read one and write the wash's cells if any moved. */
-  private washEase(): void {
+  /** Ease each stretch's shown load towards the read one, and each station's streets', and write the wash's cells if
+   * any moved: each cell the stretch's or the station's, whichever shows more there. */
+  private washEase(sim: Sim): void {
     let moved = false;
     const loads = this.laid.map(L => {
       const want = this.roads.get(L.id)?.load ?? 0, was = this.shown.get(L.id);
       const now = was === undefined || this.p.reduced ? want : was + (want - was) * 0.5;
       this.shown.set(L.id, now); return now;
     });
+    const busy = Math.min(1, demandCurve(sim.hour()) / 1.1);
+    const streets = sim.S.map((_, i) => {
+      const want = busy * (1.2 - 0.5 * served(sim, i)), was = this.streets[i];
+      return was === undefined || this.p.reduced ? want : was + (want - was) * 0.5;
+    });
+    this.streets = streets;
     for (let q = 0; q < WASH * WASH; q++) {
-      const k = this.nearest[q]!; if (k < 0) continue;
-      const v = Math.round(Math.min(1, loads[k]! / 2) * 255);
+      const k = this.nearest[q]!, s = this.spot[q]!;
+      let l = k >= 0 ? loads[k]! : 0, w = k >= 0 ? this.nearW[q]! : 0;
+      if (s >= 0) { const sl = streets[s]!, sw = this.spotW[q]!; if (sl * sw > l * w) { l = sl; w = sw; } }
+      const v = Math.round(Math.min(1, l / 2) * 255);
       if (this.cells[q * 4] !== v) { this.cells[q * 4] = v; moved = true; }
+      if (this.cells[q * 4 + 1] !== w) { this.cells[q * 4 + 1] = w; moved = true; }
     }
     if (moved) this.tex.needsUpdate = true;
   }
@@ -408,15 +435,22 @@ export class TrafficLayer {
 
   /** What's drawn and read (the checks): the cars, each stretch's load read and shown, the wash's cells past 0.9 and
    * past 1.15, and the cap. */
-  stats(): { queuedOn: Record<string, number>; cars: number; queued: number; braking: number; moving: number; sig: number; cap: number; hour: number; loads: Record<string, number>; shown: Record<string, number>; queues: Record<string, number>; amber: number; coral: number; wash: number; laid: string[] } {
+  stats(): { queuedOn: Record<string, number>; cars: number; queued: number; braking: number; moving: number; sig: number; cap: number; hour: number; loads: Record<string, number>; shown: Record<string, number>; queues: Record<string, number>; amber: number; coral: number; wash: number; laid: string[]; streets: Record<string, number> } {
     let amber = 0, coral = 0;
     for (let q = 0; q < WASH * WASH; q++) { const l = this.cells[q * 4]! / 255 * 2, w = this.cells[q * 4 + 1]! / 255; if (w > 0.5 && l >= 1.15) coral++; else if (w > 0.5 && l >= 0.9) amber++; }
     const rec = (f: (r: Road) => number) => Object.fromEntries([...this.roads.values()].map(r => [r.id, Math.round(f(r) * 1000) / 1000]));
     const queuedOn = Object.fromEntries(this.laid.map((L, k) => [L.id, this.queuedOn[k] ?? 0]));
-    return { ...this.drawn, queuedOn, cap: this.cap, hour: this.hour, loads: rec(r => r.load), queues: rec(r => r.queue), shown: Object.fromEntries([...this.shown].map(([k, v]) => [k, Math.round(v * 1000) / 1000])), amber, coral, wash: WASH_U.uWash.value, laid: this.laid.map(L => L.id) };
+    return { ...this.drawn, queuedOn, cap: this.cap, hour: this.hour, loads: rec(r => r.load), queues: rec(r => r.queue), shown: Object.fromEntries([...this.shown].map(([k, v]) => [k, Math.round(v * 1000) / 1000])), amber, coral, wash: WASH_U.uWash.value, laid: this.laid.map(L => L.id), streets: Object.fromEntries(this.p.net.stations.map((st, i) => [st.id, Math.round((this.streets[i] ?? 0) * 1000) / 1000])) };
   }
 }
 
+/** How well station i's streets are served, 0 (shut) to 1: open, then its car parks, its bus stop and how far that's
+ * grown, its feeder's steps, and a little for every other stage built there. */
+function served(sim: Sim, i: number): number {
+  if (!sim.g.owned[i]) return 0;
+  const u = sim.ups(i); let n = 0; for (const k in u) if (u[k as keyof typeof u]) n++;
+  return Math.min(1, 0.3 + (u.carpark ? 0.1 : 0) + (u.carpark2 ? 0.1 : 0) + (u.bus ? 0.1 : 0) + 0.05 * sim.shelterLevel(i) + 0.05 * sim.feederLevel(i) + 0.02 * n);
+}
 /** The ground: the wash on the cover's streets, if the cover's patch is there to read. */
 function washPatch_ground(m: THREE.Material): boolean {
   if (m.userData['jam']) return false;

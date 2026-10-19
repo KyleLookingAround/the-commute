@@ -5,7 +5,7 @@
 // its chip on the row; Stockport Interchange from Next to on Stockport's card; the Network card from the cash pill),
 // names the place and its kind in the header, fits the screen with nothing scrolling sideways and every tap target
 // 44 px, lists only stages that can be built now (a station's cards are the sim's visible ones, its bus stop no longer
-// among them; the stopper offers no extra unit before platform 3 and the sidings no spare before a train has failed; the
+// among them; the stopper offers no extra unit before platform 3 (but newer units) and the sidings no spare before a train has failed (but the shed); the
 // Network card no renewal before Piccadilly), and has Next to chips for what touches it. The offered bus stop at
 // Levenshulme opens with Buy, and Ardwick (Shut) with Reopen. The full list of places by kind is under each card. And a
 // new game: Stockport alone on the row, Shut, with Reopen · £1,000, which leaves a halt and about £3,000. And tapping a road's traffic opens its card, the Network card leading with the cars off. No errors.
@@ -31,8 +31,8 @@ export default async function ({ ok, open, root }) {
     ["Levenshulme's", '#strip [data-place="station:levenshulme"]', 'station:levenshulme', /^(Halt|Station) · /, visible(net.station('levenshulme').index), ['station:heaton-chapel', 'station:ardwick', 'route:stopper', 'stop:levenshulme-station-view', 'section:main:heaton-chapel:levenshulme']],
     ["Ardwick's (not owned)", '#strip [data-place="station:ardwick"]', 'station:ardwick', /^Shut · .*£/, null, ['station:levenshulme', 'route:stopper']],
     ["Levenshulme's bus stop (not owned)", '#strip [data-place="stop:levenshulme-station-view"]', 'stop:levenshulme-station-view', /^Bus stop · £/, null, ['station:levenshulme']],
-    ["the stopper's", '#strip [data-place="route:stopper"]', 'route:stopper', /^Train service · 1 unit$/, 'cars', ['station:stockport', 'station:heaton-chapel', 'station:levenshulme', 'station:ardwick']],
-    ["the sidings'", '#strip [data-place="depot:stockport-sidings"]', 'depot:stockport-sidings', /^Depot · /, sim.g.trouble.fails ? 'spare' : '', ['station:stockport']],
+    ["the stopper's", '#strip [data-place="route:stopper"]', 'route:stopper', /^Train service · 1 unit$/, 'cars,stock', ['station:stockport', 'station:heaton-chapel', 'station:levenshulme', 'station:ardwick']],
+    ["the sidings'", '#strip [data-place="depot:stockport-sidings"]', 'depot:stockport-sidings', /^Depot · /, sim.g.trouble.fails ? 'spare,maint' : 'maint', ['station:stockport']],
     ["Stockport Interchange's", ['#strip [data-place="station:stockport"]', '[data-next="stop:stockport-interchange"]'], 'stop:stockport-interchange', /^Bus station · /, 'feeder', ['station:stockport']],
     ['the Network', '#cash', 'network', /^Network · 3 stations$/, 'bee', []],
   ];

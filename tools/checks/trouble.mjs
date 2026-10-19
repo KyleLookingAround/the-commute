@@ -48,7 +48,10 @@ export default async function ({ ok, open, root }) {
     const { rescueFor, rescueAt, rescueOffset } = await import('../../src/render/trains.ts');
     const r = rescueFor(net, JSON.parse(readFileSync(join(root, 'src/data/network.json'), 'utf8')).services, b.g), ft = b.g.trains.find(t => t.id === bf.train);
     const gap = Math.abs(rescueAt(r, r.until) - ft.s) - (ft.cars * 23.6 - 0.6) / 2 - (2 * 23.6 - 0.6) / 2;
-    const mid = (r.s0 + r.s1) / 2, onLine = Math.abs(rescueOffset(net, r, mid) - net.offsetAt(r.along, mid)) < 0.05 && r.along !== r.onto;
+    // on the line beside the blocked one once clear of the sidings' 520 m ease (a failure nearer Stockport than that is
+    // crossed onto directly, the ease and the crossing overlapping)
+    const out = net.stations[0].at + Math.sign(r.s1 - r.s0) * 520, mid = (out - r.s1) * Math.sign(r.s1 - r.s0) < -150 ? out : null;
+    const onLine = r.along !== r.onto && (mid === null || Math.abs(rescueOffset(net, r, mid) - net.offsetAt(r.along, mid)) < 0.05);
     const there = Math.abs(rescueOffset(net, r, r.s1) - net.offsetAt(r.onto, r.s1)) < 0.05;
     const run = rescueAt(r, r.from) === r.s0 && Math.abs(gap - 0.6) < 0.05 && rescueAt(r, r.until + r.back + 1) === null;
     ok('trouble: the spare unit drives out of the sidings beside the blocked line, buffers up to the failed unit by the time it\'s rescued, and goes back',

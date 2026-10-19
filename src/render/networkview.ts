@@ -288,7 +288,7 @@ export class NetworkView {
   }
 
   /** What a tap at the client point lands on while the view shows: a train (within 18 px of its bar), then a station
-   * (within its ring and 10 px more, at least 22). Only on a tap. */
+   * (within its ring and 10 px more, at least 22), the station first within 12 px of its middle. Only on a tap. */
   pick(x: number, y: number): { kind: 'train' | 'station'; i: number } | null {
     if (this.fade < 0.5) return null;
     const r = this.o.canvas.getBoundingClientRect(); if (!r.width || !r.height) return null;
@@ -298,9 +298,10 @@ export class NetworkView {
     };
     let best = 18, train = -1;
     for (const t of this.trainAt) { const s = scr(t.x, 0, t.y); if (!s) continue; const d = Math.hypot(s[0] - x, s[1] - y); if (d < best) { best = d; train = t.i; } }
-    if (train >= 0) return { kind: 'train', i: train };
     let station = -1, bestS = Infinity;
     this.o.stations.forEach(([sx, sz, sy], i) => { const s = scr(sx, sy, sz); if (!s) return; const d = Math.hypot(s[0] - x, s[1] - y); if (d < Math.max(22, (this.ringR[i] ?? 0) + 10) && d < bestS) { bestS = d; station = i; } });
+    // a train first, unless the tap's nearer a ring's middle than the train (one standing at the station, tapped on the ring)
+    if (train >= 0 && !(station >= 0 && bestS < 12 && bestS < best)) return { kind: 'train', i: train };
     return station >= 0 ? { kind: 'station', i: station } : null;
   }
 

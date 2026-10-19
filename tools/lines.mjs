@@ -5,12 +5,14 @@
 // the spine beyond today's squares is the Buxton line. A new corridor is a new line with the default allowance.
 // ALLOW: each line's allowance in bytes, terrain and world squares apart; a line not listed gets DEFAULT (about 0.5 MB
 // each, the owner's call). Today's line keeps its own, and so does the Marple line, whose eight stations along 19 km
-// already held 0.9 MB of world squares when the budgets went per line.
+// already held 0.9 MB of world squares when the budgets went per line, and the Buxton line's world squares, which took
+// in the gaps between the lines (Offerton and the country by High Lane) on 19 October 2026.
 const MB = 1024 * 1024;
 export const DEFAULT = { terrain: 0.5 * MB, world: 0.5 * MB };
 export const ALLOW = {
   today: { terrain: 1.5 * MB, world: 2 * MB },
   marple: { terrain: 0.75 * MB, world: 1 * MB },
+  buxton: { terrain: 0.5 * MB, world: 0.75 * MB },
 };
 export const allowance = (line, kind) => (ALLOW[line] ?? DEFAULT)[kind];
 export const NAMES = { today: "today's line", buxton: 'the Buxton line', marple: 'the Marple line', 'rose-hill': 'the Rose Hill branch', crewe: 'the Crewe line', macclesfield: 'the Macclesfield leg' };

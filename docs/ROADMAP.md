@@ -78,7 +78,7 @@ Every station on the line as it stands today, in full, and a line that feels ali
 
 The lines out of Stockport, and the network becomes a graph of lines that meet. Ends with a release.
 
-**Depth before breadth** (the owner, 14 October 2026): add no more areas to the map until the map as it stands has more to do and upgrade. The lines out paused:
+**Depth before breadth** (the owner, 14 October 2026): add no more areas to the map until the map as it stands has more to do and upgrade. What "done" means for an area, and the steps for the next one, are in `docs/NEW-AREA.md` (19 October 2026), with what today's areas don't tick yet. The lines out paused:
 - The Crewe line's tracks and ground stay as laid (c2561bf), with no stations offered.
 - The Crewe line's stations, the Styal line and Reddish South wait.
 - Next come steps 4 to 9, 12 and 15, inside today's map: services, the fleet, timetabling, Stockport as the hub, the A6 and the 192, the main roads, buses as a network, and the gridlock opening.

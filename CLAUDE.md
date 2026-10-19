@@ -8,6 +8,7 @@ These notes are the short core every session needs. The details live with their 
 | --- | --- |
 | The economy, the station kit format, trains, saves | `docs/DESIGN.md` |
 | Where this is going, and what's next | `docs/ROADMAP.md` |
+| What a finished area has, and the steps for a new one | `docs/NEW-AREA.md` |
 | Building a change, from issue to merged PR | `.claude/skills/feature/SKILL.md` |
 | Getting a PR to green, merging, and the look back | `.claude/skills/steward/SKILL.md` |
 | Measuring with the bot, and the balance baselines | `.claude/skills/balance/SKILL.md` |

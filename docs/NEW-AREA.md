@@ -63,8 +63,7 @@ Each box names the tool that makes it and the check that proves it. A box that c
 
 As of 19 October 2026:
 
-- **The loop (section 1):** buying capacity doesn't yet clearly fix a problem. More stopper units made things worse (the line is full: they queued at Stockport), and room on the trains filled with new riders at once. Word of mouth (riders adjusting to how full the trains are) and towns that grow where the player invests are the fix being built. The late game needs problems a buy fixes for a while, before any area is added.
-- **The streets round each station** clearing as it's served (step 20): built on the session branch, not yet checked or on `main`.
+- **The loop (section 1):** buying capacity doesn't yet clearly fix a problem. More stopper units made things worse (the line is full: they queued at Stockport), and room on the trains filled with new riders at once. Word of mouth (riders adjusting to how full the trains are), towns that grow where the player invests and chains of bigger choices are built (19 October 2026); the next look is whether a bought step visibly fixes its problem for a while. The late game needs problems a buy fixes for a while, before any area is added.
 - **The A6's own buildings** from the photo library's `areas` (step 8).
 - **The bus garage** (Stagecoach's on Daw Bank) and bus priority at junctions (step 12): no job in the game yet.
 - **Levenshulme's A6 stop:** its shelters stand at the carriageway's edge, where the road's course and its drawn carriageway part.

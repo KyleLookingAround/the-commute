@@ -142,7 +142,7 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
    - After services' frequencies land, since they change lateness. Bot at 16 h.
    - **Punctuality built** (19 October 2026): reputation is the passengers carried times the share of departures within five minutes, and the Network card shows On time; reputation banked holds at 64 on the mean.
    - Cut by the third pass (`docs/ideas/2026-10-14-review-3.md`): with the bot buying every buy, day 7's trains all leave within 5 minutes, so refunds would cost nothing. Build only the punctuality part now: the share within 5 minutes in the contract's reputation and on the Network card. Delay Repay waits until step 26 brings lateness back, and only if the bot shows it does.
-20. **Gridlock that keeps moving** (M, ideas review 14 October 2026; idea 5). Over 16 h the bot takes 0.6 to 4% of cars off and the M60 stays at 1.2. After G4:
+20. **Gridlock that keeps moving** (M, ideas review 14 October 2026; idea 5). Over 16 h the bot takes 0.6 to 4% of cars off and the M60 stays at 1.2. After G4: The streets round each station clearing as it's served built 19 October 2026 (`docs/DESIGN.md`, The road card).
    - build G5
    - add a view-only layer of the streets round each owned station clearing as its car park, stop and services come in, so every buy clears something near it
 21. **Feeder buses first** (M, ideas review 14 October 2026; idea 7): a first slice of step 12 ahead of steps 6 and 12. Each owned bus stop gets one real feeder route, with buses an hour and bigger buses to buy, drawn instanced. **Built** 19 October 2026 (`docs/DESIGN.md`, Feeder buses): a real route at each of the eight stops, from OpenStreetMap.

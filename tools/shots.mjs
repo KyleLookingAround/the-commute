@@ -101,7 +101,8 @@ async function stationShots(only, extra) {
       const page = await ctx.newPage(); await page.goto(url);
       await page.waitForSelector('html[data-sim="ready"]', { timeout: 15000 }).catch(() => {});
       await page.waitForTimeout(1500);
-      if (world) { await page.waitForFunction(() => window.__view.buildings().then(s => s.trees > 0), null, { timeout: 120000, polling: 1000 }).catch(() => {}); await page.waitForTimeout(6000); }
+      // (until the buildings placed stop growing for 4 s, or two minutes)
+      if (world) for (let last = -1, k = 0; k < 60; k++) { const n = await page.evaluate(() => window.__view.buildings().then(s => s.buildings)); if (n > 0 && n === last) break; last = n; await page.waitForTimeout(4000); }
       await page.screenshot({ path: join(out, `station-${st.id}-${view}-${size}${tag}.png`) });
       await ctx.close();
     }

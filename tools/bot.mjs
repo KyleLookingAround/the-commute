@@ -174,7 +174,7 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
   const reached = {}; let lastCash = sim.g.cash, quietSince = 0, longestQuiet = 0, dayQuiet = 0, longestDayQuiet = 0;
   // lateness: every main-line departure, and at each peak who gave up where and how late trains ran
   const late = { deps: 0, within: 0, worst: 0 }, peaks = {}, main = sim.svcs[0].id;
-  const peak = k => peaks[k] ??= { lost: {}, cab: {}, deps: 0, within: 0, worst: 0 };
+  const peak = k => peaks[k] ??= { lost: {}, cab: {}, deps: 0, within: 0, worst: 0, boarded: 0 };
   // how often each platform at the two big stations has a train leave it, by its number on the boards
   const used = {}, big = new Set(['stockport', 'piccadilly']);
   let expressCalls = 0;
@@ -186,7 +186,7 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
     const k = peakOf(sim); if (!k) return;
     const p = peak(k); p.deps++; if (s <= 300) p.within++; p.worst = Math.max(p.worst, s);
   };
-  let lostWas = sim.g.st.map(S => S.lost), cabWas = sim.g.st.map(S => S.cab);
+  let lostWas = sim.g.st.map(S => S.lost), cabWas = sim.g.st.map(S => S.cab), boardedWas = sim.g.st.reduce((a, S) => a + S.boarded, 0);
   // what things going wrong cost: who gave up while something was wrong or in the quarter hour after
   let troubleLost = 0, troubleEnd = -Infinity, nightLost = 0;
   const mark = (k, h) => { if (reached[k] === undefined) reached[k] = +h.toFixed(2); };
@@ -199,6 +199,7 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
     const h = step / 60, k = peakOf(sim);
     sim.g.st.forEach((S, i) => { const d = S.lost - lostWas[i]; if (k && d > 0) { const l = peak(k).lost; l[sim.S[i].id] = (l[sim.S[i].id] ?? 0) + d; } });
     sim.g.st.forEach((S, i) => { const d = S.cab - cabWas[i]; if (k && d > 0) { const c = peak(k).cab; c[sim.S[i].id] = (c[sim.S[i].id] ?? 0) + d; } });
+    { const b = sim.g.st.reduce((a, S) => a + S.boarded, 0); if (k) peak(k).boarded += b - boardedWas; boardedWas = b; }
     const tb = sim.g.trouble; if (tb.fail || tb.caution) troubleEnd = sim.g.t;
     if (sim.g.t - troubleEnd < 900) sim.g.st.forEach((S, i) => { troubleLost += Math.max(0, S.lost - lostWas[i]); });
     if (sim.lastGone()) sim.g.st.forEach((S, i) => { nightLost += Math.max(0, S.lost - lostWas[i]); });
@@ -223,6 +224,9 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
     'homes grown': Math.round(g.homes.reduce((a, h, i) => a + h - sim.S[i].catchment, 0)),
     'within 5 min %': late.deps ? +(100 * late.within / late.deps).toFixed(1) : 100, 'worst late min': +(late.worst / 60).toFixed(1) };
   Object.assign(measures, roads.measures());
+  // pressure (step 26): the share of those who came at each peak from day 4 on who gave up, their mean and the most
+  { const sh = Object.entries(peaks).filter(([k]) => +k.split(' ')[1] >= 4).map(([, p]) => { const l = Object.values(p.lost).reduce((a, b) => a + b, 0); return 100 * l / Math.max(1, l + p.boarded); });
+    if (sh.length) Object.assign(measures, { 'peak lost % from day 4': +(sh.reduce((a, b) => a + b, 0) / sh.length).toFixed(1), 'worst peak lost % from day 4': +Math.max(...sh).toFixed(1) }); }
   for (const p of Object.values(peaks)) { p.within = p.deps ? +(100 * p.within / p.deps).toFixed(1) : 100; p.worst = +(p.worst / 60).toFixed(1); }
   // what's owned and built as the sim reads it (each station's stages in a fixed order, whatever order they were bought in)
   const play = fingerprint({ v: g.v, owned: g.owned, ups: g.ups.map(u => Object.fromEntries(Object.entries(u).sort())), line: g.line, cash: Math.round(g.cash), boarded: g.stats.boarded, lost: g.stats.lost, cab: g.stats.cab, bused: g.trouble.bused, homes: g.homes.map(Math.round) });
@@ -261,12 +265,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const mean = xs => +(xs.reduce((a, b) => a + b, 0) / xs.length).toFixed(1);
   const pk = [...new Set(runs.flatMap(r => Object.keys(r.peaks)))], ids = [...new Set(runs.flatMap(r => Object.values(r.peaks).flatMap(p => Object.keys(p.lost))))];
   const cabIds = [...new Set(runs.flatMap(r => Object.values(r.peaks).flatMap(p => Object.keys(p.cab))))];
-  console.log(`\n| Peak (mean of seeds) | ${ids.map(i => 'lost ' + i).join(' | ')} | ${cabIds.map(i => 'cab ' + i).join(' | ')}${cabIds.length ? ' | ' : ''}within 5 min % | worst late min |`);
-  console.log(`| --- | ${[...ids, ...cabIds].map(() => '---').join(' | ')} | --- | --- |`);
+  console.log(`\n| Peak (mean of seeds) | ${ids.map(i => 'lost ' + i).join(' | ')} | ${cabIds.map(i => 'cab ' + i).join(' | ')}${cabIds.length ? ' | ' : ''}within 5 min % | worst late min | lost % |`);
+  console.log(`| --- | ${[...ids, ...cabIds].map(() => '---').join(' | ')} | --- | --- | --- |`);
   for (const k of pk) {
-    const ps = runs.map(r => r.peaks[k] ?? { lost: {}, cab: {}, within: 100, worst: 0 });
+    const ps = runs.map(r => r.peaks[k] ?? { lost: {}, cab: {}, within: 100, worst: 0, boarded: 0 });
     const cabs = cabIds.map(i => mean(ps.map(p => p.cab[i] ?? 0)));
-    console.log(`| ${k} | ${ids.map(i => mean(ps.map(p => p.lost[i] ?? 0))).join(' | ')} | ${cabs.join(' | ')}${cabs.length ? ' | ' : ''}${mean(ps.map(p => p.within))} | ${mean(ps.map(p => p.worst))} |`);
+    const share = p => { const l = Object.values(p.lost).reduce((a, b) => a + b, 0); return 100 * l / Math.max(1, l + p.boarded); };
+    console.log(`| ${k} | ${ids.map(i => mean(ps.map(p => p.lost[i] ?? 0))).join(' | ')} | ${cabs.join(' | ')}${cabs.length ? ' | ' : ''}${mean(ps.map(p => p.within))} | ${mean(ps.map(p => p.worst))} | ${mean(ps.map(share))} |`);
   }
   // car parks and bus links, mean of the seeds
   const acc = [...new Set(runs.flatMap(r => Object.keys(r.access)))];

@@ -111,7 +111,10 @@ export class HomesLayer {
     this.walls = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial(), n);
     this.roofs = new THREE.InstancedMesh(prism, new THREE.MeshLambertMaterial(), n);
     this.tops = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial(), n);
-    this.bands = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial({ color: PAL['home-glass'], emissive: PAL['glass-glow'] }), Math.max(1, bands));
+    // a window band: the box's four sides only (its top and bottom lie inside the walls), a third fewer triangles
+    const band = unit.clone(), idx = band.getIndex()!, keep = [...Array.from(idx.array).slice(0, 12), ...Array.from(idx.array).slice(24)];
+    band.setIndex(keep); band.clearGroups();
+    this.bands = new THREE.InstancedMesh(band, new THREE.MeshLambertMaterial({ color: PAL['home-glass'], emissive: PAL['glass-glow'] }), Math.max(1, bands));
     this.meshes = [this.walls, this.roofs, this.tops, this.bands];
     for (const m of this.meshes) {
       for (let j = 0; j < m.count; j++) m.setMatrixAt(j, this.zero);

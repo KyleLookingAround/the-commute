@@ -149,6 +149,12 @@ export function act(sim) {
       if (ok(sim.upgradePrice(i, u))) { const r = up(i, id); if (r) return r; }
     }
   }
+  // a bus stop's feeder route, a step at a time, with four times its price (and the next station saved for)
+  for (const p of P.all) {
+    if (p.kind !== 'stop' || !sim.owns(p.id) || !p.stop?.feeder) continue;
+    const price = sim.price(p.id, 'feeder');
+    if (price !== undefined && g.cash > 4 * price + saving && sim.buy(p.id, 'feeder')) return 'feeder:' + p.id.slice('stop:'.length);
+  }
   return null;
 }
 

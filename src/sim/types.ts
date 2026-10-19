@@ -117,7 +117,10 @@ export interface ServiceDef {
 /** A bus stop or bus station by a station (src/sim/places.ts): a place of its own, offered once its station is owned.
  * Its first state brings the census's bus pool beyond a walk in by bus (src/sim/access.ts); `part` is the kit part
  * (`buslink`) that draws it at its station. lat, lon: where it really stands. */
-export interface StopDef { id: string; name: string; /** 'bus-stop' or 'bus-station' */ kind: string; station: string; lat: number; lon: number; price: number; desc: string; note?: string }
+/** feeder (step 21): a real bus route through the stop (OpenStreetMap, tools/osm-to-feeders.mjs): its number, name, and
+ * the stretch of it each way from the stop, [lat, lon] about every 40 m. */
+export interface FeederDef { ref: string; name: string; points: [number, number][]; note?: string }
+export interface StopDef { id: string; name: string; /** 'bus-stop' or 'bus-station' */ kind: string; station: string; lat: number; lon: number; price: number; desc: string; note?: string; feeder?: FeederDef }
 /** A depot: a yard where units stand, coming with the station it opens off (Stockport's carriage sidings). */
 export interface DepotDef { id: string; name: string; station: string; note?: string }
 export interface LandmarkDef {

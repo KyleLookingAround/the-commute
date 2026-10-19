@@ -145,7 +145,7 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
 20. **Gridlock that keeps moving** (M, ideas review 14 October 2026; idea 5). Over 16 h the bot takes 0.6 to 4% of cars off and the M60 stays at 1.2. After G4:
    - build G5
    - add a view-only layer of the streets round each owned station clearing as its car park, stop and services come in, so every buy clears something near it
-21. **Feeder buses first** (M, ideas review 14 October 2026; idea 7): a first slice of step 12 ahead of steps 6 and 12. Each owned bus stop gets one real feeder route, with buses an hour and bigger buses to buy, drawn instanced.
+21. **Feeder buses first** (M, ideas review 14 October 2026; idea 7): a first slice of step 12 ahead of steps 6 and 12. Each owned bus stop gets one real feeder route, with buses an hour and bigger buses to buy, drawn instanced. **Built** 19 October 2026 (`docs/DESIGN.md`, Feeder buses): a real route at each of the eight stops, from OpenStreetMap.
 22. **Join the Bee Network** (M, ideas review 14 October 2026; idea 6), as Greater Manchester's rail lines really do from December 2026 (most of Stockport's in 2027). A network-wide chain of stages, the yellow spreading over the map:
    1. contactless tap-in and tap-out
    2. the yellow on stations and trains, bringing bus-only riders

@@ -20,7 +20,7 @@ export interface Upgrade { id: UpgradeId; name: string | null; price: number; de
 /** A stage bought more than once, on a route or a depot: its price each time, up to max. */
 export interface LineUpgrade { id: LineUpgradeId; name: string; prices: number[]; desc: string; max: number; steps?: { name: string; desc: string }[] }
 /** A stage of a route: the line's (units, cars), or a branch's own through running. */
-export type RouteStage = Omit<LineUpgrade, 'id'> & { id: LineUpgradeId | 'through' };
+export type RouteStage = Omit<LineUpgrade, 'id'> & { id: LineUpgradeId | 'through' | 'feeder' };
 /** A service's frequency as a stage of its route: its data's steps (ServiceDef.frequency), one level each. */
 export function frequencyStage(def: ServiceDef): LineUpgrade | null {
   const f = def.frequency; if (!f?.steps.length) return null;
@@ -73,6 +73,10 @@ export const SECTION_SIGNALS = { id: 'signals', name: 'Resignalling', perMile: 5
  * still take turns). */
 export const JUNCTION_FLYOVER = { id: 'flyover', name: 'Flying junction', price: 60000, after: 600, desc: 'One line over the other on a bridge: trains crossing here stop waiting for each other' } as const;
 export const SECTION_WIRES = { id: 'wires', name: 'Electrification', perMile: 8000, desc: 'Masts and wires: trains accelerate harder through it' } as const;
+/** A bus stop's feeder route (step 21): its real route run for the station, more buses an hour, then bigger buses. Each
+ * shortens the wait for the bus and widens who comes by it (FEEDER_WAIT, FEEDER_POOL in src/sim/access.ts). */
+export const FEEDER: RouteStage = { id: 'feeder', name: 'Feeder buses', prices: [8000, 20000, 45000], desc: 'More buses bring more people from beyond a walk', max: 3,
+  steps: [{ name: 'Feeder route', desc: 'Its route run for the station, two buses an hour: shorter waits, people from further out' }, { name: 'Four buses an hour', desc: 'Half the wait for the bus, and more come by it' }, { name: 'Bigger buses', desc: 'Double-deckers on the route: more come by bus' }] };
 /** Which kind of place each of those stages is on. */
 export const LINE_PLACE: Record<Exclude<LineUpgradeId, 'timetable'>, 'route' | 'depot'> = { units: 'route', cars: 'route', spare: 'depot' };
 
@@ -246,6 +250,7 @@ export class Places {
       return [...(f ? [f, ...own.filter(u => u.id !== 'units')] : own), ...through];
     }
     if (id === this.sidings) return LINE_UPGRADES.filter(u => LINE_PLACE[u.id as keyof typeof LINE_PLACE] === 'depot');
+    if (p.kind === 'stop' && p.stop?.feeder) return [FEEDER];
     return [];
   }
 }

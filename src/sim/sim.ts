@@ -16,7 +16,7 @@ import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
 import { stepExpress, nextSlot, EXPRESS_UNITS } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
 import { effects, type Effects } from './contract.ts';
-import { places, build, derive, frequencyStage, placeId, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, JUNCTION_FLYOVER, type Places, type Upgrade } from './places.ts';
+import { places, build, derive, frequencyStage, placeId, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, JUNCTION_FLYOVER, FEEDER, type Places, type Upgrade } from './places.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
 // a station's stages and the line's, now stages of places (src/sim/places.ts); here too, where the view finds them
@@ -854,6 +854,8 @@ export class Sim {
   homes(i: number): number { return this.g.homes[i] ?? this.station(i).catchment; }
   /** The most homes station i's land could hold. */
   ceiling(i: number): number { const s = this.station(i), sg = this.ups(i).signature ? s.grow?.signature?.homes ?? 0 : 0; return Math.max(s.catchment, s.ceiling ?? s.catchment) * (1 + sg); }
+  /** How far station i's bus stop's feeder route has come: 0 none, then each FEEDER step bought. */
+  feederLevel(i: number): number { const s = this.P.stopOf[i]; return s ? this.g.places[s]?.[FEEDER.id] ?? 0 : 0; }
   /** What draws people to station i: its census draw, more once its signature stage brings a draw of its own (a surge
    * adds its own trips, tripRates). */
   drawOf(i: number): number {
@@ -1030,6 +1032,7 @@ export class Sim {
     if (p.kind === 'station') { const u = UPGRADES.find(x => x.id === stage && !x.stop); return u ? this.upgradePrice(p.station!, u) : undefined; }
     if (p.kind === 'junction') return stage === JUNCTION_FLYOVER.id && this.flyoverOffered(id) ? this.cost(JUNCTION_FLYOVER.price) : undefined;
     if (p.kind === 'section') { const x = this.sectionAt(id); return stage === SECTION_SPEED.id ? x?.price : stage === SECTION_SIGNALS.id ? x?.signalsPrice : stage === SECTION_WIRES.id ? x?.wiresPrice : undefined; }
+    if (p.kind === 'stop' && stage === FEEDER.id) { const lvl = this.stageLevel(id, stage); return p.stop?.feeder && lvl < FEEDER.max ? this.cost(FEEDER.prices[lvl]!) : undefined; }
     if (p.kind === 'route' && stage === 'through') {
       const v = this.svc(p.svc!), m = v.base.manchester;
       return !m || this.runsThrough(v) ? undefined : this.cost(m.price);
@@ -1046,6 +1049,7 @@ export class Sim {
   /** Whether a route's or depot's stage can be seen yet: the stopper's extra units once Stockport's platform 3 is
    * built, the spare unit once a train has failed; a branch's frequency once it runs. */
   stageReady(id: string, stage: string): boolean {
+    if (stage === FEEDER.id) return this.owns(id);
     if (stage === 'through') { const n = this.svc(this.P.get(id).svc!).base.manchester?.needs, i = n ? this.net.station(n.station).index : -1; return this.owns(id) && (!n || (!!this.g.owned[i] && !!this.ups(i)[n.upgrade as UpgradeId])); }
     return id === this.P.stopper || stage !== 'units' ? this.lineReady(stage) : this.owns(id);
   }

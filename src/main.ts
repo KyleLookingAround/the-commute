@@ -14,6 +14,7 @@ import { Lineside } from './render/lineside.ts';
 import { StationLife } from './render/life.ts';
 import { TaxiLayer } from './render/taxis.ts';
 import { BusLayer } from './render/buses.ts';
+import { FeederLayer } from './render/feeders.ts';
 import { LinkLayer } from './render/links.ts';
 import { TrainLayer } from './render/trains.ts';
 import { PassengerLayer } from './render/passengers.ts';
@@ -63,11 +64,12 @@ declare global {
   }
 }
 
-// the JSON is the data layer's; it's typed here, where it's read, so the data stays plain. Only the waypoints and the
-// roads' points need a word: JSON can't say an array is a pair; everything else is checked against the type as it is
+// the JSON is the data layer's; it's typed here, where it's read, so the data stays plain. Only the waypoints, the
+// roads' points and the feeders' need a word: JSON can't say an array is a pair; everything else is checked against the type as it is
 const networkDef: NetworkGeoDef = {
   ...networkJson, corridors: networkJson.corridors.map(c => ({ ...c, waypoints: c.waypoints as [number, number][] })),
   roads: networkJson.roads.map(r => ({ ...r, points: r.points as [number, number][] })),
+  stops: networkJson.stops.map(s => ({ ...s, feeder: s.feeder && { ...s.feeder, points: s.feeder.points as [number, number][] } })),
 };
 const net = fromGeo(networkDef);
 statsView(net);   // ?stats: the stats view, loaded after the first frame (and ?stats&save=busy, the busy save)
@@ -105,6 +107,7 @@ const life = new StationLife(built, sim);
 const taxis = new TaxiLayer(built);
 const trains = new TrainLayer(scene, net, networkDef.services ?? []);
 const buses = new BusLayer(scene, net, built);
+const feeders = new FeederLayer(scene, net);
 // the lines out's ground comes in after the first frame: the buses' roads are laid on it again
 let outIn = false;
 void world.terrain.outReady.then(() => { buses.relay(); outIn = true; });
@@ -590,7 +593,7 @@ function frame(now: number): void {
   sound.update(sim, rig.o, light.daylight, stationsXZ, trains.meshes, realDt); pax.setDaylight(light.daylight);
   // the rise takes about a second however slow the frames, so it gets the frame's real time
   syncStations(built, sim.g, realDt); reach.sync(sim, realDt); homes.sync(sim, realDt); lineside.sync(!!sim.g.line.timetable, realDt, sim); trains.sync(sim, dtGame); pax.sync(sim.g, dtGame); pax.placeCoin(camera); labels();
-  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim); netView?.update(sim, rig.o.r, realDt); back?.update(realDt); roads?.sync(dt, dtGame, light.daylight); mainRoads?.sync();
+  life.sync(sim, lockHour ?? sim.hour(), dt); taxis.sync(sim, dt, dtGame); buses.sync(sim); links.sync(sim); feeders.sync(sim, dtGame); netView?.update(sim, rig.o.r, realDt); back?.update(realDt); roads?.sync(dt, dtGame, light.daylight); mainRoads?.sync();
   uiAcc += dt; if (uiAcc > 0.25) { uiAcc = 0; ui.tick(); nextStations(); followGlide(); ui.setLight(lockHour ?? sim.hour(), lockHour !== null); }
   saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; persist(); }
   const t2 = performance.now();

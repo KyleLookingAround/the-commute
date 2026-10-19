@@ -439,8 +439,21 @@ export class UI {
       this.buyCard(p.stop?.desc ?? '', label, sim.canBuy(id), () => { if (sim.buy(id)) { this.toast(`${p.name} is yours`); this.on.built(i, 'bus'); this.changed(); } });
       return;
     }
-    this.els.panel.innerHTML = this.stats([['sBus', 'By bus'], ['sWait', `At ${st.name.replace('Manchester ', '')}`]]) + `<p class="blurb">${p.stop?.desc ?? ''}</p>`;
-    this.stageCards([], () => {});
+    const f = p.stop?.feeder, g = this.g;
+    this.els.panel.innerHTML = this.stats([['sBus', 'By bus'], ['sWait', `At ${st.name.replace('Manchester ', '')}`]]) + `<p class="blurb">${p.stop?.desc ?? ''}${f ? ` Its feeder: the ${f.ref}.` : ''}</p>`;
+    // its feeder route's steps (step 21), each shown on the map as the route's buses
+    const show = (k: string | null) => { if (k !== null) this.on.focusPlace(id); };
+    this.stageCards(sim.P.stagesFor(sim.net, id).map(x => {
+      const u = x as LineUpgrade, lvl = sim.stageLevel(id, u.id), price = sim.price(id, u.id), name = u.steps?.[lvl]?.name ?? u.name;
+      const built = lvl ? u.steps![lvl - 1]!.name : null;
+      if (lvl >= u.max || price === undefined) return { id: u.id, stage: null, saves: null, opens: [], built };
+      const stage: Stage = {
+        name, adds: u.steps?.[lvl]?.desc ?? u.desc, price, can: () => g.cash >= price,
+        buy: () => { if (!sim.buy(id, u.id)) return false; this.toast(`${name}: the ${f?.ref ?? 'bus'} runs`); this.changed(); return true; },
+        pick: on => show(on ? u.id : null),
+      };
+      return { id: u.id, stage, saves: null, opens: lvl + 1 < u.max ? [u.steps![lvl + 1]!.name] : [], built };
+    }), k => show(k));
   }
   /** The whole network: its figures, and once Piccadilly is owned, Renew the contract. */
   /** A road stretch's card: the cars an hour along it now, how full it is, its speed and queue, and the drive now

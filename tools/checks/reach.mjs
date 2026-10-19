@@ -50,17 +50,20 @@ export default async function ({ ok, open, root, side }) {
     const g1 = await p.evaluate(() => window.__view.reach().ghosts);
     await tap('#vLine'); await p.waitForTimeout(1200); await keep(); await p.screenshot({ path: join(shots, `reach-ghost-${tag}.png`) });
     // buy it, then watch Stockport's glow frame by frame (each frame at most 50 ms of the page's time, so the ease takes
-    // the same frames on a slow machine): until it settles, or 60 s of real time
+    // the same frames on a slow machine): until it settles, or 3 s of the page's time (well past the second it should
+    // take), or 5 minutes of real time (a busy runner draws slowly, so a limit in real time alone ran out mid-ease); from
+    // the glow and the page's clock before the buy, as on a slow runner the tap returns with the ease already under way
+    const before = await p.evaluate(() => ({ t: window.__frameT, r: window.__view.reach().now[0] }));
     await tap('[data-up="crossing"]');
-    const ease = await p.evaluate(async () => {
-      const t0 = window.__frameT, out = { from: window.__view.reach().now[0], seen: [], took: null };
+    const ease = await p.evaluate(async before => {
+      const t0 = before.t, out = { from: before.r, seen: [], took: null };
       const frame = () => new Promise(r => requestAnimationFrame(r)), real = performance.now();
-      while (performance.now() - real < 60000) {
+      while (window.__frameT - t0 < 3000 && performance.now() - real < 300000) {
         await frame(); const r = window.__view.reach(); out.target = r.target[0]; out.seen.push(r.now[0]);
         if (r.target[0] > out.from + 20 && Math.abs(r.now[0] - r.target[0]) <= 2) { out.took = (window.__frameT - t0) / 1000; break; }
       }
       return out;
-    });
+    }, before);
     const between = ease.seen.filter(v => v > ease.from + 5 && v < ease.target - 5).length;
     const steady = ease.seen.every((v, i) => i === 0 || v >= ease.seen[i - 1] - 0.5);
     await tap('#vLine'); await keep(); await p.waitForTimeout(600);

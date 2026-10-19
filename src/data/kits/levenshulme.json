@@ -53,6 +53,8 @@
     { "type": "retail", "u": -34.5, "v": -9.2, "label": "Coffee", "small": true, "upgrade": "shops", "tier": true },
     { "type": "retail", "u": -39, "v": -9.2, "label": "News", "small": true, "upgrade": "shops", "tier": true },
     { "type": "cycles", "u": -54, "v": 28.8, "n": 12, "street": true, "upgrade": "cyclehub", "tier": true },
+    { "type": "busshelter", "u": -104, "v": 40, "back": [1,0], "kerb": -1, "street": true, "upgrade": "shelter", "tier": true },
+    { "type": "businfo", "u": -104, "v": 40, "back": [1,0], "kerb": -1, "street": true, "upgrade": "liveinfo", "tier": true },
     { "type": "sign", "u": -57, "v": 28.8, "facing": -1, "street": true, "upgrade": "signature", "tier": true },
     { "type": "billboard", "u": -15.1, "v": 82.2, "yaw": -0.2, "street": true, "upgrade": "posters", "tier": true },
     { "type": "box", "u0": 25.9, "u1": 26.2, "v0": -7.7, "v1": -7.4, "y0": 0, "y1": 1.2, "mat": "tactile", "upgrade": "bee1", "tier": true },

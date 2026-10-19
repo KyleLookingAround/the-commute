@@ -20,7 +20,7 @@ export interface Upgrade { id: UpgradeId; name: string | null; price: number; de
 /** A stage bought more than once, on a route or a depot: its price each time, up to max. */
 export interface LineUpgrade { id: LineUpgradeId; name: string; prices: number[]; desc: string; max: number; steps?: { name: string; desc: string }[] }
 /** A stage of a route: the line's (units, cars), or a branch's own through running. */
-export type RouteStage = Omit<LineUpgrade, 'id'> & { id: LineUpgradeId | 'through' | 'feeder' | 'bee' | 'every' | 'lanes' | 'stock' | 'maint' };
+export type RouteStage = Omit<LineUpgrade, 'id'> & { id: LineUpgradeId | 'through' | 'feeder' | 'bee' | 'every' | 'lanes' | 'stock' | 'maint' | 'shelter' };
 /** A service's frequency as a stage of its route: its data's steps (ServiceDef.frequency), one level each. */
 export function frequencyStage(def: ServiceDef): LineUpgrade | null {
   const f = def.frequency; if (!f?.steps.length) return null;
@@ -80,6 +80,11 @@ export const SECTION_WIRES = { id: 'wires', name: 'Electrification', perMile: 80
  * shortens the wait for the bus and widens who comes by it (FEEDER_WAIT, FEEDER_POOL in src/sim/access.ts). */
 export const FEEDER: RouteStage = { id: 'feeder', name: 'Feeder buses', prices: [8000, 20000, 45000], desc: 'More buses bring more people from beyond a walk', max: 3,
   steps: [{ name: 'Feeder route', desc: 'Its route run for the station, two buses an hour: shorter waits, people from further out' }, { name: 'Four buses an hour', desc: 'Half the wait for the bus, and more come by it' }, { name: 'Bigger buses', desc: 'Double-deckers on the route: more come by bus' }] };
+/** A bus stop growing (step 12): from the pole it opens as to a glass shelter with a seat, then a screen with when the
+ * next bus is due. Each makes the wait for the bus feel shorter (STOP_WAIT in src/sim/access.ts). Bus stops only: a bus
+ * station has its hall. */
+export const SHELTER: RouteStage = { id: 'shelter', name: 'Shelter', prices: [2500, 6000], desc: 'The wait for the bus feels shorter', max: 2,
+  steps: [{ name: 'Shelter', desc: 'A glass shelter with a seat: the wait for the bus feels shorter' }, { name: 'Live times', desc: 'A screen with when the next bus is due: the wait feels shorter again' }] };
 /** Joining the Bee Network (step 22): a chain over the whole network, as Greater Manchester's lines really join it from
  * December 2026: contactless tap-in and tap-out (no queue for a ticket, TUNING.tapSave off every journey), the yellow on
  * stations and trains (the network's bus riders come: BEE_POOL), then one fare and a daily cap across bus and train
@@ -272,7 +277,7 @@ export class Places {
       return [...(f ? [f, ...own.filter(u => u.id !== 'units')] : own), ...through, NEW_STOCK];
     }
     if (id === this.sidings) return [...LINE_UPGRADES.filter(u => LINE_PLACE[u.id as keyof typeof LINE_PLACE] === 'depot'), MAINT];
-    if (p.kind === 'stop' && p.stop?.feeder) return [FEEDER];
+    if (p.kind === 'stop') return [...(p.stop?.kind === 'bus-stop' ? [SHELTER] : []), ...(p.stop?.feeder ? [FEEDER] : [])];
     if (p.kind === 'network') return [BEE];
     if (p.kind === 'bus') return [BUS_EVERY, BUS_LANES];
     return [];
@@ -302,6 +307,8 @@ export function derive(g: GameState, P: Places): GameState {
     // the Bee Network's look at every station owned (step 22): its tap-in posts, then its yellow
     const bee = g.places[P.bee]?.['bee'] ?? 0; if (r && bee >= 1) o.bee1 = true; if (r && bee >= 2) o.bee2 = true;
     const s = P.stopOf[i]; if (s && s in g.places) o.bus = true;
+    // its bus stop's shelter, then its live times (step 12)
+    const sh = s ? g.places[s]?.['shelter'] ?? 0 : 0; if (sh >= 1) o.shelter = true; if (sh >= 2) o.liveinfo = true;
     // the sidings' maintenance shed, drawn in its station's kit
     if (P.sidings && P.byId.get(P.sidings)?.station === i && (g.places[P.sidings]?.['maint'] ?? 0) > 0) o.maint = true;
     return Object.freeze(o);

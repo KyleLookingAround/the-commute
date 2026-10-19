@@ -27,24 +27,36 @@ const GLASS = mergeGeometries([B(3.18, 0.9, LEN - 2.4, 0, 2.55, -0.4), B(2.7, 1.
 interface Link { gp: THREE.Group; p: LinkPart; bu: number; bv: number }
 const links = new WeakMap<object, Link>();
 
-/** Build a link into a station's group: each bay's tarmac, kerb and shelter, and a bus station's hall. `owner` is the
- * station's Live, which LinkLayer finds its link by. */
-export function buildLink(gp: THREE.Group, p: LinkPart, owner: object): void {
+/** A link's frame: its bays' direction, and a box placed `along` the bays and `across` towards its kerb's pavement. */
+function framed(gp: THREE.Group, p: LinkPart) {
   const [bu0, bv0] = p.back ?? [1, 0], bl = Math.hypot(bu0, bv0) || 1, bu = bu0 / bl, bv = bv0 / bl;
-  const k = p.kerb ?? 1, su = -bv * k, sv = bu * k, yaw = Math.atan2(bu, bv), n = p.bays ?? 1;
+  const k = p.kerb ?? 1, su = -bv * k, sv = bu * k, yaw = Math.atan2(bu, bv);
   const piece = (w: number, h: number, d: number, mat: THREE.Material, along: number, across: number, y0: number) => {
     const m = box(gp, w, h, d, mat, p.u + bu * along + su * across, y0, p.v + bv * along + sv * across); m.rotation.y = yaw; return m;
   };
+  return { bu, bv, yaw, piece };
+}
+let BAND_MAT: THREE.Material | undefined, LED_MAT: THREE.Material | undefined;
+/** A bay's shelter on the pavement: its roof and glass back. */
+function shelter(piece: ReturnType<typeof framed>['piece'], yaw: number, along: number): void {
+  piece(2.4, 0.15, 4.5, MAT.canopy, along, 4, 2.7);
+  piece(2.4, 2.5, 0.08, MAT.glass, along, 5, 1.35).rotation.y = yaw + Math.PI / 2;
+}
+
+/** Build a link into a station's group: each bay's tarmac, kerb and flag, and a bus station's hall with a shelter at
+ * every bay (a bus stop's shelter and live times are parts of their own, bought: buildStand). `owner` is the station's
+ * Live, which LinkLayer finds its link by. */
+export function buildLink(gp: THREE.Group, p: LinkPart, owner: object): void {
+  const { bu, bv, yaw, piece } = framed(gp, p), n = p.bays ?? 1, station = n > 1 || !!p.hall;
   const len = n * BAY;
   piece(4.4, 0.06, len + 4, MAT.road, len / 2 - BAY / 2, 0, 0.03);
   piece(0.4, 0.2, len + 4, MAT.concrete, len / 2 - BAY / 2, 2.4, 0.1);
   piece(3, 0.06, len + 4, MAT.concrete, len / 2 - BAY / 2, 4, 0.04);
   for (let b = 0; b < n; b++) {
-    // a shelter on the pavement at each bay, and its flag
-    piece(2.4, 0.15, 4.5, MAT.canopy, b * BAY, 4, 2.7);
-    piece(2.4, 2.5, 0.08, MAT.glass, b * BAY, 5, 1.35).rotation.y = yaw + Math.PI / 2;
+    // a bus station's shelter at each bay, and every bay's flag on its pole
+    if (station) shelter(piece, yaw, b * BAY);
     piece(0.12, 3.2, 0.12, MAT.steel, b * BAY + LEN / 2, 2.9, 1.6);
-    piece(0.9, 0.9, 0.1, lam(PAL['link-band']), b * BAY + LEN / 2, 2.9, 3).rotation.y = yaw + Math.PI / 2;
+    piece(0.9, 0.9, 0.1, BAND_MAT ??= lam(PAL['link-band']), b * BAY + LEN / 2, 2.9, 3).rotation.y = yaw + Math.PI / 2;
   }
   if (p.hall) {
     // a bus station's hall: brick and glass under a deep roof, the park on top, its edge planted
@@ -56,6 +68,16 @@ export function buildLink(gp: THREE.Group, p: LinkPart, owner: object): void {
     for (let t = 0; t < 7; t++) box(gp, 3, 3, 3, lam(PAL['link-trees']), u0 + 6 + (w - 12) * ((t * 0.37) % 1), h + 1.8, v0 + 5 + (d - 10) * ((t * 0.61) % 1));
   }
   links.set(owner, { gp, p, bu, bv });
+}
+
+/** A bus stop's bought stand (step 12), at its link part's place: its shelter, or its live times, a screen on a post at
+ * the shelter's end, its amber line facing the kerb. */
+export function buildStand(gp: THREE.Group, p: LinkPart, what: 'shelter' | 'info'): void {
+  const { yaw, piece } = framed(gp, p);
+  if (what === 'shelter') { shelter(piece, yaw, 0); return; }
+  piece(0.14, 2.6, 0.14, MAT.steel, -3, 3.4, 1.3);
+  piece(1.1, 0.5, 0.12, BAND_MAT ??= lam(PAL['link-band']), -3, 3.4, 2.5).rotation.y = yaw + Math.PI / 2;
+  piece(0.9, 0.12, 0.02, LED_MAT ??= new THREE.MeshBasicMaterial({ color: PAL['board-led'] }), -3, 3.32, 2.55).rotation.y = yaw + Math.PI / 2;
 }
 
 const m4 = new THREE.Matrix4(), qt = new THREE.Quaternion(), turn = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), pos = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), v3 = new THREE.Vector3();

@@ -162,6 +162,12 @@ export function act(sim) {
   if (P.sidings && g.trouble.fails >= 2) { const price = sim.price(P.sidings, 'maint'); if (price !== undefined && g.cash > 2 * price + saving && sim.buy(P.sidings, 'maint')) return 'maint'; }
   // the Bee Network a step at a time, with three times its price (and the next station saved for)
   { const price = sim.price(P.bee, 'bee'); if (price !== undefined && sim.canBuy(P.bee, 'bee') && g.cash > 3 * price + saving && sim.buy(P.bee, 'bee')) return 'bee'; }
+  // a bus stop's shelter then its live times, with three times the price (and the next station saved for)
+  for (const p of P.all) {
+    if (p.kind !== 'stop' || !sim.owns(p.id)) continue;
+    const price = sim.price(p.id, 'shelter');
+    if (price !== undefined && g.cash > 3 * price + saving && sim.buy(p.id, 'shelter')) return 'shelter:' + p.id.slice('stop:'.length);
+  }
   // a bus stop's feeder route, a step at a time, with four times its price (and the next station saved for)
   for (const p of P.all) {
     if (p.kind !== 'stop' || !sim.owns(p.id) || !p.stop?.feeder) continue;

@@ -12,7 +12,7 @@ import { yawFor } from './world.ts';
 import { buildBoard, buildCarPark, buildCycles, buildShop, buildShutter, emptyLive, type Live } from './life.ts';
 import { buildRank, type RankPart } from './taxis.ts';
 import { buildBusStop, type BusStopPart } from './buses.ts';
-import { buildLink, type LinkPart } from './links.ts';
+import { buildLink, buildStand, type LinkPart } from './links.ts';
 import { groundAt, groundVersion, partBoxes } from './terrain.ts';
 import { newFrame, type Network } from '../sim/network.ts';
 import type { Frame, GameState, Station } from '../sim/types.ts';
@@ -87,6 +87,8 @@ export type Part =
   | (Gated & BusStopPart & { type: 'busstop' })
   /** A bus link's stop or bus station, with its buses coming and going (src/render/links.ts). */
   | (Gated & LinkPart & { type: 'buslink' })
+  /** A bus stop's shelter, and its live times (step 12), at its buslink's place (src/render/links.ts, buildStand). */
+  | (Gated & LinkPart & { type: 'busshelter' | 'businfo'; street?: boolean; tier?: boolean })
   /** The contract's brass plaque on a stone pier, its face towards `facing` across the line: it reads the contract's
    * number and grows a line for each one renewed (setPlaque), and stands only once a contract has been. */
   | (Gated & { type: 'plaque'; u: number; v: number; facing: 1 | -1 })
@@ -353,6 +355,8 @@ const partBuilders: Builders = {
   taxi(gp, p, live) { buildRank(gp, p, live); },
   busstop(gp, p, live) { buildBusStop(gp, p, live); },
   buslink(gp, p, live) { buildLink(gp, p, live); },
+  busshelter(gp, p) { buildStand(gp, p, 'shelter'); },
+  businfo(gp, p) { buildStand(gp, p, 'info'); },
   road(gp, p) {
     const m = new THREE.Mesh(new THREE.BufferGeometry(), MAT.road), bank = new THREE.Mesh(new THREE.BufferGeometry(), BANK_MAT ??= new THREE.MeshLambertMaterial({ color: PAL.bank, side: THREE.DoubleSide }));
     m.receiveShadow = true; bank.receiveShadow = true; m.userData['bank'] = bank; gp.add(m, bank); ROADS.set(m, p); layRoad(m, p, null);

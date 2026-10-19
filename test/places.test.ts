@@ -114,3 +114,16 @@ test('places: a place the player has can grow when a stage there is open and the
   sim.g.cash = 0;
   assert.ok(!sim.canGrow(st('stockport')), 'nothing it could build is paid for');
 });
+
+test('places: a bus stop grows from a pole to a shelter to live times, each making the bus\'s felt wait shorter and shown at the stop', async () => {
+  const { extraFelt } = await import('../src/sim/access.ts');
+  const { TUNING } = await import('../src/sim/sim.ts');
+  const sim = fresh(), lev = net.station('levenshulme').index, stop = 'stop:levenshulme-station-view';
+  sim.buy(st('heaton-chapel')); sim.buy(st('levenshulme')); sim.buy(stop);
+  assert.deepEqual(sim.P.stagesFor(net, stop).map(u => u.id), ['shelter', 'feeder']);
+  assert.deepEqual(sim.P.stagesFor(net, 'stop:stockport-interchange').map(u => u.id).includes('shelter'), false, 'a bus station has its hall');
+  const felt = [extraFelt(sim, TUNING, lev, 'bus')];
+  for (const want of ['shelter', 'liveinfo'] as const) { assert.ok(sim.buy(stop, 'shelter')); assert.ok(sim.ups(lev)[want], want); felt.push(extraFelt(sim, TUNING, lev, 'bus')); }
+  assert.ok(felt[0]! > felt[1]! && felt[1]! > felt[2]!, JSON.stringify(felt));
+  assert.equal(sim.price(stop, 'shelter'), undefined);
+});

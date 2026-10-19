@@ -16,7 +16,7 @@ import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
 import { stepExpress, nextSlot, EXPRESS_UNITS } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
 import { effects, type Effects } from './contract.ts';
-import { places, build, derive, frequencyStage, placeId, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, JUNCTION_FLYOVER, FEEDER, BEE, BUS_EVERY, BUS_LANES, NEW_STOCK, MAINT, type Places, type Upgrade } from './places.ts';
+import { places, build, derive, frequencyStage, placeId, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, JUNCTION_FLYOVER, FEEDER, SHELTER, BEE, BUS_EVERY, BUS_LANES, NEW_STOCK, MAINT, type Places, type Upgrade } from './places.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
 // a station's stages and the line's, now stages of places (src/sim/places.ts); here too, where the view finds them
@@ -892,6 +892,8 @@ export class Sim {
   /** How far the network has joined the Bee Network: 0 not yet, then each BEE step. */
   beeLevel(): number { return this.g.places[this.P.bee]?.[BEE.id] ?? 0; }
   feederLevel(i: number): number { const s = this.P.stopOf[i]; return s ? this.g.places[s]?.[FEEDER.id] ?? 0 : 0; }
+  /** How far station i's bus stop has grown: 0 a pole, 1 its shelter, 2 its live times (SHELTER). */
+  shelterLevel(i: number): number { const s = this.P.stopOf[i]; return s ? this.g.places[s]?.[SHELTER.id] ?? 0 : 0; }
   /** What draws people to station i: its census draw, more once its signature stage brings a draw of its own (a surge
    * adds its own trips, tripRates). */
   drawOf(i: number): number {
@@ -1072,6 +1074,7 @@ export class Sim {
     if (p.kind === 'section') { const x = this.sectionAt(id); return stage === SECTION_SPEED.id ? x?.price : stage === SECTION_SIGNALS.id ? x?.signalsPrice : stage === SECTION_WIRES.id ? x?.wiresPrice : undefined; }
     if (stage === NEW_STOCK.id || stage === MAINT.id) { const u = stage === NEW_STOCK.id ? NEW_STOCK : MAINT; return this.P.stagesFor(this.net, id).includes(u) && this.stageLevel(id, stage) < u.max ? this.cost(u.prices[0]!) : undefined; }
     if (p.kind === 'network' && stage === BEE.id) { const lvl = this.stageLevel(id, stage); return lvl < BEE.max ? this.cost(BEE.prices[lvl]!) : undefined; }
+    if (p.kind === 'stop' && stage === SHELTER.id) { const lvl = this.stageLevel(id, stage); return p.stop?.kind === 'bus-stop' && lvl < SHELTER.max ? this.cost(SHELTER.prices[lvl]!) : undefined; }
     if (p.kind === 'stop' && stage === FEEDER.id) { const lvl = this.stageLevel(id, stage); return p.stop?.feeder && lvl < FEEDER.max ? this.cost(FEEDER.prices[lvl]!) : undefined; }
     if (p.kind === 'route' && stage === 'through') {
       const v = this.svc(p.svc!), m = v.base.manchester;
@@ -1089,7 +1092,7 @@ export class Sim {
   /** Whether a route's or depot's stage can be seen yet: the stopper's extra units once Stockport's platform 3 is
    * built, the spare unit once a train has failed; a branch's frequency once it runs. */
   stageReady(id: string, stage: string): boolean {
-    if (stage === FEEDER.id || stage === BUS_EVERY.id || stage === BUS_LANES.id || stage === NEW_STOCK.id || stage === MAINT.id) return this.owns(id);
+    if (stage === FEEDER.id || stage === SHELTER.id || stage === BUS_EVERY.id || stage === BUS_LANES.id || stage === NEW_STOCK.id || stage === MAINT.id) return this.owns(id);
     // the Bee Network's one fare waits on a feeder route running
     if (stage === BEE.id) return this.stageLevel(id, stage) < 2 || this.P.all.some(p => p.kind === 'stop' && this.stageLevel(p.id, FEEDER.id) > 0);
     if (stage === 'through') { const n = this.svc(this.P.get(id).svc!).base.manchester?.needs, i = n ? this.net.station(n.station).index : -1; return this.owns(id) && (!n || (!!this.g.owned[i] && !!this.ups(i)[n.upgrade as UpgradeId])); }

@@ -10,6 +10,8 @@
 //               a yellow totem at the way in
 //   posters     a poster campaign's billboard (step 23) 12 m short of the nearest main road within 300 m, facing it, or by
 //               the way in where none is near (a part far out would stretch the station's extent)
+//   shelter,    a bus stop's shelter, then its live times (step 12), at its buslink (a bus station's hall has its own)
+//   liveinfo
 //   signature   the station's own stage (`grow.signature` in the network data), as its `look` says: a brown sign at the
 //               way in (by the racks or the car park), a tower crane out beyond the station's street side, or (Piccadilly's
 //               platforms 15 and 16) an island platform beyond the outermost one
@@ -59,6 +61,11 @@ for (const f of readdirSync(dir).filter(f => f.endsWith('.json'))) {
   if (racks) add({ ...racks, u: racks.u + (racks.u > 0 ? -8 : 8), n: 12, upgrade: 'cyclehub' });
   else if (park) add({ type: 'cycles', u: park.u0 - 6, v: (park.v0 + park.v1) / 2, n: 12, street: true, upgrade: 'cyclehub' });
   else if (kiosk) add({ type: 'cycles', u: kiosk.u - toward(kiosk) * 9, v: kiosk.v, n: 12, ...(kiosk.y !== undefined ? { y: kiosk.y } : {}), upgrade: 'cyclehub' });
+  // a bus stop's shelter and its live times, where its buslink stands
+  for (const l of parts.filter(p => p.type === 'buslink' && !p.hall && (p.bays ?? 1) === 1)) {
+    const at = { u: l.u, v: l.v, ...(l.back ? { back: l.back } : {}), ...(l.kerb ? { kerb: l.kerb } : {}), ...(l.street ? { street: true } : l.y !== undefined ? { y: l.y } : {}) };
+    add({ type: 'busshelter', ...at, upgrade: 'shelter' }); add({ type: 'businfo', ...at, upgrade: 'liveinfo' });
+  }
   // the signature stage
   const sig = sigs[kit.id], street = parts.filter(p => p.street);
   if (sig?.look === 'sign') {

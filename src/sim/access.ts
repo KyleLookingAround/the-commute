@@ -27,11 +27,13 @@ export function extraFelt(sim: Sim, T: Tuning, i: number, by: 'drive' | 'bus'): 
   const walk = (s: number) => T.walkWeight * f.walk * s;
   if (by === 'drive') return a.driveTime + walk(T.parkWalk) - walk(T.walk);
   // at Stockport the Interchange's change is quicker and covered for its own buses too
-  return a.busTime + T.waitWeight * f.wait * T.busWait * FEEDER_WAIT[sim.feederLevel(i)]! + T.busChange - BEE_CHANGE[sim.beeLevel()]! - (a.busShare ? T.busSave : 0) + walk(T.busWalk) - walk(T.walk);
+  return a.busTime + T.waitWeight * f.wait * T.busWait * FEEDER_WAIT[sim.feederLevel(i)]! * STOP_WAIT[sim.shelterLevel(i)]! + T.busChange - BEE_CHANGE[sim.beeLevel()]! - (a.busShare ? T.busSave : 0) + walk(T.busWalk) - walk(T.walk);
 }
 
 /** A feeder route's steps (src/sim/places.ts, FEEDER): the wait for the bus, as a share of busWait, and the bus pool, as
  * a share of the census's, at each level from none. */
+/** A bus stop's shelter and live times (src/sim/places.ts, SHELTER): the wait for the bus as it feels, as a share. */
+export const STOP_WAIT = [1, 0.85, 0.72];
 export const FEEDER_WAIT = [1, 0.6, 0.35, 0.35], FEEDER_POOL = [1, 1.4, 1.8, 2.3];
 /** The Bee Network's steps (src/sim/places.ts, BEE): the bus pool at each, and the change from the bus felt shorter. */
 export const BEE_POOL = [1, 1, 1.25, 1.6], BEE_CHANGE = [0, 0, 0, 120];

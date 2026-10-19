@@ -13,14 +13,14 @@ import type { Sim } from '../sim/sim.ts';
 import type { XZ } from '../sim/types.ts';
 
 const MAX = 48;
-const BUSES = [8, 12, 18];  // buses on the route at each step of More buses (every ten, six and four minutes)
+const BUSES = [8, 12, 18];  // buses on a route at each step of More buses, unless it says (the 192's: every ten, six and four minutes)
 const SPEED = 6, LANES = 8; // m a sim second along the A6, and with its bus lanes
 const B = (w: number, h: number, d: number, x: number, y: number, z: number) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
 const BODY = B(11, 4.2, 2.5, 0, 2.4, 0), WINDOWS = mergeGeometries([B(9.8, 0.8, 2.56, -0.3, 2.3, 0), B(9.8, 0.8, 2.56, -0.3, 3.8, 0)]);
 const CARRY = 28;           // riders an hour a bus on the route carries when it's full
 const hash = (n: number) => { let x = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b); x ^= x >>> 13; x = Math.imul(x, 0xc2b2ae35); x ^= x >>> 16; return (x >>> 0) / 4294967296; };
 
-interface Route { id: string; pts: XZ[]; d: number[]; y: number[]; len: number }
+interface Route { id: string; pts: XZ[]; d: number[]; y: number[]; len: number; buses: number[] }
 
 export class BusRouteLayer {
   private readonly mesh: THREE.InstancedMesh; private readonly windows: THREE.InstancedMesh;
@@ -31,7 +31,7 @@ export class BusRouteLayer {
   private readonly blue = PAL.bus.clone(); private readonly yellow = PAL['link-bus'].clone(); private tint = -1;
   /** Buses drawn last frame (the checks). */
   count = 0;
-  constructor(scene: THREE.Scene, private readonly def: MainDef & { busRoutes?: { id: string; road: string }[] }) {
+  constructor(scene: THREE.Scene, private readonly def: MainDef & { busRoutes?: { id: string; road: string; buses?: number[] }[] }) {
     this.mesh = new THREE.InstancedMesh(BODY, new THREE.MeshLambertMaterial({ color: 0xffffff }), MAX);
     this.mesh.count = 0; this.mesh.frustumCulled = false; this.mesh.castShadow = true; this.mesh.name = 'bus-routes';
     this.windows = new THREE.InstancedMesh(WINDOWS, new THREE.MeshLambertMaterial({ color: 0xffffff }), MAX);
@@ -51,7 +51,7 @@ export class BusRouteLayer {
         const [nx, nz] = pts[Math.min(pts.length - 1, k + 1)]!, [px, pz] = pts[Math.max(0, k - 1)]!;
         y.push((onDeck(x, z, nx - px, nz - pz) ?? groundAt(x, z)) + 0.15);
       });
-      return [{ id: `bus:${b.id}`, pts, d, y, len: d[d.length - 1]! }];
+      return [{ id: `bus:${b.id}`, pts, d, y, len: d[d.length - 1]!, buses: b.buses ?? BUSES }];
     });
   }
   sync(sim: Sim, dtGame: number): void {
@@ -61,7 +61,7 @@ export class BusRouteLayer {
     let n = 0;
     for (const r of this.routes) {
       if (!sim.owns(r.id)) continue;
-      const lvl = sim.stageLevel(r.id, 'every'), buses = BUSES[lvl] ?? 8, speed = sim.stageLevel(r.id, 'lanes') ? LANES : SPEED, L = r.len;
+      const lvl = sim.stageLevel(r.id, 'every'), buses = r.buses[lvl] ?? r.buses[0]!, speed = sim.stageLevel(r.id, 'lanes') ? LANES : SPEED, L = r.len;
       const full = Math.min(1, (sim.busRate.get(r.id) ?? 0) / (buses * CARRY));
       for (let k = 0; k < buses && n < MAX; k++) {
         // round the route and back, spread evenly round the round trip

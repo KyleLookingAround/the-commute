@@ -172,7 +172,7 @@ export class UI {
     const sim = this.sim, p = sim.P.byId.get(id); if (!p) return false;
     if (p.kind === 'station') return !!this.g.owned[p.station!] || sim.offerable(p.station!);
     if (p.kind === 'stop') return sim.owns(id) || !!this.g.owned[p.station!];
-    if (p.kind === 'bus') return sim.owns(id) || !!this.g.owned[sim.net.station('stockport').index];
+    if (p.kind === 'bus') return sim.owns(id) || !!this.g.owned[sim.busNeeds(id)];
     return (p.kind === 'route' || p.kind === 'depot') && sim.owns(id);
   }
   /** The places the row lists, in network order: each line out from Stockport in turn, a station's stop and depot after
@@ -186,7 +186,7 @@ export class UI {
     for (const p of P.all) {
       if (!this.listed(p.id)) continue;
       if (p.kind === 'stop' || p.kind === 'depot') put(P.station[p.station!]!, p.id);
-      else if (p.kind === 'bus') put(P.station[this.sim.net.station('stockport').index]!, p.id);
+      else if (p.kind === 'bus') put(P.station[this.sim.busNeeds(p.id)]!, p.id);
       else if (p.kind === 'route') {
         const calls = new Set(P.touching(p.id)), last = [...stations].reverse().find(k => calls.has(k) && this.listed(k));
         put(last ?? P.station[0]!, p.id);
@@ -259,7 +259,7 @@ export class UI {
     const p = this.sim.P.byId.get(id); if (!p) return '';
     if (p.kind === 'route') { const n = this.sim.unitsFor(this.sim.svc(p.svc!)); return `${n} unit${n === 1 ? '' : 's'}`; }
     if (p.kind === 'depot') return this.g.line.spare ? 'spare ready' : 'no spare';
-    if (p.kind === 'bus') return `every ${[10, 6, 4][this.sim.stageLevel(id, 'every')]} min`;
+    if (p.kind === 'bus') return `every ${this.sim.busEvery(id)} min`;
     return '';
   }
   /** The header's line under the name: the place's kind and one figure. */
@@ -545,7 +545,7 @@ export class UI {
     if (p?.kind === 'stop' && !sim.owns(id)) { const b = panel.querySelector<HTMLButtonElement>('#buyPlace'); if (b) b.disabled = !sim.canBuy(id); return; }
     if (p?.kind === 'bus') {
       if (!sim.owns(id)) { const b = panel.querySelector<HTMLButtonElement>('#buyPlace'); if (b) b.disabled = !sim.canBuy(id); return; }
-      set('bRiders', num(Math.round(g.stats.riders ?? 0))); set('bEvery', `${[10, 6, 4][sim.stageLevel(id, 'every')]} min`); set('bShare', `${Math.round(100 * sim.busShare(id))}%`); set('bFare', fmt(p.bus!.fare * TUNING.fareMult));
+      set('bRiders', num(Math.round(g.stats.ridersBy?.[id] ?? g.stats.riders ?? 0))); set('bEvery', `${sim.busEvery(id)} min`); set('bShare', `${Math.round(100 * sim.busShare(id))}%`); set('bFare', fmt(p.bus!.fare * TUNING.fareMult));
       return;
     }
     if (p?.kind === 'station') {

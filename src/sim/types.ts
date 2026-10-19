@@ -124,7 +124,11 @@ export interface StopDef { id: string; name: string; /** 'bus-stop' or 'bus-stat
 /** A bus route the player runs (step 8, docs/DESIGN.md, The 192): the stations along it (it stops near every door, so it
  * serves the trips between any two of them the trains don't, owned or not), the main road it runs (`mainRoads`), what
  * it costs to start and its fare. */
-export interface BusRouteDef { id: string; name: string; along: string[]; road: string; price: number; fare: number; desc: string; note?: string }
+export interface BusRouteDef { id: string; name: string; along: string[]; road: string; price: number; fare: number; desc: string; note?: string;
+  /** The station whose opening offers it (Stockport if not given). */
+  needs?: string;
+  /** How often it comes at each step of More buses, minutes (10, 6 and 4 if not given), and the buses drawn on it (8, 12 and 18). */
+  every?: number[]; buses?: number[] }
 /** A depot: a yard where units stand, coming with the station it opens off (Stockport's carriage sidings). */
 export interface DepotDef { id: string; name: string; station: string; note?: string }
 export interface LandmarkDef {
@@ -257,7 +261,7 @@ export interface GameState {
   /** The cars off the roads at 08:00 (src/sim/traffic.ts, `off`) as the network stood at the end of each game day, by
    * day: the Network card's sparkline. */
   offDays?: number[];
-  stats: { boarded: number; lost: number; cab: number; through: number; express: number; car: number; bus: number; late: number; deps: number; riders?: number };
+  stats: { boarded: number; lost: number; cab: number; through: number; express: number; car: number; bus: number; late: number; deps: number; riders?: number; ridersBy?: Record<string, number> };
   /** By service, the timetabled departure of the unit that last turned round at each end of its run (0 the south end,
    * 1 the north), which the next unit keeps a headway behind. */
   ends: Record<string, [number, number]>;

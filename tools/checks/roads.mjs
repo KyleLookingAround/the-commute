@@ -9,7 +9,8 @@
 // - Gridlock's stretches (src/data/traffic.json) each run on a road the data has, centred on their count point within
 //   60 m of its course, their queues backing up from one of its junctions.
 // - The buses' roads give way along the A6: no bus road is drawn over a main road's carriageway.
-// Covers: src/render/mainroads.ts src/render/mainways.ts src/render/traffic.ts src/render/buses.ts src/data/network.json src/data/traffic.json src/data/terrain/** tools/osm-to-roads.mjs
+// - The bus routes the player runs (the 192, the 375) have their buses on their own roads once bought, none before.
+// Covers: src/render/mainroads.ts src/render/mainways.ts src/render/traffic.ts src/render/buses.ts src/render/busroutes.ts src/data/network.json src/data/traffic.json src/data/terrain/** tools/osm-to-roads.mjs
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { register } from 'tsx/esm/api';
@@ -105,5 +106,22 @@ export default async function ({ ok, root }) {
     let along = 0, all = 0;
     for (const r of net.def.roads ?? []) for (let i = 1; i < r.points.length; i++) { const [ax, az] = r.points[i - 1], [bx, bz] = r.points[i], l = Math.hypot(bx - ax, bz - az); all += l; if (on(ax, az) && on(bx, bz)) along += l; }
     ok('roads: the buses\' roads run on the main roads\' carriageways where they share them', along > 3000, `${(along / 1000).toFixed(1)} of ${(all / 1000).toFixed(1)} km on a main road`);
+  }
+
+  // the bus routes the player runs (src/render/busroutes.ts): each runs along its own road's course, as many buses as
+  // its step of More buses says, every one within 6 m of its road, and none until it's bought
+  {
+    const THREE = await import('three');
+    const { Sim } = await import('../../src/sim/sim.ts');
+    const { BusRouteLayer } = await import('../../src/render/busroutes.ts');
+    const sim = new Sim(net, Sim.halt(net, 1)), scene = new THREE.Scene(), layer = new BusRouteLayer(scene, def);
+    layer.sync(sim, 1); const before = layer.count;
+    for (const b of def.busRoutes ?? []) sim.grant(`bus:${b.id}`);
+    layer.sync(sim, 600);
+    const want = (def.busRoutes ?? []).reduce((a, b) => a + (b.buses ?? [8])[0], 0), mesh = scene.getObjectByName('bus-routes'), m = new THREE.Matrix4(), v = new THREE.Vector3();
+    const courses = (def.busRoutes ?? []).map(b => courseOf(def, b.road));
+    let far = 0;
+    for (let k = 0; k < layer.count; k++) { mesh.getMatrixAt(k, m); v.setFromMatrixPosition(m); far = Math.max(far, Math.min(...courses.map(c => nearOn(c, [v.x, v.z])))); }
+    ok('roads: each bus route the player runs has its buses on its own road, none before it\'s bought', before === 0 && layer.count === want && far < 6, `${before} before, ${layer.count} of ${want} after, the furthest ${far.toFixed(1)} m off its road`);
   }
 }

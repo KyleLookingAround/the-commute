@@ -127,3 +127,15 @@ test('places: a bus stop grows from a pole to a shelter to live times, each maki
   assert.ok(felt[0]! > felt[1]! && felt[1]! > felt[2]!, JSON.stringify(felt));
   assert.equal(sim.price(stop, 'shelter'), undefined);
 });
+
+test('places: the 375 is offered once Marple is open, and carries its own riders between Stockport, Rose Hill and Marple', () => {
+  const sim = fresh(), id = 'bus:375';
+  assert.ok(sim.P.byId.has(id));
+  assert.equal(sim.canBuy(id), false, 'not before Marple');
+  sim.grant(st('marple'));
+  assert.ok(sim.canBuy(id)); assert.ok(sim.buy(id));
+  assert.equal(sim.busEvery(id), 20); assert.ok(sim.buy(id, 'every')); assert.equal(sim.busEvery(id), 12);
+  sim.advance(3 * 3600);
+  assert.ok((sim.g.stats.ridersBy?.[id] ?? 0) > 0, 'it carries riders');
+  assert.equal(sim.g.stats.ridersBy?.['bus:192'] ?? 0, 0, 'its riders are its own');
+});

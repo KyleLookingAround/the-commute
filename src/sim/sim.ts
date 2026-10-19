@@ -880,12 +880,16 @@ export class Sim {
       }
       this.busRate.set(p.id, rate);
       const n = rate * dc / 3600, rev = n * p.bus.fare * TUNING.fareMult;
-      g.stats.riders = (g.stats.riders ?? 0) + n; g.cash += rev; g.earned += rev;
+      g.stats.riders = (g.stats.riders ?? 0) + n; (g.stats.ridersBy ??= {})[p.id] = (g.stats.ridersBy[p.id] ?? 0) + n; g.cash += rev; g.earned += rev;
     }
   }
   /** The share of the trips along a bus route the trains don't carry that it takes now: by how often it comes, more
    * with bus lanes. */
   busShare(id: string): number { return TUNING.busShare[this.stageLevel(id, BUS_EVERY.id)]! + (this.stageLevel(id, BUS_LANES.id) ? TUNING.busLanes : 0); }
+  /** The station, by index, whose opening offers a bus route. */
+  busNeeds(id: string): number { return this.net.station(this.P.byId.get(id)?.bus?.needs ?? 'stockport').index; }
+  /** How often a bus route comes now, in minutes. */
+  busEvery(id: string): number { const b = this.P.byId.get(id)?.bus; return (b?.every ?? [10, 6, 4])[this.stageLevel(id, BUS_EVERY.id)]!; }
   /** A bus route's stations, by index. */
   busStops(id: string): number[] {
     let at = this.busAt.get(id); if (at) return at;
@@ -1108,8 +1112,8 @@ export class Sim {
    * owned, offered there, what it needs there built, and not all built), with the cash for it. */
   canBuy(id: string, stage?: string): boolean {
     const g = this.g, p = this.P.byId.get(id), price = this.price(id, stage); if (!p || price === undefined || g.cash < price) return false;
-    // a bus route is offered once Stockport is open
-    if (stage === undefined && p.kind === 'bus') return !(id in g.places) && !!g.owned[this.net.station('stockport').index];
+    // a bus route is offered once the station it needs is open (Stockport, unless it says)
+    if (stage === undefined && p.kind === 'bus') return !(id in g.places) && !!g.owned[this.busNeeds(id)];
     if (stage === undefined) return !(id in g.places) && this.P.touches(g, id) && !this.P.waits(g, this.net, id);
     if (p.kind === 'network') return this.stageReady(id, stage);
     if (!this.owns(id)) return false;

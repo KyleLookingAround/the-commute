@@ -32,6 +32,16 @@
     { "type": "box", "u0": -76, "u1": -60, "v0": 21.6, "v1": 22.4, "y0": 7.2, "y1": 8.3, "mat": "brickDark", "scenery": true },
     { "type": "box", "u0": -77, "u1": -59, "v0": -19.2, "v1": -2.8, "y0": 0, "y1": 6.4, "mat": "brickDark", "scenery": true },
     { "type": "box", "u0": -77, "u1": -59, "v0": 6.4, "v1": 22.4, "y0": 0, "y1": 6.4, "mat": "brickDark", "scenery": true },
-    { "type": "busstop", "u": -99, "v": -38.4, "back": [0.6, 0.8], "kerb": -1, "door": [-62, -4.8], "street": true, "note": "Levenshulme Road / outside Ryder Brow Station, on the road's approach to the bridge (OpenStreetMap)" }
+    { "type": "busstop", "u": -99, "v": -38.4, "back": [0.6, 0.8], "kerb": -1, "door": [-62, -4.8], "street": true, "note": "Levenshulme Road / outside Ryder Brow Station, on the road's approach to the bridge (OpenStreetMap)" },
+    { "type": "platform", "u0": 81, "u1": 101, "v0": -5.7, "v1": -1.7, "upgrade": "long", "tier": true },
+    { "type": "lamps", "u0": 84, "u1": 98, "v": -3.7, "every": 15, "upgrade": "long", "tier": true },
+    { "type": "platform", "u0": 80, "u1": 100, "v0": 5.2, "v1": 9.2, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "lamps", "u0": 83, "u1": 97, "v": 7.199999999999999, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "canopy", "u0": 30, "u1": 77, "v0": -5.7, "v1": -1.7, "upgrade": "canopyFull", "tier": true },
+    { "type": "canopy", "u0": 30, "u1": 76, "v0": 5.2, "v1": 9.2, "upgrade": ["canopyFull", "platform2"], "tier": true },
+    { "type": "retail", "u": 19, "v": -4.7, "label": "Travel centre", "upgrade": "travel", "tier": true },
+    { "type": "retail", "u": -32.5, "v": -4.7, "label": "Coffee", "small": true, "upgrade": "shops", "tier": true },
+    { "type": "retail", "u": -37, "v": -4.7, "label": "News", "small": true, "upgrade": "shops", "tier": true },
+    { "type": "cycles", "u": 25, "v": -5.1, "n": 12, "y": 1, "upgrade": "cyclehub", "tier": true }
   ]
 }

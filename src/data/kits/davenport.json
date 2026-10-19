@@ -38,6 +38,16 @@
     { "type": "cycles", "u": 26, "v": -5.1, "n": 4, "y": 1, "upgrade": "crossing" },
     { "type": "busstop", "u": 50.1, "v": -25.6, "back": [0.46, 0.88], "kerb": 1, "door": [59, 14.4], "street": true, "note": "Bramhall Lane / Davenport Station (stop C), on Bramhall Lane south-west of the bridge, from OpenStreetMap (main API, 14 October 2026)" },
     { "type": "road", "points": [[68.5, -12.8, 7.2], [64, -20, 6.3], [57, -28], [49, -36], [36, -60]], "w": 10, "scenery": true, "note": "Bramhall Lane on from the bridge's south-west end, from OpenStreetMap (main API, 14 October 2026); the bridge is drawn square to the line, the real one skews" },
-    { "type": "road", "points": [[68.5, 16, 7.2], [74, 21, 6.3], [84, 26], [95, 38], [100, 44]], "w": 10, "scenery": true, "note": "Bramhall Lane on from the bridge's north-east end, from OpenStreetMap (main API, 14 October 2026)" }
+    { "type": "road", "points": [[68.5, 16, 7.2], [74, 21, 6.3], [84, 26], [95, 38], [100, 44]], "w": 10, "scenery": true, "note": "Bramhall Lane on from the bridge's north-east end, from OpenStreetMap (main API, 14 October 2026)" },
+    { "type": "platform", "u0": -159, "u1": -139, "v0": -5.7, "v1": -1.7, "upgrade": "long", "tier": true },
+    { "type": "lamps", "u0": -156, "u1": -142, "v": -3.7, "every": 15, "upgrade": "long", "tier": true },
+    { "type": "platform", "u0": -158, "u1": -138, "v0": 5.2, "v1": 9.2, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "lamps", "u0": -155, "u1": -141, "v": 7.199999999999999, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "canopy", "u0": -135, "u1": -15, "v0": -5.7, "v1": -1.7, "upgrade": "canopyFull", "tier": true },
+    { "type": "canopy", "u0": 20, "u1": 51, "v0": -5.7, "v1": -1.7, "upgrade": "canopyFull", "tier": true },
+    { "type": "retail", "u": -31, "v": -4.7, "label": "Travel centre", "upgrade": "travel", "tier": true },
+    { "type": "retail", "u": 24.5, "v": -4.7, "label": "Coffee", "small": true, "upgrade": "shops", "tier": true },
+    { "type": "retail", "u": 29, "v": -4.7, "label": "News", "small": true, "upgrade": "shops", "tier": true },
+    { "type": "cycles", "u": 18, "v": -5.1, "n": 12, "y": 1, "upgrade": "cyclehub", "tier": true }
   ]
 }

@@ -35,6 +35,18 @@
     {"type": "footprint", "outline": [[12.3, -28.8], [23, -14.2], [16.1, -11], [5.4, -25.6]], "y0": 0, "y1": 6.4, "mat": "brickDark", "scenery": true},
     {"type": "footprint", "outline": [[40.8, 10.2], [50.9, 24], [44, 27.2], [33.9, 13.4]], "y0": 0, "y1": 6.4, "mat": "brickDark", "scenery": true},
     { "type": "busstop", "u": 64, "v": -61.5, "back": [1, 0.2], "kerb": 1, "door": [62, -9.6], "street": true, "note": "Middlewood has no road to the platforms: the replacement buses stand where the lane from Middlewood Road ends, about 80 m from the platforms by the path, the nearest a bus can come (OpenStreetMap, main API, 14 October 2026); the stop is the game's" },
-    { "type": "road", "points": [[278, -2], [270, -3], [246, 3], [240, -4], [230, -5], [220, -8], [210, -10], [202, -14], [190, -14], [180, -16], [167, -20], [155, -22], [140, -26], [124, -32], [111, -42], [105, -47], [99, -51], [80, -60], [72, -63], [65, -65], [56, -65]], "w": 4, "scenery": true, "note": "The lane off Middlewood Road, over the Middlewood Way and along the foot of the line's bank to the path up to the platforms, a service road in OpenStreetMap (main API, 14 October 2026); laid a few metres south of the real lane where it runs along the bank, clear of the railway's land as the map draws it" }
+    { "type": "road", "points": [[278, -2], [270, -3], [246, 3], [240, -4], [230, -5], [220, -8], [210, -10], [202, -14], [190, -14], [180, -16], [167, -20], [155, -22], [140, -26], [124, -32], [111, -42], [105, -47], [99, -51], [80, -60], [72, -63], [65, -65], [56, -65]], "w": 4, "scenery": true, "note": "The lane off Middlewood Road, over the Middlewood Way and along the foot of the line's bank to the path up to the platforms, a service road in OpenStreetMap (main API, 14 October 2026); laid a few metres south of the real lane where it runs along the bank, clear of the railway's land as the map draws it" },
+    { "type": "platform", "u0": -100, "u1": -80, "v0": -9.2, "v1": -5.2, "upgrade": "long", "tier": true },
+    { "type": "lamps", "u0": -97, "u1": -83, "v": -7.199999999999999, "every": 15, "upgrade": "long", "tier": true },
+    { "type": "platform", "u0": -100, "u1": -80, "v0": 1.7, "v1": 5.7, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "lamps", "u0": -97, "u1": -83, "v": 3.7, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "canopy", "u0": -76, "u1": -30, "v0": -9.2, "v1": -5.2, "upgrade": "canopyFull", "tier": true },
+    { "type": "canopy", "u0": 5, "u1": 53, "v0": -9.2, "v1": -5.2, "upgrade": "canopyFull", "tier": true },
+    { "type": "canopy", "u0": -76, "u1": -30, "v0": 1.7, "v1": 5.7, "upgrade": ["canopyFull", "platform2"], "tier": true },
+    { "type": "canopy", "u0": 5, "u1": 53, "v0": 1.7, "v1": 5.7, "upgrade": ["canopyFull", "platform2"], "tier": true },
+    { "type": "retail", "u": 31, "v": -8.2, "label": "Travel centre", "upgrade": "travel", "tier": true },
+    { "type": "retail", "u": -32.5, "v": -8.2, "label": "Coffee", "small": true, "upgrade": "shops", "tier": true },
+    { "type": "retail", "u": -37, "v": -8.2, "label": "News", "small": true, "upgrade": "shops", "tier": true },
+    { "type": "cycles", "u": 20, "v": -8.5, "n": 12, "y": 1, "upgrade": "cyclehub", "tier": true }
   ]
 }

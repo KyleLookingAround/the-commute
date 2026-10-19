@@ -14,7 +14,9 @@ export type PlaceKind = 'station' | 'section' | 'junction' | 'route' | 'stop' | 
  * same station that must be built first; one the station doesn't offer counts as built. stage: offered only where the
  * station's `grow` lists it. stop: not the station's own but the bus stop or bus station by it, a place of its own,
  * listed here so the station's card still shows it. */
-export interface Upgrade { id: UpgradeId; name: string | null; price: number; desc: string; requires?: UpgradeId[]; stage?: boolean; stop?: boolean }
+/** scale: a tier that keeps going (step 18), priced from the station's size: its price at REF_HOMES homes, more with
+ * more (Sim.upgradePrice). */
+export interface Upgrade { id: UpgradeId; name: string | null; price: number; desc: string; requires?: UpgradeId[]; stage?: boolean; stop?: boolean; scale?: boolean }
 /** A stage bought more than once, on a route or a depot: its price each time, up to max. */
 export interface LineUpgrade { id: LineUpgradeId; name: string; prices: number[]; desc: string; max: number; steps?: { name: string; desc: string }[] }
 /** A stage of a route: the line's (units, cars), or a branch's own through running. */
@@ -42,11 +44,17 @@ export const UPGRADES: Upgrade[] = [
   { id: 'lifts', name: 'Lifts', price: 6000, desc: 'Step-free: 3 min off the far side’s walk, 1 off everyone’s', requires: ['crossing'] },
   { id: 'retail', name: null, price: 9000, desc: '+£0.80 per boarding passenger', requires: ['building'] },
   { id: 'platforms', name: null, price: 30000, desc: '+20% catchment', requires: ['platform2', 'building'], stage: true },
+  // the tiers that keep going (step 18): each a further step of an everyday stage, each drawn, priced by the station's size
+  { id: 'long', name: '8-car platforms', price: 45000, desc: 'Platform holds 480 instead of 320', requires: ['extend'], scale: true },
+  { id: 'canopyFull', name: 'Canopies the full length', price: 25000, desc: 'Waiting in the dry the whole platform: feels a third shorter', requires: ['canopy', 'extend'], scale: true },
+  { id: 'travel', name: 'Travel centre', price: 35000, desc: '+£0.40 per boarding passenger', requires: ['building', 'barriers'], scale: true },
+  { id: 'shops', name: 'A row of shops', price: 50000, desc: '+£1.20 per boarding passenger', requires: ['retail'], scale: true },
+  { id: 'cyclehub', name: 'Cycle hub', price: 20000, desc: '+8% catchment: more ride in from further', requires: ['building', 'lifts'], scale: true },
 ];
 /** The stages of the main-line stopper (units, cars, timetable) and of Stockport's sidings (the spare unit). */
 export const LINE_UPGRADES: LineUpgrade[] = [
-  { id: 'units', name: 'Extra unit', prices: [6000, 20000, 50000], desc: 'One more train in service: shorter waits, more passengers', max: 3 },
-  { id: 'cars', name: 'Longer trains', prices: [12000, 40000], desc: '+2 cars per unit', max: 2 },
+  { id: 'units', name: 'Extra unit', prices: [6000, 20000, 50000, 120000, 240000], desc: 'One more train in service: shorter waits, more passengers', max: 5 },
+  { id: 'cars', name: 'Longer trains', prices: [12000, 40000, 150000], desc: '+2 cars per unit', max: 3 },
   { id: 'spare', name: 'Spare unit', prices: [8000], desc: 'Stands by in Stockport’s sidings: a failed train is moving again in half the time', max: 1 },
 ];
 /** A section of line's stage (the line between stations, docs/briefs/line-between-stations.md): line speed, 15 mph a

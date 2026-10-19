@@ -134,6 +134,18 @@ export function act(sim) {
   }
   for (let i = 0; i < sim.S.length; i++) if (g.st[i].lost > 200 && g.ups[i] && !g.ups[i].extend) { const r = up(i, 'extend'); if (r) return r; }
   if (g.cash > 12000) for (let i = 0; i < sim.S.length; i++) { const r = up(i, 'canopy'); if (r) return r; }
+  // the tiers that keep going (step 18): 8-car platforms where many have given up, with twice the price; the travel
+  // centre, a row of shops and a cycle hub where they pay back within three game days (the hub's 8% more homes taken as
+  // 8% more fares); full-length canopies with three times the price
+  for (let i = 0; i < sim.S.length; i++) {
+    if (!g.owned[i]) continue;
+    const S = g.st[i], days = Math.max(1, g.day - 1), boardedDay = S.boarded / days, takenDay = S.revenue / days;
+    for (const [id, ok] of [['long', p => S.lost > 600 && g.cash > 2 * p], ['travel', p => 0.4 * boardedDay * 3 >= p && g.cash > 2 * p],
+      ['shops', p => 1.2 * boardedDay * 3 >= p && g.cash > 2 * p], ['cyclehub', p => 0.08 * takenDay * 3 >= p && g.cash > 2 * p], ['canopyFull', p => g.cash > 3 * p]]) {
+      const u = UPGRADES.find(x => x.id === id); if (g.ups[i][id] || !sim.ready(i, u)) continue;
+      if (ok(sim.upgradePrice(i, u))) { const r = up(i, id); if (r) return r; }
+    }
+  }
   return null;
 }
 
@@ -186,6 +198,8 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
     const k = peakOf(sim); if (!k) return;
     const p = peak(k); p.deps++; if (s <= 300) p.within++; p.worst = Math.max(p.worst, s);
   };
+  // who was turned away by a full platform (the rest of those lost ran out of patience waiting for a train with room)
+  let turned = 0; { const enq = sim.enqueue.bind(sim); sim.enqueue = (i, d, n) => { const S = sim.g.st[i], cap = sim.lastGone() ? 0 : sim.capacity(i); turned += Math.max(0, n - Math.max(0, cap - S.waiting)); enq(i, d, n); }; }
   let lostWas = sim.g.st.map(S => S.lost), cabWas = sim.g.st.map(S => S.cab), boardedWas = sim.g.st.reduce((a, S) => a + S.boarded, 0);
   // what things going wrong cost: who gave up while something was wrong or in the quarter hour after
   let troubleLost = 0, troubleEnd = -Infinity, nightLost = 0;
@@ -223,7 +237,7 @@ export function play(seed, hoursToPlay = hours, perksHeld = [], renewAtPiccadill
     'express £': Math.round(g.stats.express), 'express £ a game day': Math.round(g.stats.express / days), 'express calls a game day': +(expressCalls / days).toFixed(1), 'through': g.stats.through, 'by car': g.stats.car, 'by bus link': g.stats.bus,
     'homes grown': Math.round(g.homes.reduce((a, h, i) => a + h - sim.S[i].catchment, 0)),
     'within 5 min %': late.deps ? +(100 * late.within / late.deps).toFixed(1) : 100, 'worst late min': +(late.worst / 60).toFixed(1) };
-  Object.assign(measures, roads.measures());
+  Object.assign(measures, roads.measures(), { 'lost to full platforms %': g.stats.lost ? +(100 * turned / g.stats.lost).toFixed(1) : 0 });
   // pressure (step 26): the share of those who came at each peak from day 4 on who gave up, their mean and the most
   { const sh = Object.entries(peaks).filter(([k]) => +k.split(' ')[1] >= 4).map(([, p]) => { const l = Object.values(p.lost).reduce((a, b) => a + b, 0); return 100 * l / Math.max(1, l + p.boarded); });
     if (sh.length) Object.assign(measures, { 'peak lost % from day 4': +(sh.reduce((a, b) => a + b, 0) / sh.length).toFixed(1), 'worst peak lost % from day 4': +Math.max(...sh).toFixed(1) }); }

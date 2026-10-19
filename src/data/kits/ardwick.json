@@ -34,6 +34,22 @@
     { "type": "lamps", "u0": -55, "u1": -55, "v": -4.1, "upgrade": "extend" },
     { "type": "lamps", "u0": -55, "u1": -55, "v": 15.1, "upgrade": ["extend", "platform2"] },
     { "type": "busstop", "u": 15, "v": -12.5, "back": [1, 0], "kerb": -1, "door": [-18, -12], "street": true, "note": "On the station approach at the foot of the line's south side, beyond the booking office's door (the real way in is a gate in the viaduct wall, geograph 4247105), from OpenStreetMap (main API, 14 October 2026)" },
-    { "type": "road", "points": [[158, -45], [147, -28], [135, -17], [121, -14], [100, -14.5], [84, -13.5], [40, -12.5], [4, -12.5]], "w": 6, "scenery": true, "note": "The approach off Devonshire Street North along the foot of the line, a service road in OpenStreetMap (main API, 14 October 2026), laid 3 m off the railway's land" }
+    { "type": "road", "points": [[158, -45], [147, -28], [135, -17], [121, -14], [100, -14.5], [84, -13.5], [40, -12.5], [4, -12.5]], "w": 6, "scenery": true, "note": "The approach off Devonshire Street North along the foot of the line, a service road in OpenStreetMap (main API, 14 October 2026), laid 3 m off the railway's land" },
+    { "type": "platform", "u0": 80, "u1": 100, "v0": -6.5, "v1": -1.7, "upgrade": "long", "tier": true },
+    { "type": "lamps", "u0": 83, "u1": 97, "v": -4.1, "every": 15, "upgrade": "long", "tier": true },
+    { "type": "platform", "u0": 80, "u1": 100, "v0": 12.7, "v1": 17.5, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "lamps", "u0": 83, "u1": 97, "v": 15.1, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "platform", "u0": -83, "u1": -63, "v0": -6.5, "v1": -1.7, "upgrade": "long", "tier": true },
+    { "type": "lamps", "u0": -80, "u1": -66, "v": -4.1, "every": 15, "upgrade": "long", "tier": true },
+    { "type": "platform", "u0": -83, "u1": -63, "v0": 12.7, "v1": 17.5, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "lamps", "u0": -80, "u1": -66, "v": 15.1, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "canopy", "u0": -59, "u1": -35, "v0": -6.5, "v1": -1.7, "upgrade": "canopyFull", "tier": true },
+    { "type": "canopy", "u0": 35, "u1": 76, "v0": -6.5, "v1": -1.7, "upgrade": "canopyFull", "tier": true },
+    { "type": "canopy", "u0": -59, "u1": -35, "v0": 12.7, "v1": 17.5, "upgrade": ["canopyFull", "platform2"], "tier": true },
+    { "type": "canopy", "u0": 35, "u1": 76, "v0": 12.7, "v1": 17.5, "upgrade": ["canopyFull", "platform2"], "tier": true },
+    { "type": "retail", "u": 5, "v": -5.6, "label": "Travel centre", "upgrade": "travel", "tier": true },
+    { "type": "retail", "u": 11.5, "v": -5.6, "label": "Coffee", "small": true, "upgrade": "shops", "tier": true },
+    { "type": "retail", "u": 16, "v": -5.6, "label": "News", "small": true, "upgrade": "shops", "tier": true },
+    { "type": "cycles", "u": 23, "v": -5.6, "n": 12, "upgrade": "cyclehub", "tier": true }
   ]
 }

@@ -37,6 +37,16 @@
     { "type": "road", "points": [[74.5, -17.6, 7.2], [78, -25, 6], [82, -30, 5.1], [86, -36, 4.1], [95, -48], [105, -60]], "w": 9, "scenery": true, "note": "Moorland Road down off the bridge's south end, from OpenStreetMap (main API, 14 October 2026); the bridge is drawn square to the line, the real one skews, and its deck stands higher than the real road, so the road comes down a bank" },
     { "type": "road", "points": [[74.5, 20.8, 7.2], [71, 29, 5.9], [67, 37, 4.5], [63, 45, 3.2], [60, 52], [58, 62]], "w": 9, "scenery": true, "note": "Moorland Road down off the bridge's north end, from OpenStreetMap (main API, 14 October 2026)" },
     { "type": "ramp", "u0": 32, "u1": 68, "v": -4.7, "w": 2, "y0": 1, "y1": 7.2, "upgrade": "crossing" },
-    { "type": "ramp", "u0": 33, "u1": 69, "v": 8.2, "w": 2, "y0": 1, "y1": 7.2, "upgrade": ["crossing", "platform2"] }
+    { "type": "ramp", "u0": 33, "u1": 69, "v": 8.2, "w": 2, "y0": 1, "y1": 7.2, "upgrade": ["crossing", "platform2"] },
+    { "type": "platform", "u0": -108, "u1": -88, "v0": -5.7, "v1": -1.7, "upgrade": "long", "tier": true },
+    { "type": "lamps", "u0": -105, "u1": -91, "v": -3.7, "every": 15, "upgrade": "long", "tier": true },
+    { "type": "platform", "u0": -108, "u1": -88, "v0": 5.2, "v1": 9.2, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "lamps", "u0": -105, "u1": -91, "v": 7.199999999999999, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "canopy", "u0": -84, "u1": -40, "v0": -5.7, "v1": -1.7, "upgrade": "canopyFull", "tier": true },
+    { "type": "canopy", "u0": -84, "u1": -40, "v0": 5.2, "v1": 9.2, "upgrade": ["canopyFull", "platform2"], "tier": true },
+    { "type": "retail", "u": 4, "v": -4.7, "label": "Travel centre", "upgrade": "travel", "tier": true },
+    { "type": "retail", "u": -29.5, "v": -4.7, "label": "Coffee", "small": true, "upgrade": "shops", "tier": true },
+    { "type": "retail", "u": -34, "v": -4.7, "label": "News", "small": true, "upgrade": "shops", "tier": true },
+    { "type": "cycles", "u": -14, "v": -4.7, "n": 12, "upgrade": "cyclehub", "tier": true }
   ]
 }

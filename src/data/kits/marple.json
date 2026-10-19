@@ -45,6 +45,18 @@
     { "type": "carpark", "u0": -66, "u1": -36, "v0": 38.4, "v1": 52.8, "street": true, "upgrade": "carpark2", "note": "The far end of the same car park, from the export" },
     { "type": "busstop", "u": 4, "v": 21, "back": [0.96, -0.27], "kerb": -1, "door": [-12, 16], "street": true, "note": "On the station's road where it ends by the booking office, at street level, the replacement buses' stop the game's (OpenStreetMap, main API, 14 October 2026)" },
     { "type": "road", "points": [[-63, 63], [-60, 61], [-48, 67], [-42, 72], [-37, 74], [-33, 70], [-37, 56], [-36, 48], [-33, 41], [-31, 39], [-9, 27], [-1, 23], [13, 21]], "w": 6, "scenery": true, "note": "The station's road off Brabyns Brow, round the car park to the booking office, a service road in OpenStreetMap (main API, 14 October 2026)" },
-    { "type": "buslink", "u": -76, "v": 46.4, "back": [0.4, 0.9], "kerb": -1, "street": true, "upgrade": "bus", "note": "Stop B ('Brabyns Brow / Marple Station') by the car park entrance, from the export" }
+    { "type": "buslink", "u": -76, "v": 46.4, "back": [0.4, 0.9], "kerb": -1, "street": true, "upgrade": "bus", "note": "Stop B ('Brabyns Brow / Marple Station') by the car park entrance, from the export" },
+    { "type": "platform", "u0": 109, "u1": 129, "v0": -7.3, "v1": -1.7, "upgrade": "long", "tier": true },
+    { "type": "lamps", "u0": 112, "u1": 126, "v": -4.5, "every": 15, "upgrade": "long", "tier": true },
+    { "type": "platform", "u0": 118, "u1": 138, "v0": 5.2, "v1": 10.8, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "lamps", "u0": 121, "u1": 135, "v": 8, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "canopy", "u0": -74, "u1": -50, "v0": -7.3, "v1": -1.7, "upgrade": "canopyFull", "tier": true },
+    { "type": "canopy", "u0": -10, "u1": 105, "v0": -7.3, "v1": -1.7, "upgrade": "canopyFull", "tier": true },
+    { "type": "canopy", "u0": -52, "u1": 18, "v0": 5.2, "v1": 10.8, "upgrade": ["canopyFull", "platform2"], "tier": true },
+    { "type": "canopy", "u0": 58, "u1": 114, "v0": 5.2, "v1": 10.8, "upgrade": ["canopyFull", "platform2"], "tier": true },
+    { "type": "retail", "u": 36, "v": -5.2, "label": "Travel centre", "upgrade": "travel", "tier": true },
+    { "type": "retail", "u": -44.5, "v": -5.2, "label": "Coffee", "small": true, "upgrade": "shops", "tier": true },
+    { "type": "retail", "u": -49, "v": -5.2, "label": "News", "small": true, "upgrade": "shops", "tier": true },
+    { "type": "cycles", "u": -2, "v": 12.8, "n": 12, "upgrade": "cyclehub", "tier": true }
   ]
 }

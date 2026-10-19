@@ -57,7 +57,7 @@ export function walk(sim: Sim, T: Tuning, i: number): number {
 
 /** How much a second of waiting at a station weighs against one riding: less under a canopy, more in the rain or
  * snow, and a canopy keeps most of that off. */
-export function waitWeight(sim: Sim, T: Tuning, i: number): number { const f = feel(sim.g); return sim.ups(i).canopy ? T.waitCanopy * f.waitCanopy : T.waitWeight * f.wait; }
+export function waitWeight(sim: Sim, T: Tuning, i: number): number { const f = feel(sim.g); const u = sim.ups(i); return u.canopyFull ? T.waitCanopyFull * f.waitCanopy : u.canopy ? T.waitCanopy * f.waitCanopy : T.waitWeight * f.wait; }
 
 /** A service's planned round trip as the timetable has it: each way's running and stops, and the turnaround (with
  * its recovery time) at each end. Its units share it, so the gap between them is the cycle over the units. */

@@ -83,8 +83,8 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
 - The Crewe line's stations, the Styal line and Reddish South wait.
 - Next come steps 4 to 9, 12 and 15, inside today's map: services, the fleet, timetabling, Stockport as the hub, the A6 and the 192, the main roads, buses as a network, and the gridlock opening.
 - The ideas review of 14 October 2026 (`docs/ideas/2026-10-14-review.md`) adds steps 16 to 23, inside today's map. The build order, once the sessions now running land:
-  1. 26 first (ideas review, third pass: with every buy taken, day 7's morning peak has nobody waiting at Stockport, so the late game needs its pressure back before anything else). 16, 17, 24 and 25 are built.
-  2. 18, whose tiers are the fixes for 26's pressure.
+  1. 18 first (the owner, 19 October 2026). Over 14 game days (the bot at 32 sim hours) the late game was not calm: from day 9 homes grown past the trains and platforms had 12 to 50% of each peak giving up while the bot held £1.4m with nothing to buy, so the fixes came before more demand. Built the same day: the tiers below, and platforms holding a platform's worth for each pair open, so Piccadilly's shed and bays hold six times a halt's. Lost over 14 days fell from about 39,000 to 11,000 a seed and each peak from day 4 loses about 6% on the mean; cash still reaches £1.8m. 16, 17, 24 and 25 are built.
+  2. 26, tuned to the band the bot's new `peak lost % from day 4` measures (it was first: the third pass saw a calm day 7, before homes outgrew the line).
   3. 19's punctuality part.
   4. 20 after the gridlock's G4.
   5. 21, the feeder buses, before steps 6 and 12.
@@ -126,6 +126,7 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
 
    `MAX_AWAY` stays at half a game day.
 18. **Stages that keep going, and one each station has alone** (M to L, ideas review 14 October 2026; idea 2). Every station buys the same five stages within an hour of opening, and late on £230,000 waits on £300,000 stations.
+   - **Built** (19 October 2026): the everyday tiers, priced from the station's homes (at Heaton Chapel's 200 their list price, more in proportion at a bigger one): 8-car platforms (480 a platform), canopies the full length, a travel centre, a row of shops and a cycle hub, each drawn into every kit by `tools/tiers.mjs` from its own parts; two more extra units and a third step of longer trains on the stopper. The bot buys them. Left: the signature stages, and cash still piling up late.
    - The everyday stages get further tiers priced from what the station earns, each drawn:
      - canopies to full length
      - the booking office to a travel centre

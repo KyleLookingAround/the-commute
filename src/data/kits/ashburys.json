@@ -30,6 +30,18 @@
     { "type": "box", "u0": -102, "u1": -72, "v0": 9.6, "v1": 10.8, "y0": 0, "y1": 1.4, "mat": "brickDark", "scenery": true },
     { "type": "box", "u0": -70, "u1": 130, "v0": 19.2, "v1": 19.4, "y0": 0, "y1": 2.2, "mat": "steel", "scenery": true },
     { "type": "footprint", "outline": [[35.2, -61.4], [34.7, -12.6], [-25.7, -13.1], [-25.2, -62.1]], "y0": 0, "y1": 8, "mat": "concrete", "scenery": true },
-    { "type": "busstop", "u": -78, "v": -31, "back": [0, 1], "kerb": -1, "door": [-70, -9.6], "street": true, "note": "Pottery Lane/Ashburys Station (stop A), on Pottery Lane below the rail bridge (OpenStreetMap), its bay clear of the bridge" }
+    { "type": "busstop", "u": -78, "v": -31, "back": [0, 1], "kerb": -1, "door": [-70, -9.6], "street": true, "note": "Pottery Lane/Ashburys Station (stop A), on Pottery Lane below the rail bridge (OpenStreetMap), its bay clear of the bridge" },
+    { "type": "platform", "u0": 101, "u1": 121, "v0": -5.7, "v1": -1.7, "upgrade": "long", "tier": true },
+    { "type": "lamps", "u0": 104, "u1": 118, "v": -3.7, "every": 15, "upgrade": "long", "tier": true },
+    { "type": "platform", "u0": 101, "u1": 121, "v0": 5.2, "v1": 9.2, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "lamps", "u0": 104, "u1": 118, "v": 7.199999999999999, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "canopy", "u0": -57, "u1": -40, "v0": -5.7, "v1": -1.7, "upgrade": "canopyFull", "tier": true },
+    { "type": "canopy", "u0": 40, "u1": 97, "v0": -5.7, "v1": -1.7, "upgrade": "canopyFull", "tier": true },
+    { "type": "canopy", "u0": -56, "u1": -40, "v0": 5.2, "v1": 9.2, "upgrade": ["canopyFull", "platform2"], "tier": true },
+    { "type": "canopy", "u0": 40, "u1": 97, "v0": 5.2, "v1": 9.2, "upgrade": ["canopyFull", "platform2"], "tier": true },
+    { "type": "retail", "u": 35, "v": -4.7, "label": "Travel centre", "upgrade": "travel", "tier": true },
+    { "type": "retail", "u": -26.5, "v": -4.7, "label": "Coffee", "small": true, "upgrade": "shops", "tier": true },
+    { "type": "retail", "u": -31, "v": -4.7, "label": "News", "small": true, "upgrade": "shops", "tier": true },
+    { "type": "cycles", "u": -32, "v": -5.1, "n": 12, "y": 1, "upgrade": "cyclehub", "tier": true }
   ]
 }

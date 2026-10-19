@@ -45,6 +45,18 @@
     { "type": "taxi", "u": -64, "v": -30.2, "back": [1, 0], "kerb": 1, "n": 4, "door": [-75, -17], "street": true, "upgrade": "taxi", "note": "OpenStreetMap has no rank here (main API, 14 October 2026): cabs wait where one would go, on Tatton Road North at the top of the cutting, by the booking office's door off Heaton Moor Road (OSM's entrance node)" },
     { "type": "busstop", "u": -107.2, "v": -55.6, "back": [0.39, 0.92], "kerb": 1, "door": [-75, -17], "street": true, "note": "Heaton Moor Road / Heaton Chapel Station (stop F, NaPTAN 1800SG40401), on Heaton Moor Road south-west of the bridge, from OpenStreetMap (main API, 14 October 2026)" },
     { "type": "road", "points": [[-77, -24.2, 8], [-79.5, -28.5, 8], [-84, -31], [-88, -32.5], [-90, -31], [-93, -36], [-101, -50], [-107, -64], [-113, -85]], "w": 10, "scenery": true, "note": "Heaton Moor Road on from the bridge's west end, south-west to stop F, from OpenStreetMap; the bridge is drawn square to the line, the real one skews, so the deck's end is joined to the street with a bend" },
-    { "type": "road", "points": [[-77, 23.5, 8], [-74.5, 28, 8], [-68, 30], [-61, 30], [-57, 31.5], [-51, 40], [-30, 75]], "w": 10, "scenery": true, "note": "Heaton Moor Road on from the bridge's east end towards Wellington Road North, from OpenStreetMap" }
+    { "type": "road", "points": [[-77, 23.5, 8], [-74.5, 28, 8], [-68, 30], [-61, 30], [-57, 31.5], [-51, 40], [-30, 75]], "w": 10, "scenery": true, "note": "Heaton Moor Road on from the bridge's east end towards Wellington Road North, from OpenStreetMap" },
+    { "type": "platform", "u0": 132, "u1": 152, "v0": -10.2, "v1": -5.4, "upgrade": "long", "tier": true },
+    { "type": "lamps", "u0": 135, "u1": 149, "v": -7.8, "every": 15, "upgrade": "long", "tier": true },
+    { "type": "platform", "u0": 126, "u1": 146, "v0": 9.5, "v1": 14.3, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "lamps", "u0": 129, "u1": 143, "v": 11.9, "every": 15, "upgrade": ["long", "platform2"], "tier": true },
+    { "type": "canopy", "u0": -66, "u1": -50, "v0": -10.2, "v1": -5.4, "upgrade": "canopyFull", "tier": true },
+    { "type": "canopy", "u0": 60, "u1": 128, "v0": -10.2, "v1": -5.4, "upgrade": "canopyFull", "tier": true },
+    { "type": "canopy", "u0": -51, "u1": -40, "v0": 9.5, "v1": 14.3, "upgrade": ["canopyFull", "platform2"], "tier": true },
+    { "type": "canopy", "u0": 60, "u1": 122, "v0": 9.5, "v1": 14.3, "upgrade": ["canopyFull", "platform2"], "tier": true },
+    { "type": "retail", "u": 31, "v": -9.2, "label": "Travel centre", "upgrade": "travel", "tier": true },
+    { "type": "retail", "u": -4.5, "v": -9.2, "label": "Coffee", "small": true, "upgrade": "shops", "tier": true },
+    { "type": "retail", "u": -9, "v": -9.2, "label": "News", "small": true, "upgrade": "shops", "tier": true },
+    { "type": "cycles", "u": -37, "v": -9.5, "n": 12, "y": 1, "upgrade": "cyclehub", "tier": true }
   ]
 }

@@ -21,6 +21,10 @@ import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Statio
 // a station's stages and the line's, now stages of places (src/sim/places.ts); here too, where the view finds them
 export { UPGRADES, LINE_UPGRADES, type Upgrade, type LineUpgrade } from './places.ts';
 
+/** A tier that keeps going (step 18) costs its price at a station of this many homes (Heaton Chapel's), and more
+ * in proportion at a bigger one. */
+const REF_HOMES = 200;
+
 export const TUNING = {
   fareBase: 1.5, farePerMile: 0.6, fareMult: 13.5,   // 6x the old 6x clock's fare, then 12 to 13.5 when homes and draw came from the census (Stockport draws less than guessed)
   seatsPerCar: 75, accel: 1.0, accelDiesel: 0.7, brake: 1.1, vmax: 33.5, vmaxFast: 40,
@@ -55,12 +59,12 @@ export const TUNING = {
   expressSpeed: 40, expressDwell: 60, accessCharge: 40, expressPax: 30, throughShare: 2,
   doorsPerCar: 2, boardPerDoor: 0.7,           // passengers a second through each door: a 2-car unit boards about 110 in a 45 s stop
   doorsCrowd: 0.7,                             // ...slowing as it fills, to 30% of that when full: people squeeze in
-  platformCap: 150, platformCapExtended: 320,
-  collectNoBarriers: 0.82, collectBooking: 0.9, platformsBonus: 1.2, kioskPerPax: 0.35, retailPerPax: 0.8,
+  platformCap: 150, platformCapExtended: 320, platformCapLong: 480,
+  collectNoBarriers: 0.82, collectBooking: 0.9, platformsBonus: 1.2, kioskPerPax: 0.35, retailPerPax: 0.8, travelPerPax: 0.4, shopsPerPax: 1.2, cycleBonus: 1.08,
   // door to door (src/sim/journeys.ts), in sim seconds, which are real ones: people travel when the whole journey fits
   // about half an hour each way (Marchetti's constant), and walking and waiting weigh twice riding (UK appraisal practice)
   walk: 8 * 60, walkRound: 8 * 60, walkStairs: 3 * 60, liftsSave: 60,   // the walk each end; the far side's extra, round or over the stairs
-  walkWeight: 2, waitWeight: 2, waitCanopy: 1.5, change: 5 * 60,          // felt time: a change at Stockport costs five minutes on top of its wait
+  walkWeight: 2, waitWeight: 2, waitCanopy: 1.5, waitCanopyFull: 1.33, change: 5 * 60,          // felt time: a change at Stockport costs five minutes on top of its wait
   crowd: 0.6,                                  // a full train's ride feels 1.6 times as long, rising from 60% full
   budget: 60 * 60, budgetSoft: 12 * 60,         // felt seconds each way: half of people travel at the budget, fewer beyond, more within
   patienceMin: 3 * 60,                         // someone gives up once their wait has used what's left of their own budget
@@ -333,7 +337,13 @@ export class Sim {
   }
   /** The timetabled turnaround at the end of a run, recovery included. */
   turnaround(): number { return TUNING.turnaround + (this.g.line.timetable ? TUNING.recoveryFast : 0); }
-  capacity(i: number): number { return this.ups(i).extend ? TUNING.platformCapExtended : TUNING.platformCap; }
+  /** How many wait on a station's platforms before a full one turns people away: each pair of its platforms open
+   * holds a platform's worth (longer as it's extended), so Piccadilly with its shed and bays holds six times a halt's. */
+  capacity(i: number): number {
+    const u = this.ups(i), one = u.long ? TUNING.platformCapLong : u.extend ? TUNING.platformCapExtended : TUNING.platformCap;
+    let open = 0; for (const p of this.plats[i]!) { const n = p.def.upgrade; if (!n || (typeof n === 'string' ? u[n as UpgradeId] : n.every(k => u[k as UpgradeId]))) open++; }
+    return one * Math.max(1, open / 2);
+  }
   /** The game clock's hour of the day (src/sim/day.ts), worked out once a step. */
   hour(): number { if (this.hourT !== this.g.t) { this.hourT = this.g.t; this.hourNow = hourAt(this.g.t); } return this.hourNow; }
   clock(): string { return clockText(this.g.t); }
@@ -359,7 +369,11 @@ export class Sim {
   stopDef(i: number) { const s = this.P.stopOf[i]; return s ? this.P.get(s).stop ?? null : null; }
   upgradeName(i: number, u: Upgrade): string { return (u.stop ? this.stopDef(i)?.name : u.stage ? this.station(i).grow?.[u.id as StageId]?.name : null) ?? u.name ?? this.station(i).retail; }
   upgradeDesc(i: number, u: Upgrade): string { return (u.stop ? this.stopDef(i)?.desc : u.stage ? this.station(i).grow?.[u.id as StageId]?.desc : null) ?? u.desc; }
-  upgradePrice(i: number, u: Upgrade): number { return this.cost((u.stop ? this.stopDef(i)?.price : u.stage ? this.station(i).grow?.[u.id as StageId]?.price : null) ?? u.price); }
+  upgradePrice(i: number, u: Upgrade): number {
+    const p = (u.stop ? this.stopDef(i)?.price : u.stage ? this.station(i).grow?.[u.id as StageId]?.price : null) ?? u.price;
+    // a tier that keeps going costs more at a bigger station (its homes now), to the nearest £500
+    return this.cost(u.scale ? Math.round(p * Math.max(1, this.homes(i) / REF_HOMES) / 500) * 500 : p);
+  }
   /** A price as this run pays it: less the share the career's quicker building takes off (src/sim/contract.ts). */
   cost(price: number): number { return this.fx.build ? Math.round(price * (1 - this.fx.build) / 10) * 10 : price; }
   /** What station i costs: the data's price, or the start's where it offers the station at its own. */
@@ -567,7 +581,7 @@ export class Sim {
     tr.boardAcc += tr.cars * TUNING.doorsPerCar * TUNING.boardPerDoor * (1 - TUNING.doorsCrowd * (tr.onboard / seats) ** 2) * dt;
     let room = Math.min(Math.floor(tr.boardAcc), seats - tr.onboard);
     const collect = ups.barriers ? 1 : ups.building ? TUNING.collectBooking : TUNING.collectNoBarriers;
-    const retail = (ups.kiosk ? TUNING.kioskPerPax : 0) + (ups.retail ? TUNING.retailPerPax : 0);
+    const retail = (ups.kiosk ? TUNING.kioskPerPax : 0) + (ups.retail ? TUNING.retailPerPax : 0) + (ups.travel ? TUNING.travelPerPax : 0) + (ups.shops ? TUNING.shopsPerPax : 0);
     let c: typeof q[number] | undefined;
     while ((c = q[0]) && room > 0) {
       const n = Math.min(c.n, room);
@@ -805,7 +819,7 @@ export class Sim {
     for (const x of this.secs) h = (Math.imul(h, 31) + (g.places[x.id]?.[SECTION_SPEED.id] ?? 0) + (this.wiredSec(x) ? 16 : 0)) | 0;
     for (let i = 0; i < this.S.length; i++) {
       const u = g.ups[i] ?? {};
-      h = (Math.imul(h, 31) + (g.owned[i] ? 1 : 0) + (u.crossing ? 2 : 0) + (u.lifts ? 4 : 0) + (u.canopy ? 8 : 0) + (u.platform2 ? 16 : 0) + (u.platforms ? 32 : 0)) | 0;
+      h = (Math.imul(h, 31) + (g.owned[i] ? 1 : 0) + (u.crossing ? 2 : 0) + (u.lifts ? 4 : 0) + (u.canopy ? 8 : 0) + (u.platform2 ? 16 : 0) + (u.platforms ? 32 : 0) + (u.canopyFull ? 64 : 0)) | 0;
     }
     return h >>> 0;
   }
@@ -867,7 +881,7 @@ export class Sim {
    * draws people at the other (and in the evening home again), times the hour's demand, falling away smoothly as the
    * door-to-door journey passes the time budget. Returns the total. */
   /** What scales station i's trips an hour at hour h: the hour's demand, its platforms, the weather, over Piccadilly's draw. */
-  tripScale(i: number, h: number): number { return demandCurve(h) * TUNING.demand * (this.ups(i).platforms ? TUNING.platformsBonus : 1) * feel(this.g).travel / this.net.station('piccadilly').draw; }
+  tripScale(i: number, h: number): number { return demandCurve(h) * TUNING.demand * (this.ups(i).platforms ? TUNING.platformsBonus : 1) * (this.ups(i).cyclehub ? TUNING.cycleBonus : 1) * feel(this.g).travel / this.net.station('piccadilly').draw; }
   tripRates(i: number, h: number): number {
     const a = this.station(i), out = h < 12 ? TUNING.amOut : TUNING.pmOut, scale = this.tripScale(i, h);
     let tot = 0;

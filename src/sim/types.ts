@@ -182,7 +182,7 @@ export interface Frame { x: number; z: number; heading: number; dx: number; dz: 
  * or bus station by it, a place of its own (`stops` in the network data), which the view still shows on the station's
  * card. */
 export type StageId = 'crossing' | 'platform2' | 'building' | 'platforms' | 'taxi' | 'carpark' | 'carpark2' | 'bus' | 'signature';
-export type UpgradeId = StageId | 'kiosk' | 'barriers' | 'canopy' | 'lifts' | 'extend' | 'retail' | 'long' | 'canopyFull' | 'travel' | 'shops' | 'cyclehub';
+export type UpgradeId = StageId | 'kiosk' | 'barriers' | 'canopy' | 'lifts' | 'extend' | 'retail' | 'long' | 'canopyFull' | 'travel' | 'shops' | 'cyclehub' | 'bee1' | 'bee2';
 export type LineUpgradeId = 'units' | 'cars' | 'timetable' | 'spare';
 /** A group of passengers who joined a platform queue together: when (game seconds), where to, how many, whether
  * they've paid (they're changing trains, so their fare was taken where they first got on), and when they give up and

@@ -8,7 +8,7 @@
 import type { Network } from './network.ts';
 import type { GameState, LineUpgradeId, ServiceDef, StageId, StartDef, StopDef, UpgradeId } from './types.ts';
 
-export type PlaceKind = 'station' | 'section' | 'junction' | 'route' | 'stop' | 'depot';
+export type PlaceKind = 'station' | 'section' | 'junction' | 'route' | 'stop' | 'depot' | 'network';
 
 /** A station's stage. name null: the station names it (its retail, or its stage in `grow`). requires: stages at the
  * same station that must be built first; one the station doesn't offer counts as built. stage: offered only where the
@@ -20,7 +20,7 @@ export interface Upgrade { id: UpgradeId; name: string | null; price: number; de
 /** A stage bought more than once, on a route or a depot: its price each time, up to max. */
 export interface LineUpgrade { id: LineUpgradeId; name: string; prices: number[]; desc: string; max: number; steps?: { name: string; desc: string }[] }
 /** A stage of a route: the line's (units, cars), or a branch's own through running. */
-export type RouteStage = Omit<LineUpgrade, 'id'> & { id: LineUpgradeId | 'through' | 'feeder' };
+export type RouteStage = Omit<LineUpgrade, 'id'> & { id: LineUpgradeId | 'through' | 'feeder' | 'bee' };
 /** A service's frequency as a stage of its route: its data's steps (ServiceDef.frequency), one level each. */
 export function frequencyStage(def: ServiceDef): LineUpgrade | null {
   const f = def.frequency; if (!f?.steps.length) return null;
@@ -77,6 +77,12 @@ export const SECTION_WIRES = { id: 'wires', name: 'Electrification', perMile: 80
  * shortens the wait for the bus and widens who comes by it (FEEDER_WAIT, FEEDER_POOL in src/sim/access.ts). */
 export const FEEDER: RouteStage = { id: 'feeder', name: 'Feeder buses', prices: [8000, 20000, 45000], desc: 'More buses bring more people from beyond a walk', max: 3,
   steps: [{ name: 'Feeder route', desc: 'Its route run for the station, two buses an hour: shorter waits, people from further out' }, { name: 'Four buses an hour', desc: 'Half the wait for the bus, and more come by it' }, { name: 'Bigger buses', desc: 'Double-deckers on the route: more come by bus' }] };
+/** Joining the Bee Network (step 22): a chain over the whole network, as Greater Manchester's lines really join it from
+ * December 2026: contactless tap-in and tap-out (no queue for a ticket, TUNING.tapSave off every journey), the yellow on
+ * stations and trains (the network's bus riders come: BEE_POOL), then one fare and a daily cap across bus and train
+ * once a feeder runs (more again, and the change from the bus quicker: BEE_CHANGE). */
+export const BEE: RouteStage = { id: 'bee', name: 'The Bee Network', prices: [30000, 80000, 150000], desc: 'Greater Manchester’s one network', max: 3,
+  steps: [{ name: 'Contactless', desc: 'Tap in and tap out: no queue for a ticket, a minute off every journey' }, { name: 'The yellow', desc: 'Bee Network yellow on the stations and trains: the network’s bus riders come by train too' }, { name: 'One fare and a daily cap', desc: 'One ticket across bus and train: more come by bus, and the change is quicker' }] };
 /** Which kind of place each of those stages is on. */
 export const LINE_PLACE: Record<Exclude<LineUpgradeId, 'timetable'>, 'route' | 'depot'> = { units: 'route', cars: 'route', spare: 'depot' };
 
@@ -107,6 +113,8 @@ export class Places {
   /** Where a contract can start (the network data's `starts`), the first the default; a network without any starts
    * from its first station open. */
   starts: StartDef[];
+  /** The network as a place of its own: the Bee Network's stages (step 22). */
+  bee = 'network:bee';
   private stationIndex = new Map<string, number>();
 
   constructor(net: Network) {
@@ -121,6 +129,7 @@ export class Places {
     this.stopper = placeId('route', first.def.id);
     this.stopOf = net.stations.map(() => null);
     for (const s of net.def.stops ?? []) { const i = net.station(s.station).index; this.stopOf[i] = add({ id: placeId('stop', s.id), kind: 'stop', name: s.name, station: i, stop: s }); }
+    add({ id: this.bee, kind: 'network', name: 'The Bee Network' });
     const depots = (net.def.depots ?? []).map(d => add({ id: placeId('depot', d.id), kind: 'depot', name: d.name, station: net.station(d.station).index }));
     this.sidings = depots[0] ?? null;
     // the lines as a graph: along each corridor its stations and junctions in chainage order (a junction on the
@@ -185,7 +194,7 @@ export class Places {
     if (id in g.places) return true;
     const p = this.byId.get(id); if (!p) return false;
     switch (p.kind) {
-      case 'station': case 'stop': return false;
+      case 'station': case 'stop': case 'network': return false;
       case 'depot': return this.owns(g, this.station[p.station!]!);
       case 'route': {
         const v = this.svcs.find(x => x.id === id)!; if (this.heldAt(g, id) !== null) return false;
@@ -251,6 +260,7 @@ export class Places {
     }
     if (id === this.sidings) return LINE_UPGRADES.filter(u => LINE_PLACE[u.id as keyof typeof LINE_PLACE] === 'depot');
     if (p.kind === 'stop' && p.stop?.feeder) return [FEEDER];
+    if (p.kind === 'network') return [BEE];
     return [];
   }
 }
@@ -275,6 +285,8 @@ export function derive(g: GameState, P: Places): GameState {
     const r = g.places[id], o: Partial<Record<UpgradeId, boolean>> = {};
     if (r) for (const k in r) if (r[k]) o[k as UpgradeId] = true;
     if (o.building) o.kiosk = true;
+    // the Bee Network's look at every station owned (step 22): its tap-in posts, then its yellow
+    const bee = g.places[P.bee]?.['bee'] ?? 0; if (r && bee >= 1) o.bee1 = true; if (r && bee >= 2) o.bee2 = true;
     const s = P.stopOf[i]; if (s && s in g.places) o.bus = true;
     return Object.freeze(o);
   }));

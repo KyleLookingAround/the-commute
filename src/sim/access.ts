@@ -27,12 +27,14 @@ export function extraFelt(sim: Sim, T: Tuning, i: number, by: 'drive' | 'bus'): 
   const walk = (s: number) => T.walkWeight * f.walk * s;
   if (by === 'drive') return a.driveTime + walk(T.parkWalk) - walk(T.walk);
   // at Stockport the Interchange's change is quicker and covered for its own buses too
-  return a.busTime + T.waitWeight * f.wait * T.busWait * FEEDER_WAIT[sim.feederLevel(i)]! + T.busChange - (a.busShare ? T.busSave : 0) + walk(T.busWalk) - walk(T.walk);
+  return a.busTime + T.waitWeight * f.wait * T.busWait * FEEDER_WAIT[sim.feederLevel(i)]! + T.busChange - BEE_CHANGE[sim.beeLevel()]! - (a.busShare ? T.busSave : 0) + walk(T.busWalk) - walk(T.walk);
 }
 
 /** A feeder route's steps (src/sim/places.ts, FEEDER): the wait for the bus, as a share of busWait, and the bus pool, as
  * a share of the census's, at each level from none. */
 export const FEEDER_WAIT = [1, 0.6, 0.35, 0.35], FEEDER_POOL = [1, 1.4, 1.8, 2.3];
+/** The Bee Network's steps (src/sim/places.ts, BEE): the bus pool at each, and the change from the bus felt shorter. */
+export const BEE_POOL = [1, 1, 1.25, 1.6], BEE_CHANGE = [0, 0, 0, 120];
 /** Trips an hour from station i's pool by car or bus at hour h, out of the homes there: like the walk-in homes'
  * (Sim.tripRates), each journey felt `extra` longer. With `fold`, its total towards Manchester and away. */
 function poolRate(sim: Sim, T: Tuning, i: number, h: number, homes: number, extra: number, fold: [number, number]): number {
@@ -92,7 +94,7 @@ export function stepAccess(sim: Sim, T: Tuning, i: number, dt: number): void {
     }
   }
   if (ups.bus) {
-    const r = poolRate(sim, T, i, h, a.bus * FEEDER_POOL[sim.feederLevel(i)]!, extraFelt(sim, T, i, 'bus'), busWay) + quickerRate(sim, T, i, h, (a.busShare ?? 0) * sim.homes(i), quickWay);
+    const r = poolRate(sim, T, i, h, a.bus * FEEDER_POOL[sim.feederLevel(i)]! * BEE_POOL[sim.beeLevel()]!, extraFelt(sim, T, i, 'bus'), busWay) + quickerRate(sim, T, i, h, (a.busShare ?? 0) * sim.homes(i), quickWay);
     S.busAcc += r * dt / 3600;
     const n = Math.floor(S.busAcc);
     if (n > 0) {

@@ -150,6 +150,7 @@ The lines out of Stockport, and the network becomes a graph of lines that meet. 
    1. contactless tap-in and tap-out
    2. the yellow on stations and trains, bringing bus-only riders
    3. one fare and a daily cap across bus and train, once the feeders run
+   - **Built** 19 October 2026 (`docs/DESIGN.md`, The Bee Network): all three steps; each peak from day 4 then loses 8 to 11% over 14 game days as the buses bring more.
 23. **Smaller depth** (S each, ideas review 14 October 2026; ideas 8 to 10):
    - (the surges moved to step 26, third pass)
    - contract targets from the franchise (punctuality, cars off the A6, a station reached) that bank extra reputation, using the milestones already recorded

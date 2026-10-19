@@ -149,6 +149,8 @@ export function act(sim) {
       if (ok(sim.upgradePrice(i, u))) { const r = up(i, id); if (r) return r; }
     }
   }
+  // the Bee Network a step at a time, with three times its price (and the next station saved for)
+  { const price = sim.price(P.bee, 'bee'); if (price !== undefined && sim.canBuy(P.bee, 'bee') && g.cash > 3 * price + saving && sim.buy(P.bee, 'bee')) return 'bee'; }
   // a bus stop's feeder route, a step at a time, with four times its price (and the next station saved for)
   for (const p of P.all) {
     if (p.kind !== 'stop' || !sim.owns(p.id) || !p.stop?.feeder) continue;

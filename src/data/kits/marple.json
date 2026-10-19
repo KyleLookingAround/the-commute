@@ -58,6 +58,10 @@
     { "type": "retail", "u": -44.5, "v": -5.2, "label": "Coffee", "small": true, "upgrade": "shops", "tier": true },
     { "type": "retail", "u": -49, "v": -5.2, "label": "News", "small": true, "upgrade": "shops", "tier": true },
     { "type": "cycles", "u": -2, "v": 12.8, "n": 12, "upgrade": "cyclehub", "tier": true },
-    { "type": "sign", "u": 11, "v": 12.8, "facing": -1, "upgrade": "signature", "tier": true }
+    { "type": "sign", "u": 11, "v": 12.8, "facing": -1, "upgrade": "signature", "tier": true },
+    { "type": "box", "u0": 40.9, "u1": 41.2, "v0": -3.7, "v1": -3.4, "y0": 0, "y1": 1.2, "mat": "tactile", "upgrade": "bee1", "tier": true },
+    { "type": "box", "u0": 39.7, "u1": 39.9, "v0": -3.7, "v1": -3.4, "y0": 0, "y1": 1.2, "mat": "tactile", "upgrade": "bee1", "tier": true },
+    { "type": "box", "u0": 38.5, "u1": 38.8, "v0": -3.7, "v1": -3.4, "y0": 0, "y1": 1.2, "mat": "tactile", "upgrade": "bee1", "tier": true },
+    { "type": "box", "u0": 1.5, "u1": 2.5, "v0": 12.3, "v1": 13.3, "y0": 0, "y1": 4.5, "mat": "tactile", "upgrade": "bee2", "tier": true }
   ]
 }

@@ -52,7 +52,7 @@ function run(sim: Sim, T: Tuning, svc: number, d: 0 | 1): Run {
 export function walk(sim: Sim, T: Tuning, i: number): number {
   const ups = sim.ups(i), crossing = !!sim.station(i).grow?.crossing;
   const far = !crossing ? 0 : !ups.crossing ? T.walkRound : ups.lifts ? 0 : T.walkStairs;
-  return T.walk - sim.fx.walk + 0.5 * far - (ups.lifts ? T.liftsSave : 0);
+  return T.walk - sim.fx.walk + 0.5 * far - (ups.lifts ? T.liftsSave : 0) - (sim.beeLevel() >= 1 ? T.tapSave : 0);
 }
 
 /** How much a second of waiting at a station weighs against one riding: less under a canopy, more in the rain or

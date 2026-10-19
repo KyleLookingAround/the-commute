@@ -5,6 +5,8 @@
 //   travel      a travel centre: a large unit by the kiosk
 //   shops       a row of shops: two small units beyond the bakery
 //   cyclehub    a cycle hub: a stand of twelve by the cycle racks (or the car park, or the kiosk where there are none)
+//   bee1, bee2  the Bee Network (step 22, derived at every station owned): three yellow tap-in posts by the kiosk, then
+//               a yellow totem at the way in
 //   signature   the station's own stage (`grow.signature` in the network data), as its `look` says: a brown sign at the
 //               way in (by the racks or the car park), a tower crane out beyond the station's street side, or (Piccadilly's
 //               platforms 15 and 16) an island platform beyond the outermost one
@@ -61,6 +63,10 @@ for (const f of readdirSync(dir).filter(f => f.endsWith('.json'))) {
     add({ type: 'platform', u0: out.u0, u1: out.u1, v0: out.v0 - 13 - w, v1: out.v0 - 13, upgrade: 'signature' });
     add({ type: 'lamps', u0: out.u0 + 6, u1: out.u1 - 6, v: out.v0 - 13 - w / 2, every: 25, upgrade: 'signature' });
   }
+  // the Bee Network's tap-in posts by the kiosk, and its yellow totem at the way in (where the sign goes)
+  if (kiosk) for (const k of [0, 1, 2]) { const u = kiosk.u + toward(kiosk) * (4 + k * 1.2), v = kiosk.v + 1.6, y = kiosk.y ?? 0; add({ type: 'box', u0: u - 0.15, u1: u + 0.15, v0: v - 0.15, v1: v + 0.15, y0: y, y1: y + 1.2, mat: 'tactile', upgrade: 'bee1' }); }
+  { const at = racks ?? park ?? kiosk; if (at) { const u = (at.u ?? at.u0 - 4) - 4, v = at.v ?? (at.v0 + at.v1) / 2, y = at.street ? 0 : at.y ?? 0;
+    add({ type: 'box', u0: u - 0.5, u1: u + 0.5, v0: v - 0.5, v1: v + 0.5, y0: y, y1: y + 4.5, mat: 'tactile', ...(at.street ? { street: true } : {}), upgrade: 'bee2' }); } }
   // written as the kits are, a part a line: the lines generated before taken out, the new ones in before the parts' end
   const text = readFileSync(path, 'utf8').split('\n').filter(l => !l.includes('"tier": true'));
   const end = text.lastIndexOf('  ]'), line = p => '    ' + JSON.stringify(p).replace(/":/g, '": ').replace(/,"/g, ', "').replace(/^\{/, '{ ').replace(/\}$/, ' }');

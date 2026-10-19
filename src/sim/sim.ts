@@ -16,7 +16,7 @@ import { freshTrouble, stepTrouble, failed, cautionLimit } from './trouble.ts';
 import { stepExpress, nextSlot, EXPRESS_UNITS } from './expresses.ts';
 import { stepAccess, openAccess } from './access.ts';
 import { effects, type Effects } from './contract.ts';
-import { places, build, derive, frequencyStage, placeId, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, JUNCTION_FLYOVER, FEEDER, type Places, type Upgrade } from './places.ts';
+import { places, build, derive, frequencyStage, placeId, UPGRADES, LINE_UPGRADES, LINE_PLACE, SECTION_SPEED, SECTION_SIGNALS, SECTION_WIRES, JUNCTION_FLYOVER, FEEDER, BEE, type Places, type Upgrade } from './places.ts';
 import type { GameState, LineUpgradeId, PlatformDef, ServiceDef, StageId, Station, StationState, Train, UpgradeId } from './types.ts';
 
 // a station's stages and the line's, now stages of places (src/sim/places.ts); here too, where the view finds them
@@ -61,7 +61,7 @@ export const TUNING = {
   doorsPerCar: 2, boardPerDoor: 0.7,           // passengers a second through each door: a 2-car unit boards about 110 in a 45 s stop
   doorsCrowd: 0.7,                             // ...slowing as it fills, to 30% of that when full: people squeeze in
   platformCap: 150, platformCapExtended: 320, platformCapLong: 480,
-  collectNoBarriers: 0.82, collectBooking: 0.9, platformsBonus: 1.2, christmasPull: 0.5, kioskPerPax: 0.35, retailPerPax: 0.8, travelPerPax: 0.4, shopsPerPax: 1.2, cycleBonus: 1.08,
+  collectNoBarriers: 0.82, collectBooking: 0.9, platformsBonus: 1.2, christmasPull: 0.5, tapSave: 60, kioskPerPax: 0.35, retailPerPax: 0.8, travelPerPax: 0.4, shopsPerPax: 1.2, cycleBonus: 1.08,
   // door to door (src/sim/journeys.ts), in sim seconds, which are real ones: people travel when the whole journey fits
   // about half an hour each way (Marchetti's constant), and walking and waiting weigh twice riding (UK appraisal practice)
   walk: 8 * 60, walkRound: 8 * 60, walkStairs: 3 * 60, liftsSave: 60,   // the walk each end; the far side's extra, round or over the stairs
@@ -821,6 +821,7 @@ export class Sim {
     const g = this.g; let h = g.line.units * 7 + g.line.timetable + 97 * weatherKey(g);
     for (const v of this.svcs) h = (Math.imul(h, 31) + this.freqLevel(v) + (this.runsThrough(v) ? 64 : 0)) | 0;
     for (const x of this.secs) h = (Math.imul(h, 31) + (g.places[x.id]?.[SECTION_SPEED.id] ?? 0) + (this.wiredSec(x) ? 16 : 0)) | 0;
+    h = (Math.imul(h, 31) + this.beeLevel()) | 0;
     for (let i = 0; i < this.S.length; i++) {
       const u = g.ups[i] ?? {};
       h = (Math.imul(h, 31) + (g.owned[i] ? 1 : 0) + (u.crossing ? 2 : 0) + (u.lifts ? 4 : 0) + (u.canopy ? 8 : 0) + (u.platform2 ? 16 : 0) + (u.platforms ? 32 : 0) + (u.canopyFull ? 64 : 0)) | 0;
@@ -855,6 +856,8 @@ export class Sim {
   /** The most homes station i's land could hold. */
   ceiling(i: number): number { const s = this.station(i), sg = this.ups(i).signature ? s.grow?.signature?.homes ?? 0 : 0; return Math.max(s.catchment, s.ceiling ?? s.catchment) * (1 + sg); }
   /** How far station i's bus stop's feeder route has come: 0 none, then each FEEDER step bought. */
+  /** How far the network has joined the Bee Network: 0 not yet, then each BEE step. */
+  beeLevel(): number { return this.g.places[this.P.bee]?.[BEE.id] ?? 0; }
   feederLevel(i: number): number { const s = this.P.stopOf[i]; return s ? this.g.places[s]?.[FEEDER.id] ?? 0 : 0; }
   /** What draws people to station i: its census draw, more once its signature stage brings a draw of its own (a surge
    * adds its own trips, tripRates). */
@@ -1032,6 +1035,7 @@ export class Sim {
     if (p.kind === 'station') { const u = UPGRADES.find(x => x.id === stage && !x.stop); return u ? this.upgradePrice(p.station!, u) : undefined; }
     if (p.kind === 'junction') return stage === JUNCTION_FLYOVER.id && this.flyoverOffered(id) ? this.cost(JUNCTION_FLYOVER.price) : undefined;
     if (p.kind === 'section') { const x = this.sectionAt(id); return stage === SECTION_SPEED.id ? x?.price : stage === SECTION_SIGNALS.id ? x?.signalsPrice : stage === SECTION_WIRES.id ? x?.wiresPrice : undefined; }
+    if (p.kind === 'network' && stage === BEE.id) { const lvl = this.stageLevel(id, stage); return lvl < BEE.max ? this.cost(BEE.prices[lvl]!) : undefined; }
     if (p.kind === 'stop' && stage === FEEDER.id) { const lvl = this.stageLevel(id, stage); return p.stop?.feeder && lvl < FEEDER.max ? this.cost(FEEDER.prices[lvl]!) : undefined; }
     if (p.kind === 'route' && stage === 'through') {
       const v = this.svc(p.svc!), m = v.base.manchester;
@@ -1050,6 +1054,8 @@ export class Sim {
    * built, the spare unit once a train has failed; a branch's frequency once it runs. */
   stageReady(id: string, stage: string): boolean {
     if (stage === FEEDER.id) return this.owns(id);
+    // the Bee Network's one fare waits on a feeder route running
+    if (stage === BEE.id) return this.stageLevel(id, stage) < 2 || this.P.all.some(p => p.kind === 'stop' && this.stageLevel(p.id, FEEDER.id) > 0);
     if (stage === 'through') { const n = this.svc(this.P.get(id).svc!).base.manchester?.needs, i = n ? this.net.station(n.station).index : -1; return this.owns(id) && (!n || (!!this.g.owned[i] && !!this.ups(i)[n.upgrade as UpgradeId])); }
     return id === this.P.stopper || stage !== 'units' ? this.lineReady(stage) : this.owns(id);
   }
@@ -1058,6 +1064,7 @@ export class Sim {
   canBuy(id: string, stage?: string): boolean {
     const g = this.g, p = this.P.byId.get(id), price = this.price(id, stage); if (!p || price === undefined || g.cash < price) return false;
     if (stage === undefined) return !(id in g.places) && this.P.touches(g, id) && !this.P.waits(g, this.net, id);
+    if (p.kind === 'network') return this.stageReady(id, stage);
     if (!this.owns(id)) return false;
     if (p.kind === 'station') { const i = p.station!, u = UPGRADES.find(x => x.id === stage)!; return !this.ups(i)[u.id] && this.offered(i, u) && this.ready(i, u); }
     if (p.kind === 'section' || p.kind === 'junction') return this.price(id, stage) !== undefined;

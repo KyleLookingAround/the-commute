@@ -470,6 +470,19 @@ export class UI {
     // led by the score (docs/design/gridlock.md, The road card): cars off the roads at 08:00, a figure that only rises
     panel.innerHTML = this.stats([['nOff', 'Cars off'], ['nStations', 'Stations'], ['nBoard', 'Boarded'], ['nRep', 'Reputation']], [['nEarned', 'Earned'], ['nLost', 'Gave up'], ['nLate', 'On time'], ['nBus', 'By bus'], ['nStart', 'Cars at 08:00 at the start']]);
     panel.querySelector('details')?.addEventListener('toggle', e => { this.more = (e.target as HTMLDetailsElement).open; });
+    // joining the Bee Network (step 22), a step at a time, each seen across the map
+    const bee = sim.P.bee;
+    this.stageCards(sim.P.stagesFor(sim.net, bee).filter(u => sim.stageReady(bee, u.id)).map(x => {
+      const u = x as LineUpgrade, lvl = sim.stageLevel(bee, u.id), price = sim.price(bee, u.id), name = u.steps?.[lvl]?.name ?? u.name;
+      const built = lvl ? u.steps![lvl - 1]!.name : null;
+      if (lvl >= u.max || price === undefined) return { id: u.id, stage: null, saves: null, opens: [], built };
+      const stage: Stage = {
+        name, adds: u.steps?.[lvl]?.desc ?? u.desc, price, can: () => g.cash >= price,
+        buy: () => { if (!sim.buy(bee, u.id)) return false; this.toast(`The Bee Network: ${name.toLowerCase()}`); this.changed(); return true; },
+        pick: () => {},
+      };
+      return { id: u.id, stage, saves: null, opens: lvl + 1 < u.max ? [u.steps![lvl + 1]!.name] : [], built };
+    }), () => {});
     // once the whole line is owned, the contract can be renewed, whenever the player likes; hidden until then
     if (renewable(g, sim.net.station('piccadilly').index)) {
       const d = document.createElement('article'); d.className = 'ucard can renew'; d.dataset['renew'] = '';
